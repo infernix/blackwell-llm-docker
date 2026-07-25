@@ -652,6 +652,9 @@ RUN launcher_root=/opt/vllm \
  && for script in /tmp/build-launchers/serve-*.sh; do \
       if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
     done \
+ && if [[ -f /tmp/build-launchers/glm52-dcp-prefill-policy.sh ]]; then \
+      install -m 0755 /tmp/build-launchers/glm52-dcp-prefill-policy.sh /usr/local/bin/glm52-dcp-prefill-policy.sh; \
+    fi \
  && if [[ -f "${launcher_root}/scripts/run-glm51-vllm" ]]; then \
       install -m 0755 "${launcher_root}/scripts/run-glm51-vllm" /usr/local/bin/run-glm51-vllm; \
     elif [[ -f /usr/local/bin/serve-glm51.sh ]]; then \
