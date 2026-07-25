@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 # dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178, and
 # #179. SparkInfer is master@c39b806 plus open PR #76. Every source is pinned
 # by commit and validated below; no build-only patch is applied.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm83a1f7f-si74bd5a2-fi801d57a-cu132-20260725}"
+export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm83a1f7f-sibe0edca-fi801d57a-cu132-20260725}"
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -34,14 +34,14 @@ export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf
 export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
 export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-dcp-final-20260725}"
 export VLLM_COMMIT="${VLLM_COMMIT:-83a1f7f7dab553e378e0bc52a0fbf86fa56b930d}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm83a1f7f.si74bd5a2.fi801d57a.cu132.20260725}"
+export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm83a1f7f.sibe0edca.fi801d57a.cu132.20260725}"
 export VLLM_PATCH_URL=
 export VLLM_PATCH_SHA256=
 export VLLM_PATCH_FILE=
 
 export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
 export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-dcp-final-20260725}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-74bd5a2d91f9777a6aee822fa79e7951dac780dd}"
+export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-be0edcaae6f5d284bb29a82325aba7a0ead6960f}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-build/gilded-gnosis-v20-dcp-release-20260725}"
