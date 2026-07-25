@@ -3,10 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# GG v20 release candidate. The vLLM integration source is exactly the current
-# dev/gilded-gnosis plus unmerged PRs #145, #164, #166, #167, #169, #172,
-# #173, and #174. SparkInfer is current master plus PRs #75, #76, and #77.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm992b874-sia93df67-fi801d57a-cu132-20260724}"
+# GG v20 release candidate. The vLLM integration source is exactly
+# dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178, and
+# #179. SparkInfer is master@c39b806 plus open PR #76. Every source is pinned
+# by commit and validated below; no build-only patch is applied.
+export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa70959-si74bd5a2-fi801d57a-cu132-20260725}"
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -31,21 +32,21 @@ export DEEPGEMM_REF="${DEEPGEMM_REF:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 
 export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
-export VLLM_REF="${VLLM_REF:-perf/v20-safe-query-fast-20260724}"
-export VLLM_COMMIT="${VLLM_COMMIT:-992b874cf7ae504616bbb1d2d4f7a7355be6972b}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm992b874.sia93df67.fi801d57a.cu132.20260724}"
+export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-dcp-final-20260725}"
+export VLLM_COMMIT="${VLLM_COMMIT:-fa709591b2987fd695346784b31869968c0a8eb7}"
+export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmfa70959.si74bd5a2.fi801d57a.cu132.20260725}"
 export VLLM_PATCH_URL=
 export VLLM_PATCH_SHA256=
 export VLLM_PATCH_FILE=
 
 export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
-export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-topk-final-20260724}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-a93df671cc7b33734f499b57228e542c3d3c3697}"
+export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-dcp-final-20260725}"
+export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-74bd5a2d91f9777a6aee822fa79e7951dac780dd}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-build/gilded-gnosis-v20-final2-20260723}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-146fa02359f928a37e94bd2d760a1eba1498113d}"
-export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh"
+export LAUNCHER_REF="${LAUNCHER_REF:-build/gilded-gnosis-v20-dcp-release-20260725}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-48c8add4907775babeac03da68ee47224c23475c}"
+export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
 export CUTLASS_COMMIT="${CUTLASS_COMMIT:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -110,10 +111,18 @@ from sparkinfer.comm.pcie.pcie_dma import (
 from sparkinfer.gemm import bmm, can_implement_bmm, prewarm_bmm
 from sparkinfer.moe.fused_moe import _impl as fused_moe_impl
 from sparkinfer.moe._shared.kernels.w4a16 import kernel as w4a16_kernel
+from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
-from vllm.v1.attention.backends.mla.b12x_mla_sparse import B12xMLASparseImpl
+from vllm.model_executor.layers.sparse_attn_indexer import (
+    _merge_b12x_dcp_topk_by_owner,
+)
+from vllm.model_executor.models.deepseek_v2 import _indexer_cache_dcp_shard_count
+from vllm.v1.attention.backends.mla.b12x_mla_sparse import (
+    B12xMLASparseImpl,
+    _ckv_prefetch_depth_within_budget,
+)
 from vllm.v1.attention.ops.common import cp_lse_ag_out_rs
 from vllm.v1.worker.gpu_worker import Worker
 
@@ -145,6 +154,14 @@ assert "use_safe_mla_query_bmm = True" in spec_source
 assert hasattr(B12xMLASparseImpl, "reset_kv_cache_binding_state")
 assert hasattr(Worker, "_profile_model_with_kernel_warmup")
 assert hasattr(Worker, "_warmup_kernels_once")
+assert callable(_merge_b12x_dcp_topk_by_owner)
+assert callable(_indexer_cache_dcp_shard_count)
+assert _ckv_prefetch_depth_within_budget(2, 1, 8, 1024, 576) == 0
+assert hasattr(vllm_envs, "VLLM_DCP_QUERY_SPLIT")
+assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_GATHER")
+assert hasattr(vllm_envs, "VLLM_DCP_TOPK_OWNER_MERGE")
+assert hasattr(vllm_envs, "VLLM_DCP_INDEXER_SHARDS")
+assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH")
 caps = SPARKINFERSparseMLAScratchCaps(
     device="cuda:0",
     dtype=torch.bfloat16,
@@ -180,6 +197,54 @@ grep -q -- '--max-cudagraph-capture-size 6' "${dry_run_file}"
 grep -q -- '--load-format instanttensor' "${dry_run_file}"
 grep -q -- '--max-model-len 262144' "${dry_run_file}"
 grep -q -- '--gpu-memory-utilization 0.96' "${dry_run_file}"
+grep -Fxq 'VLLM_DCP_QUERY_SPLIT=1' "${dry_run_file}"
+grep -Fxq 'VLLM_B12X_MLA_CKV_GATHER=0' "${dry_run_file}"
+grep -Fxq 'VLLM_DCP_TOPK_OWNER_MERGE=0' "${dry_run_file}"
+grep -Fxq 'VLLM_DCP_INDEXER_SHARDS=0' "${dry_run_file}"
+grep -Fxq 'VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0' "${dry_run_file}"
+
+assert_dcp_policy() {
+  local name="$1"
+  local tp="$2"
+  local dcp="$3"
+  local query_split="$4"
+  local ckv_gather="$5"
+  local owner_merge="$6"
+  local indexer_shards="$7"
+  local prefetch_depth="$8"
+  shift 8
+  local output_file="/tmp/gilded-gnosis-v20-final-policy-${name}.txt"
+
+  docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+    -e DRY_RUN=1 \
+    -e MODEL_FAMILY=glm52 \
+    -e MODEL=/model \
+    -e TP="${tp}" \
+    -e DCP="${dcp}" \
+    -e MTP=0 \
+    -e MAX_NUM_SEQS=1 \
+    -e GRAPH=6 \
+    "$@" \
+    "${IMAGE}" | tee "${output_file}"
+
+  grep -Fxq "VLLM_DCP_QUERY_SPLIT=${query_split}" "${output_file}"
+  grep -Fxq "VLLM_B12X_MLA_CKV_GATHER=${ckv_gather}" "${output_file}"
+  grep -Fxq "VLLM_DCP_TOPK_OWNER_MERGE=${owner_merge}" "${output_file}"
+  grep -Fxq "VLLM_DCP_INDEXER_SHARDS=${indexer_shards}" "${output_file}"
+  grep -Fxq \
+    "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=${prefetch_depth}" \
+    "${output_file}"
+}
+
+assert_dcp_policy tp8-dcp4 8 4 1 1 1 2 1
+assert_dcp_policy tp8-dcp8 8 8 1 1 1 4 1
+assert_dcp_policy tp6-dcp3 6 3 0 0 1 0 0
+assert_dcp_policy tp8-dcp4-disabled 8 4 0 0 0 0 0 \
+  -e DCP_QUERY_SPLIT=0 \
+  -e DCP_CKV_GATHER=0 \
+  -e DCP_TOPK_OWNER_MERGE=0 \
+  -e DCP_INDEXER_SHARDS=0 \
+  -e DCP_CKV_PREFETCH_DEPTH=0
 
 mxfp8_dry_run_file="/tmp/gilded-gnosis-v20-final-mxfp8.txt"
 docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
