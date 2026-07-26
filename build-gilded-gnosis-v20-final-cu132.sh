@@ -67,6 +67,7 @@ export PUSH_IMAGE=0
 
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
+./tests/test-glm52-online-quant-policy.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 ./build-vllm-sparkinfer-cu132.sh "$@"
 
