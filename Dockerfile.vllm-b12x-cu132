@@ -1016,6 +1016,8 @@ ARG TRITON_KERNELS_REF
 ARG TRITON_KERNELS_COMMIT
 ARG INSTANTTENSOR_REF
 ARG INSTANTTENSOR_COMMIT
+ARG LAUNCHER_REF
+ARG LAUNCHER_COMMIT
 ARG VLLM_REQUIRED_LAUNCHERS
 ARG CUBLAS_CUDA13_VERSION
 ARG CUDNN_CUDA13_VERSION
@@ -1057,4 +1059,6 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.triton_kernels.commit="${TRITON_KERNELS_COMMIT}" \
       local-inference.instanttensor.branch="${INSTANTTENSOR_REF}" \
       local-inference.instanttensor.commit="${INSTANTTENSOR_COMMIT}" \
+      local-inference.launcher.branch="${LAUNCHER_REF}" \
+      local-inference.launcher.commit="${LAUNCHER_COMMIT}" \
       local-inference.launchers="${VLLM_REQUIRED_LAUNCHERS}"
