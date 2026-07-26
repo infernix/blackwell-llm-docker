@@ -652,6 +652,12 @@ RUN launcher_root=/opt/vllm \
  && for script in /tmp/build-launchers/serve-*.sh; do \
       if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
     done \
+ && for script in /tmp/build-launchers/glm52-*.sh; do \
+      if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
+    done \
+ && if [[ -f /tmp/build-launchers/glm52-pcie-calibration.py ]]; then \
+       install -m 0755 /tmp/build-launchers/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py; \
+     fi \
  && if [[ -f "${launcher_root}/scripts/run-glm51-vllm" ]]; then \
       install -m 0755 "${launcher_root}/scripts/run-glm51-vllm" /usr/local/bin/run-glm51-vllm; \
     elif [[ -f /usr/local/bin/serve-glm51.sh ]]; then \
@@ -751,6 +757,8 @@ COPY --from=vllm-build /opt/vllm /opt/vllm
 COPY --from=vllm-build /usr/local/bin/run-glm51-vllm /usr/local/bin/run-glm51-vllm
 COPY --from=vllm-build /usr/local/bin/run-kimi26-vllm /usr/local/bin/run-kimi26-vllm
 COPY --from=vllm-build /usr/local/bin/serve-*.sh /usr/local/bin/
+COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
+COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
 
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"

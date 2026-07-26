@@ -123,6 +123,25 @@ page-cache-aware `BUFFERED` backend. The GLM v17 Compose also defaults
 `DCP_PREFILL_WORKSPACE=auto`, which enables the optimized eager prefill path
 only for its validated TP/DCP topology list.
 
+### Automatic PCIe calibration
+
+The v20 GLM helper runs a lossless PCIe preflight before the first model load
+for each GPU order, TP/DCP geometry, CPU/NUMA placement, image fingerprint,
+NCCL configuration, and probe revision. It measures the real collectives and
+caches three independent decisions under
+`${XDG_CACHE_HOME}/pcie-calibration`:
+
+- `VLLM_B12X_MLA_CKV_PREFETCH_DEPTH`
+- `VLLM_DCP_QUERY_SPLIT`
+- `VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS`
+- `VLLM_PCIE_DMA_MIN_BYTES`, including `off` when NCCL wins the full ladder
+
+Later starts use the cache. Explicit values always take precedence. Set
+`PCIE_CALIBRATION=force` to remeasure or `PCIE_CALIBRATION=off` to retain the
+conservative static policy. FP8, INT8, and MXFP8 DMA wire modes remain
+explicit choices; selecting one through `F8_DMA` never enables a compressed
+mode through calibration.
+
 ### Current vLLM+B12X CUDA 13.2 base image
 
 The vLLM+B12X build uses two reusable base images:
