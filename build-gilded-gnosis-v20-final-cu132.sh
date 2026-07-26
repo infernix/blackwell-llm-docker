@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 # dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178,
 # #179, #180, #184, and #185. SparkInfer is master@c39b806 plus open PRs #76
 # and #81. Every source is pinned and no build-only source patch is applied.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm25f5b2c-si931d02d-fi801d57a-cu132-20260726}"
+export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sie603f74-fi801d57a-cu132-20260726}"
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -33,15 +33,15 @@ export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf
 
 export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
 export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-pcie-auto-20260726}"
-export VLLM_COMMIT="${VLLM_COMMIT:-25f5b2ceaaaa700b114a7ff7ddae3115aac2bf35}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm25f5b2c.si931d02d.fi801d57a.cu132.20260726}"
+export VLLM_COMMIT="${VLLM_COMMIT:-0c79e41db41f250ccdfc4be92d171960a5787f73}"
+export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sie603f74.fi801d57a.cu132.20260726}"
 export VLLM_PATCH_URL=
 export VLLM_PATCH_SHA256=
 export VLLM_PATCH_FILE=
 
 export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
 export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-pcie-auto-20260726}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-931d02d18a06f5031b3832e676b08433dc799f9f}"
+export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-e603f74bb67d0fce547336f1fb73c3c23e8f1887}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-feat/v20-pcie-auto-calibration-20260726}"
