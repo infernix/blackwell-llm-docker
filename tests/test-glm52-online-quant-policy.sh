@@ -23,11 +23,16 @@ if grep -q 'kv_b_proj' <<<"${default_output}"; then
   echo "Default MXFP8 policy unexpectedly excludes kv_b_proj" >&2
   exit 1
 fi
+grep -Fxq 'VLLM_B12X_ABSORB_BMM=1' <<<"${default_output}"
 
 explicit_config='{"linear":{"weight":"mxfp8"},"ignore":["re:.*kv_b_proj"]}'
 explicit_output="$(env "${common_env[@]}" \
   QUANTIZATION_CONFIG_JSON="${explicit_config}" "${launcher}")"
 grep -Fq 're:.\*kv_b_proj' <<<"${explicit_output}"
+
+disabled_output="$(env "${common_env[@]}" \
+  VLLM_B12X_ABSORB_BMM=0 "${launcher}")"
+grep -Fxq 'VLLM_B12X_ABSORB_BMM=0' <<<"${disabled_output}"
 
 for dma_mode in i8_ring mx_ring; do
   dma_output="$(env "${common_env[@]}" F8_DMA="${dma_mode}" "${launcher}")"
