@@ -216,7 +216,8 @@ assert_dcp_policy() {
   local owner_merge="$6"
   local indexer_shards="$7"
   local prefetch_depth="$8"
-  shift 8
+  local calibration_status="$9"
+  shift 9
   local output_file="/tmp/gilded-gnosis-v20-final-policy-${name}.txt"
 
   docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
@@ -239,17 +240,19 @@ assert_dcp_policy() {
     "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=${prefetch_depth}" \
     "${output_file}"
   grep -Fxq "VLLM_PCIE_DMA_MIN_BYTES=6MB" "${output_file}"
-  grep -Fxq "PCIE_CALIBRATION_STATUS=skipped:dry-run" "${output_file}"
+  grep -Fxq \
+    "PCIE_CALIBRATION_STATUS=${calibration_status}" \
+    "${output_file}"
 }
 
-assert_dcp_policy tp8-dcp4 8 4 1 1 1 2 1 \
+assert_dcp_policy tp8-dcp4 8 4 1 1 1 2 1 skipped:dry-run \
   -e DCP_CKV_PREFETCH_TOPOLOGY=safe
-assert_dcp_policy tp8-dcp8 8 8 1 1 1 4 1 \
+assert_dcp_policy tp8-dcp8 8 8 1 1 1 4 1 skipped:dry-run \
   -e DCP_CKV_PREFETCH_TOPOLOGY=safe
-assert_dcp_policy tp8-dcp4-slow-topology 8 4 1 1 1 2 0 \
+assert_dcp_policy tp8-dcp4-slow-topology 8 4 1 1 1 2 0 skipped:dry-run \
   -e DCP_CKV_PREFETCH_TOPOLOGY=unsafe
-assert_dcp_policy tp6-dcp3 6 3 0 0 1 0 0
-assert_dcp_policy tp8-dcp4-disabled 8 4 0 0 0 0 0 \
+assert_dcp_policy tp6-dcp3 6 3 0 0 1 0 0 skipped:unsupported-tp-dcp
+assert_dcp_policy tp8-dcp4-disabled 8 4 0 0 0 0 0 skipped:dry-run \
   -e DCP_QUERY_SPLIT=0 \
   -e DCP_CKV_GATHER=0 \
   -e DCP_TOPK_OWNER_MERGE=0 \
