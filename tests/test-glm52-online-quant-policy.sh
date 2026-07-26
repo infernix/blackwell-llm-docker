@@ -29,4 +29,10 @@ explicit_output="$(env "${common_env[@]}" \
   QUANTIZATION_CONFIG_JSON="${explicit_config}" "${launcher}")"
 grep -Fq 're:.\*kv_b_proj' <<<"${explicit_output}"
 
+for dma_mode in i8_ring mx_ring; do
+  dma_output="$(env "${common_env[@]}" F8_DMA="${dma_mode}" "${launcher}")"
+  grep -Fxq "VLLM_PCIE_DMA_FP8=${dma_mode}" <<<"${dma_output}"
+  grep -Fxq "SPARKINFER_PCIE_DMA_FP8=${dma_mode}" <<<"${dma_output}"
+done
+
 echo "GLM-5.2 online quantization policy: PASS"
