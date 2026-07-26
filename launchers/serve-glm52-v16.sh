@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+launcher_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=glm52-pcie-runtime-env.sh
+source "${launcher_dir}/glm52-pcie-runtime-env.sh"
+
 die() {
   echo "ERROR: $*" >&2
   exit 2
@@ -209,13 +213,7 @@ export VLLM_DCP_PROJECT_BEFORE_MERGE="${DCP_PREFILL_WORKSPACE}"
 export VLLM_DCP_PROJECT_BEFORE_MERGE_MIN_PREFILL_TOKENS="${DCP_PROJECT_MIN_PREFILL_TOKENS}"
 export VLLM_B12X_MLA_DCP_GATHER_IN_WORKSPACE="${DCP_PREFILL_WORKSPACE}"
 export VLLM_USE_V2_MODEL_RUNNER=1
-export VLLM_ENABLE_PCIE_ALLREDUCE=1
-export VLLM_PCIE_ALLREDUCE_BACKEND=b12x
-export VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE=64KB
-export VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE=84KB
-export VLLM_USE_B12X_PCIE_DMA="${B12X_PCIE_DMA}"
-export VLLM_PCIE_DMA_FP8="${F8_DMA}"
-export B12X_PCIE_DMA_FP8="${F8_DMA}"
+configure_glm52_pcie_runtime_env "${B12X_PCIE_DMA}" "${F8_DMA}"
 export VLLM_DCP_GLOBAL_TOPK=1
 export VLLM_DCP_SHARD_DRAFT=1
 export VLLM_NF3_GRID188_DECODE="${NF3_GRID188}"
@@ -225,11 +223,6 @@ export B12X_W4A16_TC_DECODE=1
 export B12X_W4A8_TINY_DECODE=1
 export B12X_MOE_FORCE_A8="${B12X_MOE_FORCE_A8}"
 export B12X_MOE_FORCE_A16="${B12X_MOE_FORCE_A16}"
-export NCCL_PROTO=LL,LL128,Simple
-export NCCL_P2P_LEVEL=SYS
-export NCCL_IB_DISABLE=1
-export LD_PRELOAD=/opt/libnccl-local-inference.so.2.30.4
-export VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4
 export TMPDIR="${TMPDIR:-/container-tmp}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/cache}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-${VLLM_CACHE_DIR:-${XDG_CACHE_HOME}/vllm}}"
