@@ -45,7 +45,7 @@ export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-931d02d18a06f5031b3832e676b08433d
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-feat/v20-pcie-auto-calibration-20260726}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-bc39ab84726f3bafca906bdc7c21db7e06338d6d}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-05626808ebdf9e0be89657d49bebbaae03ef0933}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
