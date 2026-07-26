@@ -5,9 +5,9 @@ cd "$(dirname "$0")"
 
 # GG v20 release candidate. The vLLM integration source is exactly
 # dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178,
-# #179, #180, #184, and #185. SparkInfer is master@c39b806 plus open PRs #76
-# and #81. Every source is pinned and no build-only source patch is applied.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sie603f74-fi801d57a-cu132-20260726}"
+# #179, #180, #184, and #185. SparkInfer is master@c39b806 plus open PRs #81,
+# #82, and #83. Every source is pinned and no build-only source patch is applied.
+export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-si2b2c257-fi801d57a-cu132-20260726}"
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -34,18 +34,18 @@ export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf
 export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
 export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-pcie-auto-20260726}"
 export VLLM_COMMIT="${VLLM_COMMIT:-0c79e41db41f250ccdfc4be92d171960a5787f73}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sie603f74.fi801d57a.cu132.20260726}"
+export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.si2b2c257.fi801d57a.cu132.20260726}"
 export VLLM_PATCH_URL=
 export VLLM_PATCH_SHA256=
 export VLLM_PATCH_FILE=
 
 export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
-export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-pcie-auto-20260726}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-e603f74bb67d0fce547336f1fb73c3c23e8f1887}"
+export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-corrected-20260726}"
+export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-2b2c257aefe9870f8e007a5a45368056b211f4ad}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-feat/v20-pcie-auto-calibration-20260726}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-05626808ebdf9e0be89657d49bebbaae03ef0933}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a5fd5e5b1bb5d80bd106f1481c02f923c1a60645}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -68,6 +68,7 @@ export PUSH_IMAGE=0
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
+./tests/test-glm52-indexer-selection-policy.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 ./build-vllm-sparkinfer-cu132.sh "$@"
 
@@ -139,8 +140,11 @@ assert tiled_topk._SMEM_CANDS == 8192
 assert inspect.getsource(w4a16_kernel).count("cooperative=True") >= 2
 assert _normalize_fp8_mode("i8-ring") == "i8_ring"
 assert _normalize_fp8_mode("mxfp8-ring") == "mx_ring"
-assert "_ensure_output_storage" in inspect.getsource(PCIeDmaAllReduce)
-assert "self.max_bytes" in inspect.getsource(PCIeDmaAllReduce._ensure_output_storage)
+dma_source = inspect.getsource(PCIeDmaAllReduce.all_reduce)
+assert "out = torch.empty_like(inp)" in dma_source
+assert "_persistent_output_view" not in inspect.getsource(PCIeDmaAllReduce)
+assert tiled_topk._resolve_selection_policy(None) == "exact"
+assert tiled_topk._resolve_selection_policy("bounded_compat") == "bounded_compat"
 assert callable(bmm) and callable(can_implement_bmm) and callable(prewarm_bmm)
 assert "head_major_output" in inspect.signature(cp_lse_ag_out_rs).parameters
 assert hasattr(CudaCommunicator, "reduce_scatter_head_major")
@@ -205,6 +209,7 @@ grep -Fxq 'VLLM_B12X_MLA_CKV_GATHER=0' "${dry_run_file}"
 grep -Fxq 'VLLM_DCP_TOPK_OWNER_MERGE=0' "${dry_run_file}"
 grep -Fxq 'VLLM_DCP_INDEXER_SHARDS=0' "${dry_run_file}"
 grep -Fxq 'VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0' "${dry_run_file}"
+grep -Fxq 'SPARKINFER_NSA_TOPK_SELECTION_POLICY=bounded_compat' "${dry_run_file}"
 grep -Fxq 'VLLM_PCIE_DMA_MIN_BYTES=6MB' "${dry_run_file}"
 grep -Fxq 'PCIE_CALIBRATION_STATUS=skipped:dry-run' "${dry_run_file}"
 
