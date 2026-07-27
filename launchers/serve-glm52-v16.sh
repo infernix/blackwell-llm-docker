@@ -344,6 +344,10 @@ cmd=(vllm serve "${MODEL}" \
   --hf-overrides "${hf_overrides}" \
   "${spec_arg[@]}")
 
+# Wrapper launchers forward their arguments here. Append them after the preset
+# so operators can use new vLLM flags and explicitly override preset values.
+cmd+=("$@")
+
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
   printf 'CUDA_VISIBLE_DEVICES=%q\n' "${CUDA_VISIBLE_DEVICES}"
   printf 'B12X_MOE_FORCE_A8=%q\n' "${B12X_MOE_FORCE_A8}"
