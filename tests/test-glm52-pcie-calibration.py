@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import signal
 import subprocess
 from types import SimpleNamespace
 
@@ -101,22 +102,55 @@ def _probe_args(tmp_path: Path) -> SimpleNamespace:
 def test_run_probe_reports_timeout_with_captured_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def timeout(*args: object, **kwargs: object) -> None:
-        raise subprocess.TimeoutExpired("probe", 5.0, output="probe stalled")
+    class TimeoutProcess:
+        pid = 4242
+        returncode = -signal.SIGTERM
 
-    monkeypatch.setattr(calibration.subprocess, "run", timeout)
+        def __init__(self) -> None:
+            self.communicate_calls = 0
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, None]:
+            self.communicate_calls += 1
+            if self.communicate_calls == 1:
+                raise subprocess.TimeoutExpired(
+                    "probe", 5.0, output="probe stalled"
+                )
+            return "probe stalled\nworkers stopped\n", None
+
+    process = TimeoutProcess()
+    signals: list[tuple[int, int]] = []
+    popen_kwargs: dict[str, object] = {}
+
+    def popen(*args: object, **kwargs: object) -> TimeoutProcess:
+        popen_kwargs.update(kwargs)
+        return process
+
+    monkeypatch.setattr(calibration.subprocess, "Popen", popen)
+    monkeypatch.setattr(
+        calibration.os, "killpg", lambda pid, sig: signals.append((pid, sig))
+    )
 
     with pytest.raises(RuntimeError, match=r"(?s)timed out.*probe stalled"):
         calibration._run_probe(_probe_args(tmp_path), tmp_path / "result.json")
+    assert signals == [(process.pid, signal.SIGTERM)]
+    assert process.communicate_calls == 2
+    assert popen_kwargs["start_new_session"] is True
 
 
 def test_run_probe_reports_invalid_result_with_probe_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    class CompletedProcess:
+        pid = 4242
+        returncode = 0
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, None]:
+            return "probe complete\n", None
+
     monkeypatch.setattr(
         calibration.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="probe complete\n"),
+        "Popen",
+        lambda *args, **kwargs: CompletedProcess(),
     )
     output = tmp_path / "result.json"
     output.write_text("not JSON", encoding="utf-8")

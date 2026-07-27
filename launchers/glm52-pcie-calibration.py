@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import signal
 import subprocess
 import sys
 import tempfile
@@ -236,6 +237,29 @@ def _load_record(path: Path, expected_fingerprint: str) -> dict[str, Any] | None
     return record
 
 
+def _output_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value or ""
+
+
+def _terminate_process_group(process: subprocess.Popen[str]) -> str:
+    """Stop torchrun and every worker it started, then collect its output."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        stdout, _ = process.communicate(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        stdout, _ = process.communicate()
+    return _output_text(stdout)
+
+
 def _run_probe(args: argparse.Namespace, output: Path) -> dict[str, Any]:
     command = [
         sys.executable,
@@ -269,35 +293,41 @@ def _run_probe(args: argparse.Namespace, output: Path) -> dict[str, Any]:
         str(value) for value in args.gpus[: args.tp_size]
     )
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
-            check=False,
             env=environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            timeout=args.timeout,
+            start_new_session=True,
         )
+    except OSError as exc:
+        raise RuntimeError(f"failed to launch PCIe calibration: {exc}") from exc
+    try:
+        stdout, _ = process.communicate(timeout=args.timeout)
     except subprocess.TimeoutExpired as exc:
-        captured = exc.stdout or ""
-        if isinstance(captured, bytes):
-            captured = captured.decode(errors="replace")
+        captured = _output_text(exc.stdout)
+        terminated_output = _terminate_process_group(process)
+        if terminated_output:
+            captured = terminated_output
         tail = "\n".join(captured.splitlines()[-40:]) or "<no probe output>"
         raise RuntimeError(
             f"PCIe calibration timed out after {args.timeout:g}s:\n{tail}"
         ) from exc
-    except OSError as exc:
-        raise RuntimeError(f"failed to launch PCIe calibration: {exc}") from exc
-    if completed.returncode != 0:
-        tail = "\n".join(completed.stdout.splitlines()[-40:])
+    except BaseException:
+        _terminate_process_group(process)
+        raise
+    stdout = _output_text(stdout)
+    if process.returncode != 0:
+        tail = "\n".join(stdout.splitlines()[-40:])
         raise RuntimeError(
-            f"PCIe calibration exited with {completed.returncode}:\n{tail}"
+            f"PCIe calibration exited with {process.returncode}:\n{tail}"
         )
-    print(completed.stdout, file=sys.stderr, end="")
+    print(stdout, file=sys.stderr, end="")
     try:
         result = json.loads(output.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        tail = "\n".join(completed.stdout.splitlines()[-40:]) or "<no probe output>"
+        tail = "\n".join(stdout.splitlines()[-40:]) or "<no probe output>"
         raise RuntimeError(
             f"PCIe calibration produced no valid result at {output}: {exc}\n"
             f"Probe output:\n{tail}"
