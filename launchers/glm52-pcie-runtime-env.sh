@@ -5,6 +5,8 @@
 configure_glm52_pcie_runtime_env() {
   local pcie_dma_enabled="$1"
   local dma_wire_mode="$2"
+  local nccl_path="${NCCL_LOCAL_INFERENCE_PATH:-/opt/libnccl-local-inference.so.2.30.4}"
+  local preload_entries
 
   export VLLM_ENABLE_PCIE_ALLREDUCE=1
   export VLLM_PCIE_ALLREDUCE_BACKEND=b12x
@@ -18,8 +20,12 @@ configure_glm52_pcie_runtime_env() {
   export NCCL_PROTO="${NCCL_PROTO:-LL,LL128,Simple}"
   export NCCL_P2P_LEVEL="${NCCL_P2P_LEVEL:-SYS}"
   export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
-  if [[ -f /opt/libnccl-local-inference.so.2.30.4 ]]; then
-    export LD_PRELOAD=/opt/libnccl-local-inference.so.2.30.4
-    export VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4
+  if [[ -f "${nccl_path}" ]]; then
+    preload_entries=" ${LD_PRELOAD//:/ } "
+    case "${preload_entries}" in
+      *" ${nccl_path} "*) ;;
+      *) export LD_PRELOAD="${nccl_path}${LD_PRELOAD:+:${LD_PRELOAD}}" ;;
+    esac
+    export VLLM_NCCL_SO_PATH="${nccl_path}"
   fi
 }

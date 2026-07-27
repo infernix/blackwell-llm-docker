@@ -128,7 +128,7 @@ only for its validated TP/DCP topology list.
 The v20 GLM helper runs a lossless PCIe preflight before the first model load
 for each GPU order, TP/DCP geometry, CPU/NUMA placement, image fingerprint,
 NCCL configuration, and probe revision. It measures the real collectives and
-caches three independent decisions under
+caches four independent decisions under
 `${XDG_CACHE_HOME}/pcie-calibration`:
 
 - `VLLM_B12X_MLA_CKV_PREFETCH_DEPTH`

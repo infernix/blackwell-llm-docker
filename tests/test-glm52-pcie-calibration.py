@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,6 +55,74 @@ def test_validate_probe_result_accepts_only_lossless_policy() -> None:
         ]
         == "off"
     )
+
+
+def test_validate_probe_result_rejects_unsafe_or_inconsistent_policy() -> None:
+    result = _result()
+    result["policy"]["compressed_dma_requires_explicit_opt_in"] = False
+    with pytest.raises(ValueError, match="compressed DMA"):
+        calibration.validate_probe_result(result)
+
+    result = _result()
+    result["policy"]["dcp_query_split_min_context_tokens"] = 0
+    with pytest.raises(ValueError, match="inconsistent query-split"):
+        calibration.validate_probe_result(result)
+
+    result = _result()
+    result["policy"]["dcp_query_split"] = 0
+    with pytest.raises(ValueError, match="inconsistent query-split"):
+        calibration.validate_probe_result(result)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (("4", 4), ("N/A", None), ("[N/A]", None)),
+)
+def test_optional_nvidia_int(value: str, expected: int | None) -> None:
+    assert calibration._optional_nvidia_int(value) == expected
+
+
+def _probe_args(tmp_path: Path) -> SimpleNamespace:
+    return SimpleNamespace(
+        tp_size=2,
+        dcp_size=1,
+        indexer_shards=1,
+        hidden_size=6144,
+        tp_rows=8192,
+        ckv_record_bytes=656,
+        context_tokens=(8192,),
+        allreduce_rows=(1,),
+        gpus=(0, 1),
+        timeout=5.0,
+        cache_dir=tmp_path,
+    )
+
+
+def test_run_probe_reports_timeout_with_captured_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("probe", 5.0, output="probe stalled")
+
+    monkeypatch.setattr(calibration.subprocess, "run", timeout)
+
+    with pytest.raises(RuntimeError, match=r"(?s)timed out.*probe stalled"):
+        calibration._run_probe(_probe_args(tmp_path), tmp_path / "result.json")
+
+
+def test_run_probe_reports_invalid_result_with_probe_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        calibration.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="probe complete\n"),
+    )
+    output = tmp_path / "result.json"
+    output.write_text("not JSON", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=r"(?s)no valid result.*probe complete"):
+        calibration._run_probe(_probe_args(tmp_path), output)
 
 
 def test_fingerprint_is_order_sensitive() -> None:

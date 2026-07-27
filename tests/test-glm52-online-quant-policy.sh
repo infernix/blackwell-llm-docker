@@ -25,6 +25,9 @@ if grep -q 'kv_b_proj' <<<"${default_output}"; then
 fi
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=1' <<<"${default_output}"
 
+native_output="$(env "${common_env[@]}" ONLINE_QUANT=none "${launcher}")"
+grep -Fxq 'VLLM_B12X_ABSORB_BMM=0' <<<"${native_output}"
+
 explicit_config='{"linear":{"weight":"mxfp8"},"ignore":["re:.*kv_b_proj"]}'
 explicit_output="$(env "${common_env[@]}" \
   QUANTIZATION_CONFIG_JSON="${explicit_config}" "${launcher}")"

@@ -26,7 +26,7 @@ assert_contains() {
   }
 }
 
-measured="$(run_helper)"
+measured="$(run_helper FAKE_PCIE_CALIBRATION_BANNER=1)"
 assert_contains "${measured}" "VLLM_DCP_QUERY_SPLIT=1"
 assert_contains "${measured}" \
   "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=8192"
@@ -49,6 +49,15 @@ assert_contains "${explicit}" "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0"
 assert_contains "${explicit}" "VLLM_PCIE_DMA_MIN_BYTES=12MB"
 assert_contains "${explicit}" "PCIE_CALIBRATION_STATUS=skipped:all-explicit"
 
+explicit_zero="$(run_helper \
+  DCP_QUERY_SPLIT=0 \
+  DCP_CKV_GATHER=1 \
+  DCP_CKV_PREFETCH_DEPTH=0 \
+  PCIE_DMA_MIN_BYTES=0)"
+assert_contains "${explicit_zero}" "VLLM_PCIE_DMA_MIN_BYTES=off"
+assert_contains "${explicit_zero}" \
+  "PCIE_CALIBRATION_STATUS=skipped:all-explicit"
+
 compressed="$(run_helper \
   F8_DMA=ring \
   DCP_CKV_PREFETCH_TOPOLOGY=safe)"
@@ -68,5 +77,20 @@ if run_helper PCIE_CALIBRATION_TIMEOUT=0 >/dev/null; then
   echo "zero calibration timeout was accepted" >&2
   exit 1
 fi
+
+runtime_env_script="${repo_root}/launchers/glm52-pcie-runtime-env.sh"
+preload_output="$(
+  RUNTIME_ENV_SCRIPT="${runtime_env_script}" \
+  TEST_NCCL_PATH="${calibrator}" \
+  bash -c '
+    source "${RUNTIME_ENV_SCRIPT}"
+    export NCCL_LOCAL_INFERENCE_PATH="${TEST_NCCL_PATH}"
+    export LD_PRELOAD=/tmp/existing-preload.so
+    configure_glm52_pcie_runtime_env 1 0
+    configure_glm52_pcie_runtime_env 1 0
+    printf "%s\n" "${LD_PRELOAD}"
+  '
+)"
+assert_contains "${preload_output}" "${calibrator}:/tmp/existing-preload.so"
 
 echo "GLM-5.2 PCIe calibration helper: PASS"

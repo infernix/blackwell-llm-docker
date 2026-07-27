@@ -84,6 +84,7 @@ if [[ "${PCIE_DMA_MIN_BYTES}" != "auto" && \
       ! "${PCIE_DMA_MIN_BYTES}" =~ ^[0-9]+(K|KB|M|MB)?$ ]]; then
   die "PCIE_DMA_MIN_BYTES must be auto, off, bytes, or a K/KB/M/MB value"
 fi
+[[ "${PCIE_DMA_MIN_BYTES}" == "0" ]] && PCIE_DMA_MIN_BYTES=off
 
 configure_glm52_pcie_runtime_env "${B12X_PCIE_DMA}" "${F8_DMA}"
 
@@ -154,6 +155,8 @@ else
       --timeout "${PCIE_CALIBRATION_TIMEOUT}" \
       "${force_arg[@]}"
   )"; then
+    calibration_line="$(awk 'NF { line=$0 } END { print line }' \
+      <<<"${calibration_line}")"
     IFS=$'\t' read -r \
       calibration_status \
       calibration_prefetch \

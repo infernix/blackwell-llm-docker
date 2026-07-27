@@ -80,6 +80,13 @@ def _read_optional_text(path: str) -> str:
         return "unavailable"
 
 
+def _optional_nvidia_int(value: str) -> int | None:
+    normalized = value.strip()
+    if normalized.upper() in {"N/A", "[N/A]"}:
+        return None
+    return int(normalized)
+
+
 def _runtime_placement() -> dict[str, Any]:
     try:
         cpu_affinity: list[int] | str = sorted(os.sched_getaffinity(0))
@@ -130,8 +137,8 @@ def _gpu_inventory(selected: Sequence[int]) -> list[dict[str, Any]]:
             "index": index,
             "uuid": fields[1],
             "pci_bus_id": fields[2].lower(),
-            "pcie_generation": int(fields[3]),
-            "pcie_width": int(fields[4]),
+            "pcie_generation": _optional_nvidia_int(fields[3]),
+            "pcie_width": _optional_nvidia_int(fields[4]),
             "driver_version": fields[5],
         }
     missing = [index for index in selected if index not in inventory]
@@ -261,22 +268,40 @@ def _run_probe(args: argparse.Namespace, output: Path) -> dict[str, Any]:
     environment["CUDA_VISIBLE_DEVICES"] = ",".join(
         str(value) for value in args.gpus[: args.tp_size]
     )
-    completed = subprocess.run(
-        command,
-        check=False,
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        timeout=args.timeout,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=args.timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        captured = exc.stdout or ""
+        if isinstance(captured, bytes):
+            captured = captured.decode(errors="replace")
+        tail = "\n".join(captured.splitlines()[-40:]) or "<no probe output>"
+        raise RuntimeError(
+            f"PCIe calibration timed out after {args.timeout:g}s:\n{tail}"
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(f"failed to launch PCIe calibration: {exc}") from exc
     if completed.returncode != 0:
         tail = "\n".join(completed.stdout.splitlines()[-40:])
         raise RuntimeError(
             f"PCIe calibration exited with {completed.returncode}:\n{tail}"
         )
     print(completed.stdout, file=sys.stderr, end="")
-    result = json.loads(output.read_text(encoding="utf-8"))
+    try:
+        result = json.loads(output.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        tail = "\n".join(completed.stdout.splitlines()[-40:]) or "<no probe output>"
+        raise RuntimeError(
+            f"PCIe calibration produced no valid result at {output}: {exc}\n"
+            f"Probe output:\n{tail}"
+        ) from exc
     validate_probe_result(result)
     return result
 

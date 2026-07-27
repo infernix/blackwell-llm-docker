@@ -44,6 +44,7 @@ export VLLM_PATCH_FILE=
 export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
 export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-runtime-stride-20260727}"
 export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-c3828fd7f807ce237a9ac36ef033659e6f6b6dd3}"
+export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-feat/v20-pcie-auto-calibration-20260726}"
@@ -53,6 +54,7 @@ export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmamen
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
 export CUTLASS_COMMIT="${CUTLASS_COMMIT:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
 export CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION:-4.6.0}"
+export TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX:-2.12.0+cu132}"
 export TOKENSPEED_MLA_VERSION="${TOKENSPEED_MLA_VERSION:-0.1.8}"
 export TVM_FFI_VERSION="${TVM_FFI_VERSION:-0.1.10}"
 export TRITON_KERNELS_REF=
@@ -66,6 +68,13 @@ export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 
 
 requested_push="${PUSH_IMAGE:-0}"
 export PUSH_IMAGE=0
+
+if ! git diff --quiet "${LAUNCHER_COMMIT}" -- launchers tests || \
+   [[ -n "$(git status --porcelain --untracked-files=all -- launchers tests)" ]]; then
+  printf 'Launcher/test sources do not match pinned commit %s\n' \
+    "${LAUNCHER_COMMIT}" >&2
+  exit 1
+fi
 
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
@@ -101,9 +110,13 @@ grep -Fxq "VLLM_CACHE_ROOT=/cache/jit/${cache_fingerprint}/vllm" <<<"${image_env
 grep -Fxq "SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${cache_fingerprint}/sparkinfer/compile" <<<"${image_env}"
 
 docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
+  -e EXPECTED_SPARKINFER_VERSION="${SPARKINFER_VERSION}" \
+  -e EXPECTED_CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
+  -e EXPECTED_TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX}" \
   --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
 import importlib.metadata as md
 import inspect
+import os
 
 import torch
 import vllm._C_stable_libtorch  # noqa: F401
@@ -132,9 +145,9 @@ from vllm.v1.attention.backends.mla.b12x_mla_sparse import (
 from vllm.v1.attention.ops.common import cp_lse_ag_out_rs
 from vllm.v1.worker.gpu_worker import Worker
 
-assert md.version("sparkinfer") == "1.0.1"
-assert md.version("nvidia-cutlass-dsl") == "4.6.0"
-assert torch.__version__.startswith("2.12.0+cu132")
+assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
+assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
+assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"
 assert fused_moe_impl._dynamic_kernel_intermediate_size(352, "w4a8_mx") == 384
 assert tiled_topk._COARSE_RADIX_BITS == 10
@@ -324,6 +337,7 @@ docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
   -e DRY_RUN=1 \
   -e MODEL_FAMILY=glm52 \
   -e MODEL=/model \
+  -e ONLINE_QUANT=mxfp8 \
   -e VLLM_B12X_ABSORB_BMM=0 \
   "${IMAGE}" | tee "${absorb_disabled_dry_run_file}"
 
