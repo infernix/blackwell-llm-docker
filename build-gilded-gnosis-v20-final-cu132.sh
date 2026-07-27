@@ -18,6 +18,7 @@ export VLLM_MAX_JOBS="${VLLM_MAX_JOBS:-64}"
 export NVCC_THREADS="${NVCC_THREADS:-1}"
 export VLLM_NVCC_THREADS="${VLLM_NVCC_THREADS:-1}"
 export PIN_SOURCE_COMMITS=1
+export VALIDATION_GPU="${VALIDATION_GPU:-0}"
 
 export NCCL_REPO="${NCCL_REPO:-https://github.com/local-inference-lab/nccl-canonical.git}"
 export NCCL_REF="${NCCL_REF:-canonical/cu132-nccl2304-amd-noxml}"
@@ -99,7 +100,8 @@ grep -Fxq "XDG_CACHE_HOME=/cache/jit/${cache_fingerprint}" <<<"${image_env}"
 grep -Fxq "VLLM_CACHE_ROOT=/cache/jit/${cache_fingerprint}/vllm" <<<"${image_env}"
 grep -Fxq "SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${cache_fingerprint}/sparkinfer/compile" <<<"${image_env}"
 
-docker run --rm --gpus device=0 -i --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
+docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
+  --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
 import importlib.metadata as md
 import inspect
 
