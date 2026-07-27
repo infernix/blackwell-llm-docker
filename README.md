@@ -142,6 +142,12 @@ conservative static policy. FP8, INT8, and MXFP8 DMA wire modes remain
 explicit choices; selecting one through `F8_DMA` never enables a compressed
 mode through calibration.
 
+GPU order is resolved as `GPUS`, then an existing `CUDA_VISIBLE_DEVICES`, then
+the launcher default. This ensures the probe measures the same ordered devices
+that vLLM serves on, including Compose files that leave `GPUS` empty. A cold
+probe may compile kernels and has a 600-second startup limit; override it with
+`PCIE_CALIBRATION_TIMEOUT` when required.
+
 ### Current vLLM+B12X CUDA 13.2 base image
 
 The vLLM+B12X build uses two reusable base images:

@@ -6,7 +6,7 @@ set -euo pipefail
 export MODEL="${MODEL:-madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid}"
 export MODEL_REVISION="${MODEL_REVISION:-68babde27a97a4c980c2494e830dd424975cd5a3}"
 export SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-GLM-5.2-MXFP8-NVFP4-NF3-Hybrid}"
-export GPUS="${GPUS:-0,1,2,3}"
+export GPUS="${GPUS:-${CUDA_VISIBLE_DEVICES:-0,1,2,3}}"
 export TP="${TP:-4}"
 export DCP="${DCP:-1}"
 export DCP_BACKEND="${DCP_BACKEND:-a2a}"

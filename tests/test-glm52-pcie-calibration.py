@@ -132,6 +132,24 @@ def test_fingerprint_is_order_sensitive() -> None:
     assert calibration.fingerprint(first) != calibration.fingerprint(second)
 
 
+def test_cold_probe_timeout_allows_slow_hosts() -> None:
+    parser = calibration._build_parser()
+    args = parser.parse_args(
+        [
+            "--tp-size",
+            "8",
+            "--dcp-size",
+            "4",
+            "--indexer-shards",
+            "2",
+            "--gpus",
+            "0,2,4,6,1,3,5,7",
+        ]
+    )
+
+    assert args.timeout == 600.0
+
+
 def test_collective_environment_tracks_only_relevant_knobs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

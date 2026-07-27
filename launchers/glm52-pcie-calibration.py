@@ -364,7 +364,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(os.getenv("XDG_CACHE_HOME", "/cache")) / "pcie-calibration",
     )
-    parser.add_argument("--timeout", type=float, default=180.0)
+    parser.add_argument("--timeout", type=float, default=600.0)
     parser.add_argument("--force", action="store_true")
     return parser
 

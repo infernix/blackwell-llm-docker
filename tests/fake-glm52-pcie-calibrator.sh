@@ -17,6 +17,41 @@ require_env VLLM_USE_B12X_PCIE_DMA 1
 require_env VLLM_PCIE_DMA_FP8 0
 require_env NCCL_PROTO LL,LL128,Simple
 
+actual_gpus=""
+actual_timeout=""
+while (($#)); do
+  case "$1" in
+    --gpus|--timeout)
+      (($# >= 2)) || {
+        printf '%s requires a value\n' "$1" >&2
+        exit 1
+      }
+      if [[ "$1" == "--gpus" ]]; then
+        actual_gpus="$2"
+      else
+        actual_timeout="$2"
+      fi
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "${FAKE_EXPECTED_GPUS:-}" && \
+      "${actual_gpus}" != "${FAKE_EXPECTED_GPUS}" ]]; then
+  printf 'calibrator GPUs: expected %q, got %q\n' \
+    "${FAKE_EXPECTED_GPUS}" "${actual_gpus}" >&2
+  exit 1
+fi
+if [[ -n "${FAKE_EXPECTED_TIMEOUT:-}" && \
+      "${actual_timeout}" != "${FAKE_EXPECTED_TIMEOUT}" ]]; then
+  printf 'calibrator timeout: expected %q, got %q\n' \
+    "${FAKE_EXPECTED_TIMEOUT}" "${actual_timeout}" >&2
+  exit 1
+fi
+
 if [[ "${FAKE_PCIE_CALIBRATION_FAIL:-0}" == "1" ]]; then
   exit 1
 fi
