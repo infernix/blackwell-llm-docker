@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Clean vLLM+B12X image for Blackwell on CUDA 13.2.
+# Clean vLLM+SparkInfer (formerly B12X) image for Blackwell on CUDA 13.2.
 #
 # Source stack:
 #   NVIDIA CUDA 13.2.1 cuDNN devel base
@@ -8,7 +8,7 @@
 #   PyTorch 2.12.0+cu132 from the official PyTorch wheel index
 #   Patched NCCL 2.30.4 from local-inference-lab/nccl-canonical
 #   FlashInfer from pinned upstream git
-#   B12X from pinned git
+#   SparkInfer from pinned git
 #   vLLM from pinned git
 #
 # Build:
@@ -652,6 +652,12 @@ RUN launcher_root=/opt/vllm \
  && for script in /tmp/build-launchers/serve-*.sh; do \
       if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
     done \
+ && for script in /tmp/build-launchers/glm52-*.sh; do \
+      if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
+    done \
+ && if [[ -f /tmp/build-launchers/glm52-pcie-calibration.py ]]; then \
+       install -m 0755 /tmp/build-launchers/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py; \
+     fi \
  && if [[ -f "${launcher_root}/scripts/run-glm51-vllm" ]]; then \
       install -m 0755 "${launcher_root}/scripts/run-glm51-vllm" /usr/local/bin/run-glm51-vllm; \
     elif [[ -f /usr/local/bin/serve-glm51.sh ]]; then \
@@ -710,7 +716,8 @@ print("torch nccl", torch.cuda.nccl.version())
 print("flashinfer", getattr(flashinfer, "__version__", "unknown"))
 print("deep_gemm", getattr(deep_gemm, "__version__", md.version("deep_gemm")))
 print("vllm", getattr(vllm, "__version__", "unknown"))
-print("b12x", md.version("b12x"))
+kernel_package = "sparkinfer" if importlib.util.find_spec("sparkinfer") else "b12x"
+print(kernel_package, md.version(kernel_package))
 spec = importlib.util.find_spec("vllm._rust_tool_parser")
 assert spec is not None, "vllm._rust_tool_parser missing"
 print("rust_tool_parser", spec.origin)
@@ -751,6 +758,8 @@ COPY --from=vllm-build /opt/vllm /opt/vllm
 COPY --from=vllm-build /usr/local/bin/run-glm51-vllm /usr/local/bin/run-glm51-vllm
 COPY --from=vllm-build /usr/local/bin/run-kimi26-vllm /usr/local/bin/run-kimi26-vllm
 COPY --from=vllm-build /usr/local/bin/serve-*.sh /usr/local/bin/
+COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
+COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
 
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
@@ -927,6 +936,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     TILELANG_TMP_DIR=/cache/jit/${CACHE_FINGERPRINT}/tilelang/tmp \
     CUTE_DSL_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cute-dsl \
     B12X_CUTE_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x-cute \
+    SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/sparkinfer/compile \
     DG_JIT_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/deep-gemm \
     MM_SPARSE_ATTN_AOT_CACHE=/cache/jit/${CACHE_FINGERPRINT}/minfer/mm_sparse_attn \
     MINFER_FMHA_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/minfer/fmha_sm100 \
@@ -965,6 +975,7 @@ RUN mkdir -p \
       "${TILELANG_TMP_DIR}" \
       "${CUTE_DSL_CACHE_DIR}" \
       "${B12X_CUTE_COMPILE_CACHE_DIR}" \
+      "${SPARKINFER_COMPILE_CACHE_DIR}" \
       "${DG_JIT_CACHE_DIR}" \
       "${MM_SPARSE_ATTN_AOT_CACHE}" \
       "${MINFER_FMHA_CACHE_DIR}" \
@@ -1005,6 +1016,8 @@ ARG TRITON_KERNELS_REF
 ARG TRITON_KERNELS_COMMIT
 ARG INSTANTTENSOR_REF
 ARG INSTANTTENSOR_COMMIT
+ARG LAUNCHER_REF
+ARG LAUNCHER_COMMIT
 ARG VLLM_REQUIRED_LAUNCHERS
 ARG CUBLAS_CUDA13_VERSION
 ARG CUDNN_CUDA13_VERSION
@@ -1013,7 +1026,7 @@ ARG CUTLASS_DSL_VERSION
 ARG TOKENSPEED_MLA_VERSION
 ARG TVM_FFI_VERSION
 
-LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, B12X and selected vLLM branch" \
+LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, SparkInfer and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
       local-inference.cuda.compat.version="${CUDA_COMPAT_13_2_VERSION}" \
       local-inference.cublas.version="${CUBLAS_CUDA13_VERSION}" \
@@ -1035,6 +1048,9 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image wi
       local-inference.b12x.branch="${B12X_REF}" \
       local-inference.b12x.commit="${B12X_COMMIT}" \
       local-inference.b12x.runtime_version="source" \
+      local-inference.sparkinfer.branch="${B12X_REF}" \
+      local-inference.sparkinfer.commit="${B12X_COMMIT}" \
+      local-inference.sparkinfer.runtime_version="source" \
       local-inference.flashinfer.branch="${FLASHINFER_REF}" \
       local-inference.flashinfer.commit="${FLASHINFER_COMMIT}" \
       local-inference.deepgemm.branch="${DEEPGEMM_REF}" \
@@ -1043,4 +1059,6 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image wi
       local-inference.triton_kernels.commit="${TRITON_KERNELS_COMMIT}" \
       local-inference.instanttensor.branch="${INSTANTTENSOR_REF}" \
       local-inference.instanttensor.commit="${INSTANTTENSOR_COMMIT}" \
+      local-inference.launcher.branch="${LAUNCHER_REF}" \
+      local-inference.launcher.commit="${LAUNCHER_COMMIT}" \
       local-inference.launchers="${VLLM_REQUIRED_LAUNCHERS}"

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+launcher_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=glm52-pcie-runtime-env.sh
+source "${launcher_dir}/glm52-pcie-runtime-env.sh"
+
 die() {
   echo "ERROR: $*" >&2
   exit 2
@@ -10,7 +14,7 @@ MODEL="${MODEL:-lukealonso/GLM-5.2-NVFP4}"
 MODEL_REVISION="${MODEL_REVISION:-8a1f4a13204acf2b7ac840375efaed64c231c522}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-GLM-5.2-NVFP4}"
 PORT="${PORT:-8000}"
-GPUS="${GPUS:-0,1,2,3,4,5,6,7}"
+GPUS="${GPUS:-${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}}"
 TP="${TP:-8}"
 DCP="${DCP:-1}"
 DCP_BACKEND="${DCP_BACKEND:-a2a}"
@@ -65,8 +69,8 @@ case "${MOE_MODE}" in
 esac
 
 case "${F8_DMA}" in
-  0|ag|ring) ;;
-  *) die "F8_DMA must be 0, ag, or ring" ;;
+  0|ag|ring|a2a|i8|i8_ring|i8_a2a|mx|mx_ring|mx_a2a) ;;
+  *) die "F8_DMA is not a supported DMA wire mode: ${F8_DMA}" ;;
 esac
 
 case "${B12X_PCIE_DMA}" in
@@ -142,10 +146,11 @@ case "${ONLINE_QUANT}" in
     ONLINE_QUANT=none
     ;;
   mxfp8)
-    # kv_b_proj is dequantized at load for MLA absorb, so converting it adds
-    # rounding noise without changing the serving kernel.
+    # Quantize every eligible linear. Accuracy testing found no meaningful KLD
+    # benefit from the historical kv_b_proj exclusion; callers can still pass
+    # an explicit ignore list through QUANTIZATION_CONFIG_JSON.
     if [[ -z "${QUANTIZATION_CONFIG_JSON}" ]]; then
-      QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"},"ignore":["re:.*kv_b_proj"]}'
+      QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"}}'
     fi
     ;;
   nf3-mxfp8)
@@ -170,6 +175,18 @@ case "${ONLINE_QUANT}" in
     die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, fp8, or custom"
     ;;
 esac
+
+if [[ -z "${VLLM_B12X_ABSORB_BMM+x}" ]]; then
+  case "${ONLINE_QUANT}" in
+    mxfp8|nf3-mxfp8) VLLM_B12X_ABSORB_BMM=1 ;;
+    *) VLLM_B12X_ABSORB_BMM=0 ;;
+  esac
+fi
+case "${VLLM_B12X_ABSORB_BMM}" in
+  0|1) ;;
+  *) die "VLLM_B12X_ABSORB_BMM must be 0 or 1" ;;
+esac
+export VLLM_B12X_ABSORB_BMM
 
 unset NCCL_GRAPH_FILE NCCL_GRAPH_DUMP_FILE VLLM_B12X_MLA_EXTEND_MAX_CHUNKS
 
@@ -209,13 +226,7 @@ export VLLM_DCP_PROJECT_BEFORE_MERGE="${DCP_PREFILL_WORKSPACE}"
 export VLLM_DCP_PROJECT_BEFORE_MERGE_MIN_PREFILL_TOKENS="${DCP_PROJECT_MIN_PREFILL_TOKENS}"
 export VLLM_B12X_MLA_DCP_GATHER_IN_WORKSPACE="${DCP_PREFILL_WORKSPACE}"
 export VLLM_USE_V2_MODEL_RUNNER=1
-export VLLM_ENABLE_PCIE_ALLREDUCE=1
-export VLLM_PCIE_ALLREDUCE_BACKEND=b12x
-export VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE=64KB
-export VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE=84KB
-export VLLM_USE_B12X_PCIE_DMA="${B12X_PCIE_DMA}"
-export VLLM_PCIE_DMA_FP8="${F8_DMA}"
-export B12X_PCIE_DMA_FP8="${F8_DMA}"
+configure_glm52_pcie_runtime_env "${B12X_PCIE_DMA}" "${F8_DMA}"
 export VLLM_DCP_GLOBAL_TOPK=1
 export VLLM_DCP_SHARD_DRAFT=1
 export VLLM_NF3_GRID188_DECODE="${NF3_GRID188}"
@@ -225,11 +236,6 @@ export B12X_W4A16_TC_DECODE=1
 export B12X_W4A8_TINY_DECODE=1
 export B12X_MOE_FORCE_A8="${B12X_MOE_FORCE_A8}"
 export B12X_MOE_FORCE_A16="${B12X_MOE_FORCE_A16}"
-export NCCL_PROTO=LL,LL128,Simple
-export NCCL_P2P_LEVEL=SYS
-export NCCL_IB_DISABLE=1
-export LD_PRELOAD=/opt/libnccl-local-inference.so.2.30.4
-export VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4
 export TMPDIR="${TMPDIR:-/container-tmp}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/cache}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-${VLLM_CACHE_DIR:-${XDG_CACHE_HOME}/vllm}}"
@@ -343,6 +349,10 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   printf 'B12X_MOE_FORCE_A8=%q\n' "${B12X_MOE_FORCE_A8}"
   printf 'B12X_MOE_FORCE_A16=%q\n' "${B12X_MOE_FORCE_A16}"
   printf 'VLLM_USE_B12X_PCIE_DMA=%q\n' "${VLLM_USE_B12X_PCIE_DMA}"
+  printf 'VLLM_PCIE_DMA_FP8=%q\n' "${VLLM_PCIE_DMA_FP8}"
+  printf 'B12X_PCIE_DMA_FP8=%q\n' "${B12X_PCIE_DMA_FP8}"
+  printf 'SPARKINFER_PCIE_DMA_FP8=%q\n' "${SPARKINFER_PCIE_DMA_FP8}"
+  printf 'VLLM_B12X_ABSORB_BMM=%q\n' "${VLLM_B12X_ABSORB_BMM}"
   printf 'VLLM_DCP_PROJECT_BEFORE_MERGE=%q\n' "${VLLM_DCP_PROJECT_BEFORE_MERGE}"
   printf 'VLLM_DCP_PROJECT_BEFORE_MERGE_MIN_PREFILL_TOKENS=%q\n' "${VLLM_DCP_PROJECT_BEFORE_MERGE_MIN_PREFILL_TOKENS}"
   printf 'VLLM_B12X_MLA_DCP_GATHER_IN_WORKSPACE=%q\n' "${VLLM_B12X_MLA_DCP_GATHER_IN_WORKSPACE}"
