@@ -871,9 +871,6 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
       redis==8.0.1 \
       numba==0.65.0 \
       opentelemetry-exporter-prometheus==0.65b0 \
- && python -m pytest --confcutdir=tests/v1 \
-      tests/v1/test_vllm_dcp_parallel_strategy.py \
-      tests/v1/test_vllm_mp_adapter.py -q \
  && mkdir -p /tmp/lmcache-wheels \
  && BUILD_WITH_CUDA=1 \
       TORCH_CUDA_ARCH_LIST=12.0 \
@@ -881,7 +878,14 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
       SETUPTOOLS_SCM_PRETEND_VERSION_FOR_LMCACHE="${LMCACHE_BUILD_VERSION}" \
       python -m pip wheel --no-build-isolation --no-deps \
       -w /tmp/lmcache-wheels /tmp/lmcache-src \
- && test "$(find /tmp/lmcache-wheels -maxdepth 1 -name 'lmcache-*.whl' | wc -l)" -eq 1
+ && test "$(find /tmp/lmcache-wheels -maxdepth 1 -name 'lmcache-*.whl' | wc -l)" -eq 1 \
+ && python -m pip install --no-deps --force-reinstall \
+      /tmp/lmcache-wheels/lmcache-*.whl \
+ && cd /tmp \
+ && python -m pytest --import-mode=importlib \
+      --confcutdir=/tmp/lmcache-src/tests/v1 \
+      /tmp/lmcache-src/tests/v1/test_vllm_dcp_parallel_strategy.py \
+      /tmp/lmcache-src/tests/v1/test_vllm_mp_adapter.py -q
 
 # =============================================================================
 # Stage 4: clean final runtime
