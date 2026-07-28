@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "${tmp_root}"' EXIT
+mkdir -p "${tmp_root}/bin"
+
+cat >"${tmp_root}/bin/lmcache" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%q ' "$@" >"${LMCACHE_TEST_SERVER_ARGS}"
+printf '\n' >>"${LMCACHE_TEST_SERVER_ARGS}"
+echo 'LMCache ZMQ cache server is running'
+if [[ "${LMCACHE_TEST_EXIT_AFTER_READY:-0}" == 1 ]]; then
+  sleep 0.1
+  exit 23
+fi
+trap 'exit 0' INT TERM
+while true; do
+  sleep 1 &
+  wait $! || true
+done
+SH
+chmod +x "${tmp_root}/bin/lmcache"
+
+cat >"${tmp_root}/model-server" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >"${LMCACHE_TEST_MODEL_ARGS}"
+sleep "${LMCACHE_TEST_MODEL_SLEEP:-0}"
+SH
+chmod +x "${tmp_root}/model-server"
+
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8002 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/ram.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/ram-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/ram-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server" --model-arg value
+
+grep -Fq -- '--port 5557' "${tmp_root}/ram-server.args"
+grep -Fq -- '--http-port 8091' "${tmp_root}/ram-server.args"
+grep -Fq -- '--l1-size-gb 2' "${tmp_root}/ram-server.args"
+if grep -Fq -- '--l2-adapter' "${tmp_root}/ram-server.args"; then
+  echo 'RAM-only mode unexpectedly enabled L2' >&2
+  exit 1
+fi
+grep -Fq -- '--kv-transfer-config' "${tmp_root}/ram-model.args"
+grep -Fq -- '"lmcache.mp.port":5557' "${tmp_root}/ram-model.args"
+
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=disk \
+PORT=8003 \
+LMCACHE_L1_GB=2 \
+LMCACHE_L2_GB=7 \
+LMCACHE_L2_PATH="${tmp_root}/l2" \
+LMCACHE_LOG="${tmp_root}/disk.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/disk-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/disk-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server"
+
+grep -Fq -- '--l2-adapter' "${tmp_root}/disk-server.args"
+grep -Fq -- 'fs_native' "${tmp_root}/disk-server.args"
+grep -Fq -- 'use_odirect' "${tmp_root}/disk-server.args"
+grep -Fq -- 'max_capacity_gb' "${tmp_root}/disk-server.args"
+
+if PATH="${tmp_root}/bin:${PATH}" \
+  LMCACHE_MODE=invalid \
+  bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+    "${tmp_root}/model-server"; then
+  echo 'Invalid LMCache mode unexpectedly succeeded' >&2
+  exit 1
+fi
+
+LMCACHE_MODE=off \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/off-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server" untouched
+grep -Fxq 'untouched' "${tmp_root}/off-model.args"
+
+if LMCACHE_MODE=ram \
+  MODEL_FAMILY=ds4 \
+  bash "${repo_root}/launchers/serve-gilded-gnosis.sh"; then
+  echo 'LMCache unexpectedly accepted an unvalidated model family' >&2
+  exit 1
+fi
+
+if PATH="${tmp_root}/bin:${PATH}" \
+  LMCACHE_MODE=ram \
+  PORT=8004 \
+  LMCACHE_L1_GB=2 \
+  LMCACHE_LOG="${tmp_root}/crash.log" \
+  LMCACHE_TEST_EXIT_AFTER_READY=1 \
+  LMCACHE_TEST_MODEL_SLEEP=5 \
+  LMCACHE_TEST_SERVER_ARGS="${tmp_root}/crash-server.args" \
+  LMCACHE_TEST_MODEL_ARGS="${tmp_root}/crash-model.args" \
+  bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+    "${tmp_root}/model-server"; then
+  echo 'Wrapper unexpectedly survived an LMCache server failure' >&2
+  exit 1
+fi
+
+echo 'GLM-5.2 LMCache helper: PASS'

@@ -1,0 +1,331 @@
+diff --git a/lmcache/integration/vllm/lmcache_mp_connector.py b/lmcache/integration/vllm/lmcache_mp_connector.py
+index 82abcd39..1dbbaf27 100644
+--- a/lmcache/integration/vllm/lmcache_mp_connector.py
++++ b/lmcache/integration/vllm/lmcache_mp_connector.py
+@@ -195,6 +195,7 @@ def build_parallel_strategy_from_vllm_config(
+         tp_size=pc.tensor_parallel_size,
+         pp_size=pc.pipeline_parallel_size,
+         n_servers=n_servers,
++        dcp_size=getattr(pc, "decode_context_parallel_size", 1),
+     )
+ 
+ 
+diff --git a/lmcache/integration/vllm/vllm_multi_process_adapter.py b/lmcache/integration/vllm/vllm_multi_process_adapter.py
+index 0cfffb6e..ea2a6ed7 100644
+--- a/lmcache/integration/vllm/vllm_multi_process_adapter.py
++++ b/lmcache/integration/vllm/vllm_multi_process_adapter.py
+@@ -319,11 +319,38 @@ class ParallelStrategy:
+     n_servers: int
+     """Number of LMCache servers backing this deployment"""
+ 
++    dcp_size: int = 1
++    """Decode-context parallel size within the tensor-parallel group."""
++
++    def __post_init__(self) -> None:
++        if self.dcp_size < 1:
++            raise ValueError(f"dcp_size must be positive, got {self.dcp_size}")
++        if self.tp_size % self.dcp_size != 0:
++            raise ValueError(
++                f"tp_size ({self.tp_size}) must be divisible by "
++                f"dcp_size ({self.dcp_size})"
++            )
++        if self.use_mla and self.dcp_size > 1:
++            if self.pp_size != 1:
++                raise ValueError(
++                    "LMCache MLA+DCP currently requires pp_size=1; "
++                    f"got pp_size={self.pp_size}"
++                )
++            if self.n_servers != 1:
++                raise ValueError(
++                    "LMCache MLA+DCP currently requires one LMCache server; "
++                    f"got n_servers={self.n_servers}"
++                )
++
+     @property
+     def kv_world_size(self) -> int:
+         """Number of pieces a single token chunk's KV cache is split into
+         on the LMCache server storage."""
+         if self.use_mla:
++            if self.dcp_size > 1:
++                # DCP shards KV across ranks inside TP. The remaining
++                # TP / DCP ranks hold query-parallel replicas of those shards.
++                return self.dcp_size
+             # In this PR we do not support PP + TP + MLA in multi-server mode.
+             # A precondition check enforces pp_size == 1, so kv_world_size for
+             # MLA can be derived as world_size / tp_size.
+@@ -336,12 +363,16 @@ class ParallelStrategy:
+         that the current worker is responsible for,
+         in ``[0, kv_world_size)``."""
+         if self.use_mla:
++            if self.dcp_size > 1:
++                return self.vllm_worker_id % self.dcp_size
+             return self.vllm_worker_id // self.tp_size
+         return self.vllm_worker_id % (self.vllm_world_size // self.n_servers)
+ 
+     @property
+     def kv_tp_size(self) -> int:
+         """Tensor-parallel size as seen from a single LMCache server."""
++        if self.use_mla and self.dcp_size > 1:
++            return self.tp_size // self.dcp_size
+         return self.tp_size // self.n_servers
+ 
+     @property
+@@ -349,6 +380,8 @@ class ParallelStrategy:
+         """Whether this rank is responsible for storing KV."""
+         if not self.use_mla:
+             return True
++        if self.dcp_size > 1:
++            return self.vllm_worker_id < self.dcp_size
+         # MLA: only first rank per node is a writer.
+         return self.vllm_worker_id % (self.tp_size // self.n_servers) == 0
+ 
+@@ -1119,14 +1152,14 @@ class LMCacheMPWorkerAdapter:
+         self.transfer_ctx: TransferContext | None = None
+ 
+         # Request futures
+-        self.store_futures: dict[str, MessagingFuture[StoreResult]] = {}
++        self.store_futures: dict[str, list[MessagingFuture[StoreResult]]] = {}
+         # request_id -> (future, block_ids)
+         self.retrieve_futures: dict[
+             str, tuple[MessagingFuture[RetrieveResult], list[int]]
+         ] = {}
+         # The IPC handle is not enough by itself; CUDA needs the exporting
+         # event object to stay alive until the consumer is done with it.
+-        self.store_events: dict[str, _IpcEvent] = {}
++        self.store_events: dict[str, list[_IpcEvent]] = {}
+         self.retrieve_events: dict[str, _IpcEvent] = {}
+ 
+         # Block IDs that failed due to retrieve timeout
+@@ -1427,8 +1460,11 @@ class LMCacheMPWorkerAdapter:
+             event,
+             self.blocks_in_chunk,
+         )
+-        self.store_futures[request_id] = future
+-        self.store_events[request_id] = event
++        # Chunked prefill can submit multiple stores for one request before
++        # earlier stores finish. Keep every future and its exporting event.
++        self.finished_stores.discard(request_id)
++        self.store_futures.setdefault(request_id, []).append(future)
++        self.store_events.setdefault(request_id, []).append(event)
+ 
+     @_lmcache_nvtx_annotate
+     def submit_retrieve_request(
+@@ -1556,6 +1592,41 @@ class LMCacheMPWorkerAdapter:
+         self._returned_finished.update(ret_stores)
+         return ret_stores
+ 
++    def _poll_store_futures(self) -> set[str]:
++        """Poll all chunk stores and retain events until their futures finish."""
++        finished_requests: set[str] = set()
++        for request_id, futures in list(self.store_futures.items()):
++            events = self.store_events.get(request_id, [])
++            if len(futures) != len(events):
++                raise RuntimeError(
++                    f"LMCache store future/event mismatch for {request_id}: "
++                    f"{len(futures)} futures vs {len(events)} events"
++                )
++
++            pending_futures: list[MessagingFuture[StoreResult]] = []
++            pending_events: list[_IpcEvent] = []
++            for future, event in zip(futures, events, strict=True):
++                if not future.query():
++                    pending_futures.append(future)
++                    pending_events.append(event)
++                    continue
++                if not future.result():
++                    logger.error(
++                        "Something went wrong when processing the "
++                        "store request for request_id=%s",
++                        request_id,
++                    )
++
++            if pending_futures:
++                self.store_futures[request_id] = pending_futures
++                self.store_events[request_id] = pending_events
++            else:
++                self.store_futures.pop(request_id, None)
++                self.store_events.pop(request_id, None)
++                finished_requests.add(request_id)
++
++        return finished_requests
++
+     @_lmcache_nvtx_annotate
+     def get_finished(
+         self, finished_req_ids_from_engine: set[str]
+@@ -1617,22 +1688,8 @@ class LMCacheMPWorkerAdapter:
+             ret_stores -= finished_retrieves
+             return ret_stores, finished_retrieves
+ 
+-        finished_stores = set()
++        finished_stores = self._poll_store_futures()
+         finished_retrieves = set()
+-        for request_id, s_future in self.store_futures.items():
+-            if not s_future.query():
+-                continue
+-
+-            s_result = s_future.result()
+-            finished_stores.add(request_id)
+-
+-            if not s_result:
+-                logger.error(
+-                    "Something went wrong when processing the "
+-                    "store request for request_id=%s",
+-                    request_id,
+-                )
+-
+         for request_id, (r_future, _) in self.retrieve_futures.items():
+             if not r_future.query():
+                 continue
+@@ -1648,10 +1705,7 @@ class LMCacheMPWorkerAdapter:
+                     r_result,
+                 )
+ 
+-        # Remove the finished requests from the tracking dicts
+-        for request_id in finished_stores:
+-            self.store_futures.pop(request_id, None)
+-            self.store_events.pop(request_id, None)
++        # Store futures and events are removed together by _poll_store_futures.
+         for request_id in finished_retrieves:
+             self.retrieve_futures.pop(request_id, None)
+             self.retrieve_events.pop(request_id, None)
+diff --git a/tests/v1/test_vllm_mp_adapter.py b/tests/v1/test_vllm_mp_adapter.py
+index 372fa27e..d64ca9ec 100644
+--- a/tests/v1/test_vllm_mp_adapter.py
++++ b/tests/v1/test_vllm_mp_adapter.py
+@@ -243,7 +243,41 @@ def test_submit_store_request_tracks_returned_future(fake_adapter, monkeypatch):
+     assert transfer_ctx.submit_store.called
+     assert transfer_ctx.submit_store.call_args.kwargs == {}
+     assert transfer_ctx.submit_store.call_args.args[4] == [[0]]
+-    assert adapter.store_futures["req-1"] is fake_future
++    assert adapter.store_futures["req-1"] == [fake_future]
++
++
++def test_chunked_store_keeps_all_futures_and_events(fake_adapter, monkeypatch):
++    adapter, _send_mock, _ = fake_adapter
++    monkeypatch.setattr(adapter, "_ensure_heartbeat_started", lambda: None)
++    fake_tensor = MagicMock()
++    fake_tensor.device.type = "cuda"
++    adapter.kv_caches = {"layer.0": fake_tensor}
++    transfer_ctx = MagicMock()
++    first_future = MagicMock()
++    second_future = MagicMock()
++    transfer_ctx.submit_store.side_effect = [first_future, second_future]
++    adapter.transfer_ctx = transfer_ctx
++    first_event = MagicMock()
++    second_event = MagicMock()
++
++    adapter.submit_store_request("req-1", _op([[0]]), event=first_event)
++    adapter.submit_store_request("req-1", _op([[1]]), event=second_event)
++
++    assert adapter.store_futures["req-1"] == [first_future, second_future]
++    assert adapter.store_events["req-1"] == [first_event, second_event]
++
++    first_future.query.return_value = True
++    first_future.result.return_value = True
++    second_future.query.return_value = False
++    assert adapter.get_finished(set()) == (set(), set())
++    assert adapter.store_futures["req-1"] == [second_future]
++    assert adapter.store_events["req-1"] == [second_event]
++
++    second_future.query.return_value = True
++    second_future.result.return_value = True
++    assert adapter.get_finished({"req-1"}) == ({"req-1"}, set())
++    assert "req-1" not in adapter.store_futures
++    assert "req-1" not in adapter.store_events
+ 
+ 
+ def test_submit_store_request_expands_block_ids_to_views(fake_adapter, monkeypatch):
+diff --git a/tests/v1/test_vllm_dcp_parallel_strategy.py b/tests/v1/test_vllm_dcp_parallel_strategy.py
+new file mode 100644
+index 00000000..d03a93a3
+--- /dev/null
++++ b/tests/v1/test_vllm_dcp_parallel_strategy.py
+@@ -0,0 +1,88 @@
++# SPDX-License-Identifier: Apache-2.0
++from types import SimpleNamespace
++
++import pytest
++
++from lmcache.integration.vllm import lmcache_mp_connector
++from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
++
++
++@pytest.mark.parametrize(
++    ("tp_size", "dcp_size"),
++    [(4, 2), (4, 4), (6, 2), (6, 3), (6, 6), (8, 2), (8, 4), (8, 8)],
++)
++def test_mla_dcp_maps_replicated_tp_ranks_to_dcp_shards(
++    tp_size: int, dcp_size: int
++) -> None:
++    strategies = [
++        ParallelStrategy(
++            use_mla=True,
++            vllm_world_size=tp_size,
++            vllm_worker_id=rank,
++            tp_size=tp_size,
++            pp_size=1,
++            n_servers=1,
++            dcp_size=dcp_size,
++        )
++        for rank in range(tp_size)
++    ]
++
++    assert {strategy.kv_world_size for strategy in strategies} == {dcp_size}
++    assert [strategy.kv_worker_id for strategy in strategies] == [
++        rank % dcp_size for rank in range(tp_size)
++    ]
++    assert {strategy.kv_tp_size for strategy in strategies} == {tp_size // dcp_size}
++    assert [strategy.is_kv_writer for strategy in strategies] == [
++        rank < dcp_size for rank in range(tp_size)
++    ]
++
++
++def test_build_parallel_strategy_reads_dcp_size(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setattr(lmcache_mp_connector, "mla_enabled", lambda _: True)
++    parallel_config = SimpleNamespace(
++        world_size=8,
++        rank=5,
++        tensor_parallel_size=8,
++        pipeline_parallel_size=1,
++        decode_context_parallel_size=4,
++    )
++    config = SimpleNamespace(
++        parallel_config=parallel_config,
++        model_config=object(),
++    )
++
++    strategy = lmcache_mp_connector.build_parallel_strategy_from_vllm_config(
++        config, n_servers=1
++    )
++
++    assert strategy.dcp_size == 4
++    assert strategy.kv_world_size == 4
++    assert strategy.kv_worker_id == 1
++    assert strategy.kv_tp_size == 2
++    assert not strategy.is_kv_writer
++
++
++@pytest.mark.parametrize(
++    "overrides",
++    [
++        {"tp_size": 6, "dcp_size": 4},
++        {"pp_size": 2, "dcp_size": 2},
++        {"n_servers": 2, "dcp_size": 2},
++    ],
++)
++def test_mla_dcp_rejects_unsupported_geometry(overrides: dict[str, int]) -> None:
++    kwargs = {
++        "use_mla": True,
++        "vllm_world_size": 8,
++        "vllm_worker_id": 0,
++        "tp_size": 8,
++        "pp_size": 1,
++        "n_servers": 1,
++        "dcp_size": 4,
++    }
++    kwargs.update(overrides)
++
++    with pytest.raises(ValueError):
++        ParallelStrategy(**kwargs)
