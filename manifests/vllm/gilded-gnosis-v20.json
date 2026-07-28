@@ -33,6 +33,11 @@
       "number": 185,
       "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
       "title": "Gate DCP query split by measured context crossover"
+    },
+    {
+      "number": 190,
+      "head": "417030797cc2ba156c09c1c9a520d77df646d769",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
     }
   ]
 }

@@ -8,6 +8,11 @@
       "number": 81,
       "head": "f049ccdfeafd80b1424e09983bfb75ce629246f1",
       "title": "Add lossless PCIe serving calibration probe"
+    },
+    {
+      "number": 49,
+      "head": "669a12ddc7cf3021e91a25f398b1a883b703fd12",
+      "title": "Add planned EXL3 Trellis path for fused Blackwell MoE"
     }
   ]
 }

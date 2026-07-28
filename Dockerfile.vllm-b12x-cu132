@@ -39,6 +39,10 @@ ARG DEEPGEMM_REPO=https://github.com/deepseek-ai/DeepGEMM.git
 ARG DEEPGEMM_REF=refs/pull/324/head
 ARG DEEPGEMM_COMMIT=
 
+ARG EXLLAMAV3_REPO=https://github.com/brandonmmusic-max/exllamav3.git
+ARG EXLLAMAV3_REF=a1-retile-sm120
+ARG EXLLAMAV3_COMMIT=704aefd743b390af4bd0fb429d1906f9b964c7d8
+
 ARG B12X_REPO=https://github.com/lukealonso/b12x.git
 ARG B12X_REF=refs/pull/11/head
 ARG B12X_COMMIT=c929144c7689668b07ca65af10ceadf1c745165d
@@ -325,7 +329,54 @@ RUN if [[ -d /usr/local/cuda/targets/x86_64-linux/include/cccl/cuda && ! -e /usr
     fi
 
 # =============================================================================
-# Stage 2a: build FlashInfer and flashinfer-cubin.
+# Stage 2a: build the public SM120 EXL3 extension against this image's exact
+# PyTorch/CUDA ABI. This avoids the opaque prebuilt binary and ABI shim used by
+# the original standalone EXL3 image.
+# =============================================================================
+FROM base AS exllamav3-build
+
+ARG EXLLAMAV3_REPO
+ARG EXLLAMAV3_REF
+ARG EXLLAMAV3_COMMIT
+
+WORKDIR /build
+
+RUN git clone "${EXLLAMAV3_REPO}" exllamav3 \
+ && cd exllamav3 \
+ && git checkout "${EXLLAMAV3_REF}" \
+ && [[ "$(git rev-parse HEAD)" = "${EXLLAMAV3_COMMIT}" ]] || { \
+      echo "ERROR: EXLLAMAV3_COMMIT mismatch: HEAD=$(git rev-parse HEAD) expected=${EXLLAMAV3_COMMIT}" >&2; \
+      exit 1; \
+    } \
+ && TORCH_CUDA_ARCH_LIST=12.0a MAX_JOBS="${MAX_JOBS}" \
+      python setup.py build_ext --inplace \
+ && mapfile -t extensions < <(find . -maxdepth 1 -type f -name 'exllamav3_ext*.so' -print) \
+ && [[ "${#extensions[@]}" == 1 ]] \
+ && install -d /opt/exllamav3 \
+ && install -m 0755 "${extensions[0]}" /opt/exllamav3/
+
+RUN VLLM_EXL3_EXT_PATH=/opt/exllamav3 python - <<'PY'
+import importlib
+import os
+import sys
+
+import torch  # Load the Torch runtime and libc10 before the extension.
+
+sys.path.insert(0, os.environ["VLLM_EXL3_EXT_PATH"])
+ext = importlib.import_module("exllamav3_ext")
+required = (
+    "exl3_gemm",
+    "exl3_moe_fused",
+    "exl3_moe_fused_retile",
+    "exl3_moe_max_concurrency",
+)
+missing = [name for name in required if not hasattr(ext, name)]
+assert not missing, f"EXL3 extension is missing exports: {missing}"
+print("EXL3 extension source build: PASS")
+PY
+
+# =============================================================================
+# Stage 2b: build FlashInfer and flashinfer-cubin.
 #
 # Keep this stage independent from vLLM args so local BuildKit cache reuses the
 # expensive FlashInfer/CUBIN build until CUDA/Torch/CUTLASS/FlashInfer changes.
@@ -796,6 +847,7 @@ COPY --from=vllm-build /usr/local/bin/serve-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
+COPY --from=exllamav3-build /opt/exllamav3 /opt/exllamav3
 
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
 ARG VLLM_RUNTIME_EXTRA_PACKAGES=""
@@ -981,6 +1033,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     NCCL_LOCAL_INFERENCE_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     NCCL_PR2127_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4 \
+    VLLM_EXL3_EXT_PATH=/opt/exllamav3 \
     LD_PRELOAD=/opt/libnccl-local-inference.so.2.30.4 \
     NCCL_IB_DISABLE=1 \
     NCCL_P2P_LEVEL=SYS \
@@ -1070,6 +1123,9 @@ ARG CUDA_COMPAT_13_2_VERSION
 ARG CUTLASS_DSL_VERSION
 ARG TOKENSPEED_MLA_VERSION
 ARG TVM_FFI_VERSION
+ARG EXLLAMAV3_REPO
+ARG EXLLAMAV3_REF
+ARG EXLLAMAV3_COMMIT
 
 LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, SparkInfer and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
@@ -1120,6 +1176,9 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.triton_kernels.commit="${TRITON_KERNELS_COMMIT}" \
       local-inference.instanttensor.branch="${INSTANTTENSOR_REF}" \
       local-inference.instanttensor.commit="${INSTANTTENSOR_COMMIT}" \
+      local-inference.exllamav3.repo="${EXLLAMAV3_REPO}" \
+      local-inference.exllamav3.branch="${EXLLAMAV3_REF}" \
+      local-inference.exllamav3.commit="${EXLLAMAV3_COMMIT}" \
       local-inference.launcher.branch="${LAUNCHER_REF}" \
       local-inference.launcher.commit="${LAUNCHER_COMMIT}" \
       local-inference.launchers="${VLLM_REQUIRED_LAUNCHERS}"

@@ -19,6 +19,8 @@ FLASHINFER_REF="${FLASHINFER_REF:-refs/pull/3395/head}"
 FLASHINFER_BUILD_CUBIN="${FLASHINFER_BUILD_CUBIN:-1}"
 DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.git}"
 DEEPGEMM_REF="${DEEPGEMM_REF:-refs/pull/324/head}"
+EXLLAMAV3_REPO="${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}"
+EXLLAMAV3_REF="${EXLLAMAV3_REF:-a1-retile-sm120}"
 B12X_REPO="${B12X_REPO:-https://github.com/lukealonso/b12x.git}"
 B12X_REF="${B12X_REF:-refs/pull/11/head}"
 B12X_PATCH_SHA256="${B12X_PATCH_SHA256:-}"
@@ -86,6 +88,7 @@ if [[ "${PIN_SOURCE_COMMITS}" == "1" ]]; then
   NCCL_COMMIT="${NCCL_COMMIT:-$(resolve_ref "${NCCL_REPO}" "${NCCL_REF}")}"
   FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-$(resolve_ref "${FLASHINFER_REPO}" "${FLASHINFER_REF}")}"
   DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-$(resolve_ref "${DEEPGEMM_REPO}" "${DEEPGEMM_REF}")}"
+  EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-$(resolve_ref "${EXLLAMAV3_REPO}" "${EXLLAMAV3_REF}")}"
   B12X_COMMIT="${B12X_COMMIT:-$(resolve_ref "${B12X_REPO}" "${B12X_REF}")}"
   VLLM_COMMIT="${VLLM_COMMIT:-$(resolve_ref "${VLLM_REPO}" "${VLLM_REF}")}"
   LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-$(resolve_ref "${LAUNCHER_REPO}" "${LAUNCHER_REF}")}"
@@ -104,6 +107,7 @@ else
   NCCL_COMMIT="${NCCL_COMMIT:-}"
   FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-}"
   DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-}"
+  EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-}"
   B12X_COMMIT="${B12X_COMMIT:-}"
   VLLM_COMMIT="${VLLM_COMMIT:-}"
   LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-}"
@@ -278,6 +282,9 @@ cache_hash="$(printf '%s\n' \
   "DEEPGEMM_REPO=${DEEPGEMM_REPO}" \
   "DEEPGEMM_REF=${DEEPGEMM_REF}" \
   "DEEPGEMM_COMMIT=${DEEPGEMM_COMMIT}" \
+  "EXLLAMAV3_REPO=${EXLLAMAV3_REPO}" \
+  "EXLLAMAV3_REF=${EXLLAMAV3_REF}" \
+  "EXLLAMAV3_COMMIT=${EXLLAMAV3_COMMIT}" \
   "B12X_REPO=${B12X_REPO}" \
   "B12X_REF=${B12X_REF}" \
   "B12X_COMMIT=${B12X_COMMIT}" \
@@ -339,6 +346,7 @@ echo "  VLLM_NVCC_THREADS=${VLLM_NVCC_THREADS}"
 echo "  FLASHINFER_REF=${FLASHINFER_REF} ${FLASHINFER_COMMIT}"
 echo "  FLASHINFER_BUILD_CUBIN=${FLASHINFER_BUILD_CUBIN}"
 echo "  DEEPGEMM_REF=${DEEPGEMM_REF} ${DEEPGEMM_COMMIT}"
+echo "  EXLLAMAV3_REF=${EXLLAMAV3_REF} ${EXLLAMAV3_COMMIT}"
 echo "  B12X_REF=${B12X_REF} ${B12X_COMMIT}"
 echo "  B12X_PATCH_SHA256=${B12X_PATCH_SHA256}"
 echo "  B12X_PATCH_FILE=${B12X_PATCH_FILE}"
@@ -412,6 +420,9 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg DEEPGEMM_REPO="${DEEPGEMM_REPO}" \
   --build-arg DEEPGEMM_REF="${DEEPGEMM_REF}" \
   --build-arg DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT}" \
+  --build-arg EXLLAMAV3_REPO="${EXLLAMAV3_REPO}" \
+  --build-arg EXLLAMAV3_REF="${EXLLAMAV3_REF}" \
+  --build-arg EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT}" \
   --build-arg B12X_REPO="${B12X_REPO}" \
   --build-arg B12X_REF="${B12X_REF}" \
   --build-arg B12X_COMMIT="${B12X_COMMIT}" \
@@ -463,6 +474,12 @@ image_cache_fingerprint="$(docker image inspect "${IMAGE}" --format '{{index .Co
   exit 1
 }
 
+image_exllamav3_commit="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.exllamav3.commit"}}')"
+[[ "${image_exllamav3_commit}" == "${EXLLAMAV3_COMMIT}" ]] || {
+  echo "Image EXL3 source mismatch: got ${image_exllamav3_commit}, expected ${EXLLAMAV3_COMMIT}" >&2
+  exit 1
+}
+
 image_env="$(docker image inspect "${IMAGE}" --format '{{range .Config.Env}}{{println .}}{{end}}')"
 cache_root="/cache/jit/${CACHE_FINGERPRINT}"
 for expected in \
@@ -472,6 +489,7 @@ for expected in \
   "TRITON_CACHE_DIR=${cache_root}/triton" \
   "TORCHINDUCTOR_CACHE_DIR=${cache_root}/torchinductor" \
   "B12X_CUTE_COMPILE_CACHE_DIR=${cache_root}/b12x-cute" \
+  "VLLM_EXL3_EXT_PATH=/opt/exllamav3" \
   "MM_SPARSE_ATTN_AOT_CACHE=${cache_root}/minfer/mm_sparse_attn"; do
   grep -Fxq "${expected}" <<<"${image_env}" || {
     echo "Image is missing cache environment: ${expected}" >&2

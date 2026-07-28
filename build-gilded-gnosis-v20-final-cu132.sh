@@ -109,13 +109,17 @@ export DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.g
 export DEEPGEMM_REF="${DEEPGEMM_REF:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 
+export EXLLAMAV3_REPO="${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}"
+export EXLLAMAV3_REF="${EXLLAMAV3_REF:-a1-retile-sm120}"
+export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b964c7d8}"
+
 export VLLM_PATCH_URL=
 
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 export LAUNCHER_REF="${LAUNCHER_REF:-main}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-211141bc7ccb27f4753bf86f78e6686e07c6faa4}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-5cfa4d626f5fe7ce8909b2a3d03545a63a53e144}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -141,6 +145,7 @@ runtime_source_paths=(
   tests/test-glm52-dcp-prefill-policy.sh
   tests/test-glm52-pcie-calibration-helper.sh
   tests/test-glm52-online-quant-policy.sh
+  tests/test-glm52-exl3-helper.sh
   tests/test-glm52-pcie-calibration.py
 )
 if ! git diff --quiet "${LAUNCHER_COMMIT}" -- "${runtime_source_paths[@]}" || \
@@ -153,6 +158,7 @@ fi
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
+./tests/test-glm52-exl3-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 ./build-vllm-sparkinfer-cu132.sh "$@"
 
@@ -162,6 +168,7 @@ jq -e --arg value "${SPARKINFER_COMMIT}" '."local-inference.sparkinfer.commit" =
 jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == $value' <<<"${labels}" >/dev/null
 if [[ "${composition_mode}" != "reproduce-r4" ]]; then
   jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
@@ -218,6 +225,7 @@ from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
+from vllm.model_executor.layers.quantization.exl3 import _load_exl3_ext
 from vllm.model_executor.layers.sparse_attn_indexer import (
     _merge_b12x_dcp_topk_by_owner,
 )
@@ -233,6 +241,18 @@ assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
 assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"
+assert "VLLM_EXL3_ABI_SHIM" not in os.environ
+exl3_ext = _load_exl3_ext()
+for exl3_export in (
+    "exl3_gemm",
+    "exl3_moe_fused",
+    "exl3_moe_fused_retile",
+    "exl3_moe_max_concurrency",
+):
+    assert hasattr(exl3_ext, exl3_export), exl3_export
+from sparkinfer.moe import trellis_moe
+for trellis_export in ("Caps", "plan", "prepare_weights", "bind", "run"):
+    assert hasattr(trellis_moe, trellis_export), trellis_export
 assert fused_moe_impl._dynamic_kernel_intermediate_size(352, "w4a8_mx") == 384
 assert tiled_topk._COARSE_RADIX_BITS == 10
 assert tiled_topk._SMEM_CANDS == 8192
@@ -314,6 +334,25 @@ grep -Fxq 'VLLM_DCP_INDEXER_SHARDS=0' "${dry_run_file}"
 grep -Fxq 'VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0' "${dry_run_file}"
 grep -Fxq 'VLLM_PCIE_DMA_MIN_BYTES=6MB' "${dry_run_file}"
 grep -Fxq 'PCIE_CALIBRATION_STATUS=skipped:dry-run' "${dry_run_file}"
+
+exl3_dry_run_file="/tmp/gilded-gnosis-v20-final-exl3.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+  -e DRY_RUN=1 \
+  -e MODEL_FAMILY=glm52-exl3 \
+  "${IMAGE}" | tee "${exl3_dry_run_file}"
+
+grep -q -- '--tensor-parallel-size 4' "${exl3_dry_run_file}"
+grep -q -- '--decode-context-parallel-size 4' "${exl3_dry_run_file}"
+grep -q -- '--quantization exl3' "${exl3_dry_run_file}"
+grep -q -- '--load-format safetensors' "${exl3_dry_run_file}"
+grep -q -- '--no-async-scheduling' "${exl3_dry_run_file}"
+grep -Fq -- '\"moe_backend\":\"triton\"' "${exl3_dry_run_file}"
+grep -Fq -- '\"draft_sample_method\":\"greedy\"' "${exl3_dry_run_file}"
+grep -Fq -- '\"cudagraph_capture_sizes\":\[4\,8\,12\,16\,20\,24\,28\,32\]' "${exl3_dry_run_file}"
+if grep -q -- '--quantization-config' "${exl3_dry_run_file}"; then
+  printf 'EXL3 helper unexpectedly enabled online quantization\n' >&2
+  exit 1
+fi
 
 assert_dcp_policy() {
   local name="$1"
