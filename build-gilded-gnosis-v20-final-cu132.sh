@@ -64,6 +64,16 @@ elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r5}"
   export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r5}"
+elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
+  # r6 changes only the container/runtime integration. Reuse the immutable r5
+  # vLLM and SparkInfer source archives instead of consulting moving branches.
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r6}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r6}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
@@ -83,6 +93,13 @@ elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
 else
   printf 'Unknown VLLM_RELEASE_COMPOSITION=%s\n' "${composition_mode}" >&2
   exit 1
+fi
+
+if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\n' \
+    "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
+    "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}"
+  exit 0
 fi
 
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
