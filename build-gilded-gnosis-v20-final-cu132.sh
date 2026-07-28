@@ -118,8 +118,8 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-main}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-5cfa4d626f5fe7ce8909b2a3d03545a63a53e144}"
+export LAUNCHER_REF="${LAUNCHER_REF:-fix/clean-gg-compose-20260727}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a2129e983b07fbfaa5b872a1a0b25a07c3f01876}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
