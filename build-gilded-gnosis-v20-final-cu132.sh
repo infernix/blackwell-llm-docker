@@ -74,6 +74,16 @@ elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r6}"
   export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r6}"
+elif [[ "${composition_mode}" == "reproduce-r7" ]]; then
+  # r7 keeps the validated model stacks and moves the LMCache integration from
+  # a release patch to its merged, immutable source commit.
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r7}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r7}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
@@ -93,13 +103,6 @@ elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
 else
   printf 'Unknown VLLM_RELEASE_COMPOSITION=%s\n' "${composition_mode}" >&2
   exit 1
-fi
-
-if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\n' \
-    "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
-    "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}"
-  exit 0
 fi
 
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
@@ -135,8 +138,8 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-467e41ac408ac0a37719ffdae0f7b1707f8939b5}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-467e41ac408ac0a37719ffdae0f7b1707f8939b5}"
+export LAUNCHER_REF="${LAUNCHER_REF:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py glm52-lmcache-wrapper.sh"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -165,6 +168,15 @@ else
   export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
   export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
+fi
+
+if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\n' \
+    "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
+    "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
+    "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
+    "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}"
+  exit 0
 fi
 export HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.10}"
 export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 PyNvVideoCodec==2.0.4 nccl4py==0.3.1}"
