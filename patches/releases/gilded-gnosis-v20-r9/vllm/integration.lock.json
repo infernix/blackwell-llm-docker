@@ -1,0 +1,77 @@
+{
+  "base": {
+    "commit": "4247d6765398fd42de3c108a8d991b2634fe88d1",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "generated_at": "2026-07-28T21:38:36.520012+00:00",
+  "manifest": {
+    "path": "/root/vllm/blackwell-llm-docker/manifests/vllm/gilded-gnosis-v20.json",
+    "sha256": "c75cb312eb6e28078bba270337297afb109c17d207936bd985d372a6aa8d4ed4"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "0c05ab9ec43c2446bfa4197fe1bbc1c1ec7e6cbe",
+      "number": 172,
+      "ref": "refs/pull/172/head",
+      "title": "MRV2 high-utilization startup memory profiling"
+    },
+    {
+      "disposition": "merged",
+      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
+      "number": 175,
+      "ref": "refs/pull/175/head",
+      "title": "Shard sparse prefill queries and halve result traffic"
+    },
+    {
+      "disposition": "merged",
+      "head": "673733e9711aa87f6b4e85f6db021ad676250a48",
+      "number": 179,
+      "ref": "refs/pull/179/head",
+      "title": "Partial replicated sparse-indexer topology"
+    },
+    {
+      "disposition": "merged",
+      "head": "c4022e80099e9bffa6091691663970591f8f05ec",
+      "number": 184,
+      "ref": "refs/pull/184/head",
+      "title": "Calibrate lossless PCIe DMA dispatch crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
+      "number": 185,
+      "ref": "refs/pull/185/head",
+      "title": "Gate DCP query split by measured context crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "417030797cc2ba156c09c1c9a520d77df646d769",
+      "number": 190,
+      "ref": "refs/pull/190/head",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    },
+    {
+      "disposition": "merged",
+      "head": "b57062274c3f53bec69b431bfae7230977f5f10c",
+      "number": 189,
+      "ref": "refs/pull/189/head",
+      "title": "Wire dynamic per-token NVFP4 scaling and cache ABI"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "a1662b107d19662242c0251251b635799adb2d9ee486d925625fd264137a0568",
+    "tree": "34f26c2848e4ec99c4bec80bf8d46bb5f5de367e"
+  },
+  "schema_version": 1
+}

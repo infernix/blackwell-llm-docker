@@ -13,6 +13,16 @@
       "number": 49,
       "head": "669a12ddc7cf3021e91a25f398b1a883b703fd12",
       "title": "Add planned EXL3 Trellis path for fused Blackwell MoE"
+    },
+    {
+      "number": 86,
+      "head": "0ddd13b4fdbb6a287581aec55fcf9dbbb7e52fd3",
+      "title": "Add inline per-token outer scales to 368-byte NVFP4 records"
+    },
+    {
+      "number": 87,
+      "head": "c24a01441f87c0eccd1390aee2a170c535340894",
+      "title": "Bound two-level fold workspace"
     }
   ]
 }

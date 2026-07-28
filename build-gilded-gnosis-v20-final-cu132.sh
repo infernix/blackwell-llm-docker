@@ -54,8 +54,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
   configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r8}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r8}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r9}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r9}"
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
@@ -94,6 +94,14 @@ elif [[ "${composition_mode}" == "reproduce-r8" ]]; then
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r8}"
   export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r8}"
+elif [[ "${composition_mode}" == "reproduce-r9" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r9/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r9/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm34f26c2-side7739a-fi801d57a-cu132-20260728-r9}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm34f26c2.side7739a.fi801d57a.cu132.20260728.r9}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
@@ -162,7 +170,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -296,6 +304,10 @@ import torch
 import vllm._C_stable_libtorch  # noqa: F401
 import lmcache.c_ops  # noqa: F401
 from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
+from sparkinfer.attention._shared.mla.kv_cache import (
+    concat_and_cache_nvfp4_mla_fp8_rope,
+)
+from sparkinfer.attention.nsa_indexer.paged import _plan_two_level_fold
 from sparkinfer.attention.sparse_mla._scratch import SPARKINFERSparseMLAScratchCaps
 from sparkinfer.attention.nsa_indexer import tiled_topk
 from sparkinfer.comm.pcie import DcpAllToAllPool, DcpTopKOwnerExchange
@@ -310,6 +322,7 @@ from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
+from vllm.model_executor.layers.mla_cache_format import Nvfp4MlaCacheFormat
 from vllm.model_executor.layers.quantization.exl3 import _load_exl3_ext
 from vllm.model_executor.layers.sparse_attn_indexer import (
     _merge_b12x_dcp_topk_by_owner,
@@ -324,6 +337,7 @@ from vllm.v1.worker.gpu_worker import Worker
 
 assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
+assert md.version("pytest") == "8.4.1"
 if os.environ.get("EXPECTED_XGRAMMAR_VERSION"):
     assert md.version("xgrammar") == os.environ["EXPECTED_XGRAMMAR_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
@@ -357,6 +371,27 @@ emit_source = inspect.getsource(tiled_topk._emit_global_index_virtual)
 assert "Int64(row_idx) * Int64(output_page_table_row_stride)" in emit_source
 assert callable(DcpTopKOwnerExchange)
 assert callable(bmm) and callable(can_implement_bmm) and callable(prewarm_bmm)
+assert "per_token_scale" in inspect.signature(
+    concat_and_cache_nvfp4_mla_fp8_rope
+).parameters
+dynamic_cache_format = Nvfp4MlaCacheFormat(
+    dynamic_scale=True,
+    fp8_rope=True,
+    scales_file="",
+)
+assert dynamic_cache_format.record_abi("nvfp4_ds_mla") == (
+    "nvfp4_ds_mla:fp8-rope-368:dynamic-token-v1"
+)
+fold_plan = _plan_two_level_fold(
+    q_rows=63,
+    topk=512,
+    page_size=64,
+    page_table_width=1024,
+    supertile_pages=256,
+    output_physical_slots=False,
+)
+assert fold_plan.slices == ((1, 0), (1, 1), (1, 2), (1, 3))
+assert fold_plan.reason == "within memory budget"
 assert "head_major_output" in inspect.signature(cp_lse_ag_out_rs).parameters
 assert hasattr(CudaCommunicator, "reduce_scatter_head_major")
 assert "head_major_output=True" in inspect.getsource(MLAAttention.forward_impl)

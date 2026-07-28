@@ -164,6 +164,48 @@ VLLM_RELEASE_COMPOSITION=reproduce-r8 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
+The r9 release retains the r8 runtime and adds three independently verifiable
+changes:
+
+- optional dynamic per-token NVFP4 MLA KV scaling from the paired vLLM #189
+  and SparkInfer #86 ABI change;
+- exact adaptive sparse-indexer folding from SparkInfer #87, which keeps the
+  two-level reduction when it fits the configured workspace budget and falls
+  back to exact streaming carry otherwise;
+- `pytest==8.4.1` in the final `/opt/venv`, so focused tests can run against a
+  deployed image without copying the repository test tree into the image.
+
+The default cache format is unchanged. Dynamic NVFP4 scaling is enabled only
+when all three settings below are selected, and it must not be combined with a
+static outer-scale file:
+
+```bash
+KV_CACHE_DTYPE=nvfp4_ds_mla \
+KV_FP8_ROPE=1 \
+VLLM_NVFP4_MLA_DYNAMIC_SCALE=1 \
+VLLM_NVFP4_MLA_SCALES_FILE= \
+  docker compose up -d
+```
+
+Adaptive folding defaults to `auto` with a 256 MiB temporary-workspace budget.
+Override it only for diagnosis with
+`SPARKINFER_INDEXER_TWO_LEVEL_FOLD=0|1` or change the budget with
+`SPARKINFER_INDEXER_TWO_LEVEL_FOLD_MAX_MIB`.
+
+Reproduce the exact r9 source composition from the archived lock files and
+hash-verified integration patches with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r9 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r9 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm34f26c2-side7739a-fi801d57a-cu132-20260728-r9
+```
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

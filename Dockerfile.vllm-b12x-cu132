@@ -1035,6 +1035,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       "transformers>=5.5.1" \
       "apache-tvm-ffi==${TVM_FFI_VERSION}" \
       "fastsafetensors>=0.3.2" \
+      "pytest==8.4.1" \
  && if [[ -n "${VLLM_RUNTIME_EXTRA_PACKAGES}" ]]; then \
       /opt/venv/bin/python -m pip install --upgrade \
         --index-url https://download.pytorch.org/whl/cu132 \

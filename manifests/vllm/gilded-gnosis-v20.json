@@ -38,6 +38,11 @@
       "number": 190,
       "head": "417030797cc2ba156c09c1c9a520d77df646d769",
       "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    },
+    {
+      "number": 189,
+      "head": "b57062274c3f53bec69b431bfae7230977f5f10c",
+      "title": "Wire dynamic per-token NVFP4 scaling and cache ABI"
     }
   ]
 }
