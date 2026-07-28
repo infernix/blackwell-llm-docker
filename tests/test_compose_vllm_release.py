@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -7,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from scripts.compose_vllm_release import CompositionError, compose
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -116,3 +120,39 @@ def test_composition_identifies_conflicting_pr(tmp_path: Path) -> None:
 
     with pytest.raises(CompositionError, match="PR #2 conflicts"):
         compose(manifest, tmp_path / "output")
+
+
+@pytest.mark.parametrize(
+    ("component", "lock_sha256", "tree"),
+    [
+        (
+            "vllm",
+            "0c4ef43a7f01c4e0ac011edd813af1f840c272fdb253fb7598dbc15cd0880c2f",
+            "99287e8898587f536b5710e25d1b65229f1d6d78",
+        ),
+        (
+            "sparkinfer",
+            "f3e066067bfa35f5c6d86778c16fee091305e57e715203f89266f122980f682b",
+            "4ecc87fbe51090b7932e3ba8fa06d9649296ba38",
+        ),
+    ],
+)
+def test_r5_release_archive_matches_lock(
+    component: str,
+    lock_sha256: str,
+    tree: str,
+) -> None:
+    release_dir = (
+        REPOSITORY_ROOT
+        / "patches"
+        / "releases"
+        / "gilded-gnosis-v20-r5"
+        / component
+    )
+    lock_bytes = (release_dir / "integration.lock.json").read_bytes()
+    lock = json.loads(lock_bytes)
+    patch_bytes = (release_dir / lock["result"]["patch"]).read_bytes()
+
+    assert hashlib.sha256(lock_bytes).hexdigest() == lock_sha256
+    assert hashlib.sha256(patch_bytes).hexdigest() == lock["result"]["patch_sha256"]
+    assert lock["result"]["tree"] == tree

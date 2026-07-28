@@ -24,6 +24,7 @@ B12X_REF="${B12X_REF:-refs/pull/11/head}"
 B12X_PATCH_SHA256="${B12X_PATCH_SHA256:-}"
 B12X_PATCH_FILE="${B12X_PATCH_FILE:-}"
 REQUIRE_CLEAN_B12X_COMPOSITION="${REQUIRE_CLEAN_B12X_COMPOSITION:-0}"
+VERIFY_B12X_BASE_HEAD="${VERIFY_B12X_BASE_HEAD:-1}"
 B12X_INTEGRATION_LOCK_FILE="${B12X_INTEGRATION_LOCK_FILE:-}"
 B12X_INTEGRATION_BASE_COMMIT="${B12X_INTEGRATION_BASE_COMMIT:-}"
 B12X_INTEGRATION_TREE="${B12X_INTEGRATION_TREE:-}"
@@ -35,6 +36,7 @@ VLLM_PATCH_URL="${VLLM_PATCH_URL:-}"
 VLLM_PATCH_SHA256="${VLLM_PATCH_SHA256:-}"
 VLLM_PATCH_FILE="${VLLM_PATCH_FILE:-}"
 REQUIRE_CLEAN_VLLM_COMPOSITION="${REQUIRE_CLEAN_VLLM_COMPOSITION:-0}"
+VERIFY_VLLM_BASE_HEAD="${VERIFY_VLLM_BASE_HEAD:-1}"
 VLLM_INTEGRATION_LOCK_FILE="${VLLM_INTEGRATION_LOCK_FILE:-}"
 VLLM_INTEGRATION_BASE_COMMIT="${VLLM_INTEGRATION_BASE_COMMIT:-}"
 VLLM_INTEGRATION_TREE="${VLLM_INTEGRATION_TREE:-}"
@@ -149,11 +151,17 @@ if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
     echo "Integration lock base commit mismatch: ${lock_commit} != ${VLLM_COMMIT}" >&2
     exit 1
   }
-  current_base_commit="$(resolve_ref "${VLLM_REPO}" "${VLLM_REF}")"
-  [[ "${current_base_commit}" == "${VLLM_COMMIT}" ]] || {
-    echo "GG advanced from ${VLLM_COMMIT} to ${current_base_commit}; rerun the release composer" >&2
+  [[ "${VERIFY_VLLM_BASE_HEAD}" =~ ^[01]$ ]] || {
+    echo "VERIFY_VLLM_BASE_HEAD must be 0 or 1" >&2
     exit 1
   }
+  if [[ "${VERIFY_VLLM_BASE_HEAD}" == "1" ]]; then
+    current_base_commit="$(resolve_ref "${VLLM_REPO}" "${VLLM_REF}")"
+    [[ "${current_base_commit}" == "${VLLM_COMMIT}" ]] || {
+      echo "GG advanced from ${VLLM_COMMIT} to ${current_base_commit}; rerun the release composer" >&2
+      exit 1
+    }
+  fi
   if [[ -n "${VLLM_PATCH_SHA256}" && "${VLLM_PATCH_SHA256}" != "${lock_patch_sha}" ]]; then
     echo "Integration lock patch SHA mismatch: ${lock_patch_sha} != ${VLLM_PATCH_SHA256}" >&2
     exit 1
@@ -196,11 +204,17 @@ if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
     echo "B12X/SparkInfer integration lock base commit mismatch: ${b12x_lock_commit} != ${B12X_COMMIT}" >&2
     exit 1
   }
-  current_b12x_base_commit="$(resolve_ref "${B12X_REPO}" "${B12X_REF}")"
-  [[ "${current_b12x_base_commit}" == "${B12X_COMMIT}" ]] || {
-    echo "B12X/SparkInfer base advanced from ${B12X_COMMIT} to ${current_b12x_base_commit}; rerun the release composer" >&2
+  [[ "${VERIFY_B12X_BASE_HEAD}" =~ ^[01]$ ]] || {
+    echo "VERIFY_B12X_BASE_HEAD must be 0 or 1" >&2
     exit 1
   }
+  if [[ "${VERIFY_B12X_BASE_HEAD}" == "1" ]]; then
+    current_b12x_base_commit="$(resolve_ref "${B12X_REPO}" "${B12X_REF}")"
+    [[ "${current_b12x_base_commit}" == "${B12X_COMMIT}" ]] || {
+      echo "B12X/SparkInfer base advanced from ${B12X_COMMIT} to ${current_b12x_base_commit}; rerun the release composer" >&2
+      exit 1
+    }
+  fi
   if [[ -n "${B12X_PATCH_SHA256}" && "${B12X_PATCH_SHA256}" != "${b12x_lock_patch_sha}" ]]; then
     echo "B12X/SparkInfer integration lock patch SHA mismatch: ${b12x_lock_patch_sha} != ${B12X_PATCH_SHA256}" >&2
     exit 1

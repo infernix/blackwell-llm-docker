@@ -4,43 +4,66 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Every new GG image is composed from the current clean dev/gilded-gnosis head
-# plus the exact PR heads in the versioned manifest. A precomposed build branch
-# is available only for explicit reproduction of the historical r4 image.
+# plus the exact PR heads in the versioned manifest. Historical release modes
+# are explicit and use immutable source artifacts.
 composition_mode="${VLLM_RELEASE_COMPOSITION:-clean}"
 release_date="${RELEASE_DATE:-$(date -u +%Y%m%d)}"
+
+configure_vllm_composition() {
+  local composition_dir="$1"
+  local verify_base_head="$2"
+  local composition_lock="${composition_dir}/integration.lock.json"
+
+  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
+  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  export VLLM_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export REQUIRE_CLEAN_VLLM_COMPOSITION=1
+  export VERIFY_VLLM_BASE_HEAD="${verify_base_head}"
+}
+
+configure_sparkinfer_composition() {
+  local composition_dir="$1"
+  local verify_base_head="$2"
+  local composition_lock="${composition_dir}/integration.lock.json"
+
+  export SPARKINFER_REPO="$(jq -er '.base.repository' "${composition_lock}")"
+  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  export SPARKINFER_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export SPARKINFER_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
+  export VERIFY_SPARKINFER_BASE_HEAD="${verify_base_head}"
+}
+
 if [[ "${composition_mode}" == "clean" ]]; then
   composition_dir="patches/generated/gilded-gnosis-v20/vllm"
   python3 scripts/compose_vllm_release.py \
     manifests/vllm/gilded-gnosis-v20.json \
     --output-dir "${composition_dir}" >/dev/null
-  composition_lock="${composition_dir}/integration.lock.json"
-
-  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
-  export VLLM_PATCH_FILE="generated/gilded-gnosis-v20/vllm/integration.patch"
-  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
-  export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
-  export REQUIRE_CLEAN_VLLM_COMPOSITION=1
+  configure_vllm_composition "${composition_dir}" 1
 
   sparkinfer_composition_dir="patches/generated/gilded-gnosis-v20/sparkinfer"
   python3 scripts/compose_vllm_release.py \
     manifests/sparkinfer/gilded-gnosis-v20.json \
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
-  sparkinfer_composition_lock="${sparkinfer_composition_dir}/integration.lock.json"
-
-  export SPARKINFER_REPO="$(jq -er '.base.repository' "${sparkinfer_composition_lock}")"
-  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${sparkinfer_composition_lock}")"
-  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${sparkinfer_composition_lock}")"
-  export SPARKINFER_PATCH_FILE="generated/gilded-gnosis-v20/sparkinfer/integration.patch"
-  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${sparkinfer_composition_lock}")"
-  export SPARKINFER_INTEGRATION_LOCK_FILE="${sparkinfer_composition_lock}"
-  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${sparkinfer_composition_lock}")"
-  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
+  configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r5}"
   export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r5}"
+elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm99287e8-si4ecc87f-fi801d57a-cu132-20260728-r5}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm99287e8.si4ecc87f.fi801d57a.cu132.20260728.r5}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
@@ -139,7 +162,7 @@ jq -e --arg value "${SPARKINFER_COMMIT}" '."local-inference.sparkinfer.commit" =
 jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" ]]; then
+if [[ "${composition_mode}" != "reproduce-r4" ]]; then
   jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
   jq -e '."local-inference.vllm.patch_file" != "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null

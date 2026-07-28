@@ -1,0 +1,4506 @@
+diff --git a/docs/evidence/pcie_calibration/20260726-adjacent-tp8-dcp4.json b/docs/evidence/pcie_calibration/20260726-adjacent-tp8-dcp4.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..1e435939ef098d01cfe96e1b30543fbd5869d6a5
+--- /dev/null
++++ b/docs/evidence/pcie_calibration/20260726-adjacent-tp8-dcp4.json
+@@ -0,0 +1,1256 @@
++{
++  "config": {
++    "active_iterations": 9,
++    "allreduce_rows": [
++      1,
++      8,
++      32,
++      128,
++      512,
++      2048,
++      8192
++    ],
++    "ckv_record_bytes": 656,
++    "context_tokens": [
++      8192,
++      65536,
++      131072
++    ],
++    "dcp_size": 4,
++    "dma_wire_mode": "0",
++    "hidden_size": 6144,
++    "indexer_heads": 32,
++    "indexer_shards": 2,
++    "indexer_stride": 4,
++    "indexer_topk": 2048,
++    "maximum_collective_slowdown": 4.0,
++    "maximum_overlap_regression": 0.01,
++    "minimum_backend_gain": 0.02,
++    "minimum_overlap_gain": 0.02,
++    "minimum_query_split_gain": 0.02,
++    "tp_rows": 8192,
++    "tp_size": 8,
++    "warmup_iterations": 3
++  },
++  "contexts": [
++    {
++      "ckv_isolated": {
++        "maximum_ms": 0.18892799317836761,
++        "median_ms": 0.15503999590873718,
++        "minimum_ms": 0.14428800344467163
++      },
++      "ckv_local_bytes": 1343488,
++      "ckv_local_tokens": 2048,
++      "ckv_wire_bytes_per_rank": 4030464,
++      "context_tokens": 8192,
++      "decision": {
++        "ckv_effective_wire_gbps": 13.472243440142524,
++        "ckv_slowdown": 1.9296181538898625,
++        "concurrent_wall_ms": 3.3561599254608154,
++        "enable_overlap": true,
++        "overlap_gain": 0.0309346888643073,
++        "reason": "measured-overlap-benefit",
++        "serialized_ms": 3.4632959067821503,
++        "tp_slowdown": 1.0138610797436205
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            0.15503999590873718
++          ],
++          [
++            0.14707200229167938
++          ],
++          [
++            0.16448000073432922
++          ],
++          [
++            0.14428800344467163
++          ],
++          [
++            0.18892799317836761
++          ],
++          [
++            0.16780799627304077
++          ],
++          [
++            0.14867199957370758
++          ],
++          [
++            0.15721599757671356
++          ],
++          [
++            0.151296004652977
++          ]
++        ],
++        "side_first": [
++          [
++            3.356127977371216,
++            0.29926401376724243,
++            3.3581759929656982
++          ],
++          [
++            3.3274879455566406,
++            0.2690240144729614,
++            3.329535961151123
++          ],
++          [
++            3.3459200859069824,
++            0.28303998708724976,
++            3.3477439880371094
++          ],
++          [
++            3.354111909866333,
++            0.29120001196861267,
++            3.3561599254608154
++          ],
++          [
++            3.3407680988311768,
++            0.27059200406074524,
++            3.3427200317382812
++          ],
++          [
++            3.356127977371216,
++            0.2917119860649109,
++            3.3581759929656982
++          ],
++          [
++            3.339776039123535,
++            0.27663999795913696,
++            3.3418240547180176
++          ],
++          [
++            3.378688097000122,
++            0.3181439936161041,
++            3.380768060684204
++          ],
++          [
++            3.354111909866333,
++            0.2922239899635315,
++            3.3561599254608154
++          ]
++        ],
++        "tp": [
++          [
++            3.305056095123291
++          ],
++          [
++            3.333184003829956
++          ],
++          [
++            3.3131520748138428
++          ],
++          [
++            3.297919988632202
++          ],
++          [
++            3.319295883178711
++          ],
++          [
++            3.32857608795166
++          ],
++          [
++            3.308255910873413
++          ],
++          [
++            3.272128105163574
++          ],
++          [
++            3.2688000202178955
++          ]
++        ],
++        "tp_first": [
++          [
++            3.3520638942718506,
++            0.2869119942188263,
++            3.354111909866333
++          ],
++          [
++            3.3785600662231445,
++            0.3259519934654236,
++            3.3807361125946045
++          ],
++          [
++            3.376447916030884,
++            0.3203519880771637,
++            3.378688097000122
++          ],
++          [
++            3.359231948852539,
++            0.301503986120224,
++            3.3612799644470215
++          ],
++          [
++            3.3459200859069824,
++            0.27667200565338135,
++            3.3478078842163086
++          ],
++          [
++            3.339776039123535,
++            0.2845759987831116,
++            3.3416318893432617
++          ],
++          [
++            3.323359966278076,
++            0.2655999958515167,
++            3.3254079818725586
++          ],
++          [
++            3.363327980041504,
++            0.3083840012550354,
++            3.365216016769409
++          ],
++          [
++            3.346911907196045,
++            0.2991679906845093,
++            3.348992109298706
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 0.3181439936161041,
++          "median_ms": 0.29120001196861267,
++          "minimum_ms": 0.2690240144729614
++        },
++        "tp": {
++          "maximum_ms": 3.378688097000122,
++          "median_ms": 3.354111909866333,
++          "minimum_ms": 3.3274879455566406
++        },
++        "wall": {
++          "maximum_ms": 3.380768060684204,
++          "median_ms": 3.3561599254608154,
++          "minimum_ms": 3.329535961151123
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 0.3259519934654236,
++          "median_ms": 0.2991679906845093,
++          "minimum_ms": 0.2655999958515167
++        },
++        "tp": {
++          "maximum_ms": 3.3785600662231445,
++          "median_ms": 3.3520638942718506,
++          "minimum_ms": 3.323359966278076
++        },
++        "wall": {
++          "maximum_ms": 3.3807361125946045,
++          "median_ms": 3.354111909866333,
++          "minimum_ms": 3.3254079818725586
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 3.333184003829956,
++        "median_ms": 3.308255910873413,
++        "minimum_ms": 3.2688000202178955
++      }
++    },
++    {
++      "ckv_isolated": {
++        "maximum_ms": 0.8526399731636047,
++        "median_ms": 0.7663999795913696,
++        "minimum_ms": 0.7591040134429932
++      },
++      "ckv_local_bytes": 10747904,
++      "ckv_local_tokens": 16384,
++      "ckv_wire_bytes_per_rank": 32243712,
++      "context_tokens": 65536,
++      "decision": {
++        "ckv_effective_wire_gbps": 16.81854709844756,
++        "ckv_slowdown": 2.501503259667984,
++        "concurrent_wall_ms": 3.9285759925842285,
++        "enable_overlap": true,
++        "overlap_gain": 0.031064501205388888,
++        "reason": "measured-overlap-benefit",
++        "serialized_ms": 4.0545278787612915,
++        "tp_slowdown": 1.1939973786577847
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            0.7815679907798767
++          ],
++          [
++            0.7591040134429932
++          ],
++          [
++            0.7663999795913696
++          ],
++          [
++            0.7670080065727234
++          ],
++          [
++            0.7627840042114258
++          ],
++          [
++            0.8526399731636047
++          ],
++          [
++            0.7626240253448486
++          ],
++          [
++            0.7810879945755005
++          ],
++          [
++            0.7643839716911316
++          ]
++        ],
++        "side_first": [
++          [
++            3.906048059463501,
++            1.8980799913406372,
++            3.9080960750579834
++          ],
++          [
++            3.916287899017334,
++            1.9106559753417969,
++            3.9183359146118164
++          ],
++          [
++            3.910111904144287,
++            1.9097280502319336,
++            3.9121599197387695
++          ],
++          [
++            3.910111904144287,
++            1.910207986831665,
++            3.9121599197387695
++          ],
++          [
++            3.9060161113739014,
++            1.9100159406661987,
++            3.9080638885498047
++          ],
++          [
++            3.9367361068725586,
++            1.9567680358886719,
++            3.938783884048462
++          ],
++          [
++            3.918272018432617,
++            1.9136639833450317,
++            3.920383930206299
++          ],
++          [
++            3.898848056793213,
++            1.9083839654922485,
++            3.9008960723876953
++          ],
++          [
++            3.9060161113739014,
++            1.9090880155563354,
++            3.9080960750579834
++          ]
++        ],
++        "tp": [
++          [
++            3.275871992111206
++          ],
++          [
++            3.282815933227539
++          ],
++          [
++            3.302367925643921
++          ],
++          [
++            3.322495937347412
++          ],
++          [
++            3.2780160903930664
++          ],
++          [
++            3.2836480140686035
++          ],
++          [
++            3.440959930419922
++          ],
++          [
++            3.288127899169922
++          ],
++          [
++            3.3224639892578125
++          ]
++        ],
++        "tp_first": [
++          [
++            3.906048059463501,
++            1.9151359796524048,
++            3.9079360961914062
++          ],
++          [
++            3.9418880939483643,
++            1.9378559589385986,
++            3.9438400268554688
++          ],
++          [
++            3.9183359146118164,
++            1.9255679845809937,
++            3.920383930206299
++          ],
++          [
++            3.9285759925842285,
++            1.9171520471572876,
++            3.930624008178711
++          ],
++          [
++            3.9080960750579834,
++            1.9125440120697021,
++            3.910144090652466
++          ],
++          [
++            4.379839897155762,
++            1.9068479537963867,
++            4.382207870483398
++          ],
++          [
++            3.947999954223633,
++            1.9449280500411987,
++            3.949824094772339
++          ],
++          [
++            3.926016092300415,
++            1.924896001815796,
++            3.9285759925842285
++          ],
++          [
++            3.8978559970855713,
++            1.9080640077590942,
++            3.899456024169922
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 1.9567680358886719,
++          "median_ms": 1.9100159406661987,
++          "minimum_ms": 1.8980799913406372
++        },
++        "tp": {
++          "maximum_ms": 3.9367361068725586,
++          "median_ms": 3.910111904144287,
++          "minimum_ms": 3.898848056793213
++        },
++        "wall": {
++          "maximum_ms": 3.938783884048462,
++          "median_ms": 3.9121599197387695,
++          "minimum_ms": 3.9008960723876953
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 1.9449280500411987,
++          "median_ms": 1.9171520471572876,
++          "minimum_ms": 1.9068479537963867
++        },
++        "tp": {
++          "maximum_ms": 4.379839897155762,
++          "median_ms": 3.926016092300415,
++          "minimum_ms": 3.8978559970855713
++        },
++        "wall": {
++          "maximum_ms": 4.382207870483398,
++          "median_ms": 3.9285759925842285,
++          "minimum_ms": 3.899456024169922
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 3.440959930419922,
++        "median_ms": 3.288127899169922,
++        "minimum_ms": 3.275871992111206
++      }
++    },
++    {
++      "ckv_isolated": {
++        "maximum_ms": 1.507200002670288,
++        "median_ms": 1.4855040311813354,
++        "minimum_ms": 1.4758720397949219
++      },
++      "ckv_local_bytes": 21495808,
++      "ckv_local_tokens": 32768,
++      "ckv_wire_bytes_per_rank": 64487424,
++      "context_tokens": 131072,
++      "decision": {
++        "ckv_effective_wire_gbps": 16.949251068236123,
++        "ckv_slowdown": 2.5612423925540417,
++        "concurrent_wall_ms": 4.596223831176758,
++        "enable_overlap": true,
++        "overlap_gain": 0.03847266967110914,
++        "reason": "measured-overlap-benefit",
++        "serialized_ms": 4.780128121376038,
++        "tp_slowdown": 1.394436433936588
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            1.493888020515442
++          ],
++          [
++            1.4855040311813354
++          ],
++          [
++            1.481376051902771
++          ],
++          [
++            1.4883519411087036
++          ],
++          [
++            1.5033279657363892
++          ],
++          [
++            1.507200002670288
++          ],
++          [
++            1.4793599843978882
++          ],
++          [
++            1.4771840572357178
++          ],
++          [
++            1.4758720397949219
++          ]
++        ],
++        "side_first": [
++          [
++            4.6044158935546875,
++            3.8158719539642334,
++            4.60643196105957
++          ],
++          [
++            4.5960001945495605,
++            3.813920021057129,
++            4.59827184677124
++          ],
++          [
++            4.624864101409912,
++            3.826240062713623,
++            4.6269121170043945
++          ],
++          [
++            4.58076810836792,
++            3.80131196975708,
++            4.582911968231201
++          ],
++          [
++            4.680191993713379,
++            3.7963199615478516,
++            4.682208061218262
++          ],
++          [
++            4.56550407409668,
++            3.7973759174346924,
++            4.5675201416015625
++          ],
++          [
++            4.581888198852539,
++            3.8047358989715576,
++            4.5839362144470215
++          ],
++          [
++            4.5839362144470215,
++            3.807391881942749,
++            4.585824012756348
++          ],
++          [
++            4.56550407409668,
++            3.792543888092041,
++            4.567552089691162
++          ]
++        ],
++        "tp": [
++          [
++            3.287935972213745
++          ],
++          [
++            3.294624090194702
++          ],
++          [
++            3.302464008331299
++          ],
++          [
++            3.302112102508545
++          ],
++          [
++            3.3885440826416016
++          ],
++          [
++            3.281440019607544
++          ],
++          [
++            3.3570239543914795
++          ],
++          [
++            3.2844159603118896
++          ],
++          [
++            3.2884159088134766
++          ]
++        ],
++        "tp_first": [
++          [
++            4.612576007843018,
++            3.8067519664764404,
++            4.6146240234375
++          ],
++          [
++            4.601183891296387,
++            3.8171839714050293,
++            4.60316801071167
++          ],
++          [
++            4.581855773925781,
++            3.8015360832214355,
++            4.583744049072266
++          ],
++          [
++            4.5696001052856445,
++            3.788896083831787,
++            4.571584224700928
++          ],
++          [
++            4.595200061798096,
++            3.7983360290527344,
++            4.5972161293029785
++          ],
++          [
++            4.6187520027160645,
++            3.8175361156463623,
++            4.620800018310547
++          ],
++          [
++            4.594143867492676,
++            3.800640106201172,
++            4.596223831176758
++          ],
++          [
++            4.579808235168457,
++            3.7889599800109863,
++            4.581888198852539
++          ],
++          [
++            4.569568157196045,
++            3.803071975708008,
++            4.571616172790527
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 3.826240062713623,
++          "median_ms": 3.8047358989715576,
++          "minimum_ms": 3.792543888092041
++        },
++        "tp": {
++          "maximum_ms": 4.680191993713379,
++          "median_ms": 4.5839362144470215,
++          "minimum_ms": 4.56550407409668
++        },
++        "wall": {
++          "maximum_ms": 4.682208061218262,
++          "median_ms": 4.585824012756348,
++          "minimum_ms": 4.5675201416015625
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 3.8175361156463623,
++          "median_ms": 3.8015360832214355,
++          "minimum_ms": 3.788896083831787
++        },
++        "tp": {
++          "maximum_ms": 4.6187520027160645,
++          "median_ms": 4.594143867492676,
++          "minimum_ms": 4.569568157196045
++        },
++        "wall": {
++          "maximum_ms": 4.620800018310547,
++          "median_ms": 4.596223831176758,
++          "minimum_ms": 4.571584224700928
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 3.3885440826416016,
++        "median_ms": 3.294624090194702,
++        "minimum_ms": 3.281440019607544
++      }
++    }
++  ],
++  "correctness": {
++    "query_split_matches_replicated": true,
++    "tp_and_ckv_collectives": true,
++    "tp_dma_matches_nccl": true
++  },
++  "maximum_safe_context_tokens": 131072,
++  "policy": {
++    "compressed_dma_requires_explicit_opt_in": true,
++    "dcp_ckv_prefetch_depth": 1,
++    "dcp_query_split": 1,
++    "dcp_query_split_min_context_tokens": 8192,
++    "numeric_contract": "lossless-only",
++    "tp_allreduce": {
++      "dma_min_bytes": 25165824,
++      "dma_wire_mode": "bf16",
++      "fallback": "nccl"
++    }
++  },
++  "provenance": {
++    "command": "CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --standalone --nproc-per-node=8 -m sparkinfer.comm.pcie.overlap_probe --tp-size 8 --dcp-size 4 --context-tokens 8192,65536,131072 --output adjacent-gpu0-7-f3fb62c.json",
++    "cuda_version": "13.2",
++    "source_revision": "f3fb62c8af5bf6759e28a067b4e6fc8732a9e497",
++    "source_worktree": "/root/vllm/worktrees/sparkinfer-pcie-calibration-pr-20260726",
++    "torch_version": "2.12.0+cu132"
++  },
++  "query_split": [
++    {
++      "context_tokens": 8192,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 2.689631938934326,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.23408409119154155,
++        "split_ms": 2.0600318908691406,
++        "wire_bytes_per_rank": 67108864
++      },
++      "full": {
++        "maximum_ms": 2.717855930328369,
++        "median_ms": 2.689631938934326,
++        "minimum_ms": 2.6721279621124268
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 1024,
++      "indexer_local_topk": 1024,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          2.687488079071045,
++          2.689631938934326,
++          2.715712070465088,
++          2.71126389503479,
++          2.685663938522339,
++          2.6721279621124268,
++          2.6863040924072266,
++          2.717855930328369,
++          2.704511880874634
++        ],
++        "split": [
++          2.0600318908691406,
++          2.053056001663208,
++          2.0457921028137207,
++          2.0721280574798584,
++          2.0549440383911133,
++          2.068959951400757,
++          2.046623945236206,
++          2.1287999153137207,
++          2.5588159561157227
++        ]
++      },
++      "split": {
++        "maximum_ms": 2.5588159561157227,
++        "median_ms": 2.0600318908691406,
++        "minimum_ms": 2.0457921028137207
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 67108864,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 8388608
++      },
++      "wire_bytes_per_rank": 67108864
++    },
++    {
++      "context_tokens": 65536,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 5.838687896728516,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.5783216884874136,
++        "split_ms": 2.462048053741455,
++        "wire_bytes_per_rank": 75497472
++      },
++      "full": {
++        "maximum_ms": 8.941503524780273,
++        "median_ms": 5.838687896728516,
++        "minimum_ms": 5.807295799255371
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 8192,
++      "indexer_local_topk": 2048,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          5.81385612487793,
++          5.807295799255371,
++          5.838687896728516,
++          5.8144001960754395,
++          5.857823848724365,
++          5.867231845855713,
++          5.826079845428467,
++          8.941503524780273,
++          5.8448638916015625
++        ],
++        "split": [
++          2.4626240730285645,
++          2.466815948486328,
++          2.4560320377349854,
++          2.4774720668792725,
++          2.4562880992889404,
++          2.461440086364746,
++          2.482016086578369,
++          2.462048053741455,
++          2.4565439224243164
++        ]
++      },
++      "split": {
++        "maximum_ms": 2.482016086578369,
++        "median_ms": 2.462048053741455,
++        "minimum_ms": 2.4560320377349854
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 134217728,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 16777216
++      },
++      "wire_bytes_per_rank": 75497472
++    },
++    {
++      "context_tokens": 131072,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 6.7182722091674805,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.6039172239123223,
++        "split_ms": 2.660991907119751,
++        "wire_bytes_per_rank": 75497472
++      },
++      "full": {
++        "maximum_ms": 6.768735885620117,
++        "median_ms": 6.7182722091674805,
++        "minimum_ms": 6.689216136932373
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 16384,
++      "indexer_local_topk": 2048,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          6.768735885620117,
++          6.7136640548706055,
++          6.742176055908203,
++          6.706528186798096,
++          6.708415985107422,
++          6.7182722091674805,
++          6.76361608505249,
++          6.734367847442627,
++          6.689216136932373
++        ],
++        "split": [
++          2.6619200706481934,
++          2.654304027557373,
++          2.6945600509643555,
++          2.65395188331604,
++          2.7003839015960693,
++          2.6898880004882812,
++          2.6571199893951416,
++          2.660991907119751,
++          2.6575679779052734
++        ]
++      },
++      "split": {
++        "maximum_ms": 2.7003839015960693,
++        "median_ms": 2.660991907119751,
++        "minimum_ms": 2.65395188331604
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 134217728,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 16777216
++      },
++      "wire_bytes_per_rank": 75497472
++    }
++  ],
++  "recommended_prefetch_depth": 1,
++  "topology": {
++    "cuda_visible_devices": "0,1,2,3,4,5,6,7",
++    "gpu_inventory": "0, 00000000:03:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n1, 00000000:04:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n2, 00000000:23:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n3, 00000000:24:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n4, 00000000:43:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n5, 00000000:44:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n6, 00000000:63:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n7, 00000000:64:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n8, 00000000:83:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n9, 00000000:84:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n10, 00000000:A3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n11, 00000000:A4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n12, 00000000:C3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n13, 00000000:C4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n14, 00000000:E3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n15, 00000000:E4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++    "nvidia_visible_devices": "all",
++    "rank_devices": [
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:03:00.0",
++        "rank": 0,
++        "uuid": "d8438b2d-f000-a617-5dcc-0197ce0365a3",
++        "visible_ordinal": 0
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:04:00.0",
++        "rank": 1,
++        "uuid": "3747d42a-c416-459c-cf88-bc2e84f471b1",
++        "visible_ordinal": 1
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:23:00.0",
++        "rank": 2,
++        "uuid": "167fbc3f-fd06-7f08-9e06-ee02946d041c",
++        "visible_ordinal": 2
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:24:00.0",
++        "rank": 3,
++        "uuid": "2a06548e-41c5-2a0e-240b-9ec8d85d6f60",
++        "visible_ordinal": 3
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:43:00.0",
++        "rank": 4,
++        "uuid": "8800cf0c-1ba5-7136-d796-2a91f9e9586e",
++        "visible_ordinal": 4
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:44:00.0",
++        "rank": 5,
++        "uuid": "4a0aa20b-8e36-2e05-4efb-8befbf1181d4",
++        "visible_ordinal": 5
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:63:00.0",
++        "rank": 6,
++        "uuid": "1a0323f7-8113-a1e1-c68b-f23fecf77171",
++        "visible_ordinal": 6
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:64:00.0",
++        "rank": 7,
++        "uuid": "0027fc86-3322-ce2a-856c-f49eb61eb63e",
++        "visible_ordinal": 7
++      }
++    ],
++    "topology_matrix": "\u001b[4mGPU0\tGPU1\tGPU2\tGPU3\tGPU4\tGPU5\tGPU6\tGPU7\tGPU8\tGPU9\tGPU10\tGPU11\tGPU12\tGPU13\tGPU14\tGPU15\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU1\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU2\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU3\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU4\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU5\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU6\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU7\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU8\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU9\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU10\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU11\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU12\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU13\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\t0-127\t0\t\tN/A\nGPU14\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\t0-127\t0\t\tN/A\nGPU15\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \t0-127\t0\t\tN/A\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks"
++  },
++  "tp_allreduce": [
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -4.744235849826857,
++        "dma_ms": 0.34281599521636963,
++        "nccl_ms": 0.05967999994754791,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.3654080033302307,
++        "median_ms": 0.34281599521636963,
++        "minimum_ms": 0.33609598875045776
++      },
++      "nccl": {
++        "maximum_ms": 0.07302399724721909,
++        "median_ms": 0.05967999994754791,
++        "minimum_ms": 0.04755200073122978
++      },
++      "payload_bytes": 12288,
++      "rows": 1,
++      "samples_ms": {
++        "dma": [
++          0.34281599521636963,
++          0.3494400084018707,
++          0.33609598875045776,
++          0.35158398747444153,
++          0.3378239870071411,
++          0.34121599793434143,
++          0.3424000144004822,
++          0.3473599851131439,
++          0.3654080033302307
++        ],
++        "nccl": [
++          0.05967999994754791,
++          0.06323199719190598,
++          0.07302399724721909,
++          0.05129599943757057,
++          0.06204799935221672,
++          0.04755200073122978,
++          0.04867200180888176,
++          0.049056001007556915,
++          0.07267200201749802
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -4.6945455460283805,
++        "dma_ms": 0.3507840037345886,
++        "nccl_ms": 0.06159999966621399,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.8544319868087769,
++        "median_ms": 0.3507840037345886,
++        "minimum_ms": 0.3272320032119751
++      },
++      "nccl": {
++        "maximum_ms": 0.07043199986219406,
++        "median_ms": 0.06159999966621399,
++        "minimum_ms": 0.046560000628232956
++      },
++      "payload_bytes": 98304,
++      "rows": 8,
++      "samples_ms": {
++        "dma": [
++          0.3507840037345886,
++          0.3272320032119751,
++          0.35199999809265137,
++          0.3359360098838806,
++          0.34620800614356995,
++          0.33401599526405334,
++          0.819104015827179,
++          0.35206401348114014,
++          0.8544319868087769
++        ],
++        "nccl": [
++          0.061664000153541565,
++          0.06159999966621399,
++          0.04982399940490723,
++          0.06710399687290192,
++          0.05158400163054466,
++          0.06339199841022491,
++          0.04995200037956238,
++          0.07043199986219406,
++          0.046560000628232956
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -3.562900118728739,
++        "dma_ms": 0.3424000144004822,
++        "nccl_ms": 0.07503999769687653,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.37779200077056885,
++        "median_ms": 0.3424000144004822,
++        "minimum_ms": 0.33452799916267395
++      },
++      "nccl": {
++        "maximum_ms": 0.09203200042247772,
++        "median_ms": 0.07503999769687653,
++        "minimum_ms": 0.05318399891257286
++      },
++      "payload_bytes": 393216,
++      "rows": 32,
++      "samples_ms": {
++        "dma": [
++          0.37779200077056885,
++          0.34275200963020325,
++          0.3407039940357208,
++          0.3424000144004822,
++          0.3357760012149811,
++          0.3436799943447113,
++          0.3423680067062378,
++          0.344543993473053,
++          0.33452799916267395
++        ],
++        "nccl": [
++          0.09203200042247772,
++          0.07814399898052216,
++          0.06492800265550613,
++          0.05318399891257286,
++          0.06796800345182419,
++          0.07503999769687653,
++          0.0650240033864975,
++          0.07631999999284744,
++          0.07795199751853943
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -1.7815584098912747,
++        "dma_ms": 0.3426879942417145,
++        "nccl_ms": 0.12319999933242798,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.3537920117378235,
++        "median_ms": 0.3426879942417145,
++        "minimum_ms": 0.3386560082435608
++      },
++      "nccl": {
++        "maximum_ms": 0.1324159950017929,
++        "median_ms": 0.12319999933242798,
++        "minimum_ms": 0.10630399733781815
++      },
++      "payload_bytes": 1572864,
++      "rows": 128,
++      "samples_ms": {
++        "dma": [
++          0.34332799911499023,
++          0.3426879942417145,
++          0.3463680148124695,
++          0.3413439989089966,
++          0.3436799943447113,
++          0.33929601311683655,
++          0.3537920117378235,
++          0.33929601311683655,
++          0.3386560082435608
++        ],
++        "nccl": [
++          0.1281599998474121,
++          0.11849600076675415,
++          0.1324159950017929,
++          0.12319999933242798,
++          0.11913599818944931,
++          0.11657600104808807,
++          0.10630399733781815,
++          0.12950399518013,
++          0.12595200538635254
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -0.3724318392654063,
++        "dma_ms": 0.40400001406669617,
++        "nccl_ms": 0.2943679988384247,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.42182400822639465,
++        "median_ms": 0.40400001406669617,
++        "minimum_ms": 0.3805440068244934
++      },
++      "nccl": {
++        "maximum_ms": 0.34780800342559814,
++        "median_ms": 0.2943679988384247,
++        "minimum_ms": 0.2771199941635132
++      },
++      "payload_bytes": 6291456,
++      "rows": 512,
++      "samples_ms": {
++        "dma": [
++          0.42182400822639465,
++          0.41600000858306885,
++          0.4028480052947998,
++          0.40137600898742676,
++          0.4106239974498749,
++          0.4084480106830597,
++          0.3805440068244934,
++          0.4023680090904236,
++          0.40400001406669617
++        ],
++        "nccl": [
++          0.3025600016117096,
++          0.2771199941635132,
++          0.2919040024280548,
++          0.29017600417137146,
++          0.27775999903678894,
++          0.34780800342559814,
++          0.3041599988937378,
++          0.2943679988384247,
++          0.2969920039176941
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "sparkinfer-dma",
++        "dma_gain": 0.06093374705179362,
++        "dma_ms": 0.8837440013885498,
++        "nccl_ms": 0.9410880208015442,
++        "reason": "measured-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.89164799451828,
++        "median_ms": 0.8837440013885498,
++        "minimum_ms": 0.872704029083252
++      },
++      "nccl": {
++        "maximum_ms": 0.9553920030593872,
++        "median_ms": 0.9410880208015442,
++        "minimum_ms": 0.9359359741210938
++      },
++      "payload_bytes": 25165824,
++      "rows": 2048,
++      "samples_ms": {
++        "dma": [
++          0.8880959749221802,
++          0.8740800023078918,
++          0.89164799451828,
++          0.8812800049781799,
++          0.872704029083252,
++          0.874176025390625,
++          0.8861439824104309,
++          0.8883839845657349,
++          0.8837440013885498
++        ],
++        "nccl": [
++          0.9544000029563904,
++          0.9380159974098206,
++          0.9513279795646667,
++          0.9359359741210938,
++          0.9553920030593872,
++          0.936959981918335,
++          0.9492480158805847,
++          0.9410880208015442,
++          0.9400320053100586
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "sparkinfer-dma",
++        "dma_gain": 0.10130182815466274,
++        "dma_ms": 3.2825920581817627,
++        "nccl_ms": 3.6526079177856445,
++        "reason": "measured-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 3.298367977142334,
++        "median_ms": 3.2825920581817627,
++        "minimum_ms": 3.2688000202178955
++      },
++      "nccl": {
++        "maximum_ms": 3.668992042541504,
++        "median_ms": 3.6526079177856445,
++        "minimum_ms": 3.636255979537964
++      },
++      "payload_bytes": 100663296,
++      "rows": 8192,
++      "samples_ms": {
++        "dma": [
++          3.2745919227600098,
++          3.2856318950653076,
++          3.2811520099639893,
++          3.274303913116455,
++          3.2825920581817627,
++          3.2888638973236084,
++          3.2688000202178955,
++          3.298367977142334,
++          3.283263921737671
++        ],
++        "nccl": [
++          3.636255979537964,
++          3.6526079177856445,
++          3.638240098953247,
++          3.6485118865966797,
++          3.659775972366333,
++          3.668992042541504,
++          3.6577279567718506,
++          3.6382720470428467,
++          3.6526079177856445
++        ]
++      }
++    }
++  ]
++}
+diff --git a/docs/evidence/pcie_calibration/20260726-interleaved-tp8-dcp4.json b/docs/evidence/pcie_calibration/20260726-interleaved-tp8-dcp4.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..9b3a0574e98a63ecdab2ab8ef3914d537068f9ab
+--- /dev/null
++++ b/docs/evidence/pcie_calibration/20260726-interleaved-tp8-dcp4.json
+@@ -0,0 +1,1256 @@
++{
++  "config": {
++    "active_iterations": 9,
++    "allreduce_rows": [
++      1,
++      8,
++      32,
++      128,
++      512,
++      2048,
++      8192
++    ],
++    "ckv_record_bytes": 656,
++    "context_tokens": [
++      8192,
++      65536,
++      131072
++    ],
++    "dcp_size": 4,
++    "dma_wire_mode": "0",
++    "hidden_size": 6144,
++    "indexer_heads": 32,
++    "indexer_shards": 2,
++    "indexer_stride": 4,
++    "indexer_topk": 2048,
++    "maximum_collective_slowdown": 4.0,
++    "maximum_overlap_regression": 0.01,
++    "minimum_backend_gain": 0.02,
++    "minimum_overlap_gain": 0.02,
++    "minimum_query_split_gain": 0.02,
++    "tp_rows": 8192,
++    "tp_size": 8,
++    "warmup_iterations": 3
++  },
++  "contexts": [
++    {
++      "ckv_isolated": {
++        "maximum_ms": 0.18403199315071106,
++        "median_ms": 0.1685439944267273,
++        "minimum_ms": 0.1432960033416748
++      },
++      "ckv_local_bytes": 1343488,
++      "ckv_local_tokens": 2048,
++      "ckv_wire_bytes_per_rank": 4030464,
++      "context_tokens": 8192,
++      "decision": {
++        "ckv_effective_wire_gbps": 1.6205242426962776,
++        "ckv_slowdown": 14.756597502067935,
++        "concurrent_wall_ms": 5.559807777404785,
++        "enable_overlap": false,
++        "overlap_gain": -0.5953280562037611,
++        "reason": "insufficient-overlap-gain",
++        "serialized_ms": 3.4850561022758484,
++        "tp_slowdown": 1.675784553494277
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            0.1706240028142929
++          ],
++          [
++            0.1725119948387146
++          ],
++          [
++            0.14857600629329681
++          ],
++          [
++            0.1432960033416748
++          ],
++          [
++            0.17907199263572693
++          ],
++          [
++            0.1685439944267273
++          ],
++          [
++            0.1570879966020584
++          ],
++          [
++            0.14431999623775482
++          ],
++          [
++            0.18403199315071106
++          ]
++        ],
++        "side_first": [
++          [
++            5.584383964538574,
++            2.5055360794067383,
++            5.586463928222656
++          ],
++          [
++            5.557759761810303,
++            2.4824960231781006,
++            5.559807777404785
++          ],
++          [
++            5.549536228179932,
++            2.4822399616241455,
++            5.551583766937256
++          ],
++          [
++            5.587456226348877,
++            2.531680107116699,
++            5.589503765106201
++          ],
++          [
++            5.547520160675049,
++            2.476576089859009,
++            5.549439907073975
++          ],
++          [
++            5.5731201171875,
++            2.4863040447235107,
++            5.575168132781982
++          ],
++          [
++            5.541376113891602,
++            2.480288028717041,
++            5.543424129486084
++          ],
++          [
++            5.567999839782715,
++            2.5087039470672607,
++            5.570015907287598
++          ],
++          [
++            5.557568073272705,
++            2.4854719638824463,
++            5.559807777404785
++          ]
++        ],
++        "tp": [
++          [
++            3.276063919067383
++          ],
++          [
++            3.285792112350464
++          ],
++          [
++            3.2982399463653564
++          ],
++          [
++            3.328320026397705
++          ],
++          [
++            3.331712007522583
++          ],
++          [
++            3.341248035430908
++          ],
++          [
++            3.3029119968414307
++          ],
++          [
++            3.316512107849121
++          ],
++          [
++            3.4668478965759277
++          ]
++        ],
++        "tp_first": [
++          [
++            5.556735992431641,
++            2.4835519790649414,
++            5.558784008026123
++          ],
++          [
++            5.552639961242676,
++            2.4943039417266846,
++            5.554687976837158
++          ],
++          [
++            5.671296119689941,
++            2.5023679733276367,
++            5.673471927642822
++          ],
++          [
++            5.566976070404053,
++            2.48854398727417,
++            5.569056034088135
++          ],
++          [
++            5.554687976837158,
++            2.487135887145996,
++            5.55676794052124
++          ],
++          [
++            5.542399883270264,
++            2.487135887145996,
++            5.544447898864746
++          ],
++          [
++            5.561855792999268,
++            2.4933760166168213,
++            5.56390380859375
++          ],
++          [
++            5.556704044342041,
++            2.4845759868621826,
++            5.558752059936523
++          ],
++          [
++            5.699071884155273,
++            2.480832099914551,
++            5.7011518478393555
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 2.531680107116699,
++          "median_ms": 2.4854719638824463,
++          "minimum_ms": 2.476576089859009
++        },
++        "tp": {
++          "maximum_ms": 5.587456226348877,
++          "median_ms": 5.557759761810303,
++          "minimum_ms": 5.541376113891602
++        },
++        "wall": {
++          "maximum_ms": 5.589503765106201,
++          "median_ms": 5.559807777404785,
++          "minimum_ms": 5.543424129486084
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 2.5023679733276367,
++          "median_ms": 2.487135887145996,
++          "minimum_ms": 2.480832099914551
++        },
++        "tp": {
++          "maximum_ms": 5.699071884155273,
++          "median_ms": 5.556735992431641,
++          "minimum_ms": 5.542399883270264
++        },
++        "wall": {
++          "maximum_ms": 5.7011518478393555,
++          "median_ms": 5.558784008026123,
++          "minimum_ms": 5.544447898864746
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 3.4668478965759277,
++        "median_ms": 3.316512107849121,
++        "minimum_ms": 3.276063919067383
++      }
++    },
++    {
++      "ckv_isolated": {
++        "maximum_ms": 0.8194239735603333,
++        "median_ms": 0.7903040051460266,
++        "minimum_ms": 0.7679359912872314
++      },
++      "ckv_local_bytes": 10747904,
++      "ckv_local_tokens": 16384,
++      "ckv_wire_bytes_per_rank": 32243712,
++      "context_tokens": 65536,
++      "decision": {
++        "ckv_effective_wire_gbps": 1.6493987498961866,
++        "ckv_slowdown": 24.73575606671976,
++        "concurrent_wall_ms": 21.649919509887695,
++        "enable_overlap": false,
++        "overlap_gain": -4.285624860037861,
++        "reason": "insufficient-overlap-gain",
++        "serialized_ms": 4.096000015735626,
++        "tp_slowdown": 6.548658090597871
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            0.7770559787750244
++          ],
++          [
++            0.7821760177612305
++          ],
++          [
++            0.7679359912872314
++          ],
++          [
++            0.8095359802246094
++          ],
++          [
++            0.798911988735199
++          ],
++          [
++            0.8194239735603333
++          ],
++          [
++            0.7903040051460266
++          ],
++          [
++            0.8163520097732544
++          ],
++          [
++            0.7892799973487854
++          ]
++        ],
++        "side_first": [
++          [
++            21.635583877563477,
++            19.528383255004883,
++            21.637664794921875
++          ],
++          [
++            21.78099250793457,
++            19.679840087890625,
++            21.783039093017578
++          ],
++          [
++            21.627391815185547,
++            19.529983520507812,
++            21.629472732543945
++          ],
++          [
++            21.647872924804688,
++            19.542943954467773,
++            21.649919509887695
++          ],
++          [
++            21.641727447509766,
++            19.54876708984375,
++            21.643808364868164
++          ],
++          [
++            21.723615646362305,
++            19.61235237121582,
++            21.725536346435547
++          ],
++          [
++            21.651872634887695,
++            19.562847137451172,
++            21.65398406982422
++          ],
++          [
++            21.650911331176758,
++            19.554079055786133,
++            21.65283203125
++          ],
++          [
++            21.609983444213867,
++            19.51535987854004,
++            21.612031936645508
++          ]
++        ],
++        "tp": [
++          [
++            3.28604793548584
++          ],
++          [
++            3.3056960105895996
++          ],
++          [
++            3.3090879917144775
++          ],
++          [
++            3.297919988632202
++          ],
++          [
++            3.3022398948669434
++          ],
++          [
++            3.2989120483398438
++          ],
++          [
++            3.309727907180786
++          ],
++          [
++            3.3271679878234863
++          ],
++          [
++            3.3182079792022705
++          ]
++        ],
++        "tp_first": [
++          [
++            21.61916732788086,
++            19.52422332763672,
++            21.621248245239258
++          ],
++          [
++            21.630464553833008,
++            19.534975051879883,
++            21.632511138916016
++          ],
++          [
++            21.601791381835938,
++            19.505184173583984,
++            21.60380744934082
++          ],
++          [
++            21.77894401550293,
++            19.676639556884766,
++            21.78099250793457
++          ],
++          [
++            21.292543411254883,
++            19.166048049926758,
++            21.294591903686523
++          ],
++          [
++            21.643775939941406,
++            19.545888900756836,
++            21.64579200744629
++          ],
++          [
++            21.814783096313477,
++            19.7073917388916,
++            21.816831588745117
++          ],
++          [
++            21.723648071289062,
++            19.632736206054688,
++            21.725696563720703
++          ],
++          [
++            21.637632369995117,
++            19.539104461669922,
++            21.639680862426758
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 19.679840087890625,
++          "median_ms": 19.54876708984375,
++          "minimum_ms": 19.51535987854004
++        },
++        "tp": {
++          "maximum_ms": 21.78099250793457,
++          "median_ms": 21.647872924804688,
++          "minimum_ms": 21.609983444213867
++        },
++        "wall": {
++          "maximum_ms": 21.783039093017578,
++          "median_ms": 21.649919509887695,
++          "minimum_ms": 21.612031936645508
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 19.7073917388916,
++          "median_ms": 19.539104461669922,
++          "minimum_ms": 19.166048049926758
++        },
++        "tp": {
++          "maximum_ms": 21.814783096313477,
++          "median_ms": 21.637632369995117,
++          "minimum_ms": 21.292543411254883
++        },
++        "wall": {
++          "maximum_ms": 21.816831588745117,
++          "median_ms": 21.639680862426758,
++          "minimum_ms": 21.294591903686523
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 3.3271679878234863,
++        "median_ms": 3.3056960105895996,
++        "minimum_ms": 3.28604793548584
++      }
++    },
++    {
++      "ckv_isolated": {
++        "maximum_ms": 1.5275520086288452,
++        "median_ms": 1.5053759813308716,
++        "minimum_ms": 1.4924479722976685
++      },
++      "ckv_local_bytes": 21495808,
++      "ckv_local_tokens": 32768,
++      "ckv_wire_bytes_per_rank": 64487424,
++      "context_tokens": 131072,
++      "decision": {
++        "ckv_effective_wire_gbps": 1.6601261241879077,
++        "ckv_slowdown": 25.804114647051644,
++        "concurrent_wall_ms": 39.843326568603516,
++        "enable_overlap": false,
++        "overlap_gain": -7.238410489595382,
++        "reason": "insufficient-overlap-gain",
++        "serialized_ms": 4.836288094520569,
++        "tp_slowdown": 11.961072684297557
++      },
++      "samples_ms": {
++        "ckv": [
++          [
++            1.5030720233917236
++          ],
++          [
++            1.4924479722976685
++          ],
++          [
++            1.5275520086288452
++          ],
++          [
++            1.5236480236053467
++          ],
++          [
++            1.5049599409103394
++          ],
++          [
++            1.521888017654419
++          ],
++          [
++            1.5053759813308716
++          ],
++          [
++            1.4985599517822266
++          ],
++          [
++            1.5193599462509155
++          ]
++        ],
++        "side_first": [
++          [
++            38.703617095947266,
++            37.674495697021484,
++            38.705665588378906
++          ],
++          [
++            39.909854888916016,
++            38.895423889160156,
++            39.911903381347656
++          ],
++          [
++            39.83705520629883,
++            38.83763122558594,
++            39.839134216308594
++          ],
++          [
++            39.90460968017578,
++            38.89753723144531,
++            39.90681457519531
++          ],
++          [
++            39.84128189086914,
++            38.84489440917969,
++            39.843326568603516
++          ],
++          [
++            39.87507247924805,
++            38.87238311767578,
++            39.87712097167969
++          ],
++          [
++            39.75116729736328,
++            38.7655029296875,
++            39.75321578979492
++          ],
++          [
++            39.84022521972656,
++            38.82601547241211,
++            39.84233474731445
++          ],
++          [
++            39.85142517089844,
++            38.85353469848633,
++            39.853599548339844
++          ]
++        ],
++        "tp": [
++          [
++            3.3309121131896973
++          ],
++          [
++            3.421056032180786
++          ],
++          [
++            3.3365440368652344
++          ],
++          [
++            5.282495975494385
++          ],
++          [
++            3.306720018386841
++          ],
++          [
++            3.511647939682007
++          ],
++          [
++            3.3228800296783447
++          ],
++          [
++            3.3207039833068848
++          ],
++          [
++            3.2858879566192627
++          ]
++        ],
++        "tp_first": [
++          [
++            39.86073684692383,
++            38.87065505981445,
++            39.86278533935547
++          ],
++          [
++            39.892478942871094,
++            38.89433670043945,
++            39.894527435302734
++          ],
++          [
++            39.756256103515625,
++            38.741310119628906,
++            39.75836944580078
++          ],
++          [
++            39.887359619140625,
++            38.87507247924805,
++            39.889408111572266
++          ],
++          [
++            37.249534606933594,
++            36.25094223022461,
++            37.251583099365234
++          ],
++          [
++            39.82182312011719,
++            38.818241119384766,
++            39.82387161254883
++          ],
++          [
++            38.324737548828125,
++            37.32115173339844,
++            38.3267822265625
++          ],
++          [
++            37.02732849121094,
++            36.02649688720703,
++            37.02937698364258
++          ],
++          [
++            40.01331329345703,
++            39.0195198059082,
++            40.01536178588867
++          ]
++        ]
++      },
++      "side_first": {
++        "ckv": {
++          "maximum_ms": 38.89753723144531,
++          "median_ms": 38.84489440917969,
++          "minimum_ms": 37.674495697021484
++        },
++        "tp": {
++          "maximum_ms": 39.909854888916016,
++          "median_ms": 39.84128189086914,
++          "minimum_ms": 38.703617095947266
++        },
++        "wall": {
++          "maximum_ms": 39.911903381347656,
++          "median_ms": 39.843326568603516,
++          "minimum_ms": 38.705665588378906
++        }
++      },
++      "tp_first": {
++        "ckv": {
++          "maximum_ms": 39.0195198059082,
++          "median_ms": 38.818241119384766,
++          "minimum_ms": 36.02649688720703
++        },
++        "tp": {
++          "maximum_ms": 40.01331329345703,
++          "median_ms": 39.82182312011719,
++          "minimum_ms": 37.02732849121094
++        },
++        "wall": {
++          "maximum_ms": 40.01536178588867,
++          "median_ms": 39.82387161254883,
++          "minimum_ms": 37.02937698364258
++        }
++      },
++      "tp_isolated": {
++        "maximum_ms": 5.282495975494385,
++        "median_ms": 3.3309121131896973,
++        "minimum_ms": 3.2858879566192627
++      }
++    }
++  ],
++  "correctness": {
++    "query_split_matches_replicated": true,
++    "tp_and_ckv_collectives": true,
++    "tp_dma_matches_nccl": true
++  },
++  "maximum_safe_context_tokens": 0,
++  "policy": {
++    "compressed_dma_requires_explicit_opt_in": true,
++    "dcp_ckv_prefetch_depth": 0,
++    "dcp_query_split": 1,
++    "dcp_query_split_min_context_tokens": 8192,
++    "numeric_contract": "lossless-only",
++    "tp_allreduce": {
++      "dma_min_bytes": 25165824,
++      "dma_wire_mode": "bf16",
++      "fallback": "nccl"
++    }
++  },
++  "provenance": {
++    "command": "CUDA_VISIBLE_DEVICES=0,2,4,6,8,10,12,14 torchrun --standalone --nproc-per-node=8 -m sparkinfer.comm.pcie.overlap_probe --tp-size 8 --dcp-size 4 --context-tokens 8192,65536,131072 --output interleaved-gpu-even-f3fb62c.json",
++    "cuda_version": "13.2",
++    "source_revision": "f3fb62c8af5bf6759e28a067b4e6fc8732a9e497",
++    "source_worktree": "/root/vllm/worktrees/sparkinfer-pcie-calibration-pr-20260726",
++    "torch_version": "2.12.0+cu132"
++  },
++  "query_split": [
++    {
++      "context_tokens": 8192,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 2.6943039894104004,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.2314928327639011,
++        "split_ms": 2.070591926574707,
++        "wire_bytes_per_rank": 67108864
++      },
++      "full": {
++        "maximum_ms": 2.749216079711914,
++        "median_ms": 2.6943039894104004,
++        "minimum_ms": 2.6824960708618164
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 1024,
++      "indexer_local_topk": 1024,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          2.6931519508361816,
++          2.6893439292907715,
++          2.749216079711914,
++          2.7446401119232178,
++          2.6824960708618164,
++          2.69814395904541,
++          2.6943039894104004,
++          2.6989760398864746,
++          2.691103935241699
++        ],
++        "split": [
++          2.070591926574707,
++          2.066943883895874,
++          2.079967975616455,
++          2.0713601112365723,
++          2.063744068145752,
++          2.0637760162353516,
++          2.0432639122009277,
++          2.09500789642334,
++          2.0974719524383545
++        ]
++      },
++      "split": {
++        "maximum_ms": 2.0974719524383545,
++        "median_ms": 2.070591926574707,
++        "minimum_ms": 2.0432639122009277
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 67108864,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 8388608
++      },
++      "wire_bytes_per_rank": 67108864
++    },
++    {
++      "context_tokens": 65536,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 5.860544204711914,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.5782889840015648,
++        "split_ms": 2.4714560508728027,
++        "wire_bytes_per_rank": 75497472
++      },
++      "full": {
++        "maximum_ms": 5.910175800323486,
++        "median_ms": 5.860544204711914,
++        "minimum_ms": 5.839424133300781
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 8192,
++      "indexer_local_topk": 2048,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          5.850143909454346,
++          5.868768215179443,
++          5.860544204711914,
++          5.841599941253662,
++          5.853312015533447,
++          5.8787841796875,
++          5.839424133300781,
++          5.910175800323486,
++          5.907264232635498
++        ],
++        "split": [
++          2.512255907058716,
++          3.2150399684906006,
++          2.4671359062194824,
++          2.4598400592803955,
++          2.460479974746704,
++          2.4684479236602783,
++          2.4714560508728027,
++          2.4799039363861084,
++          2.500159978866577
++        ]
++      },
++      "split": {
++        "maximum_ms": 3.2150399684906006,
++        "median_ms": 2.4714560508728027,
++        "minimum_ms": 2.4598400592803955
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 134217728,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 16777216
++      },
++      "wire_bytes_per_rank": 75497472
++    },
++    {
++      "context_tokens": 131072,
++      "decision": {
++        "enable_query_split": true,
++        "full_ms": 6.77180814743042,
++        "reason": "measured-full-phase-benefit",
++        "split_gain": 0.6011794801271498,
++        "split_ms": 2.7007360458374023,
++        "wire_bytes_per_rank": 75497472
++      },
++      "full": {
++        "maximum_ms": 6.791967868804932,
++        "median_ms": 6.77180814743042,
++        "minimum_ms": 6.738495826721191
++      },
++      "full_rows": 8192,
++      "indexer_local_tokens": 16384,
++      "indexer_local_topk": 2048,
++      "local_rows": 2048,
++      "query_split_size": 4,
++      "samples_ms": {
++        "full": [
++          6.7788801193237305,
++          6.738495826721191,
++          6.774335861206055,
++          6.742847919464111,
++          6.77180814743042,
++          6.791967868804932,
++          6.7678399085998535,
++          6.765952110290527,
++          6.77564811706543
++        ],
++        "split": [
++          2.7007360458374023,
++          2.7064640522003174,
++          2.7269439697265625,
++          2.6981120109558105,
++          2.7017600536346436,
++          2.688960075378418,
++          2.783967971801758,
++          2.6925439834594727,
++          2.697824001312256
++        ]
++      },
++      "split": {
++        "maximum_ms": 2.783967971801758,
++        "median_ms": 2.7007360458374023,
++        "minimum_ms": 2.688960075378418
++      },
++      "wire_breakdown_bytes_per_rank": {
++        "baseline_candidate_allgather": 134217728,
++        "final_topk_allgather": 58720256,
++        "owner_candidate_exchange": 16777216
++      },
++      "wire_bytes_per_rank": 75497472
++    }
++  ],
++  "recommended_prefetch_depth": 0,
++  "topology": {
++    "cuda_visible_devices": "0,2,4,6,8,10,12,14",
++    "gpu_inventory": "0, 00000000:03:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n1, 00000000:04:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n2, 00000000:23:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n3, 00000000:24:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n4, 00000000:43:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n5, 00000000:44:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n6, 00000000:63:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n7, 00000000:64:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n8, 00000000:83:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n9, 00000000:84:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n10, 00000000:A3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n11, 00000000:A4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n12, 00000000:C3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n13, 00000000:C4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n14, 00000000:E3:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition\n15, 00000000:E4:00.0, NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++    "nvidia_visible_devices": "all",
++    "rank_devices": [
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:03:00.0",
++        "rank": 0,
++        "uuid": "d8438b2d-f000-a617-5dcc-0197ce0365a3",
++        "visible_ordinal": 0
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:23:00.0",
++        "rank": 1,
++        "uuid": "167fbc3f-fd06-7f08-9e06-ee02946d041c",
++        "visible_ordinal": 1
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:43:00.0",
++        "rank": 2,
++        "uuid": "8800cf0c-1ba5-7136-d796-2a91f9e9586e",
++        "visible_ordinal": 2
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:63:00.0",
++        "rank": 3,
++        "uuid": "1a0323f7-8113-a1e1-c68b-f23fecf77171",
++        "visible_ordinal": 3
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:83:00.0",
++        "rank": 4,
++        "uuid": "2a2cd7c3-b91f-092c-309d-cda7e408f659",
++        "visible_ordinal": 4
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:a3:00.0",
++        "rank": 5,
++        "uuid": "6171baff-cc22-608e-4029-507f67c392ff",
++        "visible_ordinal": 5
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:c3:00.0",
++        "rank": 6,
++        "uuid": "3304d777-8f0e-2767-419a-d72ffa553141",
++        "visible_ordinal": 6
++      },
++      {
++        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
++        "pci_address": "00000000:e3:00.0",
++        "rank": 7,
++        "uuid": "a2f726b2-60db-8102-abef-abf76c457fe0",
++        "visible_ordinal": 7
++      }
++    ],
++    "topology_matrix": "\u001b[4mGPU0\tGPU1\tGPU2\tGPU3\tGPU4\tGPU5\tGPU6\tGPU7\tGPU8\tGPU9\tGPU10\tGPU11\tGPU12\tGPU13\tGPU14\tGPU15\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU1\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU2\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU3\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU4\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU5\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU6\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU7\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU8\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU9\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU10\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU11\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU12\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\tNODE\tNODE\t0-127\t0\t\tN/A\nGPU13\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \tNODE\tNODE\t0-127\t0\t\tN/A\nGPU14\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\t X \tPIX\t0-127\t0\t\tN/A\nGPU15\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tNODE\tPIX\t X \t0-127\t0\t\tN/A\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks"
++  },
++  "tp_allreduce": [
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -4.874932292410932,
++        "dma_ms": 0.3487359881401062,
++        "nccl_ms": 0.05936000123620033,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.4039359986782074,
++        "median_ms": 0.3487359881401062,
++        "minimum_ms": 0.33087998628616333
++      },
++      "nccl": {
++        "maximum_ms": 0.07862400263547897,
++        "median_ms": 0.05936000123620033,
++        "minimum_ms": 0.05283199995756149
++      },
++      "payload_bytes": 12288,
++      "rows": 1,
++      "samples_ms": {
++        "dma": [
++          0.39212799072265625,
++          0.3487359881401062,
++          0.33132800459861755,
++          0.3463680148124695,
++          0.33087998628616333,
++          0.3540799915790558,
++          0.3417600095272064,
++          0.37248000502586365,
++          0.4039359986782074
++        ],
++        "nccl": [
++          0.07862400263547897,
++          0.05484800040721893,
++          0.05936000123620033,
++          0.07321599870920181,
++          0.05283199995756149,
++          0.05756799876689911,
++          0.06185600161552429,
++          0.05503999814391136,
++          0.07395199686288834
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -3.85752836191238,
++        "dma_ms": 0.3458560109138489,
++        "nccl_ms": 0.07119999825954437,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.8400319814682007,
++        "median_ms": 0.3458560109138489,
++        "minimum_ms": 0.3307519853115082
++      },
++      "nccl": {
++        "maximum_ms": 0.07900799810886383,
++        "median_ms": 0.07119999825954437,
++        "minimum_ms": 0.04732799902558327
++      },
++      "payload_bytes": 98304,
++      "rows": 8,
++      "samples_ms": {
++        "dma": [
++          0.36588799953460693,
++          0.33395200967788696,
++          0.3503359854221344,
++          0.3418239951133728,
++          0.3458560109138489,
++          0.3307519853115082,
++          0.818880021572113,
++          0.3315199911594391,
++          0.8400319814682007
++        ],
++        "nccl": [
++          0.07846400141716003,
++          0.07900799810886383,
++          0.07119999825954437,
++          0.04732799902558327,
++          0.07430399954319,
++          0.06137600168585777,
++          0.06531199812889099,
++          0.048767998814582825,
++          0.07827199995517731
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -3.631370797514482,
++        "dma_ms": 0.3373120129108429,
++        "nccl_ms": 0.07283200323581696,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.3500159978866577,
++        "median_ms": 0.3373120129108429,
++        "minimum_ms": 0.3240320086479187
++      },
++      "nccl": {
++        "maximum_ms": 0.09254399687051773,
++        "median_ms": 0.07283200323581696,
++        "minimum_ms": 0.06835199892520905
++      },
++      "payload_bytes": 393216,
++      "rows": 32,
++      "samples_ms": {
++        "dma": [
++          0.3240320086479187,
++          0.33686399459838867,
++          0.33612799644470215,
++          0.33849599957466125,
++          0.3386879861354828,
++          0.3383040130138397,
++          0.3272640109062195,
++          0.3373120129108429,
++          0.3500159978866577
++        ],
++        "nccl": [
++          0.07785599678754807,
++          0.07231999933719635,
++          0.08848000317811966,
++          0.08656000345945358,
++          0.06835199892520905,
++          0.06880000233650208,
++          0.07283200323581696,
++          0.07235199958086014,
++          0.09254399687051773
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -2.0536075863794276,
++        "dma_ms": 0.33721598982810974,
++        "nccl_ms": 0.11043199896812439,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.3617599904537201,
++        "median_ms": 0.33721598982810974,
++        "minimum_ms": 0.32473599910736084
++      },
++      "nccl": {
++        "maximum_ms": 0.12777599692344666,
++        "median_ms": 0.11043199896812439,
++        "minimum_ms": 0.09676799923181534
++      },
++      "payload_bytes": 1572864,
++      "rows": 128,
++      "samples_ms": {
++        "dma": [
++          0.35443198680877686,
++          0.33420801162719727,
++          0.3373759984970093,
++          0.32473599910736084,
++          0.3617599904537201,
++          0.3327679932117462,
++          0.32793599367141724,
++          0.3479039967060089,
++          0.33721598982810974
++        ],
++        "nccl": [
++          0.11459200084209442,
++          0.10512000322341919,
++          0.09676799923181534,
++          0.11043199896812439,
++          0.10329599678516388,
++          0.11727999895811081,
++          0.12531200051307678,
++          0.12777599692344666,
++          0.09676799923181534
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "nccl",
++        "dma_gain": -0.3840532341060324,
++        "dma_ms": 0.4060479998588562,
++        "nccl_ms": 0.29337599873542786,
++        "reason": "no-material-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.41923201084136963,
++        "median_ms": 0.4060479998588562,
++        "minimum_ms": 0.37487998604774475
++      },
++      "nccl": {
++        "maximum_ms": 0.31244799494743347,
++        "median_ms": 0.29337599873542786,
++        "minimum_ms": 0.28467199206352234
++      },
++      "payload_bytes": 6291456,
++      "rows": 512,
++      "samples_ms": {
++        "dma": [
++          0.4119360148906708,
++          0.40355199575424194,
++          0.4069119989871979,
++          0.39212799072265625,
++          0.40460801124572754,
++          0.4060479998588562,
++          0.40780800580978394,
++          0.41923201084136963,
++          0.37487998604774475
++        ],
++        "nccl": [
++          0.2908799946308136,
++          0.2952960133552551,
++          0.28512001037597656,
++          0.29052799940109253,
++          0.31244799494743347,
++          0.29337599873542786,
++          0.28467199206352234,
++          0.30480000376701355,
++          0.30320000648498535
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "sparkinfer-dma",
++        "dma_gain": 0.06526114363858038,
++        "dma_ms": 0.876800000667572,
++        "nccl_ms": 0.9380159974098206,
++        "reason": "measured-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 0.9141119718551636,
++        "median_ms": 0.876800000667572,
++        "minimum_ms": 0.8632000088691711
++      },
++      "nccl": {
++        "maximum_ms": 0.954367995262146,
++        "median_ms": 0.9380159974098206,
++        "minimum_ms": 0.92876797914505
++      },
++      "payload_bytes": 25165824,
++      "rows": 2048,
++      "samples_ms": {
++        "dma": [
++          0.8696960210800171,
++          0.8665599822998047,
++          0.901856005191803,
++          0.8632000088691711,
++          0.8680639863014221,
++          0.876800000667572,
++          0.8827840089797974,
++          0.8917120099067688,
++          0.9141119718551636
++        ],
++        "nccl": [
++          0.9339200258255005,
++          0.944159984588623,
++          0.92876797914505,
++          0.9461759924888611,
++          0.954367995262146,
++          0.942080020904541,
++          0.9380159974098206,
++          0.9339200258255005,
++          0.9349439740180969
++        ]
++      }
++    },
++    {
++      "decision": {
++        "backend": "sparkinfer-dma",
++        "dma_gain": 0.09518204220551163,
++        "dma_ms": 3.295680046081543,
++        "nccl_ms": 3.6423680782318115,
++        "reason": "measured-dma-benefit"
++      },
++      "dma": {
++        "maximum_ms": 3.454047918319702,
++        "median_ms": 3.295680046081543,
++        "minimum_ms": 3.277343988418579
++      },
++      "nccl": {
++        "maximum_ms": 3.714047908782959,
++        "median_ms": 3.6423680782318115,
++        "minimum_ms": 3.6382720470428467
++      },
++      "payload_bytes": 100663296,
++      "rows": 8192,
++      "samples_ms": {
++        "dma": [
++          3.277343988418579,
++          3.454047918319702,
++          3.2932159900665283,
++          3.290656089782715,
++          3.4518399238586426,
++          3.295680046081543,
++          3.4420480728149414,
++          3.2829439640045166,
++          3.3941121101379395
++        ],
++        "nccl": [
++          3.6382720470428467,
++          3.6382720470428467,
++          3.654655933380127,
++          3.6382720470428467,
++          3.6474881172180176,
++          3.6464641094207764,
++          3.6423680782318115,
++          3.640320062637329,
++          3.714047908782959
++        ]
++      }
++    }
++  ]
++}
+diff --git a/docs/pcie_calibration_probe.md b/docs/pcie_calibration_probe.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3c0132dfd9ece7e885bfadec1e204135442c8449
+--- /dev/null
++++ b/docs/pcie_calibration_probe.md
+@@ -0,0 +1,121 @@
++# PCIe Calibration Probe
++
++`sparkinfer.comm.pcie.overlap_probe` is a standalone, vLLM-independent
++calibrator for GLM-shaped TP and DCP traffic. It measures real SparkInfer and
++NCCL collectives on the deployed rank topology instead of inferring policy
++from PCIe link labels alone.
++
++## Numeric contract
++
++Automatic policy is lossless-only. The TP comparison uses SparkInfer
++`DmaAllReduce` with `dma_wire_mode=0`, which transports BF16 without wire
++quantization, and validates its result against NCCL before timing it.
++
++Compressed FP8, INT8, and MXFP8 modes (`ag`, `ring`, `a2a`, `i8*`, and `mx*`)
++are deliberately rejected by the calibrator. They remain explicit deployment
++choices and can never be enabled by the generated policy.
++
++## Measurements
++
++The probe reports the median of the slowest rank after warmup and records the
++physical rank-to-GPU mapping. It calibrates three independent decisions:
++
++1. NCCL versus lossless BF16 SparkInfer DMA over a TP payload ladder. DMA is
++   selected only at the start of a sustained winning tail.
++2. One-layer CKV prefetch by timing isolated and concurrent TP/CKV collectives
++   in both launch orders. Any material regression or pathological contention
++   disables prefetch without disabling other DCP optimizations.
++3. Query split using the real paged FP8 indexer plus exact FP32/int32 candidate
++   exchange, owner top-k merge, and final TP index gather. The split and
++   replicated results are checked for equality at every requested context.
++
++## Run
++
++Run from a SparkInfer checkout inside an image that contains its build
++dependencies:
++
++```bash
++CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
++torchrun --standalone --nproc-per-node=8 \
++  -m sparkinfer.comm.pcie.overlap_probe \
++  --tp-size 8 \
++  --dcp-size 4 \
++  --context-tokens 8192,65536,131072 \
++  --output /tmp/pcie-calibration.json
++```
++
++The `policy` object contains:
++
++- `tp_allreduce.dma_min_bytes`: first payload where lossless DMA wins
++  consistently; use NCCL below it. A value of `0` means that DMA never won
++  the measured ladder and the deployment should disable this backend.
++- `dcp_ckv_prefetch_depth`: `1` when overlap is beneficial and non-harmful
++  across the measured ladder, otherwise `0`.
++- `dcp_query_split`: `1` only when the complete exact split phase wins.
++- `dcp_query_split_min_context_tokens`: first context in a sustained winning
++  tail; vLLM keeps the unsplit path below this crossover.
++- `compressed_dma_requires_explicit_opt_in`: always `true`.
++
++The JSON also contains all raw timing summaries and the exact physical PCI
++addresses used by each rank. Calibration should be rerun after changing GPU
++placement, CPU/NUMA binding, PCIe generation caps, NCCL, or collective code.
++
++## Validation snapshot
++
++The probe was validated on 8x RTX PRO 6000 Blackwell with TP8/DCP4. All three
++correctness gates passed before timing: DMA matched NCCL exactly, the TP/CKV
++collectives matched their analytic patterns, and split top-k matched the
++replicated oracle at every context.
++
++| Topology | CKV overlap at 8k / 64k / 128k | Prefetch | Query split |
++| --- | ---: | ---: | ---: |
++| Adjacent GPU order | +3.1% / +3.1% / +3.8% | `1` | `1` |
++| Interleaved root complexes | -59.5% / -428.6% / -723.8% | `0` | `1` |
++
++On the adjacent topology, NCCL won through 6 MiB and lossless BF16 DMA won at
++24 MiB and 96 MiB, so the measured crossover was 24 MiB. The complete
++query-split phase was 23% faster at 8k and 58-60% faster at 64k-128k. At 8k,
++each shard has only 1024 local candidates, so both exact paths move 64 MiB per
++rank; at 64k and above the owner path reduces per-rank top-k communication from
++128 MiB to 72 MiB. The interleaved run reproduces the CKV-prefetch collapse
++while correctly retaining the unrelated query-split optimization.
++
++The percentages above use `(serialized - concurrent) / serialized` for CKV
++overlap and `(full - split) / full` for query split, so positive values are
++faster. Decisions use the pessimistic median from both launch orders.
++
++### Reproducible evidence
++
++- Probe source: commit `f3fb62c8af5bf6759e28a067b4e6fc8732a9e497`, worktree
++  `/root/vllm/worktrees/sparkinfer-pcie-calibration-pr-20260726`.
++- Runtime: PyTorch `2.12.0+cu132`; CUDA `13.2`; nine measured samples after
++  three warmup iterations for every mode and point.
++- [Adjacent GPU 0-7 raw JSON](evidence/pcie_calibration/20260726-adjacent-tp8-dcp4.json)
++- [Interleaved even-GPU raw JSON](evidence/pcie_calibration/20260726-interleaved-tp8-dcp4.json)
++
++Adjacent command:
++
++```bash
++CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
++torchrun --standalone --nproc-per-node=8 \
++  -m sparkinfer.comm.pcie.overlap_probe \
++  --tp-size 8 --dcp-size 4 \
++  --context-tokens 8192,65536,131072 \
++  --output adjacent-gpu0-7-f3fb62c.json
++```
++
++Interleaved command:
++
++```bash
++CUDA_VISIBLE_DEVICES=0,2,4,6,8,10,12,14 \
++torchrun --standalone --nproc-per-node=8 \
++  -m sparkinfer.comm.pcie.overlap_probe \
++  --tp-size 8 --dcp-size 4 \
++  --context-tokens 8192,65536,131072 \
++  --output interleaved-gpu-even-f3fb62c.json
++```
++
++The linked artifacts contain physical rank-to-PCI mappings, all raw timing
++samples, medians and extrema, exact commands, source identity, correctness
++results, byte counts, and final policy. This is the audit source for the table;
++the console rendering is only a summary.
+diff --git a/sparkinfer/comm/pcie/overlap_probe.py b/sparkinfer/comm/pcie/overlap_probe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c9c82a9caac6ef349cf04a7ca430178e0cb4c475
+--- /dev/null
++++ b/sparkinfer/comm/pcie/overlap_probe.py
+@@ -0,0 +1,1587 @@
++"""Calibrate GLM-shaped PCIe collectives and DCP prefill decisions.
++
++Run this module under ``torchrun``. It intentionally has no vLLM dependency:
++callers provide the model geometry and CKV record size that determine the
++collective payloads. The probe uses SparkInfer's real PCIe DMA all-reduce and
++a separate NCCL communicator for each contiguous DCP rank group.
++
++Example::
++
++    torchrun --standalone --nproc-per-node=8 \
++      -m sparkinfer.comm.pcie.overlap_probe \
++      --tp-size 8 --dcp-size 4 --context-tokens 8192,65536,131072
++
++The result is a calibration, not an end-to-end model benchmark. It measures:
++
++* SparkInfer DMA versus NCCL for TP all-reduce payloads;
++* contention between TP DMA and a layer-ahead DCP CKV all-gather;
++* the full query-split indexer phase, including exact candidate exchange,
++  owner merge, and final int32 top-k gather.
++
++The query-split comparison includes the compute it avoids. Transport-only
++numbers must not be used to disable a compute-saving path.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++import math
++import os
++import statistics
++import subprocess
++import sys
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Any, Callable, Sequence
++
++import torch
++import torch.distributed as dist
++
++
++@dataclass(frozen=True)
++class ProbeConfig:
++    tp_size: int = 8
++    dcp_size: int = 4
++    hidden_size: int = 6144
++    tp_rows: int = 8192
++    allreduce_rows: tuple[int, ...] = (1, 8, 32, 128, 512, 2048, 8192)
++    ckv_record_bytes: int = 656
++    context_tokens: tuple[int, ...] = (8192, 65536, 131072)
++    indexer_shards: int = 2
++    indexer_stride: int = 4
++    indexer_heads: int = 32
++    indexer_topk: int = 2048
++    warmup_iterations: int = 3
++    active_iterations: int = 9
++    minimum_overlap_gain: float = 0.02
++    minimum_backend_gain: float = 0.02
++    minimum_query_split_gain: float = 0.02
++    maximum_overlap_regression: float = 0.01
++    maximum_collective_slowdown: float = 4.0
++    dma_wire_mode: str = "0"
++
++    def validate(self) -> None:
++        if self.tp_size < 2:
++            raise ValueError("tp_size must be at least 2")
++        if self.dcp_size < 1 or self.tp_size % self.dcp_size:
++            raise ValueError("dcp_size must divide tp_size and be positive")
++        if self.hidden_size <= 0 or self.tp_rows <= 0:
++            raise ValueError("hidden_size and tp_rows must be positive")
++        if not self.allreduce_rows or any(value <= 0 for value in self.allreduce_rows):
++            raise ValueError("allreduce_rows must contain positive values")
++        if max(self.allreduce_rows) > self.tp_rows:
++            raise ValueError("allreduce_rows cannot exceed tp_rows")
++        if self.ckv_record_bytes <= 0:
++            raise ValueError("ckv_record_bytes must be positive")
++        if not self.context_tokens or any(value <= 0 for value in self.context_tokens):
++            raise ValueError("context_tokens must contain positive values")
++        if self.warmup_iterations < 0 or self.active_iterations < 1:
++            raise ValueError("invalid iteration counts")
++        if (
++            self.indexer_shards < 1
++            or self.dcp_size % self.indexer_shards
++            or self.tp_size % self.indexer_shards
++        ):
++            raise ValueError("indexer_shards must divide both dcp_size and tp_size")
++        if self.tp_rows % self.query_split_size:
++            raise ValueError("tp_rows must divide evenly across query-split ranks")
++        if self.tp_rows % self.tp_size:
++            raise ValueError(
++                "tp_rows must divide evenly across tp_size for owner merge"
++            )
++        if self.query_split_rows % self.indexer_shards:
++            raise ValueError(
++                "query_split_rows must divide evenly across indexer_shards"
++            )
++        if self.indexer_stride <= 0 or self.indexer_heads <= 0:
++            raise ValueError("indexer_stride and indexer_heads must be positive")
++        if self.indexer_topk <= 0:
++            raise ValueError("indexer_topk must be positive")
++        for context_tokens in self.context_tokens:
++            local_tokens = self.indexer_local_tokens(context_tokens)
++            local_topk = self.indexer_local_topk(context_tokens)
++            if self.indexer_topk > local_tokens * self.indexer_shards:
++                raise ValueError(
++                    f"indexer_topk={self.indexer_topk} exceeds the "
++                    f"{local_tokens * self.indexer_shards} global candidates "
++                    f"available at context_tokens={context_tokens}"
++                )
++            if local_topk not in (512, 1024, 2048):
++                raise ValueError(
++                    f"context_tokens={context_tokens} requires unsupported local "
++                    f"indexer top-k {local_topk}; supported values are 512, 1024, 2048"
++                )
++        if not 0.0 <= self.minimum_overlap_gain < 1.0:
++            raise ValueError("minimum_overlap_gain must be in [0, 1)")
++        if not 0.0 <= self.minimum_backend_gain < 1.0:
++            raise ValueError("minimum_backend_gain must be in [0, 1)")
++        if not 0.0 <= self.minimum_query_split_gain < 1.0:
++            raise ValueError("minimum_query_split_gain must be in [0, 1)")
++        if not 0.0 <= self.maximum_overlap_regression < 1.0:
++            raise ValueError("maximum_overlap_regression must be in [0, 1)")
++        if self.maximum_collective_slowdown < 1.0:
++            raise ValueError("maximum_collective_slowdown must be at least 1")
++        if self.dma_wire_mode.strip().lower() not in (
++            "",
++            "0",
++            "false",
++            "off",
++            "no",
++        ):
++            raise ValueError(
++                "automatic calibration only supports lossless BF16 DMA; "
++                "compressed DMA modes must be selected explicitly"
++            )
++
++    @property
++    def tp_payload_bytes(self) -> int:
++        return self.tp_rows * self.hidden_size * torch.bfloat16.itemsize
++
++    @property
++    def query_split_size(self) -> int:
++        return self.tp_size // self.indexer_shards
++
++    @property
++    def query_split_rows(self) -> int:
++        return self.tp_rows // self.query_split_size
++
++    def allreduce_payload_bytes(self, rows: int) -> int:
++        return rows * self.hidden_size * torch.bfloat16.itemsize
++
++    def indexer_local_tokens(self, context_tokens: int) -> int:
++        index_tokens = math.ceil(context_tokens / self.indexer_stride)
++        return math.ceil(index_tokens / self.indexer_shards)
++
++    def indexer_local_topk(self, context_tokens: int) -> int:
++        return min(self.indexer_topk, self.indexer_local_tokens(context_tokens))
++
++    def query_split_final_wire_bytes_per_rank(self) -> int:
++        return (
++            (self.query_split_rows // self.indexer_shards)
++            * self.indexer_topk
++            * torch.int32.itemsize
++            * (self.tp_size - 1)
++        )
++
++    def baseline_candidate_wire_bytes_per_rank(self, context_tokens: int) -> int:
++        return (
++            self.tp_rows
++            * 2
++            * self.indexer_local_topk(context_tokens)
++            * torch.int32.itemsize
++            * (self.indexer_shards - 1)
++        )
++
++    def owner_candidate_wire_bytes_per_rank(self, context_tokens: int) -> int:
++        return (
++            self.query_split_rows
++            * 2
++            * self.indexer_local_topk(context_tokens)
++            * torch.int32.itemsize
++            * (self.indexer_shards - 1)
++            // self.indexer_shards
++        )
++
++    def query_split_wire_bytes_per_rank(self, context_tokens: int) -> int:
++        return (
++            self.owner_candidate_wire_bytes_per_rank(context_tokens)
++            + self.query_split_final_wire_bytes_per_rank()
++        )
++
++    def ckv_local_tokens(self, context_tokens: int) -> int:
++        return math.ceil(context_tokens / self.dcp_size)
++
++    def ckv_local_bytes(self, context_tokens: int) -> int:
++        return self.ckv_local_tokens(context_tokens) * self.ckv_record_bytes
++
++    def ckv_wire_bytes_per_rank(self, context_tokens: int) -> int:
++        return self.ckv_local_bytes(context_tokens) * (self.dcp_size - 1)
++
++
++@dataclass(frozen=True)
++class TimingSummary:
++    median_ms: float
++    minimum_ms: float
++    maximum_ms: float
++
++
++@dataclass(frozen=True)
++class ContextDecision:
++    enable_overlap: bool
++    reason: str
++    serialized_ms: float
++    concurrent_wall_ms: float
++    overlap_gain: float
++    tp_slowdown: float
++    ckv_slowdown: float
++    ckv_effective_wire_gbps: float
++
++
++@dataclass(frozen=True)
++class BackendDecision:
++    backend: str
++    reason: str
++    nccl_ms: float
++    dma_ms: float
++    dma_gain: float
++
++
++@dataclass(frozen=True)
++class QuerySplitDecision:
++    enable_query_split: bool
++    reason: str
++    full_ms: float
++    split_ms: float
++    split_gain: float
++    wire_bytes_per_rank: int
++
++
++@dataclass(frozen=True)
++class QueryBuffers:
++    """Contiguous views over shared storage for one context's local top-k."""
++
++    local_topk: int
++    candidate_width: int
++    full_indices: torch.Tensor
++    full_scores: torch.Tensor
++    full_global_indices: torch.Tensor
++    full_candidates: torch.Tensor
++    full_gathered_candidates: torch.Tensor
++    full_candidate_indices: torch.Tensor
++    full_candidate_scores: torch.Tensor
++    full_candidate_lengths: torch.Tensor
++    local_indices: torch.Tensor
++    local_scores: torch.Tensor
++    local_global_indices: torch.Tensor
++    owner_candidates: torch.Tensor
++    owner_received_candidates: torch.Tensor
++    owner_candidate_indices: torch.Tensor
++    owner_candidate_scores: torch.Tensor
++    owner_candidate_lengths: torch.Tensor
++
++
++def summarize(values: Sequence[float]) -> TimingSummary:
++    if not values:
++        raise ValueError("cannot summarize an empty sample")
++    return TimingSummary(
++        median_ms=float(statistics.median(values)),
++        minimum_ms=float(min(values)),
++        maximum_ms=float(max(values)),
++    )
++
++
++def decide_overlap(
++    *,
++    tp_isolated_ms: float,
++    ckv_isolated_ms: float,
++    concurrent_tp_ms: float,
++    concurrent_ckv_ms: float,
++    concurrent_wall_ms: float,
++    ckv_wire_bytes_per_rank: int,
++    minimum_overlap_gain: float,
++    maximum_collective_slowdown: float,
++) -> ContextDecision:
++    values = (
++        tp_isolated_ms,
++        ckv_isolated_ms,
++        concurrent_tp_ms,
++        concurrent_ckv_ms,
++        concurrent_wall_ms,
++    )
++    if any(value <= 0 or not math.isfinite(value) for value in values):
++        raise ValueError("all timing values must be positive and finite")
++
++    serialized_ms = tp_isolated_ms + ckv_isolated_ms
++    overlap_gain = (serialized_ms - concurrent_wall_ms) / serialized_ms
++    tp_slowdown = concurrent_tp_ms / tp_isolated_ms
++    ckv_slowdown = concurrent_ckv_ms / ckv_isolated_ms
++    ckv_effective_wire_gbps = ckv_wire_bytes_per_rank / (concurrent_ckv_ms * 1e-3) / 1e9
++
++    if overlap_gain < minimum_overlap_gain:
++        enable = False
++        reason = "insufficient-overlap-gain"
++    elif max(tp_slowdown, ckv_slowdown) > maximum_collective_slowdown:
++        enable = False
++        reason = "collective-contention"
++    else:
++        enable = True
++        reason = "measured-overlap-benefit"
++
++    return ContextDecision(
++        enable_overlap=enable,
++        reason=reason,
++        serialized_ms=serialized_ms,
++        concurrent_wall_ms=concurrent_wall_ms,
++        overlap_gain=overlap_gain,
++        tp_slowdown=tp_slowdown,
++        ckv_slowdown=ckv_slowdown,
++        ckv_effective_wire_gbps=ckv_effective_wire_gbps,
++    )
++
++
++def decide_tp_backend(
++    *, nccl_ms: float, dma_ms: float, minimum_backend_gain: float
++) -> BackendDecision:
++    if any(value <= 0 or not math.isfinite(value) for value in (nccl_ms, dma_ms)):
++        raise ValueError("backend timings must be positive and finite")
++    dma_gain = (nccl_ms - dma_ms) / nccl_ms
++    if dma_gain >= minimum_backend_gain:
++        backend = "sparkinfer-dma"
++        reason = "measured-dma-benefit"
++    else:
++        backend = "nccl"
++        reason = "no-material-dma-benefit"
++    return BackendDecision(
++        backend=backend,
++        reason=reason,
++        nccl_ms=nccl_ms,
++        dma_ms=dma_ms,
++        dma_gain=dma_gain,
++    )
++
++
++def dma_crossover_bytes(
++    points: Sequence[tuple[int, BackendDecision]], *, consecutive_wins: int = 2
++) -> int:
++    """Return the first measured payload in a sustained DMA-winning tail."""
++    if consecutive_wins < 1:
++        raise ValueError("consecutive_wins must be positive")
++    ordered = sorted(points, key=lambda item: item[0])
++    for index, (payload_bytes, decision) in enumerate(ordered):
++        tail = ordered[index:]
++        if len(tail) < consecutive_wins:
++            break
++        if decision.backend == "sparkinfer-dma" and all(
++            item[1].backend == "sparkinfer-dma" for item in tail
++        ):
++            return payload_bytes
++    return 0
++
++
++def decide_query_split(
++    *,
++    full_ms: float,
++    split_ms: float,
++    wire_bytes_per_rank: int,
++    minimum_query_split_gain: float,
++) -> QuerySplitDecision:
++    if any(value <= 0 or not math.isfinite(value) for value in (full_ms, split_ms)):
++        raise ValueError("query-split timings must be positive and finite")
++    if wire_bytes_per_rank < 0:
++        raise ValueError("wire_bytes_per_rank must be non-negative")
++    split_gain = (full_ms - split_ms) / full_ms
++    if split_gain >= minimum_query_split_gain:
++        enable = True
++        reason = "measured-full-phase-benefit"
++    else:
++        enable = False
++        reason = "no-material-full-phase-benefit"
++    return QuerySplitDecision(
++        enable_query_split=enable,
++        reason=reason,
++        full_ms=full_ms,
++        split_ms=split_ms,
++        split_gain=split_gain,
++        wire_bytes_per_rank=wire_bytes_per_rank,
++    )
++
++
++def query_split_crossover_tokens(
++    points: Sequence[tuple[int, QuerySplitDecision]],
++    *,
++    consecutive_wins: int = 2,
++) -> int:
++    """Return the first context in a sustained query-split winning tail."""
++    if consecutive_wins < 1:
++        raise ValueError("consecutive_wins must be positive")
++    ordered = sorted(points, key=lambda item: item[0])
++    for index, (context_tokens, decision) in enumerate(ordered):
++        tail = ordered[index:]
++        if len(tail) < consecutive_wins:
++            break
++        if decision.enable_query_split and all(
++            item[1].enable_query_split for item in tail
++        ):
++            return context_tokens
++    return 0
++
++
++def recommend_prefetch_depth(
++    decisions: Sequence[ContextDecision],
++    *,
++    maximum_overlap_regression: float,
++) -> int:
++    """Enable one-layer prefetch when it helps and is safe across the ladder."""
++    if not decisions:
++        raise ValueError("at least one overlap decision is required")
++    if not 0.0 <= maximum_overlap_regression < 1.0:
++        raise ValueError("maximum_overlap_regression must be in [0, 1)")
++    harmful = any(
++        decision.reason == "collective-contention"
++        or decision.overlap_gain < -maximum_overlap_regression
++        for decision in decisions
++    )
++    beneficial = any(decision.enable_overlap for decision in decisions)
++    return int(beneficial and not harmful)
++
++
++def maximum_contiguous_enabled_context(
++    points: Sequence[tuple[int, bool]],
++) -> int:
++    """Return the end of the enabled prefix in ascending context order."""
++    maximum_safe = 0
++    for context_tokens, enabled in sorted(points):
++        if not enabled:
++            break
++        maximum_safe = context_tokens
++    return maximum_safe
++
++
++def _global_max(values: Sequence[float]) -> tuple[float, ...]:
++    tensor = torch.tensor(tuple(values), dtype=torch.float64, device="cpu")
++    dist.all_reduce(tensor, op=dist.ReduceOp.MAX)
++    return tuple(float(value) for value in tensor.tolist())
++
++
++def _topology_snapshot(device: torch.device) -> dict[str, Any]:
++    properties = torch.cuda.get_device_properties(device)
++    local_device = {
++        "rank": dist.get_rank(),
++        "visible_ordinal": device.index,
++        "pci_address": (
++            f"{properties.pci_domain_id:08x}:{properties.pci_bus_id:02x}:"
++            f"{properties.pci_device_id:02x}.0"
++        ),
++        "uuid": str(properties.uuid),
++        "name": properties.name,
++    }
++    rank_devices: list[dict[str, Any] | None] = [None] * dist.get_world_size()
++    dist.all_gather_object(rank_devices, local_device)
++    if dist.get_rank() != 0:
++        return {}
++
++    def run(command: list[str]) -> str:
++        try:
++            return subprocess.run(
++                command,
++                check=False,
++                stdout=subprocess.PIPE,
++                stderr=subprocess.STDOUT,
++                text=True,
++            ).stdout.strip()
++        except OSError as exc:
++            return f"unavailable: {exc}"
++
++    return {
++        "cuda_visible_devices": os.getenv("CUDA_VISIBLE_DEVICES", ""),
++        "nvidia_visible_devices": os.getenv("NVIDIA_VISIBLE_DEVICES", ""),
++        "rank_devices": rank_devices,
++        "gpu_inventory": run(
++            [
++                "nvidia-smi",
++                "--query-gpu=index,pci.bus_id,name",
++                "--format=csv,noheader",
++            ]
++        ),
++        "topology_matrix": run(["nvidia-smi", "topo", "-m"]),
++    }
++
++
++class CollectiveOverlapProbe:
++    def __init__(self, config: ProbeConfig) -> None:
++        config.validate()
++        self.config = config
++        self.rank = int(os.environ["RANK"])
++        self.local_rank = int(os.environ["LOCAL_RANK"])
++        self.world_size = int(os.environ["WORLD_SIZE"])
++        if self.world_size != config.tp_size:
++            raise ValueError(
++                f"torchrun world size {self.world_size} != tp_size {config.tp_size}"
++            )
++
++        torch.cuda.set_device(self.local_rank)
++        self.device = torch.device("cuda", self.local_rank)
++        dist.init_process_group(backend="gloo")
++
++        tp_ranks = list(range(config.tp_size))
++        self.tp_group = dist.new_group(tp_ranks, backend="nccl")
++        self.dcp_group = None
++        for start in range(0, config.tp_size, config.dcp_size):
++            ranks = list(range(start, start + config.dcp_size))
++            group = dist.new_group(ranks, backend="nccl")
++            if self.rank in ranks:
++                self.dcp_group = group
++        if self.dcp_group is None:
++            raise RuntimeError("rank was not assigned to a DCP group")
++
++        replicas = [
++            tp_ranks[start : start + config.indexer_shards]
++            for start in range(0, config.tp_size, config.indexer_shards)
++        ]
++        self.indexer_group = None
++        for ranks in replicas:
++            group = dist.new_group(ranks, backend="nccl")
++            if self.rank in ranks:
++                self.indexer_group = group
++        if self.indexer_group is None:
++            raise RuntimeError("rank was not assigned to an indexer-shard group")
++        self.indexer_shard_rank = dist.get_rank(group=self.indexer_group)
++
++        self.query_split_group = None
++        for shard_rank in range(config.indexer_shards):
++            ranks = [replica[shard_rank] for replica in replicas]
++            group = dist.new_group(ranks, backend="nccl")
++            if self.rank in ranks:
++                self.query_split_group = group
++        if self.query_split_group is None:
++            raise RuntimeError("rank was not assigned to a query-split group")
++        self.query_split_rank = dist.get_rank(group=self.query_split_group)
++
++        from sparkinfer.comm.pcie import DmaAllReduce
++
++        self.tp_input = torch.full(
++            (config.tp_rows, config.hidden_size),
++            float(self.rank + 1) / config.tp_size,
++            dtype=torch.bfloat16,
++            device=self.device,
++        )
++        self.tp_nccl_input = torch.empty_like(self.tp_input)
++        max_context = max(config.context_tokens)
++        max_local_bytes = config.ckv_local_bytes(max_context)
++        dcp_rank = dist.get_rank(group=self.dcp_group)
++        self.ckv_input = torch.full(
++            (max_local_bytes,),
++            dcp_rank + 1,
++            dtype=torch.uint8,
++            device=self.device,
++        )
++        self.ckv_output = torch.empty(
++            (config.dcp_size * max_local_bytes,),
++            dtype=torch.uint8,
++            device=self.device,
++        )
++        self.main_stream = torch.cuda.current_stream(self.device)
++        self.side_stream = torch.cuda.Stream(device=self.device)
++        self.release_stream = torch.cuda.Stream(device=self.device)
++        self.dma = DmaAllReduce(
++            exchange_group=self.tp_group,
++            device=self.device,
++            max_bytes=config.tp_payload_bytes,
++            fp8=config.dma_wire_mode,
++        )
++        self.last_tp_output: torch.Tensor | None = None
++        self._initialize_query_split()
++
++    def _initialize_query_split(self) -> None:
++        from sparkinfer.attention.nsa_indexer.paged import (
++            index_topk_fp8,
++            prepare_paged_indexer_metadata,
++        )
++        from sparkinfer.attention.nsa_indexer.scratch import (
++            INDEXER_SOURCE_LAYOUT_PAGED,
++            SPARKINFERIndexerScratchCaps,
++            plan_indexer_scratch,
++        )
++
++        self._index_topk_fp8 = index_topk_fp8
++        config = self.config
++        max_local_tokens = config.indexer_local_tokens(max(config.context_tokens))
++        self.indexer_page_bytes = 64 * (128 + 4)
++        self.indexer_max_pages = math.ceil(max_local_tokens / 64)
++        self.index_k_cache = torch.zeros(
++            (self.indexer_max_pages, self.indexer_page_bytes),
++            dtype=torch.uint8,
++            device=self.device,
++        )
++        quant_plane = self.index_k_cache[:, : 64 * 128].view(
++            self.indexer_max_pages, 64, 128
++        )
++        fp8_max_byte = int(
++            torch.tensor(448.0, dtype=torch.float8_e4m3fn).view(torch.uint8).item()
++        )
++        quant_plane[..., 0].fill_(fp8_max_byte)
++        analytic_scores = (
++            1.0
++            + self.indexer_shard_rank
++            + config.indexer_shards
++            * torch.arange(
++                self.indexer_max_pages * 64,
++                dtype=torch.float32,
++                device=self.device,
++            )
++        )
++        self.index_k_cache[:, 64 * 128 :].view(torch.float32).copy_(
++            (analytic_scores / 448.0).view(self.indexer_max_pages, 64)
++        )
++
++        q_source = torch.zeros(
++            (config.tp_rows, config.indexer_heads, 128),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        q_source[..., 0] = 1.0
++        self.index_q = q_source.to(torch.float8_e4m3fn)
++        self.index_weights = torch.full(
++            (config.tp_rows, config.indexer_heads),
++            1.0 / config.indexer_heads,
++            dtype=torch.float32,
++            device=self.device,
++        )
++
++        self.full_indices = torch.empty(
++            (config.tp_rows, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.full_scores = torch.empty(
++            (config.tp_rows, config.indexer_topk),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        self.local_indices = torch.empty(
++            (config.query_split_rows, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.local_scores = torch.empty(
++            (config.query_split_rows, config.indexer_topk),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        self.gathered_indices = torch.empty_like(self.full_indices)
++
++        from sparkinfer.attention.nsa_indexer.tiled_topk import run_row_topk
++
++        self._run_row_topk = run_row_topk
++        shards = config.indexer_shards
++        candidate_width = shards * config.indexer_topk
++        self.full_global_indices = torch.empty_like(self.full_indices)
++        self.full_candidates = torch.empty(
++            (config.tp_rows, 2, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.full_gathered_candidates = torch.empty(
++            (config.tp_rows * shards, 2, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.full_candidate_indices = torch.empty(
++            (config.tp_rows, candidate_width),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.full_candidate_scores = torch.empty(
++            (config.tp_rows, candidate_width),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        self.full_candidate_lengths = torch.full(
++            (config.tp_rows,),
++            candidate_width,
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.full_merged_values = torch.empty_like(self.full_scores)
++        self.full_merged_indices = torch.empty_like(self.full_indices)
++
++        owner_rows = config.query_split_rows // shards
++        self.owner_rows = owner_rows
++        self.local_global_indices = torch.empty_like(self.local_indices)
++        self.owner_candidates = torch.empty(
++            (config.query_split_rows, 2, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.owner_received_candidates = torch.empty_like(self.owner_candidates)
++        self.owner_candidate_indices = torch.empty(
++            (owner_rows, candidate_width),
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.owner_candidate_scores = torch.empty(
++            (owner_rows, candidate_width),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        self.owner_candidate_lengths = torch.full(
++            (owner_rows,),
++            candidate_width,
++            dtype=torch.int32,
++            device=self.device,
++        )
++        self.owner_merged_values = torch.empty(
++            (owner_rows, config.indexer_topk),
++            dtype=torch.float32,
++            device=self.device,
++        )
++        self.owner_merged_indices = torch.empty(
++            (owner_rows, config.indexer_topk),
++            dtype=torch.int32,
++            device=self.device,
++        )
++
++        def make_plan(rows: int):
++            plan = plan_indexer_scratch(
++                SPARKINFERIndexerScratchCaps(
++                    device=self.device,
++                    source_layout=INDEXER_SOURCE_LAYOUT_PAGED,
++                    num_q_heads=config.indexer_heads,
++                    max_q_rows=rows,
++                    max_page_table_width=self.indexer_max_pages,
++                    topk=config.indexer_topk,
++                    mode="prefill",
++                    shared_page_table=True,
++                    reserve_paged_logits=False,
++                )
++            )
++            scratch = [
++                torch.empty(shape, dtype=dtype, device=self.device)
++                for shape, dtype in plan.shapes_and_dtypes()
++            ]
++            return plan, scratch
++
++        # Context bindings share each plan's scratch. Probe phases are strictly
++        # sequential, so exactly one binding may be active at a time.
++        full_plan, full_scratch = make_plan(config.tp_rows)
++        split_plan, split_scratch = make_plan(config.query_split_rows)
++        self.query_bindings: dict[int, tuple[Any, Any]] = {}
++        for context_tokens in config.context_tokens:
++            local_tokens = config.indexer_local_tokens(context_tokens)
++            active_pages = math.ceil(local_tokens / 64)
++            base_page_table = torch.full(
++                (1, self.indexer_max_pages),
++                -1,
++                dtype=torch.int32,
++                device=self.device,
++            )
++            base_page_table[0, :active_pages] = torch.arange(
++                active_pages, dtype=torch.int32, device=self.device
++            )
++
++            def make_binding(
++                plan,
++                scratch,
++                rows: int,
++                base_page_table: torch.Tensor = base_page_table,
++                local_tokens: int = local_tokens,
++            ):
++                page_table = base_page_table.expand(rows, -1)
++                seqlens = torch.full(
++                    (rows,), local_tokens, dtype=torch.int32, device=self.device
++                )
++                metadata = prepare_paged_indexer_metadata(
++                    real_page_table=page_table,
++                    cache_seqlens_int32=seqlens,
++                    expected_num_q_heads=config.indexer_heads,
++                    shared_page_table=True,
++                )
++                return plan.bind(
++                    scratch=scratch,
++                    real_page_table=metadata.real_page_table,
++                    cache_seqlens_int32=metadata.cache_seqlens_int32,
++                    schedule_metadata=metadata.schedule_metadata,
++                    expected_num_q_heads=config.indexer_heads,
++                    shared_page_table=True,
++                )
++
++            self.query_bindings[context_tokens] = (
++                make_binding(full_plan, full_scratch, config.tp_rows),
++                make_binding(split_plan, split_scratch, config.query_split_rows),
++            )
++
++    @staticmethod
++    def _storage_view(storage: torch.Tensor, *shape: int) -> torch.Tensor:
++        elements = math.prod(shape)
++        if elements > storage.numel():
++            raise RuntimeError(
++                f"query buffer requires {elements} elements, storage has "
++                f"{storage.numel()}"
++            )
++        return storage.view(-1)[:elements].view(*shape)
++
++    def _query_buffers(self, context_tokens: int) -> QueryBuffers:
++        config = self.config
++        local_topk = config.indexer_local_topk(context_tokens)
++        candidate_width = config.indexer_shards * local_topk
++        rows = config.tp_rows
++        local_rows = config.query_split_rows
++        owner_rows = self.owner_rows
++
++        full_lengths = self._storage_view(self.full_candidate_lengths, rows)
++        owner_lengths = self._storage_view(self.owner_candidate_lengths, owner_rows)
++        full_lengths.fill_(candidate_width)
++        owner_lengths.fill_(candidate_width)
++        return QueryBuffers(
++            local_topk=local_topk,
++            candidate_width=candidate_width,
++            full_indices=self._storage_view(self.full_indices, rows, local_topk),
++            full_scores=self._storage_view(self.full_scores, rows, local_topk),
++            full_global_indices=self._storage_view(
++                self.full_global_indices, rows, local_topk
++            ),
++            full_candidates=self._storage_view(
++                self.full_candidates, rows, 2, local_topk
++            ),
++            full_gathered_candidates=self._storage_view(
++                self.full_gathered_candidates,
++                rows * config.indexer_shards,
++                2,
++                local_topk,
++            ),
++            full_candidate_indices=self._storage_view(
++                self.full_candidate_indices, rows, candidate_width
++            ),
++            full_candidate_scores=self._storage_view(
++                self.full_candidate_scores, rows, candidate_width
++            ),
++            full_candidate_lengths=full_lengths,
++            local_indices=self._storage_view(
++                self.local_indices, local_rows, local_topk
++            ),
++            local_scores=self._storage_view(self.local_scores, local_rows, local_topk),
++            local_global_indices=self._storage_view(
++                self.local_global_indices, local_rows, local_topk
++            ),
++            owner_candidates=self._storage_view(
++                self.owner_candidates, local_rows, 2, local_topk
++            ),
++            owner_received_candidates=self._storage_view(
++                self.owner_received_candidates, local_rows, 2, local_topk
++            ),
++            owner_candidate_indices=self._storage_view(
++                self.owner_candidate_indices, owner_rows, candidate_width
++            ),
++            owner_candidate_scores=self._storage_view(
++                self.owner_candidate_scores, owner_rows, candidate_width
++            ),
++            owner_candidate_lengths=owner_lengths,
++        )
++
++    def _prepare(self) -> None:
++        torch.cuda.synchronize(self.device)
++        dist.barrier()
++
++    def _ckv_views(self, context_tokens: int) -> tuple[torch.Tensor, torch.Tensor]:
++        local_bytes = self.config.ckv_local_bytes(context_tokens)
++        return (
++            self.ckv_input[:local_bytes],
++            self.ckv_output[: local_bytes * self.config.dcp_size],
++        )
++
++    def _launch_ckv(self, context_tokens: int) -> None:
++        input_tensor, output_tensor = self._ckv_views(context_tokens)
++        dist.all_gather_into_tensor(
++            output_tensor,
++            input_tensor,
++            group=self.dcp_group,
++            async_op=False,
++        )
++
++    @staticmethod
++    def _elapsed(start: torch.cuda.Event, end: torch.cuda.Event) -> float:
++        return float(start.elapsed_time(end))
++
++    def measure_tp(self) -> tuple[float, ...]:
++        self._prepare()
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        with torch.cuda.stream(self.main_stream):
++            start.record()
++            self.last_tp_output = self.dma.all_reduce(self.tp_input)
++            end.record()
++        end.synchronize()
++        return _global_max((self._elapsed(start, end),))
++
++    def measure_tp_backend(self, rows: int, *, backend: str) -> tuple[float, ...]:
++        self._prepare()
++        source = self.tp_input[:rows]
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        with torch.cuda.stream(self.main_stream):
++            if backend == "nccl":
++                target = self.tp_nccl_input[:rows]
++                target.copy_(source)
++                start.record()
++                dist.all_reduce(target, group=self.tp_group)
++                end.record()
++            elif backend == "dma":
++                start.record()
++                self.last_tp_output = self.dma.all_reduce(source)
++                end.record()
++            else:
++                raise ValueError(f"unknown TP backend {backend!r}")
++        end.synchronize()
++        return _global_max((self._elapsed(start, end),))
++
++    def _run_query_indexer(self, context_tokens: int, *, split: bool) -> None:
++        full_binding, split_binding = self.query_bindings[context_tokens]
++        config = self.config
++        buffers = self._query_buffers(context_tokens)
++        if not split:
++            self._index_topk_fp8(
++                q_fp8=self.index_q,
++                weights=self.index_weights,
++                index_k_cache=self.index_k_cache,
++                binding=full_binding,
++                topk=buffers.local_topk,
++                expected_num_q_heads=config.indexer_heads,
++                out_indices=buffers.full_indices,
++                out_scores=buffers.full_scores,
++            )
++            self._merge_replicated_candidates(buffers)
++            return
++
++        start = self.query_split_rank * config.query_split_rows
++        end = start + config.query_split_rows
++        self._index_topk_fp8(
++            q_fp8=self.index_q[start:end].contiguous(),
++            weights=self.index_weights[start:end].contiguous(),
++            index_k_cache=self.index_k_cache,
++            binding=split_binding,
++            topk=buffers.local_topk,
++            expected_num_q_heads=config.indexer_heads,
++            out_indices=buffers.local_indices,
++            out_scores=buffers.local_scores,
++        )
++        self._merge_owner_candidates(buffers)
++
++    def _globalize_candidate_indices(
++        self, local_indices: torch.Tensor, global_indices: torch.Tensor
++    ) -> None:
++        torch.mul(
++            local_indices,
++            self.config.indexer_shards,
++            out=global_indices,
++        )
++        global_indices.add_(self.indexer_shard_rank)
++        global_indices.masked_fill_(local_indices < 0, -1)
++
++    def _unpack_rank_major_candidates(
++        self,
++        gathered: torch.Tensor,
++        candidate_indices: torch.Tensor,
++        candidate_scores: torch.Tensor,
++        *,
++        rows: int,
++        local_topk: int,
++    ) -> None:
++        config = self.config
++        rank_major = gathered.view(
++            config.indexer_shards,
++            rows,
++            2,
++            local_topk,
++        )
++        candidate_indices.view(rows, config.indexer_shards, local_topk).copy_(
++            rank_major[:, :, 0, :].permute(1, 0, 2)
++        )
++        candidate_scores.view(torch.int32).view(
++            rows, config.indexer_shards, local_topk
++        ).copy_(rank_major[:, :, 1, :].permute(1, 0, 2))
++
++    def _merge_replicated_candidates(self, buffers: QueryBuffers) -> None:
++        config = self.config
++        self._globalize_candidate_indices(
++            buffers.full_indices, buffers.full_global_indices
++        )
++        buffers.full_candidates[:, 0, :].copy_(buffers.full_global_indices)
++        buffers.full_candidates[:, 1, :].copy_(buffers.full_scores.view(torch.int32))
++        dist.all_gather_into_tensor(
++            buffers.full_gathered_candidates,
++            buffers.full_candidates,
++            group=self.indexer_group,
++        )
++        self._unpack_rank_major_candidates(
++            buffers.full_gathered_candidates,
++            buffers.full_candidate_indices,
++            buffers.full_candidate_scores,
++            rows=config.tp_rows,
++            local_topk=buffers.local_topk,
++        )
++        self._run_row_topk(
++            row_logits=buffers.full_candidate_scores,
++            lengths=buffers.full_candidate_lengths,
++            topk=config.indexer_topk,
++            output_values=self.full_merged_values,
++            output_indices=self.full_merged_indices,
++            output_gather_table=buffers.full_candidate_indices,
++        )
++
++    def _merge_owner_candidates(self, buffers: QueryBuffers) -> None:
++        config = self.config
++        self._globalize_candidate_indices(
++            buffers.local_indices, buffers.local_global_indices
++        )
++        buffers.owner_candidates[:, 0, :].copy_(buffers.local_global_indices)
++        buffers.owner_candidates[:, 1, :].copy_(buffers.local_scores.view(torch.int32))
++        dist.all_to_all_single(
++            buffers.owner_received_candidates,
++            buffers.owner_candidates,
++            group=self.indexer_group,
++        )
++        self._unpack_rank_major_candidates(
++            buffers.owner_received_candidates,
++            buffers.owner_candidate_indices,
++            buffers.owner_candidate_scores,
++            rows=self.owner_rows,
++            local_topk=buffers.local_topk,
++        )
++        self._run_row_topk(
++            row_logits=buffers.owner_candidate_scores,
++            lengths=buffers.owner_candidate_lengths,
++            topk=config.indexer_topk,
++            output_values=self.owner_merged_values,
++            output_indices=self.owner_merged_indices,
++            output_gather_table=buffers.owner_candidate_indices,
++        )
++        dist.all_gather_into_tensor(
++            self.gathered_indices,
++            self.owner_merged_indices,
++            group=self.tp_group,
++        )
++
++    def measure_query_indexer(
++        self, context_tokens: int, *, split: bool
++    ) -> tuple[float, ...]:
++        self._prepare()
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        with torch.cuda.stream(self.main_stream):
++            start.record()
++            self._run_query_indexer(context_tokens, split=split)
++            end.record()
++        end.synchronize()
++        return _global_max((self._elapsed(start, end),))
++
++    def measure_ckv(self, context_tokens: int) -> tuple[float, ...]:
++        self._prepare()
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        with torch.cuda.stream(self.side_stream):
++            start.record()
++            self._launch_ckv(context_tokens)
++            end.record()
++        end.synchronize()
++        return _global_max((self._elapsed(start, end),))
++
++    def measure_overlap(
++        self, context_tokens: int, *, side_first: bool
++    ) -> tuple[float, ...]:
++        self._prepare()
++        release = torch.cuda.Event(enable_timing=True)
++        tp_start = torch.cuda.Event(enable_timing=True)
++        tp_end = torch.cuda.Event(enable_timing=True)
++        ckv_start = torch.cuda.Event(enable_timing=True)
++        ckv_end = torch.cuda.Event(enable_timing=True)
++
++        # Keep both worker streams behind one short GPU-side gate while the host
++        # queues their collectives. The gate is outside the measured interval.
++        with torch.cuda.stream(self.release_stream):
++            torch.cuda._sleep(2_000_000)
++            release.record()
++        self.main_stream.wait_event(release)
++        self.side_stream.wait_event(release)
++
++        def launch_tp() -> None:
++            with torch.cuda.stream(self.main_stream):
++                tp_start.record()
++                self.last_tp_output = self.dma.all_reduce(self.tp_input)
++                tp_end.record()
++
++        def launch_ckv() -> None:
++            with torch.cuda.stream(self.side_stream):
++                ckv_start.record()
++                self._launch_ckv(context_tokens)
++                ckv_end.record()
++
++        first: Callable[[], None]
++        second: Callable[[], None]
++        if side_first:
++            first, second = launch_ckv, launch_tp
++        else:
++            first, second = launch_tp, launch_ckv
++        first()
++        second()
++        tp_end.synchronize()
++        ckv_end.synchronize()
++
++        tp_ms = self._elapsed(tp_start, tp_end)
++        ckv_ms = self._elapsed(ckv_start, ckv_end)
++        wall_ms = max(
++            self._elapsed(release, tp_end),
++            self._elapsed(release, ckv_end),
++        )
++        return _global_max((tp_ms, ckv_ms, wall_ms))
++
++    def validate_outputs(self, context_tokens: int) -> None:
++        self._prepare()
++        self.last_tp_output = self.dma.all_reduce(self.tp_input)
++        self._launch_ckv(context_tokens)
++        torch.cuda.synchronize(self.device)
++
++        expected_tp = sum(range(1, self.config.tp_size + 1)) / self.config.tp_size
++        assert self.last_tp_output is not None
++        tp_ok = bool(
++            torch.isclose(
++                self.last_tp_output.flatten()[0].float(),
++                torch.tensor(expected_tp, device=self.device),
++                rtol=0,
++                atol=0.05,
++            ).item()
++        )
++        local_bytes = self.config.ckv_local_bytes(context_tokens)
++        ckv_ok = True
++        for offset in range(self.config.dcp_size):
++            start = offset * local_bytes
++            chunk = self.ckv_output[start : start + local_bytes]
++            ckv_ok = ckv_ok and bool(torch.all(chunk == offset + 1).item())
++        status = torch.tensor(
++            [int(not tp_ok or not ckv_ok)], dtype=torch.int32, device="cpu"
++        )
++        dist.all_reduce(status, op=dist.ReduceOp.MAX)
++        if int(status.item()):
++            raise RuntimeError("collective output validation failed")
++
++    def validate_tp_backends(self) -> None:
++        rows = max(self.config.allreduce_rows)
++        self._prepare()
++        source = self.tp_input[:rows]
++        nccl = self.tp_nccl_input[:rows]
++        nccl.copy_(source)
++        dist.all_reduce(nccl, group=self.tp_group)
++        dma = self.dma.all_reduce(source)
++        torch.cuda.synchronize(self.device)
++        torch.testing.assert_close(dma, nccl, rtol=0, atol=0)
++
++    def validate_query_split(self, context_tokens: int) -> None:
++        self._prepare()
++        self._run_query_indexer(context_tokens, split=False)
++        self._run_query_indexer(context_tokens, split=True)
++        torch.cuda.synchronize(self.device)
++        torch.testing.assert_close(
++            torch.sort(self.gathered_indices, dim=1).values,
++            torch.sort(self.full_merged_indices, dim=1).values,
++            rtol=0,
++            atol=0,
++        )
++
++    def close(self) -> None:
++        self.dma.close()
++        torch.cuda.synchronize(self.device)
++        dist.destroy_process_group()
++
++
++def _rotate(values: tuple[str, ...], offset: int) -> tuple[str, ...]:
++    index = offset % len(values)
++    return values[index:] + values[:index]
++
++
++def run_probe(config: ProbeConfig) -> dict[str, Any] | None:
++    probe = CollectiveOverlapProbe(config)
++    topology = _topology_snapshot(probe.device)
++    rank = probe.rank
++    modes = ("tp", "ckv", "side_first", "tp_first")
++    result: dict[str, Any] = {
++        "config": asdict(config),
++        "topology": topology,
++        "provenance": {
++            "command": os.getenv("SPARKINFER_PROBE_COMMAND", ""),
++            "source_revision": os.getenv("SPARKINFER_PROBE_SOURCE_REVISION", ""),
++            "source_worktree": os.getenv("SPARKINFER_PROBE_SOURCE_WORKTREE", ""),
++            "torch_version": torch.__version__,
++            "cuda_version": torch.version.cuda,
++        },
++        "correctness": {
++            "tp_dma_matches_nccl": False,
++            "tp_and_ckv_collectives": False,
++            "query_split_matches_replicated": False,
++        },
++        "tp_allreduce": [],
++        "contexts": [],
++        "query_split": [],
++    }
++    try:
++        probe.validate_tp_backends()
++        result["correctness"]["tp_dma_matches_nccl"] = True
++        probe.validate_outputs(max(config.context_tokens))
++        result["correctness"]["tp_and_ckv_collectives"] = True
++        for context_tokens in config.context_tokens:
++            probe.validate_query_split(context_tokens)
++        result["correctness"]["query_split_matches_replicated"] = True
++
++        backend_modes = ("nccl", "dma")
++        backend_decisions: list[tuple[int, BackendDecision]] = []
++        for row_index, rows in enumerate(config.allreduce_rows):
++            backend_samples: dict[str, list[float]] = {
++                mode: [] for mode in backend_modes
++            }
++            total_iterations = config.warmup_iterations + config.active_iterations
++            for iteration in range(total_iterations):
++                for mode in _rotate(backend_modes, row_index + iteration):
++                    value = probe.measure_tp_backend(rows, backend=mode)[0]
++                    if iteration >= config.warmup_iterations:
++                        backend_samples[mode].append(value)
++            nccl = summarize(backend_samples["nccl"])
++            dma = summarize(backend_samples["dma"])
++            payload_bytes = config.allreduce_payload_bytes(rows)
++            decision = decide_tp_backend(
++                nccl_ms=nccl.median_ms,
++                dma_ms=dma.median_ms,
++                minimum_backend_gain=config.minimum_backend_gain,
++            )
++            backend_decisions.append((payload_bytes, decision))
++            if rank == 0:
++                result["tp_allreduce"].append(
++                    {
++                        "rows": rows,
++                        "payload_bytes": payload_bytes,
++                        "nccl": asdict(nccl),
++                        "dma": asdict(dma),
++                        "samples_ms": backend_samples,
++                        "decision": asdict(decision),
++                    }
++                )
++
++        for context_index, context_tokens in enumerate(config.context_tokens):
++            overlap_samples: dict[str, list[tuple[float, ...]]] = {
++                mode: [] for mode in modes
++            }
++            total_iterations = config.warmup_iterations + config.active_iterations
++            for iteration in range(total_iterations):
++                for mode in _rotate(modes, context_index + iteration):
++                    if mode == "tp":
++                        values = probe.measure_tp()
++                    elif mode == "ckv":
++                        values = probe.measure_ckv(context_tokens)
++                    else:
++                        values = probe.measure_overlap(
++                            context_tokens, side_first=mode == "side_first"
++                        )
++                    if iteration >= config.warmup_iterations:
++                        overlap_samples[mode].append(values)
++
++            tp = summarize([value[0] for value in overlap_samples["tp"]])
++            ckv = summarize([value[0] for value in overlap_samples["ckv"]])
++            side_tp = summarize([value[0] for value in overlap_samples["side_first"]])
++            side_ckv = summarize([value[1] for value in overlap_samples["side_first"]])
++            side_wall = summarize([value[2] for value in overlap_samples["side_first"]])
++            tp_first_tp = summarize([value[0] for value in overlap_samples["tp_first"]])
++            tp_first_ckv = summarize(
++                [value[1] for value in overlap_samples["tp_first"]]
++            )
++            tp_first_wall = summarize(
++                [value[2] for value in overlap_samples["tp_first"]]
++            )
++
++            decision = decide_overlap(
++                tp_isolated_ms=tp.median_ms,
++                ckv_isolated_ms=ckv.median_ms,
++                concurrent_tp_ms=max(side_tp.median_ms, tp_first_tp.median_ms),
++                concurrent_ckv_ms=max(side_ckv.median_ms, tp_first_ckv.median_ms),
++                concurrent_wall_ms=max(side_wall.median_ms, tp_first_wall.median_ms),
++                ckv_wire_bytes_per_rank=config.ckv_wire_bytes_per_rank(context_tokens),
++                minimum_overlap_gain=config.minimum_overlap_gain,
++                maximum_collective_slowdown=config.maximum_collective_slowdown,
++            )
++            if rank == 0:
++                result["contexts"].append(
++                    {
++                        "context_tokens": context_tokens,
++                        "ckv_local_tokens": config.ckv_local_tokens(context_tokens),
++                        "ckv_local_bytes": config.ckv_local_bytes(context_tokens),
++                        "ckv_wire_bytes_per_rank": config.ckv_wire_bytes_per_rank(
++                            context_tokens
++                        ),
++                        "tp_isolated": asdict(tp),
++                        "ckv_isolated": asdict(ckv),
++                        "side_first": {
++                            "tp": asdict(side_tp),
++                            "ckv": asdict(side_ckv),
++                            "wall": asdict(side_wall),
++                        },
++                        "tp_first": {
++                            "tp": asdict(tp_first_tp),
++                            "ckv": asdict(tp_first_ckv),
++                            "wall": asdict(tp_first_wall),
++                        },
++                        "samples_ms": {
++                            mode: [list(values) for values in overlap_samples[mode]]
++                            for mode in modes
++                        },
++                        "decision": asdict(decision),
++                    }
++                )
++
++            query_samples: dict[str, list[float]] = {"full": [], "split": []}
++            query_modes = ("full", "split")
++            for iteration in range(total_iterations):
++                for mode in _rotate(query_modes, context_index + iteration):
++                    value = probe.measure_query_indexer(
++                        context_tokens, split=mode == "split"
++                    )[0]
++                    if iteration >= config.warmup_iterations:
++                        query_samples[mode].append(value)
++            full = summarize(query_samples["full"])
++            split = summarize(query_samples["split"])
++            query_decision = decide_query_split(
++                full_ms=full.median_ms,
++                split_ms=split.median_ms,
++                wire_bytes_per_rank=config.query_split_wire_bytes_per_rank(
++                    context_tokens
++                ),
++                minimum_query_split_gain=config.minimum_query_split_gain,
++            )
++            if rank == 0:
++                result["query_split"].append(
++                    {
++                        "context_tokens": context_tokens,
++                        "indexer_local_tokens": config.indexer_local_tokens(
++                            context_tokens
++                        ),
++                        "indexer_local_topk": config.indexer_local_topk(context_tokens),
++                        "query_split_size": config.query_split_size,
++                        "full_rows": config.tp_rows,
++                        "local_rows": config.query_split_rows,
++                        "wire_bytes_per_rank": (
++                            config.query_split_wire_bytes_per_rank(context_tokens)
++                        ),
++                        "wire_breakdown_bytes_per_rank": {
++                            "baseline_candidate_allgather": (
++                                config.baseline_candidate_wire_bytes_per_rank(
++                                    context_tokens
++                                )
++                            ),
++                            "owner_candidate_exchange": (
++                                config.owner_candidate_wire_bytes_per_rank(
++                                    context_tokens
++                                )
++                            ),
++                            "final_topk_allgather": (
++                                config.query_split_final_wire_bytes_per_rank()
++                            ),
++                        },
++                        "full": asdict(full),
++                        "split": asdict(split),
++                        "samples_ms": query_samples,
++                        "decision": asdict(query_decision),
++                    }
++                )
++
++        if rank == 0:
++            overlap_decisions = [
++                ContextDecision(**row["decision"]) for row in result["contexts"]
++            ]
++            result["recommended_prefetch_depth"] = recommend_prefetch_depth(
++                overlap_decisions,
++                maximum_overlap_regression=config.maximum_overlap_regression,
++            )
++            result["maximum_safe_context_tokens"] = maximum_contiguous_enabled_context(
++                [
++                    (
++                        row["context_tokens"],
++                        row["decision"]["enable_overlap"],
++                    )
++                    for row in result["contexts"]
++                ]
++            )
++            query_crossover = query_split_crossover_tokens(
++                [
++                    (
++                        row["context_tokens"],
++                        QuerySplitDecision(**row["decision"]),
++                    )
++                    for row in result["query_split"]
++                ]
++            )
++            result["policy"] = {
++                "numeric_contract": "lossless-only",
++                "compressed_dma_requires_explicit_opt_in": True,
++                "tp_allreduce": {
++                    "dma_wire_mode": "bf16",
++                    "dma_min_bytes": dma_crossover_bytes(backend_decisions),
++                    "fallback": "nccl",
++                },
++                "dcp_ckv_prefetch_depth": result["recommended_prefetch_depth"],
++                "dcp_query_split": int(query_crossover > 0),
++                "dcp_query_split_min_context_tokens": query_crossover,
++            }
++            return result
++        return None
++    finally:
++        probe.close()
++
++
++def _parse_positive_ints(value: str) -> tuple[int, ...]:
++    try:
++        contexts = tuple(int(item.strip()) for item in value.split(",") if item.strip())
++    except ValueError as exc:
++        raise argparse.ArgumentTypeError(str(exc)) from exc
++    if not contexts or any(item <= 0 for item in contexts):
++        raise argparse.ArgumentTypeError("expected comma-separated positive integers")
++    return contexts
++
++
++def _build_parser() -> argparse.ArgumentParser:
++    defaults = ProbeConfig()
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--tp-size", type=int, default=defaults.tp_size)
++    parser.add_argument("--dcp-size", type=int, default=defaults.dcp_size)
++    parser.add_argument("--hidden-size", type=int, default=defaults.hidden_size)
++    parser.add_argument("--tp-rows", type=int, default=defaults.tp_rows)
++    parser.add_argument(
++        "--allreduce-rows",
++        type=_parse_positive_ints,
++        default=defaults.allreduce_rows,
++    )
++    parser.add_argument(
++        "--ckv-record-bytes", type=int, default=defaults.ckv_record_bytes
++    )
++    parser.add_argument(
++        "--context-tokens",
++        type=_parse_positive_ints,
++        default=defaults.context_tokens,
++    )
++    parser.add_argument("--indexer-shards", type=int, default=defaults.indexer_shards)
++    parser.add_argument("--indexer-stride", type=int, default=defaults.indexer_stride)
++    parser.add_argument("--indexer-heads", type=int, default=defaults.indexer_heads)
++    parser.add_argument("--indexer-topk", type=int, default=defaults.indexer_topk)
++    parser.add_argument(
++        "--warmup-iterations", type=int, default=defaults.warmup_iterations
++    )
++    parser.add_argument(
++        "--active-iterations", type=int, default=defaults.active_iterations
++    )
++    parser.add_argument(
++        "--minimum-overlap-gain", type=float, default=defaults.minimum_overlap_gain
++    )
++    parser.add_argument(
++        "--minimum-backend-gain", type=float, default=defaults.minimum_backend_gain
++    )
++    parser.add_argument(
++        "--minimum-query-split-gain",
++        type=float,
++        default=defaults.minimum_query_split_gain,
++    )
++    parser.add_argument(
++        "--maximum-overlap-regression",
++        type=float,
++        default=defaults.maximum_overlap_regression,
++    )
++    parser.add_argument(
++        "--maximum-collective-slowdown",
++        type=float,
++        default=defaults.maximum_collective_slowdown,
++    )
++    parser.add_argument(
++        "--dma-wire-mode",
++        default=defaults.dma_wire_mode,
++        help="automatic policy accepts only lossless BF16 mode 0",
++    )
++    parser.add_argument("--output", type=Path)
++    return parser
++
++
++def _print_summary(result: dict[str, Any]) -> None:
++    print("TP all-reduce (lossless BF16)", flush=True)
++    print("rows  bytes       nccl_ms  dma_ms  dma_gain  verdict", flush=True)
++    for row in result["tp_allreduce"]:
++        decision = row["decision"]
++        print(
++            f"{row['rows']:>4}  {row['payload_bytes']:>10}  "
++            f"{row['nccl']['median_ms']:>7.3f}  "
++            f"{row['dma']['median_ms']:>6.3f}  "
++            f"{decision['dma_gain']:>8.1%}  {decision['backend']}",
++            flush=True,
++        )
++    print("\nCKV prefetch overlap", flush=True)
++    print(
++        "context  tp_iso  ckv_iso  pair_wall  gain    tp_x  ckv_x  verdict",
++        flush=True,
++    )
++    for row in result["contexts"]:
++        decision = row["decision"]
++        print(
++            f"{row['context_tokens']:>7}  "
++            f"{row['tp_isolated']['median_ms']:>6.2f}  "
++            f"{row['ckv_isolated']['median_ms']:>7.2f}  "
++            f"{decision['concurrent_wall_ms']:>9.2f}  "
++            f"{decision['overlap_gain']:>6.1%}  "
++            f"{decision['tp_slowdown']:>4.2f}  "
++            f"{decision['ckv_slowdown']:>5.2f}  "
++            f"{decision['reason']}",
++            flush=True,
++        )
++    print(
++        "recommended_prefetch_depth="
++        f"{result['recommended_prefetch_depth']} "
++        "maximum_safe_context_tokens="
++        f"{result['maximum_safe_context_tokens']}",
++        flush=True,
++    )
++    print(
++        "\nQuery split: indexer + exact owner candidate merge + final gather",
++        flush=True,
++    )
++    print("context  full_ms  split_ms  gain    verdict", flush=True)
++    for row in result["query_split"]:
++        decision = row["decision"]
++        print(
++            f"{row['context_tokens']:>7}  "
++            f"{row['full']['median_ms']:>7.2f}  "
++            f"{row['split']['median_ms']:>8.2f}  "
++            f"{decision['split_gain']:>6.1%}  {decision['reason']}",
++            flush=True,
++        )
++    print("policy=" + json.dumps(result["policy"], sort_keys=True), flush=True)
++
++
++def main(argv: Sequence[str] | None = None) -> int:
++    args = _build_parser().parse_args(argv)
++    config = ProbeConfig(
++        tp_size=args.tp_size,
++        dcp_size=args.dcp_size,
++        hidden_size=args.hidden_size,
++        tp_rows=args.tp_rows,
++        allreduce_rows=args.allreduce_rows,
++        ckv_record_bytes=args.ckv_record_bytes,
++        context_tokens=args.context_tokens,
++        indexer_shards=args.indexer_shards,
++        indexer_stride=args.indexer_stride,
++        indexer_heads=args.indexer_heads,
++        indexer_topk=args.indexer_topk,
++        warmup_iterations=args.warmup_iterations,
++        active_iterations=args.active_iterations,
++        minimum_overlap_gain=args.minimum_overlap_gain,
++        minimum_backend_gain=args.minimum_backend_gain,
++        minimum_query_split_gain=args.minimum_query_split_gain,
++        maximum_overlap_regression=args.maximum_overlap_regression,
++        maximum_collective_slowdown=args.maximum_collective_slowdown,
++        dma_wire_mode=args.dma_wire_mode,
++    )
++    try:
++        config.validate()
++    except ValueError as exc:
++        print(f"invalid probe configuration: {exc}", file=sys.stderr)
++        return 2
++    if "RANK" not in os.environ:
++        print(
++            "This probe must run under torchrun; see --help for an example.",
++            file=sys.stderr,
++        )
++        return 2
++    result = run_probe(config)
++    if result is not None:
++        _print_summary(result)
++        encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
++        if args.output is not None:
++            args.output.parent.mkdir(parents=True, exist_ok=True)
++            args.output.write_text(encoded, encoding="utf-8")
++        else:
++            print(encoded, end="")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/tests/comm/test_pcie_overlap_probe.py b/tests/comm/test_pcie_overlap_probe.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..ab187322dd561fe012f0b419e5aedf25d9e9b349
+--- /dev/null
++++ b/tests/comm/test_pcie_overlap_probe.py
+@@ -0,0 +1,256 @@
++from __future__ import annotations
++
++import pytest
++
++from sparkinfer.comm.pcie.overlap_probe import (
++    BackendDecision,
++    ProbeConfig,
++    decide_query_split,
++    decide_overlap,
++    decide_tp_backend,
++    dma_crossover_bytes,
++    maximum_contiguous_enabled_context,
++    query_split_crossover_tokens,
++    recommend_prefetch_depth,
++    summarize,
++)
++
++
++def test_glm52_payload_geometry() -> None:
++    config = ProbeConfig()
++
++    assert config.tp_payload_bytes == 100_663_296
++    assert config.ckv_local_tokens(65_536) == 16_384
++    assert config.ckv_local_bytes(65_536) == 10_747_904
++    assert config.ckv_wire_bytes_per_rank(65_536) == 32_243_712
++    assert config.query_split_size == 4
++    assert config.query_split_rows == 2048
++    assert config.indexer_local_topk(8192) == 1024
++    assert config.indexer_local_topk(65_536) == 2048
++    assert config.indexer_local_tokens(65_536) == 8192
++    assert config.baseline_candidate_wire_bytes_per_rank(65_536) == 134_217_728
++    assert config.owner_candidate_wire_bytes_per_rank(65_536) == 16_777_216
++    assert config.query_split_final_wire_bytes_per_rank() == 58_720_256
++    assert config.query_split_wire_bytes_per_rank(65_536) == 75_497_472
++    assert config.baseline_candidate_wire_bytes_per_rank(8192) == 67_108_864
++    assert config.owner_candidate_wire_bytes_per_rank(8192) == 8_388_608
++    assert config.query_split_wire_bytes_per_rank(8192) == 67_108_864
++
++
++def test_config_rejects_non_divisible_dcp() -> None:
++    with pytest.raises(ValueError, match="dcp_size must divide"):
++        ProbeConfig(tp_size=8, dcp_size=3).validate()
++
++
++def test_config_accepts_dcp1_for_tp_and_query_calibration() -> None:
++    config = ProbeConfig(tp_size=8, dcp_size=1, indexer_shards=1)
++
++    config.validate()
++    assert config.ckv_wire_bytes_per_rank(65_536) == 0
++    assert config.query_split_size == 8
++
++
++def test_config_rejects_automatic_lossy_dma() -> None:
++    with pytest.raises(ValueError, match="lossless BF16 DMA"):
++        ProbeConfig(dma_wire_mode="ring").validate()
++
++
++def test_config_rejects_invalid_owner_merge_geometry() -> None:
++    with pytest.raises(ValueError, match="tp_size for owner merge"):
++        ProbeConfig(tp_rows=12, allreduce_rows=(1,)).validate()
++
++
++def test_config_rejects_too_few_global_index_candidates() -> None:
++    with pytest.raises(ValueError, match="global candidates"):
++        ProbeConfig(context_tokens=(4096,)).validate()
++
++
++def test_summarize_uses_median_and_extrema() -> None:
++    summary = summarize([5.0, 1.0, 3.0])
++
++    assert summary.median_ms == 3.0
++    assert summary.minimum_ms == 1.0
++    assert summary.maximum_ms == 5.0
++
++
++def test_decision_accepts_useful_overlap() -> None:
++    decision = decide_overlap(
++        tp_isolated_ms=10.0,
++        ckv_isolated_ms=8.0,
++        concurrent_tp_ms=11.0,
++        concurrent_ckv_ms=9.0,
++        concurrent_wall_ms=11.5,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++
++    assert decision.enable_overlap
++    assert decision.reason == "measured-overlap-benefit"
++    assert decision.overlap_gain == pytest.approx((18.0 - 11.5) / 18.0)
++
++
++def test_decision_rejects_serialization_loss() -> None:
++    decision = decide_overlap(
++        tp_isolated_ms=10.0,
++        ckv_isolated_ms=8.0,
++        concurrent_tp_ms=17.0,
++        concurrent_ckv_ms=22.0,
++        concurrent_wall_ms=22.5,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++
++    assert not decision.enable_overlap
++    assert decision.reason == "insufficient-overlap-gain"
++
++
++def test_decision_rejects_pathological_collective_slowdown() -> None:
++    decision = decide_overlap(
++        tp_isolated_ms=100.0,
++        ckv_isolated_ms=1.0,
++        concurrent_tp_ms=90.0,
++        concurrent_ckv_ms=5.0,
++        concurrent_wall_ms=92.0,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++
++    assert not decision.enable_overlap
++    assert decision.reason == "collective-contention"
++
++
++def test_prefetch_policy_accepts_small_context_noise_but_rejects_collapse() -> None:
++    useful = decide_overlap(
++        tp_isolated_ms=10.0,
++        ckv_isolated_ms=8.0,
++        concurrent_tp_ms=10.2,
++        concurrent_ckv_ms=8.2,
++        concurrent_wall_ms=17.5,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++    neutral = decide_overlap(
++        tp_isolated_ms=10.0,
++        ckv_isolated_ms=8.0,
++        concurrent_tp_ms=10.1,
++        concurrent_ckv_ms=8.1,
++        concurrent_wall_ms=17.9,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++    collapsed = decide_overlap(
++        tp_isolated_ms=10.0,
++        ckv_isolated_ms=8.0,
++        concurrent_tp_ms=18.0,
++        concurrent_ckv_ms=18.5,
++        concurrent_wall_ms=19.0,
++        ckv_wire_bytes_per_rank=32_000_000,
++        minimum_overlap_gain=0.02,
++        maximum_collective_slowdown=4.0,
++    )
++
++    assert (
++        recommend_prefetch_depth([useful, neutral], maximum_overlap_regression=0.01)
++        == 1
++    )
++    assert (
++        recommend_prefetch_depth([useful, collapsed], maximum_overlap_regression=0.01)
++        == 0
++    )
++
++
++def test_maximum_safe_context_requires_contiguous_enabled_prefix() -> None:
++    assert (
++        maximum_contiguous_enabled_context(
++            [(131_072, True), (8192, True), (65_536, False)]
++        )
++        == 8192
++    )
++    assert maximum_contiguous_enabled_context([(8192, False), (65_536, True)]) == 0
++
++
++def test_tp_backend_requires_material_dma_gain() -> None:
++    win = decide_tp_backend(
++        nccl_ms=10.0,
++        dma_ms=8.0,
++        minimum_backend_gain=0.02,
++    )
++    noise = decide_tp_backend(
++        nccl_ms=10.0,
++        dma_ms=9.9,
++        minimum_backend_gain=0.02,
++    )
++
++    assert win.backend == "sparkinfer-dma"
++    assert win.dma_gain == pytest.approx(0.2)
++    assert noise.backend == "nccl"
++
++
++def _backend(backend: str) -> BackendDecision:
++    return BackendDecision(
++        backend=backend,
++        reason="test",
++        nccl_ms=1.0,
++        dma_ms=1.0,
++        dma_gain=0.0,
++    )
++
++
++def test_dma_crossover_requires_winning_tail() -> None:
++    points = [
++        (1024, _backend("nccl")),
++        (2048, _backend("sparkinfer-dma")),
++        (4096, _backend("sparkinfer-dma")),
++        (8192, _backend("sparkinfer-dma")),
++    ]
++    late_loss = [*points, (16384, _backend("nccl"))]
++
++    assert dma_crossover_bytes(points) == 2048
++    assert dma_crossover_bytes(late_loss) == 0
++
++
++def test_query_split_decision_uses_full_phase() -> None:
++    win = decide_query_split(
++        full_ms=12.0,
++        split_ms=7.0,
++        wire_bytes_per_rank=50_000_000,
++        minimum_query_split_gain=0.02,
++    )
++    loss = decide_query_split(
++        full_ms=12.0,
++        split_ms=12.1,
++        wire_bytes_per_rank=50_000_000,
++        minimum_query_split_gain=0.02,
++    )
++
++    assert win.enable_query_split
++    assert win.reason == "measured-full-phase-benefit"
++    assert not loss.enable_query_split
++
++
++def test_query_split_crossover_requires_winning_tail() -> None:
++    loss = decide_query_split(
++        full_ms=10.0,
++        split_ms=11.0,
++        wire_bytes_per_rank=1,
++        minimum_query_split_gain=0.02,
++    )
++    win = decide_query_split(
++        full_ms=10.0,
++        split_ms=8.0,
++        wire_bytes_per_rank=1,
++        minimum_query_split_gain=0.02,
++    )
++
++    assert (
++        query_split_crossover_tokens([(8192, loss), (65536, win), (131072, win)])
++        == 65536
++    )
++    assert (
++        query_split_crossover_tokens([(8192, win), (65536, loss), (131072, win)]) == 0
++    )

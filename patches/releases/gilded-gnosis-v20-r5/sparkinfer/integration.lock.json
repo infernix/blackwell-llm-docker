@@ -1,0 +1,28 @@
+{
+  "base": {
+    "commit": "f9be2724953a5b412d19c20482aeb0a64fbd5d2a",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "generated_at": "2026-07-28T00:07:45.721104+00:00",
+  "manifest": {
+    "path": "/root/vllm/worktrees/blackwell-clean-gg-compose-20260727/manifests/sparkinfer/gilded-gnosis-v20.json",
+    "sha256": "434c1d9e50b7774896e3735340d3afa0266773f64105dbcb12c94d0102955939"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "f049ccdfeafd80b1424e09983bfb75ce629246f1",
+      "number": 81,
+      "ref": "refs/pull/81/head",
+      "title": "Add lossless PCIe serving calibration probe"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "fee6f34dfa39a33b97cdc40ec03232ee227aeadb0b794e94a7035c1cb2be3c27",
+    "tree": "4ecc87fbe51090b7932e3ba8fa06d9649296ba38"
+  },
+  "schema_version": 1
+}

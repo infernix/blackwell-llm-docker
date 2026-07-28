@@ -1,0 +1,2724 @@
+diff --git a/kv-scales/README.md b/kv-scales/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..36b37d5aa188027675ec9eaa447e9597b3921e4c
+--- /dev/null
++++ b/kv-scales/README.md
+@@ -0,0 +1,49 @@
++# GLM-5.2 NVFP4 MLA KV outer scales
++
++Per-layer calibration for the `nvfp4_ds_mla` KV cache writer
++(`VLLM_NVFP4_MLA_SCALES_FILE`, format `nvfp4_ds_mla_outer_scale_v1`).
++
++GLM-5.2's post-RMSNorm 512-dim `kv_c` latent spans a ~240x amplitude range
++across layers. With the default outer scale of 1.0, shallow layers quantize
++with E4M3 block scales at or below the subnormal floor, and shallow-layer KV
++error is strongly amplified downstream. `s_l = max_abs(kv_c_normed) / (6*448)`
++re-centers every layer so its largest block scale lands at the top of the
++E4M3 range.
++
++## Files
++
++- `glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json` — calibrated on
++  `madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid` (K64R16), Salesforce/wikitext
++  (wikitext-2-raw-v1, test), 2048-token context, TP4; per-layer envelope with
++  an independent community capture of the same base model for shallow-layer
++  headroom. `max_abs` per layer is included for auditability.
++
++## Usage
++
++```bash
++VLLM_NVFP4_MLA_SCALES_FILE=/path/to/glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json \
++  ./serve-glm52.sh   # nvfp4_ds_mla + B12X_MLA_SPARSE only; inert otherwise
++```
++
++## Results (teacher-forced prefill KLD vs BF16 reference, 5 fresh boots each)
++
++| KV config | mean +/- sd | max ctx (4x96GB) |
++|---|---|---|
++| fp8_ds_mla | 0.1263 +/- 0.0030 | 373k |
++| nvfp4_ds_mla + scales, bf16 rope | 0.1345 +/- 0.0035 | 550k |
++| nvfp4_ds_mla + scales, fp8 rope (`KV_FP8_ROPE=1`) | 0.1356 +/- 0.0054 | 600k+ |
++| nvfp4_ds_mla, no scales, bf16 rope | 0.158 | 550k |
++| nvfp4_ds_mla, no scales, fp8 rope | 0.168 | 600k+ |
++
++Protocol: local-inference-lab/rtx6kpro `benchmarks/glm52-kld-evaluation.md`
++(festr2 2026-07-08 reference logits, one fixed 2048-token window, 2047
++positions, full 154,880 vocab, `KL(ref || candidate)`).
++
++## Cache invalidation (required)
++
++CuTeDSL folds the outer-scale multiply out of the kernel when `latent_scale`
++traces at exactly 1.0. b12x builds without the identity/dynamic compile-spec
++fact (see lukealonso/b12x PR "mla: split latent_scale identity/dynamic
++compile-cache entries") replay stale identity cubins from persistent compile
++caches, silently dropping the restore. Clear mounted b12x compile caches once
++when enabling scales on such builds.
+diff --git a/kv-scales/glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json b/kv-scales/glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..7ae9d9351c4e8de79f6387b5f64a5fa9618bf155
+--- /dev/null
++++ b/kv-scales/glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json
+@@ -0,0 +1,178 @@
++{
++ "format": "nvfp4_ds_mla_outer_scale_v1",
++ "num_layers": 78,
++ "latent_dim": 512,
++ "denominator": 2688.0,
++ "formula": "s_l = max_abs(kv_c_normed) / (6 * 448)",
++ "model": "madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid (local K64R16 build; own capture)",
++ "dataset": {
++  "name": "Salesforce/wikitext",
++  "config": "wikitext-2-raw-v1",
++  "split": "test",
++  "context_length": 2048,
++  "windows": 1,
++  "note": "the canonical festr2-0708 census window"
++ },
++ "created_utc": "2026-07-20T16:40:43.312260+00:00",
++ "hook": "mla.py kv_a_layernorm output (bind-mount capture patch), per-TP-rank agreement checked",
++ "max_abs": [
++  0.04833984375,
++  0.021728515625,
++  0.03662109375,
++  0.1005859375,
++  0.023681640625,
++  0.03515625,
++  0.046875,
++  0.033203125,
++  0.259765625,
++  0.1474609375,
++  0.7734375,
++  1.0,
++  1.1171875,
++  0.150390625,
++  0.76171875,
++  0.392578125,
++  0.25390625,
++  0.455078125,
++  0.80859375,
++  0.80078125,
++  0.96875,
++  0.78515625,
++  0.58203125,
++  0.330078125,
++  0.89453125,
++  0.73046875,
++  1.0390625,
++  1.578125,
++  1.0078125,
++  0.92578125,
++  1.25,
++  1.5859375,
++  1.234375,
++  1.9140625,
++  1.9453125,
++  1.7578125,
++  1.7890625,
++  2.546875,
++  2.296875,
++  2.4375,
++  1.921875,
++  2.171875,
++  2.875,
++  2.546875,
++  2.765625,
++  3.234375,
++  2.5625,
++  3.390625,
++  2.40625,
++  2.546875,
++  3.09375,
++  2.90625,
++  3.671875,
++  2.46875,
++  2.609375,
++  2.359375,
++  3.078125,
++  3.171875,
++  2.578125,
++  2.359375,
++  3.890625,
++  2.953125,
++  4.09375,
++  4.09375,
++  5.0625,
++  5.1875,
++  2.984375,
++  2.875,
++  2.984375,
++  3.296875,
++  3.828125,
++  2.859375,
++  3.59375,
++  3.734375,
++  4.25,
++  4.1875,
++  4.84375,
++  3.75
++ ],
++ "scales": [
++  1.7983572823660715e-05,
++  8.083525158110119e-06,
++  1.3623918805803572e-05,
++  3.742036365327381e-05,
++  8.810134161086309e-06,
++  1.3078962053571428e-05,
++  1.743861607142857e-05,
++  1.2352353050595238e-05,
++  9.663899739583333e-05,
++  5.485897972470238e-05,
++  0.00028773716517857144,
++  0.0003720238095238095,
++  0.00041562034970238094,
++  5.5948893229166664e-05,
++  0.0002833775111607143,
++  0.00014604840959821428,
++  9.445917038690477e-05,
++  0.00016929989769345238,
++  0.00030081612723214287,
++  0.0002979096912202381,
++  0.0003603980654761905,
++  0.00029209681919642856,
++  0.00021652948288690475,
++  0.0001227969215029762,
++  0.00033278692336309525,
++  0.00027175176711309525,
++  0.0003865559895833333,
++  0.0005871000744047619,
++  0.0003749302455357143,
++  0.0003444126674107143,
++  0.0004650297619047619,
++  0.0005900065104166666,
++  0.0004592168898809524,
++  0.0007120768229166666,
++  0.0007237025669642857,
++  0.0006539481026785714,
++  0.0006655738467261905,
++  0.0009474981398809524,
++  0.0008544921875,
++  0.0009068080357142857,
++  0.0007149832589285714,
++  0.0008079892113095238,
++  0.0010695684523809525,
++  0.0009474981398809524,
++  0.0010288783482142857,
++  0.0012032645089285715,
++  0.0009533110119047619,
++  0.0012613932291666667,
++  0.0008951822916666666,
++  0.0009474981398809524,
++  0.0011509486607142857,
++  0.0010811941964285715,
++  0.001366024925595238,
++  0.0009184337797619048,
++  0.0009707496279761905,
++  0.0008777436755952381,
++  0.0011451357886904762,
++  0.0011800130208333333,
++  0.0009591238839285714,
++  0.0008777436755952381,
++  0.0014474051339285715,
++  0.0010986328125,
++  0.0015229724702380952,
++  0.0015229724702380952,
++  0.0018833705357142857,
++  0.001929873511904762,
++  0.001110258556547619,
++  0.0010695684523809525,
++  0.001110258556547619,
++  0.0012265159970238095,
++  0.0014241536458333333,
++  0.0010637555803571428,
++  0.0013369605654761905,
++  0.0013892764136904762,
++  0.0015811011904761905,
++  0.0015578497023809525,
++  0.0018019903273809525,
++  0.0013950892857142857
++ ]
++}
+\ No newline at end of file
+diff --git a/serve-glm52.sh b/serve-glm52.sh
+index 68f7501b3d618dea5c4ae93047b281cd56efd85d..8933ad62d752aabbc9f2e6a80bc3b17945afef41 100755
+--- a/serve-glm52.sh
++++ b/serve-glm52.sh
+@@ -107,6 +107,8 @@ MOE_BACKEND="${MOE_BACKEND:-b12x}"
+ MOE_SPEC_BACKEND="${MOE_SPEC_BACKEND:-b12x}"
+ ATTENTION_BACKEND="${ATTENTION_BACKEND:-B12X_MLA_SPARSE}"
+ KV_CACHE_DTYPE="${KV_CACHE_DTYPE:-fp8}"
++# Calibrated per-layer outer scales for nvfp4_ds_mla KV (empty = disabled).
++export VLLM_NVFP4_MLA_SCALES_FILE="${VLLM_NVFP4_MLA_SCALES_FILE:-}"
+ GLM51_PROFILE="${GLM51_PROFILE:-0}"
+ GLM52_CAUSAL_CASCADE="${GLM52_CAUSAL_CASCADE:-0}"
+ GLM52_DSPARK="${GLM52_DSPARK:-0}"
+diff --git a/tests/distributed/test_b12x_fused_all_reduce.py b/tests/distributed/test_b12x_fused_all_reduce.py
+index 686b61178ee6d9a8e3467f0bff811ef39b2a1cd6..a789e2a6aca8a7c59feb75c7876c2dacf427dce8 100644
+--- a/tests/distributed/test_b12x_fused_all_reduce.py
++++ b/tests/distributed/test_b12x_fused_all_reduce.py
+@@ -27,6 +27,7 @@ from vllm.config import (
+ from vllm.distributed import tensor_model_parallel_all_reduce
+ from vllm.distributed.device_communicators.custom_all_reduce import (
+     CustomAllreduce,
++    _b12x_pcie_dma_min_bytes,
+     _b12x_pcie_oneshot_limits,
+     get_b12x_pcie_allreduce,
+ )
+@@ -172,6 +173,24 @@ def test_b12x_oneshot_buffer_tracks_dispatch_limits(
+     )
+ 
+ 
++def test_b12x_dma_min_bytes_is_configurable(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.delenv("VLLM_PCIE_DMA_MIN_BYTES", raising=False)
++    assert _b12x_pcie_dma_min_bytes() == 6 * 1024 * 1024
++
++    monkeypatch.setenv("VLLM_PCIE_DMA_MIN_BYTES", " 24mB ")
++    assert _b12x_pcie_dma_min_bytes() == 24 * 1024 * 1024
++
++    for disabled in ("off", " DISABLED ", "NoNe"):
++        monkeypatch.setenv("VLLM_PCIE_DMA_MIN_BYTES", disabled)
++        assert _b12x_pcie_dma_min_bytes() is None
++
++    monkeypatch.setenv("VLLM_PCIE_DMA_MIN_BYTES", "-1")
++    with pytest.raises(ValueError, match="must be non-negative"):
++        _b12x_pcie_dma_min_bytes()
++
++
+ def test_b12x_fused_custom_op_dispatch(monkeypatch) -> None:
+     custom_allreduce = MagicMock()
+     custom_allreduce.try_fused_add_rms_norm.return_value = True
+diff --git a/tests/distributed/test_indexer_parallel_groups.py b/tests/distributed/test_indexer_parallel_groups.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..98b9ca8b4ca62774e882c09109530736f61bd7be
+--- /dev/null
++++ b/tests/distributed/test_indexer_parallel_groups.py
+@@ -0,0 +1,86 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++from types import SimpleNamespace
++
++import pytest
++
++from vllm.distributed import parallel_state
++from vllm.distributed.parallel_state import (
++    _build_indexer_replica_group_ranks,
++    _validate_indexer_shard_count,
++)
++
++
++def test_build_indexer_two_by_four_groups_for_tp8():
++    dcp_groups, query_split_groups = _build_indexer_replica_group_ranks(
++        [[0, 1, 2, 3, 4, 5, 6, 7]], 4
++    )
++
++    assert dcp_groups == [[0, 1, 2, 3], [4, 5, 6, 7]]
++    assert query_split_groups == [[0, 4], [1, 5], [2, 6], [3, 7]]
++
++
++def test_build_indexer_replica_groups_stay_inside_each_tp_group():
++    dcp_groups, query_split_groups = _build_indexer_replica_group_ranks(
++        [list(range(8)), list(range(8, 16))], 4
++    )
++
++    assert dcp_groups == [
++        [0, 1, 2, 3],
++        [4, 5, 6, 7],
++        [8, 9, 10, 11],
++        [12, 13, 14, 15],
++    ]
++    assert query_split_groups == [
++        [0, 4],
++        [1, 5],
++        [2, 6],
++        [3, 7],
++        [8, 12],
++        [9, 13],
++        [10, 14],
++        [11, 15],
++    ]
++
++
++def test_build_indexer_replica_groups_rejects_non_divisor():
++    with pytest.raises(ValueError, match="must divide"):
++        _build_indexer_replica_group_ranks([list(range(8))], 3)
++
++
++@pytest.mark.parametrize("indexer_shards", [0, 1, 2, 4])
++def test_validate_indexer_shard_count_accepts_supported_dcp4_layouts(indexer_shards):
++    _validate_indexer_shard_count(indexer_shards, 4)
++
++
++@pytest.mark.parametrize("indexer_shards", [-1, 3, 5, 8])
++def test_validate_indexer_shard_count_rejects_invalid_dcp4_layouts(indexer_shards):
++    with pytest.raises(ValueError, match=r"shards=.*DCP=4"):
++        _validate_indexer_shard_count(indexer_shards, 4)
++
++
++def test_indexer_group_selector_supports_partial_target_and_full_draft(monkeypatch):
++    partial_dcp = SimpleNamespace(world_size=2)
++    full_dcp = SimpleNamespace(world_size=4)
++    partial_query_split = SimpleNamespace(world_size=4)
++    full_query_split = SimpleNamespace(world_size=2)
++    monkeypatch.setattr(parallel_state, "_INDEXER_DCP", partial_dcp)
++    monkeypatch.setattr(parallel_state, "_DCP", full_dcp)
++    monkeypatch.setattr(parallel_state, "_INDEXER_QUERY_SPLIT", partial_query_split)
++    monkeypatch.setattr(parallel_state, "_QUERY_SPLIT", full_query_split)
++
++    assert parallel_state.get_indexer_dcp_group(2) is partial_dcp
++    assert parallel_state.get_indexer_dcp_group(4) is full_dcp
++    assert parallel_state.get_indexer_query_split_group(2) is partial_query_split
++    assert parallel_state.get_indexer_query_split_group(4) is full_query_split
++
++
++def test_indexer_group_selector_rejects_unknown_shard_count(monkeypatch):
++    monkeypatch.setattr(parallel_state, "_INDEXER_DCP", SimpleNamespace(world_size=2))
++    monkeypatch.setattr(parallel_state, "_DCP", SimpleNamespace(world_size=4))
++
++    with pytest.raises(RuntimeError, match="requested=3, partial=2, configured=4"):
++        parallel_state.get_indexer_dcp_group(3)
++    with pytest.raises(RuntimeError, match="requested=3, partial=2, configured=4"):
++        parallel_state.get_indexer_query_split_group(3)
+diff --git a/tests/distributed/test_query_split_groups.py b/tests/distributed/test_query_split_groups.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0dd36e26c8665a1d777aa23a925cddf7fc004cd
+--- /dev/null
++++ b/tests/distributed/test_query_split_groups.py
+@@ -0,0 +1,60 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++import pytest
++
++from vllm.distributed.parallel_state import _get_query_split_group_ranks
++
++
++@pytest.mark.parametrize(
++    ("tp_groups", "dcp_size", "expected"),
++    [
++        (
++            [list(range(8))],
++            4,
++            [[0, 4], [1, 5], [2, 6], [3, 7]],
++        ),
++        (
++            [list(range(8))],
++            2,
++            [[0, 2, 4, 6], [1, 3, 5, 7]],
++        ),
++        (
++            [list(range(8)), list(range(8, 16))],
++            4,
++            [
++                [0, 4],
++                [1, 5],
++                [2, 6],
++                [3, 7],
++                [8, 12],
++                [9, 13],
++                [10, 14],
++                [11, 15],
++            ],
++        ),
++        (
++            [list(range(8))],
++            8,
++            [[0], [1], [2], [3], [4], [5], [6], [7]],
++        ),
++        (
++            [list(range(8))],
++            1,
++            [list(range(8))],
++        ),
++    ],
++)
++def test_get_query_split_group_ranks(tp_groups, dcp_size, expected):
++    assert _get_query_split_group_ranks(tp_groups, dcp_size) == expected
++
++
++@pytest.mark.parametrize("dcp_size", [0, -1])
++def test_get_query_split_group_ranks_rejects_nonpositive_dcp(dcp_size):
++    with pytest.raises(ValueError, match="must be positive"):
++        _get_query_split_group_ranks([[0, 1]], dcp_size)
++
++
++def test_get_query_split_group_ranks_rejects_partial_dcp_group():
++    with pytest.raises(ValueError, match="must be divisible"):
++        _get_query_split_group_ranks([[0, 1, 2]], 2)
+diff --git a/tests/model_executor/layers/test_sparse_attn_indexer_b12x.py b/tests/model_executor/layers/test_sparse_attn_indexer_b12x.py
+index a88488ac1ccdccc5b0e7b4d54814d50807f8e008..19c5f699efad225efc1a22b23c09642f5d2191d1 100644
+--- a/tests/model_executor/layers/test_sparse_attn_indexer_b12x.py
++++ b/tests/model_executor/layers/test_sparse_attn_indexer_b12x.py
+@@ -10,6 +10,19 @@ import torch
+ from vllm.model_executor.layers import sparse_attn_indexer as indexer_mod
+ 
+ 
++def test_query_split_context_crossover_env(monkeypatch):
++    monkeypatch.delenv("VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS", raising=False)
++    assert indexer_mod._dcp_query_split_context_eligible(1)
++
++    monkeypatch.setenv("VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS", "65536")
++    assert not indexer_mod._dcp_query_split_context_eligible(8192)
++    assert indexer_mod._dcp_query_split_context_eligible(65536)
++
++    monkeypatch.setenv("VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS", "-1")
++    with pytest.raises(ValueError, match="must be non-negative"):
++        indexer_mod._dcp_query_split_context_eligible(65536)
++
++
+ def _profile_forward_context():
+     return types.SimpleNamespace(
+         attn_metadata=None,
+@@ -40,7 +53,7 @@ def test_replicated_constructor_uses_single_rank_without_dcp_group(monkeypatch):
+     def init_module(self):
+         torch.nn.Module.__init__(self)
+ 
+-    def fail_dcp_group():
++    def fail_dcp_group(*_args):
+         pytest.fail("replicated indexer construction must not query the DCP group")
+ 
+     monkeypatch.setattr(indexer_mod.CustomOp, "__init__", init_module)
+@@ -54,7 +67,7 @@ def test_replicated_constructor_uses_single_rank_without_dcp_group(monkeypatch):
+             )
+         ),
+     )
+-    monkeypatch.setattr(indexer_mod, "get_dcp_group", fail_dcp_group)
++    monkeypatch.setattr(indexer_mod, "get_indexer_dcp_group", fail_dcp_group)
+     monkeypatch.setattr(indexer_mod, "use_b12x_sparse_indexer", lambda: True)
+ 
+     indexer = indexer_mod.SparseAttnIndexer(
+@@ -74,6 +87,48 @@ def test_replicated_constructor_uses_single_rank_without_dcp_group(monkeypatch):
+     assert indexer.dcp_rank == 0
+ 
+ 
++@pytest.mark.parametrize("kv_shards", [2, 4])
++def test_sharded_constructor_requests_group_matching_kv_shards(monkeypatch, kv_shards):
++    def init_module(self):
++        torch.nn.Module.__init__(self)
++
++    requested_sizes: list[int] = []
++
++    def get_group(expected_world_size):
++        requested_sizes.append(expected_world_size)
++        return types.SimpleNamespace(world_size=expected_world_size, rank_in_group=1)
++
++    monkeypatch.setattr(indexer_mod.CustomOp, "__init__", init_module)
++    monkeypatch.setattr(
++        indexer_mod,
++        "get_current_vllm_config",
++        lambda: types.SimpleNamespace(
++            parallel_config=types.SimpleNamespace(
++                decode_context_parallel_size=4,
++                cp_kv_cache_interleave_size=1,
++            )
++        ),
++    )
++    monkeypatch.setattr(indexer_mod, "get_indexer_dcp_group", get_group)
++    monkeypatch.setattr(indexer_mod, "use_b12x_sparse_indexer", lambda: True)
++
++    indexer = indexer_mod.SparseAttnIndexer(
++        k_cache=torch.nn.Identity(),
++        quant_block_size=128,
++        scale_fmt="ue8m0",
++        topk_tokens=4,
++        head_dim=128,
++        max_model_len=4096,
++        max_total_seq_len=4096,
++        topk_indices_buffer=torch.empty((2, 4), dtype=torch.int32),
++        dcp_kv_shard_count=kv_shards,
++    )
++
++    assert requested_sizes == [kv_shards]
++    assert indexer.dcp_world_size == kv_shards
++    assert indexer.dcp_rank == 1
++
++
+ def _install_fake_b12x_indexer(
+     monkeypatch,
+     calls: list[tuple],
+@@ -233,6 +288,88 @@ def _install_fake_b12x_dcp_merge(monkeypatch, run_row_topk, *, world_size: int):
+     )
+ 
+ 
++def test_query_split_gathers_indices_in_place_without_scores():
++    calls: list[tuple[int, int]] = []
++
++    class FakePyNccl:
++        disabled = False
++
++        def all_gather(self, output, input_):
++            calls.append((output.data_ptr(), input_.data_ptr()))
++            rows = input_.shape[0]
++            output[:rows].fill_(10)
++            output[rows:].fill_(20)
++
++    group = types.SimpleNamespace(
++        world_size=2,
++        rank_in_group=1,
++        device_communicator=types.SimpleNamespace(pynccl_comm=FakePyNccl()),
++    )
++    gathered_indices = torch.full((4, 3), -1, dtype=torch.int32)
++    local_indices = gathered_indices[2:]
++    local_indices.fill_(20)
++    scores = torch.arange(12, dtype=torch.float32).reshape(4, 3)
++    scores_before = scores.clone()
++
++    indexer_mod._query_split_all_gather_indices(group, local_indices, gathered_indices)
++
++    assert calls == [(gathered_indices.data_ptr(), local_indices.data_ptr())]
++    assert gathered_indices.tolist() == [[10] * 3, [10] * 3, [20] * 3, [20] * 3]
++    assert torch.equal(scores, scores_before)
++
++
++def test_query_split_copies_aliased_input_for_torch_distributed_fallback(
++    monkeypatch,
++):
++    calls: list[tuple[int, int]] = []
++
++    def fake_all_gather_into_tensor(output, input_, *, group):
++        assert group == "device-group"
++        calls.append((output.data_ptr(), input_.data_ptr()))
++        rows = input_.shape[0]
++        output[:rows].fill_(10)
++        output[rows:].copy_(input_)
++
++    monkeypatch.setattr(
++        torch.distributed,
++        "all_gather_into_tensor",
++        fake_all_gather_into_tensor,
++    )
++    group = types.SimpleNamespace(
++        world_size=2,
++        rank_in_group=1,
++        device_communicator=types.SimpleNamespace(
++            pynccl_comm=types.SimpleNamespace(disabled=True),
++            device_group="device-group",
++        ),
++    )
++    gathered_indices = torch.full((4, 3), -1, dtype=torch.int32)
++    local_indices = gathered_indices[2:]
++    local_indices.fill_(20)
++    local_ptr = local_indices.data_ptr()
++
++    indexer_mod._query_split_all_gather_indices(
++        group,
++        local_indices,
++        gathered_indices,
++    )
++
++    assert calls[0][0] == gathered_indices.data_ptr()
++    assert calls[0][1] != local_ptr
++    assert gathered_indices.tolist() == [[10] * 3, [10] * 3, [20] * 3, [20] * 3]
++
++
++def test_query_split_rejects_non_aliasing_local_indices():
++    group = types.SimpleNamespace(world_size=2, rank_in_group=0)
++    gathered_indices = torch.empty((4, 3), dtype=torch.int32)
++    local_indices = torch.empty((2, 3), dtype=torch.int32)
++
++    with pytest.raises(RuntimeError, match="must alias"):
++        indexer_mod._query_split_all_gather_indices(
++            group, local_indices, gathered_indices
++        )
++
++
+ @pytest.mark.parametrize(
+     "page_stride0",
+     [
+@@ -1267,7 +1404,7 @@ def test_b12x_dcp_profile_uses_planner_page_table_width(monkeypatch):
+         raising=False,
+     )
+     monkeypatch.setattr(indexer_mod.envs, "VLLM_SPARSE_INDEXER_MAX_LOGITS_MB", 512)
+-    monkeypatch.setattr(indexer_mod, "_get_dcp_warmup_params", lambda: (2, 0, 1))
++    monkeypatch.setattr(indexer_mod, "_get_dcp_warmup_params", lambda *_: (2, 0, 1))
+     monkeypatch.setattr(indexer_mod, "_prewarm_b12x_dcp_topk_merge", lambda **_: None)
+ 
+     q_rows = 8192
+diff --git a/tests/model_executor/test_flashinfer_autotune_cache.py b/tests/model_executor/test_flashinfer_autotune_cache.py
+index 281605c81912ff7a678fb583fb102e6f18827187..65b8e8f55d2da000353a80317babdf02885096ac 100644
+--- a/tests/model_executor/test_flashinfer_autotune_cache.py
++++ b/tests/model_executor/test_flashinfer_autotune_cache.py
+@@ -91,7 +91,10 @@ def _flashinfer_autotune_worker(model, *, attn_groups=None):
+                 cudagraph_capture_sizes=[],
+                 compile_sizes=[],
+             ),
+-            kernel_config=SimpleNamespace(enable_flashinfer_autotune=True),
++            kernel_config=SimpleNamespace(
++                enable_flashinfer_autotune=True,
++                enable_cutedsl_warmup=False,
++            ),
+         ),
+         model_config=SimpleNamespace(dtype=torch.bfloat16),
+     )
+@@ -149,6 +152,8 @@ def test_b12x_dcp_warmup_finds_generic_mla_attention(monkeypatch) -> None:
+     )
+     worker = SimpleNamespace(
+         get_model=lambda: model,
++        use_v2_model_runner=True,
++        model_runner=SimpleNamespace(is_pooling_model=True),
+         model_config=SimpleNamespace(dtype=torch.bfloat16),
+         scheduler_config=SimpleNamespace(max_num_batched_tokens=4096),
+         vllm_config=SimpleNamespace(
+@@ -157,6 +162,7 @@ def test_b12x_dcp_warmup_finds_generic_mla_attention(monkeypatch) -> None:
+                 dcp_comm_backend="a2a",
+             ),
+             compilation_config=compilation_config,
++            model_config=SimpleNamespace(),
+         ),
+     )
+     group = object()
+@@ -267,6 +273,12 @@ def test_kernel_warmup_limits_fused_mla_query_to_graph_sizes(monkeypatch) -> Non
+     assert calls == [((model,), {"m_values": [1, 2, 4, 32]})]
+ 
+ 
++def test_flashinfer_attention_gate_accepts_pre_kv_runner() -> None:
++    runner = SimpleNamespace()
++
++    assert kernel_warmup._uses_flashinfer_attention(runner) is False
++
++
+ def test_kernel_warmup_runs_b12x_moe_warmup(monkeypatch) -> None:
+     calls = []
+     model = torch.nn.Linear(2, 2)
+diff --git a/tests/models/test_dcp_shard_draft_defaults.py b/tests/models/test_dcp_shard_draft_defaults.py
+index 143ae10ba1aa577459623d8cf56ebcf88ef3f2b7..42b55e34c0abe546c8f67b422cf267600eb8c473 100644
+--- a/tests/models/test_dcp_shard_draft_defaults.py
++++ b/tests/models/test_dcp_shard_draft_defaults.py
+@@ -9,6 +9,7 @@ import torch
+ import vllm.model_executor.models.deepseek_v2 as deepseek_v2
+ from vllm.model_executor.models.deepseek_v2 import (
+     DeepseekV32IndexerCache,
++    _indexer_cache_dcp_shard_count,
+     _replicate_indexer_cache_under_dcp,
+ )
+ 
+@@ -45,7 +46,15 @@ def _indexer_cache(layer_id: int = 78):
+ 
+ def _get_indexer_spec(layer_id: int, config):
+     cache = _indexer_cache(layer_id)
+-    cache.dcp_replicated = _replicate_indexer_cache_under_dcp(cache.prefix, config)
++    configured_cp = (
++        config.parallel_config.decode_context_parallel_size
++        * config.parallel_config.prefill_context_parallel_size
++    )
++    cache.dcp_shard_count = _indexer_cache_dcp_shard_count(cache.prefix, config)
++    cache.dcp_replicated = configured_cp > 1 and cache.dcp_shard_count == 1
++    cache.dcp_kv_shard_count = (
++        cache.dcp_shard_count if 1 < cache.dcp_shard_count < configured_cp else None
++    )
+     return cache, cache.get_kv_cache_spec(config)
+ 
+ 
+@@ -92,6 +101,35 @@ def test_target_indexer_replication_equalizes_global_block_coverage(
+     assert spec.block_size == dcp_size * cache.cache_config.block_size
+ 
+ 
++def test_target_indexer_partial_replication_uses_four_shards_under_dcp8(
++    monkeypatch,
++):
++    monkeypatch.delenv("VLLM_DCP_REPLICATE_INDEXER_CACHE", raising=False)
++    monkeypatch.setenv("VLLM_DCP_INDEXER_SHARDS", "4")
++    monkeypatch.setattr(deepseek_v2, "use_b12x_sparse_indexer", lambda: True)
++
++    cache, spec = _get_indexer_spec(12, _vllm_config(dcp_size=8))
++
++    assert cache.dcp_shard_count == 4
++    assert spec.dcp_replicated is False
++    assert spec.dcp_kv_shard_count == 4
++    assert spec.block_size == 2 * cache.cache_config.block_size
++    assert spec.block_size * spec.dcp_kv_shard_count == 8 * 256
++
++
++@pytest.mark.parametrize("shards", [3, 5, 6, 7, 9])
++def test_target_indexer_partial_replication_requires_dcp_divisor(
++    monkeypatch, shards: int
++):
++    monkeypatch.setenv("VLLM_DCP_INDEXER_SHARDS", str(shards))
++    monkeypatch.setattr(deepseek_v2, "use_b12x_sparse_indexer", lambda: True)
++
++    with pytest.raises(ValueError, match="positive divisor"):
++        _indexer_cache_dcp_shard_count(
++            "model.layers.12.indexer.k_cache", _vllm_config(dcp_size=8)
++        )
++
++
+ def test_target_indexer_replication_rejects_pcp(monkeypatch):
+     monkeypatch.setenv("VLLM_DCP_REPLICATE_INDEXER_CACHE", "1")
+     monkeypatch.setattr(deepseek_v2, "use_b12x_sparse_indexer", lambda: True)
+@@ -148,6 +186,7 @@ def test_indexer_constructor_forwards_cache_replication(monkeypatch):
+         def __init__(self, *args, **kwargs):
+             super().__init__()
+             self.dcp_replicated = True
++            self.dcp_kv_shard_count = None
+ 
+     def fake_sparse_attn_indexer(*args, **kwargs):
+         captured["args"] = args
+@@ -197,3 +236,4 @@ def test_indexer_constructor_forwards_cache_replication(monkeypatch):
+     assert isinstance(sparse_kwargs, dict)
+     assert sparse_args[0] is indexer.k_cache
+     assert sparse_kwargs["dcp_replicated"] is True
++    assert sparse_kwargs["dcp_kv_shard_count"] is None
+diff --git a/tests/v1/attention/test_b12x_mla_dcp_workspace.py b/tests/v1/attention/test_b12x_mla_dcp_workspace.py
+index f6e06cdd3aca974e5dfea37f2a058c2c3c4ea153..05bdbd2fedccbce7b366c6010b533244053eac3a 100644
+--- a/tests/v1/attention/test_b12x_mla_dcp_workspace.py
++++ b/tests/v1/attention/test_b12x_mla_dcp_workspace.py
+@@ -5,11 +5,14 @@ import pytest
+ import torch
+ 
+ from vllm import envs
++from vllm.model_executor.layers.attention import mla_attention
+ from vllm.model_executor.layers.attention.mla_attention import (
+     MLAAttention,
+     _can_use_b12x_dcp_prefill_workspace,
+     _estimate_dcp_ag_rs_transient_bytes,
++    _should_allocate_sparse_profile_workspace,
+ )
++from vllm.utils.multi_stream_utils import vllm_cudagraph_capture_scope
+ from vllm.v1.attention.backends.mla.b12x_mla_sparse import B12xMLASparseImpl
+ from vllm.v1.attention.ops import common
+ 
+@@ -448,3 +451,11 @@ def test_dcp_workspace_projection_accepts_aligned_head_capacity_pitch(monkeypatc
+     assert attn_out.stride() == (kv_lora_rank, max_batched * kv_lora_rank, 1)
+     assert actual.movedim(0, 1).is_contiguous()
+     torch.testing.assert_close(actual, expected)
++
++
++def test_sparse_profile_workspace_skips_cudagraph_capture_scope() -> None:
++    assert _should_allocate_sparse_profile_workspace(1)
++    assert not _should_allocate_sparse_profile_workspace(0)
++    with vllm_cudagraph_capture_scope():
++        assert mla_attention.is_vllm_cudagraph_capture_active()
++        assert not _should_allocate_sparse_profile_workspace(1)
+diff --git a/tests/v1/attention/test_indexer_dcp_localize.py b/tests/v1/attention/test_indexer_dcp_localize.py
+index ab01ad01434d84ca869b8bedc8370af7f2a10126..472455ca2a6427ed9982ca07dea946bd3ad50b75 100644
+--- a/tests/v1/attention/test_indexer_dcp_localize.py
++++ b/tests/v1/attention/test_indexer_dcp_localize.py
+@@ -56,7 +56,7 @@ def test_replicated_builder_uses_global_lengths_without_dcp_localization(monkeyp
+     def fail_dcp_path(*args, **kwargs):
+         pytest.fail("replicated indexer metadata must not enter DCP localization")
+ 
+-    monkeypatch.setattr(indexer_backend, "get_dcp_group", fail_dcp_path)
++    monkeypatch.setattr(indexer_backend, "get_indexer_dcp_group", fail_dcp_path)
+     monkeypatch.setattr(indexer_backend, "num_compute_units", lambda device: 4)
+     monkeypatch.setattr(indexer_backend.envs, "VLLM_USE_B12X_SPARSE_INDEXER", True)
+ 
+@@ -347,8 +347,8 @@ def _merge_local_topks_global_with_fake_dcp(
+         )
+ 
+     fake_group = _FakeDCPGroup(torch.cat(packed_per_rank, dim=1).contiguous())
+-    original_get_dcp_group = sparse_indexer.get_dcp_group
+-    sparse_indexer.get_dcp_group = lambda: fake_group
++    original_get_indexer_dcp_group = sparse_indexer.get_indexer_dcp_group
++    sparse_indexer.get_indexer_dcp_group = lambda expected_world_size=None: fake_group
+     try:
+         merged = []
+         for rank, (logits, indices) in enumerate(zip(local_logits, local_topks)):
+@@ -366,7 +366,7 @@ def _merge_local_topks_global_with_fake_dcp(
+             merged.append(rank_indices)
+         return merged
+     finally:
+-        sparse_indexer.get_dcp_group = original_get_dcp_group
++        sparse_indexer.get_indexer_dcp_group = original_get_indexer_dcp_group
+ 
+ 
+ @pytest.mark.parametrize("world", [1, 2, 4, 6, 8])
+diff --git a/tests/v1/core/test_kv_cache_utils.py b/tests/v1/core/test_kv_cache_utils.py
+index 92d8b35e2c0e8773429bde5b72352684a55b182b..54043b9fbbcdee40e6ef05f1031ec290c486d96f 100644
+--- a/tests/v1/core/test_kv_cache_utils.py
++++ b/tests/v1/core/test_kv_cache_utils.py
+@@ -1747,6 +1747,39 @@ def test_replicated_mla_uses_lockstep_pool_capacity_and_contiguous_tensors():
+     ) == pytest.approx(2.0)
+ 
+ 
++def test_partial_replicated_mla_uses_lockstep_dcp8_layout():
++    target = MLAAttentionSpec(
++        block_size=64,
++        num_kv_heads=1,
++        head_size=576,
++        dtype=torch.uint8,
++        cache_dtype_str="nvfp4_ds_mla",
++    )
++    indexer = MLAAttentionSpec(
++        block_size=128,
++        num_kv_heads=1,
++        head_size=132,
++        dtype=torch.uint8,
++        dcp_kv_shard_count=4,
++    )
++    groups = [
++        KVCacheGroupSpec(["target"], target),
++        KVCacheGroupSpec(["indexer"], indexer),
++    ]
++
++    assert kv_cache_utils._use_lockstep_mla_allocation(groups, 8, 1)
++    assert target.block_size * 8 == indexer.block_size * 4 == 512
++
++    grouped_specs = kv_cache_utils.group_and_unify_kv_cache_specs(
++        {"target": target, "indexer": indexer}, 8, 1
++    )
++    assert grouped_specs is not None
++    grouped = kv_cache_utils._get_kv_cache_groups_uniform_groups(grouped_specs)
++    assert len(grouped) == 2
++    assert kv_cache_utils._use_lockstep_mla_allocation(grouped, 8, 1)
++    assert grouped[1].kv_cache_spec.page_size_bytes == indexer.page_size_bytes
++
++
+ def test_lockstep_mla_predicate_rejects_nonmatching_layouts():
+     sharded = MLAAttentionSpec(
+         block_size=64,
+@@ -1841,6 +1874,47 @@ def test_lockstep_mla_equal_page_sizes_use_distinct_tensors():
+     ]
+ 
+ 
++def test_custom_cp_specs_with_same_block_size_stay_in_type_specific_groups():
++    target = MLAAttentionSpec(
++        block_size=64,
++        num_kv_heads=1,
++        head_size=128,
++        dtype=torch.float32,
++    )
++    replicated_full = FullAttentionSpec(
++        block_size=256,
++        num_kv_heads=1,
++        head_size=128,
++        dtype=torch.float32,
++        dcp_replicated=True,
++    )
++    replicated_sink = SinkFullAttentionSpec(
++        block_size=256,
++        num_kv_heads=1,
++        head_size=128,
++        dtype=torch.float32,
++        dcp_replicated=True,
++        sink_len=4,
++    )
++
++    grouped = group_and_unify_kv_cache_specs(
++        {
++            "target": target,
++            "full": replicated_full,
++            "sink": replicated_sink,
++        },
++        dcp_world_size=4,
++    )
++
++    assert grouped is not None
++    assert len(grouped) == 3
++    assert [set(group.kv_cache_specs) for group in grouped] == [
++        {"target"},
++        {"full"},
++        {"sink"},
++    ]
++
++
+ def test_dsv4_engine_capacity_uses_worker_kv_cache_config():
+     from vllm.v1.engine.core import EngineCore
+ 
+diff --git a/tests/v1/core/test_prefix_caching.py b/tests/v1/core/test_prefix_caching.py
+index e906b76bba7a4dd5aacc379c95b2e9467f03e5e3..165b9249bfa3359f34219da0c0a49466a7dcf5c2 100644
+--- a/tests/v1/core/test_prefix_caching.py
++++ b/tests/v1/core/test_prefix_caching.py
+@@ -177,7 +177,9 @@ def make_kv_cache_config_hybrid_model(
+     )
+ 
+ 
+-def make_lockstep_mla_manager(num_blocks: int = 5) -> KVCacheManager:
++def make_lockstep_mla_manager(
++    num_blocks: int = 5, hash_block_size: int = 256
++) -> KVCacheManager:
+     global_block_size = 256
+     kv_cache_config = KVCacheConfig(
+         num_blocks=num_blocks,
+@@ -208,7 +210,7 @@ def make_lockstep_mla_manager(num_blocks: int = 5) -> KVCacheManager:
+         kv_cache_config=kv_cache_config,
+         max_model_len=4 * global_block_size,
+         scheduler_block_size=global_block_size,
+-        hash_block_size=global_block_size,
++        hash_block_size=hash_block_size,
+         enable_caching=True,
+         dcp_world_size=4,
+     )
+@@ -239,7 +241,7 @@ def test_mixed_mla_groups_share_block_ids_hashes_and_eviction_order():
+         manager.block_pool.blocks[block_id].ref_cnt == 2 for block_id in target_ids
+     )
+ 
+-    for block_hash, block_id in zip(request.block_hashes, target_ids):
++    for block_hash, block_id in zip(request.block_hashes, target_ids, strict=True):
+         group_keys = [
+             make_block_hash_with_group_id(block_hash, group_id) for group_id in range(2)
+         ]
+@@ -295,6 +297,65 @@ def test_mixed_mla_groups_share_block_ids_hashes_and_eviction_order():
+     assert manager.block_pool.get_cached_block(request.block_hashes[-1], [1]) is None
+ 
+ 
++def test_lockstep_mla_partial_prefix_hit_mirrors_single_cow_block():
++    hash_block_size = 64
++    manager = make_lockstep_mla_manager(num_blocks=6, hash_block_size=hash_block_size)
++    # Exercise the fine-grained lookup contract directly. Production DCP
++    # currently keeps this policy disabled, but lockstep allocation must still
++    # preserve group identity when such a hit is supplied.
++    manager.coordinator.enable_partial_hash_hits = True
++    owner = make_request(
++        "owner",
++        list(range(6 * hash_block_size)),
++        hash_block_size,
++        sha256,
++    )
++    assert manager.allocate_slots(owner, 6 * hash_block_size) is not None
++    owner_ids = manager.get_block_ids(owner.request_id)
++    assert owner_ids[0] == owner_ids[1]
++    source_block_id = owner_ids[0][1]
++    manager.free(owner)
++    manager.new_step_starts()
++
++    replay = make_request(
++        "replay",
++        list(range(8 * hash_block_size)),
++        hash_block_size,
++        sha256,
++    )
++    computed_blocks, num_computed_tokens, _ = manager.get_computed_blocks(replay)
++    assert num_computed_tokens == 6 * hash_block_size
++    assert computed_blocks.get_block_ids() == (
++        list(owner_ids[0]),
++        list(owner_ids[1]),
++    )
++
++    new_blocks = manager.allocate_slots(
++        replay,
++        num_new_tokens=2 * hash_block_size,
++        num_new_computed_tokens=num_computed_tokens,
++        new_computed_blocks=computed_blocks,
++    )
++    assert new_blocks is not None
++    replay_ids = manager.get_block_ids(replay.request_id)
++    assert replay_ids[0] == replay_ids[1]
++    assert len(replay_ids[0]) == 2
++    cow_block_id = replay_ids[0][1]
++    assert cow_block_id != source_block_id
++    assert new_blocks.get_block_ids() == ([cow_block_id], [cow_block_id])
++
++    copies, retained = manager.take_kv_cache_block_copies()
++    assert [(copy.src_block_id, copy.dst_block_id) for copy in copies] == [
++        (source_block_id, cow_block_id)
++    ]
++    assert [block.block_id for block in retained] == [source_block_id, cow_block_id]
++    assert manager.block_pool.blocks[source_block_id].ref_cnt == 1
++    assert manager.block_pool.blocks[cow_block_id].ref_cnt == 3
++    manager.block_pool.free_blocks(retained)
++    assert manager.block_pool.blocks[source_block_id].ref_cnt == 0
++    assert manager.block_pool.blocks[cow_block_id].ref_cnt == 2
++
++
+ def test_lockstep_mla_allocates_external_computed_blocks_once():
+     manager = make_lockstep_mla_manager()
+ 
+diff --git a/tests/v1/worker/test_gpu_block_table.py b/tests/v1/worker/test_gpu_block_table.py
+index 954f788781a53dd180f0e117a4dab547c1a9d7d7..afaa0b90d172e058a474e3391eb110e7372495aa 100644
+--- a/tests/v1/worker/test_gpu_block_table.py
++++ b/tests/v1/worker/test_gpu_block_table.py
+@@ -223,3 +223,56 @@ def test_compute_slot_mappings_mixed_sharded_and_replicated_groups():
+         ],
+         list(range(1280, 1288)),
+     ]
++
++
++def test_compute_slot_mappings_partial_replica_pairs_share_four_way_shard():
++    device = torch.device("cuda")
++
++    def compute_for_rank(cp_rank: int) -> list[int]:
++        block_tables = BlockTables(
++            block_sizes=[128],
++            max_num_reqs=1,
++            max_num_batched_tokens=16,
++            max_num_blocks_per_group=[1],
++            device=device,
++            kernel_block_sizes=[64],
++            cp_size=8,
++            cp_rank=cp_rank,
++            group_cp_sizes=[4],
++        )
++        block_tables.append_block_ids(
++            req_index=0,
++            new_block_ids=([5],),
++            overwrite=True,
++        )
++        block_tables.apply_staged_writes()
++        result = block_tables.compute_slot_mappings(
++            torch.tensor([0], dtype=torch.int32, device=device),
++            torch.tensor([0, 16], dtype=torch.int32, device=device),
++            torch.arange(16, dtype=torch.int64, device=device),
++            num_tokens_padded=16,
++        )
++        torch.accelerator.synchronize()
++        return result[0].cpu().tolist()
++
++    rank0 = compute_for_rank(0)
++    rank4 = compute_for_rank(4)
++    assert rank0 == rank4
++    assert rank0 == [
++        640,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        641,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        642,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        643,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++        PAD_SLOT_ID,
++    ]
+diff --git a/tests/v1/worker/test_gpu_worker.py b/tests/v1/worker/test_gpu_worker.py
+index cdaa644b62eceb08d559638d38d04fcd1c6829e8..ff6f6b8b1d6a3f397e25313088cfefb5d9575f87 100644
+--- a/tests/v1/worker/test_gpu_worker.py
++++ b/tests/v1/worker/test_gpu_worker.py
+@@ -52,6 +52,69 @@ def _pynvvideocodec_decoder_budget(api_process_count: int = 1) -> int:
+     )
+ 
+ 
++def test_kernel_warmup_runs_once(monkeypatch: pytest.MonkeyPatch):
++    worker = object.__new__(Worker)
++    calls = []
++    monkeypatch.setattr(
++        gpu_worker_module,
++        "kernel_warmup",
++        lambda warmed_worker: calls.append(warmed_worker),
++    )
++
++    worker._warmup_kernels_once()
++    worker._warmup_kernels_once()
++
++    assert calls == [worker]
++    assert worker._kernel_warmup_complete is True
++
++
++def test_failed_kernel_warmup_is_retryable(monkeypatch: pytest.MonkeyPatch):
++    worker = object.__new__(Worker)
++    calls = 0
++
++    def fail_once(_worker):
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            raise RuntimeError("warmup failed")
++
++    monkeypatch.setattr(gpu_worker_module, "kernel_warmup", fail_once)
++
++    with pytest.raises(RuntimeError, match="warmup failed"):
++        worker._warmup_kernels_once()
++    worker._warmup_kernels_once()
++
++    assert calls == 2
++    assert worker._kernel_warmup_complete is True
++
++
++def test_memory_profile_replays_model_after_kernel_warmup(
++    monkeypatch: pytest.MonkeyPatch,
++):
++    worker = object.__new__(Worker)
++    calls = []
++    worker.model_runner = SimpleNamespace(
++        profile_run=lambda: calls.append("profile"),
++    )
++    worker.vllm_config = SimpleNamespace()
++    worker.get_model = lambda: object()
++    worker.get_kv_cache_spec = lambda: object()
++    monkeypatch.setattr(
++        gpu_worker_module,
++        "deepseek_v4_compressor_triton_warmup",
++        lambda *args: calls.append("compressor"),
++    )
++    monkeypatch.setattr(
++        worker,
++        "_warmup_kernels_once",
++        lambda: calls.append("kernel_warmup"),
++    )
++
++    worker._profile_model_with_kernel_warmup()
++
++    assert calls == ["profile", "compressor", "kernel_warmup", "profile"]
++
++
+ @pytest.mark.parametrize("video_backend", [None, "opencv"])
+ def test_reserve_mm_ipc_gpu_memory_raw_frame_budget_only(
+     monkeypatch: pytest.MonkeyPatch,
+diff --git a/vllm/distributed/device_communicators/custom_all_reduce.py b/vllm/distributed/device_communicators/custom_all_reduce.py
+index 1ecad2f9c2a3248e14680536bcc81f2e76ae8231..1b4b4f0cfcc229ca7bd522298059ed32b1afab0e 100644
+--- a/vllm/distributed/device_communicators/custom_all_reduce.py
++++ b/vllm/distributed/device_communicators/custom_all_reduce.py
+@@ -31,11 +31,6 @@ except Exception:
+ 
+ logger = init_logger(__name__)
+ 
+-# Fixed DMA crossover for the 8x PCIe GLM serving path: 512 BF16 rows at
+-# hidden size 6144. The oneshot crossovers come from the
+-# VLLM_PCIE_ONESHOT_*_MAX_SIZE envs (default 84KB, seven such rows).
+-_B12X_PCIE_DMA_MIN_BYTES = 6 * 1024 * 1024
+-
+ 
+ def _get_pcie_allreduce_backend() -> str:
+     backend = envs.VLLM_PCIE_ALLREDUCE_BACKEND.lower()
+@@ -94,6 +89,16 @@ def _b12x_pcie_oneshot_limits() -> tuple[int, int, int]:
+     return allreduce_max_size, fused_max_size, buffer_size
+ 
+ 
++def _b12x_pcie_dma_min_bytes() -> int | None:
++    configured = envs.VLLM_PCIE_DMA_MIN_BYTES.strip().lower()
++    if configured in {"off", "disabled", "none"}:
++        return None
++    min_bytes = _parse_byte_size(configured)
++    if min_bytes < 0:
++        raise ValueError("b12x PCIe DMA minimum size must be non-negative")
++    return min_bytes
++
++
+ @lru_cache(maxsize=1)
+ def _load_b12x_pcie_oneshot_pool() -> Any | None:
+     try:
+@@ -510,10 +515,17 @@ class CustomAllreduce:
+                 return
+             assert pcie_runtime is not None
+             self._pcie_runtime = pcie_runtime
+-            # Prefill-size DMA allreduce alongside the oneshot. Its fixed
+-            # lower bound is applied after every rank initializes cleanly.
+-            dma_cls = _load_b12x_pcie_dma()
+-            if dma_cls is None:
++            # Prefill-size DMA allreduce alongside the oneshot. A deployment
++            # preflight can tune its crossover or disable it when lossless DMA
++            # never beats NCCL on the selected PCIe topology.
++            dma_min_bytes = _b12x_pcie_dma_min_bytes()
++            dma_cls = None if dma_min_bytes is None else _load_b12x_pcie_dma()
++            if dma_min_bytes is None:
++                logger.info(
++                    "b12x PCIe DMA allreduce disabled by "
++                    "VLLM_PCIE_DMA_MIN_BYTES=off; large allreduces stay on PyNCCL."
++                )
++            elif dma_cls is None:
+                 logger.warning(
+                     "b12x PCIe DMA allreduce unavailable "
+                     "(sparkinfer.comm.pcie.DmaAllReduce not importable); "
+@@ -556,17 +568,17 @@ class CustomAllreduce:
+                     )
+                 else:
+                     assert dma is not None
+-                    dma.min_bytes = _B12X_PCIE_DMA_MIN_BYTES
++                    dma.min_bytes = dma_min_bytes
+                     self._pcie_dma = dma
+                     logger.debug("b12x PCIe DMA allreduce wire mode: %s", dma.wire_mode)
+ 
+             if rank == 0:
+                 logger.info(
+                     "Configured b12x PCIe crossovers: "
+-                    "oneshot max=%d, fused max=%d, DMA min=%d.",
++                    "oneshot max=%d, fused max=%d, DMA min=%s.",
+                     self._pcie_allreduce_max_size,
+                     self._pcie_fused_add_rms_norm_max_size,
+-                    _B12X_PCIE_DMA_MIN_BYTES,
++                    dma_min_bytes if dma_min_bytes is not None else "off",
+                 )
+             self.disabled = False
+             logger.debug(
+diff --git a/vllm/distributed/parallel_state.py b/vllm/distributed/parallel_state.py
+index 4187c55c237c960013e11883bbe1561ecd0d1582..54da6ac47a4653681b9849115e6d2e84aa852af6 100644
+--- a/vllm/distributed/parallel_state.py
++++ b/vllm/distributed/parallel_state.py
+@@ -758,9 +758,7 @@ class GroupCoordinator:
+     ) -> torch.Tensor:
+         """Reduce-scatter and preserve a physically head-major output view."""
+         if self.world_size <= 1 or dim != 1:
+-            raise RuntimeError(
+-                "reduce_scatter_head_major requires DCP heads on dim 1"
+-            )
++            raise RuntimeError("reduce_scatter_head_major requires DCP heads on dim 1")
+         if self.device_communicator is None:
+             raise RuntimeError(
+                 "reduce_scatter_head_major requires a device communicator"
+@@ -1447,6 +1445,103 @@ def get_query_split_group() -> GroupCoordinator:
+     return _QUERY_SPLIT
+ 
+ 
++_INDEXER_DCP: GroupCoordinator | None = None
++
++
++def get_indexer_dcp_group(
++    expected_world_size: int | None = None,
++) -> GroupCoordinator:
++    """Return the group matching an indexer's actual KV shard count.
++
++    A partially replicated target indexer and a fully sharded speculative
++    indexer can coexist in the same model. Callers that know their shard count
++    must provide it so the speculative indexer does not inherit the target's
++    smaller process group.
++    """
++    if expected_world_size is None:
++        return _INDEXER_DCP if _INDEXER_DCP is not None else get_dcp_group()
++
++    if _INDEXER_DCP is not None and int(_INDEXER_DCP.world_size) == expected_world_size:
++        return _INDEXER_DCP
++
++    dcp_group = get_dcp_group()
++    if int(dcp_group.world_size) == expected_world_size:
++        return dcp_group
++
++    partial_size = int(_INDEXER_DCP.world_size) if _INDEXER_DCP is not None else None
++    raise RuntimeError(
++        "No sparse-indexer DCP group matches the requested KV shard count: "
++        f"requested={expected_world_size}, partial={partial_size}, "
++        f"configured={dcp_group.world_size}"
++    )
++
++
++_INDEXER_QUERY_SPLIT: GroupCoordinator | None = None
++
++
++def get_indexer_query_split_group(
++    indexer_dcp_world_size: int | None = None,
++) -> GroupCoordinator:
++    """Return the query-split group paired with an indexer's shard group."""
++    if indexer_dcp_world_size is None:
++        if _INDEXER_QUERY_SPLIT is not None:
++            return _INDEXER_QUERY_SPLIT
++        return get_query_split_group()
++
++    if (
++        _INDEXER_DCP is not None
++        and int(_INDEXER_DCP.world_size) == indexer_dcp_world_size
++    ):
++        if _INDEXER_QUERY_SPLIT is None:
++            raise RuntimeError("Partial indexer DCP group has no query-split group")
++        return _INDEXER_QUERY_SPLIT
++
++    dcp_group = get_dcp_group()
++    if int(dcp_group.world_size) == indexer_dcp_world_size:
++        return get_query_split_group()
++
++    partial_size = int(_INDEXER_DCP.world_size) if _INDEXER_DCP is not None else None
++    raise RuntimeError(
++        "No indexer query-split group matches the requested KV shard count: "
++        f"requested={indexer_dcp_world_size}, partial={partial_size}, "
++        f"configured={dcp_group.world_size}"
++    )
++
++
++def _build_indexer_replica_group_ranks(
++    tp_group_ranks: list[list[int]], indexer_shards: int
++) -> tuple[list[list[int]], list[list[int]]]:
++    """Build shard-owner groups and cross-replica query-split groups."""
++    dcp_groups: list[list[int]] = []
++    query_split_groups: list[list[int]] = []
++    for tp_ranks in tp_group_ranks:
++        if indexer_shards <= 0 or len(tp_ranks) % indexer_shards != 0:
++            raise ValueError(
++                f"Indexer shards={indexer_shards} must divide TP={len(tp_ranks)}"
++            )
++        replicas = [
++            tp_ranks[start : start + indexer_shards]
++            for start in range(0, len(tp_ranks), indexer_shards)
++        ]
++        dcp_groups.extend(replicas)
++        query_split_groups.extend(
++            [replica[shard_rank] for replica in replicas]
++            for shard_rank in range(indexer_shards)
++        )
++    return dcp_groups, query_split_groups
++
++
++def _validate_indexer_shard_count(indexer_shards: int, dcp_size: int) -> None:
++    """Reject partial-indexer layouts that cannot form equal replica groups."""
++    if indexer_shards in (0, 1, dcp_size):
++        return
++    if indexer_shards < 1 or indexer_shards > dcp_size or dcp_size % indexer_shards:
++        raise ValueError(
++            "VLLM_DCP_INDEXER_SHARDS must be 0, 1, or a positive divisor of "
++            f"the configured DCP size; got shards={indexer_shards}, DCP={dcp_size}"
++        )
++
++
+ _DCP_CKV_PREFETCH: GroupCoordinator | None = None
+ 
+ 
+@@ -1855,6 +1950,41 @@ def init_distributed_environment(
+             _INNER_DP_WORLD = _WORLD
+ 
+ 
++def _get_query_split_group_ranks(
++    tp_group_ranks: list[list[int]], dcp_size: int
++) -> list[list[int]]:
++    """Transpose DCP groups within each independent TP cohort.
++
++    Args:
++        tp_group_ranks: Independent TP cohorts expressed as global ranks.
++        dcp_size: Number of consecutive ranks in each DCP group.
++
++    Returns:
++        Groups joining the same DCP-rank position across each TP cohort.
++
++    Raises:
++        ValueError: If ``dcp_size`` is nonpositive or does not divide a TP
++            cohort.
++    """
++    if dcp_size <= 0:
++        raise ValueError(f"dcp_size must be positive, got {dcp_size}")
++
++    query_split_ranks: list[list[int]] = []
++    for tp_ranks in tp_group_ranks:
++        if len(tp_ranks) % dcp_size != 0:
++            raise ValueError(
++                f"TP group size {len(tp_ranks)} must be divisible by "
++                f"dcp_size {dcp_size}"
++            )
++        dcp_groups = [
++            tp_ranks[start : start + dcp_size]
++            for start in range(0, len(tp_ranks), dcp_size)
++        ]
++        for dcp_rank in range(dcp_size):
++            query_split_ranks.append([group[dcp_rank] for group in dcp_groups])
++    return query_split_ranks
++
++
+ def initialize_model_parallel(
+     tensor_model_parallel_size: int = 1,
+     pipeline_model_parallel_size: int = 1,
+@@ -1946,6 +2076,7 @@ def initialize_model_parallel(
+     if enable_elastic_ep:
+         group_ranks = local_all_ranks.view(-1, tensor_model_parallel_size).unbind(0)
+         group_ranks = [x.tolist() for x in group_ranks]
++    tp_group_ranks = group_ranks
+     # message queue broadcaster is only used in tensor model parallel group
+     _TP = init_model_parallel_group(
+         group_ranks,
+@@ -1977,17 +2108,16 @@ def initialize_model_parallel(
+         group_name="dcp",
+     )
+ 
+-    # Build the query-split groups for the indexer query split (Fix A).
+-    # Ranks sharing the same dcp_rank (position within their DCP group)
+-    # form a query-split group.  At TP=8/DCP=2 the DCP groups are
+-    # {0,1},{2,3},{4,5},{6,7} and the query-split groups are
+-    # {0,2,4,6} (dcp_rank=0) and {1,3,5,7} (dcp_rank=1).
++    # Build query-split groups for the sparse indexer. Ranks sharing the same
++    # dcp_rank form one group. This also applies to DCP=1: all TP ranks hold
++    # the same indexer inputs, so they can divide query rows and all-gather
++    # only the exact int32 top-k result.
+     global _QUERY_SPLIT
+     assert _QUERY_SPLIT is None, "query split group is already initialized"
+-    if decode_context_model_parallel_size > 1 and envs.VLLM_DCP_QUERY_SPLIT:
+-        query_split_ranks: list[list[int]] = []
+-        for dcp_rank_idx in range(decode_context_model_parallel_size):
+-            query_split_ranks.append([grp[dcp_rank_idx] for grp in group_ranks])
++    if envs.VLLM_DCP_QUERY_SPLIT:
++        query_split_ranks = _get_query_split_group_ranks(
++            tp_group_ranks, decode_context_model_parallel_size
++        )
+         _QUERY_SPLIT = init_model_parallel_group(
+             query_split_ranks,
+             get_world_group().local_rank,
+@@ -1995,6 +2125,34 @@ def initialize_model_parallel(
+             group_name="query_split",
+         )
+ 
++    # A partially replicated sparse-indexer cache has its own shard topology.
++    # With TP8/DCP8 and four indexer shards, these are {0,1,2,3}/{4,5,6,7};
++    # ranks at the same position form two-way query-split groups.
++    global _INDEXER_DCP, _INDEXER_QUERY_SPLIT
++    assert _INDEXER_DCP is None, "indexer DCP group is already initialized"
++    assert _INDEXER_QUERY_SPLIT is None, (
++        "indexer query split group is already initialized"
++    )
++    indexer_shards = int(envs.VLLM_DCP_INDEXER_SHARDS)
++    _validate_indexer_shard_count(indexer_shards, decode_context_model_parallel_size)
++    if 1 < indexer_shards < decode_context_model_parallel_size:
++        indexer_dcp_ranks, indexer_query_split_ranks = (
++            _build_indexer_replica_group_ranks(tp_group_ranks, indexer_shards)
++        )
++        _INDEXER_DCP = init_model_parallel_group(
++            indexer_dcp_ranks,
++            get_world_group().local_rank,
++            backend,
++            group_name="indexer_dcp",
++        )
++        if envs.VLLM_DCP_QUERY_SPLIT:
++            _INDEXER_QUERY_SPLIT = init_model_parallel_group(
++                indexer_query_split_ranks,
++                get_world_group().local_rank,
++                backend,
++                group_name="indexer_query_split",
++            )
++
+     # A dedicated communicator over the DCP ranks for the transient ckv
+     # prefetch gather (Fix B). The prefetch runs on a side stream and would
+     # otherwise share the DCP communicator with the indexer's DCP top-k
+@@ -2240,6 +2398,16 @@ def destroy_model_parallel():
+         _QUERY_SPLIT.destroy()
+     _QUERY_SPLIT = None
+ 
++    global _INDEXER_DCP
++    if _INDEXER_DCP:
++        _INDEXER_DCP.destroy()
++    _INDEXER_DCP = None
++
++    global _INDEXER_QUERY_SPLIT
++    if _INDEXER_QUERY_SPLIT:
++        _INDEXER_QUERY_SPLIT.destroy()
++    _INDEXER_QUERY_SPLIT = None
++
+     global _DCP_CKV_PREFETCH
+     if _DCP_CKV_PREFETCH:
+         _DCP_CKV_PREFETCH.destroy()
+diff --git a/vllm/envs.py b/vllm/envs.py
+index 19bb0fe60c125e99f55fac1f0b3fb7135fe28bf4..ed6089ac643230ff9fb3e6b0ae780cb1fe3f1a61 100755
+--- a/vllm/envs.py
++++ b/vllm/envs.py
+@@ -75,8 +75,10 @@ if TYPE_CHECKING:
+     VLLM_DCP_A2A_LARGE_BACKEND: Literal["ag_rs", "a2a"] = "ag_rs"
+     VLLM_DCP_SHARD_DRAFT: str | None = None
+     VLLM_DCP_REPLICATE_INDEXER_CACHE: bool = False
++    VLLM_DCP_INDEXER_SHARDS: int = 0
+     VLLM_DCP_GLOBAL_TOPK: bool = True
+     VLLM_DCP_QUERY_SPLIT: bool = False
++    VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS: int = 0
+     VLLM_DCP_TOPK_OWNER_MERGE: bool = False
+     VLLM_B12X_MLA_CKV_GATHER: bool = False
+     VLLM_B12X_MLA_CKV_GATHER_MIN_TOKENS: int = 16
+@@ -233,6 +235,7 @@ if TYPE_CHECKING:
+     VLLM_PCIE_ALLREDUCE_BACKEND: Literal["b12x", "cpp"] = "cpp"
+     VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE: str = "84KB"
+     VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE: str = "84KB"
++    VLLM_PCIE_DMA_MIN_BYTES: str = "6MB"
+     VLLM_PCIE_ONESHOT_ALLOW_CROSS_NUMA: bool = True
+     VLLM_PCIE_ONESHOT_SINGLE_CHANNEL: bool = False
+     VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE: int = 394 * 1024 * 1024
+@@ -1169,6 +1172,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
+         os.getenv("VLLM_DCP_REPLICATE_INDEXER_CACHE", "0").lower()
+         in ("1", "true", "yes", "on")
+     ),
++    # Number of unique sparse-indexer KV shards inside each configured DCP
++    # group. Zero keeps the configured DCP size; one fully replicates the
++    # cache. Intermediate divisors create replicated shard groups (for
++    # example, 4 under DCP8 creates two replicas of four shards).
++    "VLLM_DCP_INDEXER_SHARDS": lambda: int(os.getenv("VLLM_DCP_INDEXER_SHARDS", "0")),
+     # Under DCP, gather sparse-indexer logits across ranks and select a global
+     # top-k instead of a per-rank local top-k.
+     "VLLM_DCP_GLOBAL_TOPK": lambda: (
+@@ -1177,6 +1185,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     "VLLM_DCP_QUERY_SPLIT": lambda: (
+         os.getenv("VLLM_DCP_QUERY_SPLIT", "0").lower() in ("1", "true", "yes", "on")
+     ),
++    # Keep query-split process groups initialized while selecting the faster
++    # full-query path below a deployment-calibrated context crossover.
++    "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS": lambda: int(
++        os.getenv("VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS", "0")
++    ),
+     # Send each query row's exact FP32 top-k candidates to one DCP owner, merge
+     # once there, then gather only the final indices over TP. This is an
+     # opt-in prefill path until the full TP/DCP validation matrix is complete.
+@@ -1842,6 +1855,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     "VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE": lambda: os.getenv(
+         "VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE", "84KB"
+     ),
++    # Minimum input size for uncompressed SparkInfer DMA allreduce dispatch;
++    # defaults to 6 MiB. Accepts raw bytes or a case-insensitive KB/MB suffix.
++    # Whitespace is ignored. "off", "disabled", and "none" disable DMA.
++    # A deployment preflight may override this with a measured crossover.
++    "VLLM_PCIE_DMA_MIN_BYTES": lambda: os.getenv("VLLM_PCIE_DMA_MIN_BYTES", "6MB"),
+     # Allow the b12x PCIe oneshot allreduce on cross-NUMA PCIe topologies.
+     "VLLM_PCIE_ONESHOT_ALLOW_CROSS_NUMA": lambda: (
+         os.getenv("VLLM_PCIE_ONESHOT_ALLOW_CROSS_NUMA", "1") != "0"
+diff --git a/vllm/model_executor/layers/attention/mla_attention.py b/vllm/model_executor/layers/attention/mla_attention.py
+index 34ee5522fd6a05087eebff4f64a0e66109c5cac6..1bcb1e632ab5e65f1291bd2dd62e0c83d8228410 100644
+--- a/vllm/model_executor/layers/attention/mla_attention.py
++++ b/vllm/model_executor/layers/attention/mla_attention.py
+@@ -253,6 +253,7 @@ from vllm.model_executor.utils import replace_parameter
+ from vllm.platforms import current_platform
+ from vllm.utils.flashinfer import has_flashinfer
+ from vllm.utils.math_utils import cdiv, round_down
++from vllm.utils.multi_stream_utils import is_vllm_cudagraph_capture_active
+ from vllm.utils.torch_utils import (
+     LayerNameType,
+     _encode_layer_name,
+@@ -488,6 +489,10 @@ def _estimate_dcp_ag_rs_transient_bytes(
+     )
+ 
+ 
++def _should_allocate_sparse_profile_workspace(workspace_bytes: int) -> bool:
++    return workspace_bytes > 0 and not is_vllm_cudagraph_capture_active()
++
++
+ def _extract_single_layer_index(layer_name: str) -> int | None:
+     int_vals = [int(part) for part in layer_name.split(".") if part.isdecimal()]
+     return int_vals[0] if len(int_vals) == 1 else None
+@@ -1146,7 +1151,11 @@ class MLAAttention(nn.Module, AttentionLayerBase):
+                 )
+             else:
+                 profile_workspace_bytes = self._get_sparse_memory_profile_bytes()
+-                if profile_workspace_bytes > 0:
++                # This synthetic allocation models eager runtime workspace for
++                # KV sizing. attn_metadata is also None during CUDA graph
++                # capture, where allocating it again only consumes capture-time
++                # memory and can OOM after KV cache allocation.
++                if _should_allocate_sparse_profile_workspace(profile_workspace_bytes):
+                     _ = torch.empty(
+                         (profile_workspace_bytes,),
+                         device=k_c_normed.device,
+diff --git a/vllm/model_executor/layers/sparse_attn_indexer.py b/vllm/model_executor/layers/sparse_attn_indexer.py
+index a1b857984857cc18adffc38eb021a4743eae4a7e..9ad66a9e7c964dafcec62b4ede8c71c1aea7ee2a 100644
+--- a/vllm/model_executor/layers/sparse_attn_indexer.py
++++ b/vllm/model_executor/layers/sparse_attn_indexer.py
+@@ -10,7 +10,10 @@ import vllm.envs as envs
+ from vllm import _custom_ops as ops
+ from vllm._aiter_ops import rocm_aiter_ops
+ from vllm.config import CUDAGraphMode, get_current_vllm_config
+-from vllm.distributed import get_dcp_group, get_query_split_group
++from vllm.distributed import (
++    get_indexer_dcp_group,
++    get_query_split_group,
++)
+ from vllm.forward_context import get_forward_context
+ from vllm.model_executor.custom_op import CustomOp
+ from vllm.model_executor.layers.quantization.utils.quant_utils import (
+@@ -59,6 +62,13 @@ def _dcp_global_topk_requested() -> bool:
+     return envs.VLLM_DCP_GLOBAL_TOPK
+ 
+ 
++def _dcp_query_split_context_eligible(context_tokens: int) -> bool:
++    min_context = envs.VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS
++    if min_context < 0:
++        raise ValueError("VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS must be non-negative")
++    return context_tokens > 0 and context_tokens >= min_context
++
++
+ def _use_persistent_topk_decode(topk_tokens: int) -> bool:
+     return current_platform.is_cuda() and topk_tokens in (512, 1024, 2048)
+ 
+@@ -401,13 +411,63 @@ def _dcp_all_gather_first_dim_into(
+     if device_group is not None:
+         import torch.distributed as dist
+ 
+-        dist.all_gather_into_tensor(output_tensor, input_tensor, group=device_group)
++        gather_input = input_tensor
++        input_start = input_tensor.data_ptr()
++        input_end = input_start + input_tensor.numel() * input_tensor.element_size()
++        output_start = output_tensor.data_ptr()
++        output_end = output_start + output_tensor.numel() * output_tensor.element_size()
++        if input_start < output_end and output_start < input_end:
++            # PyTorch does not document NCCL's in-place alias contract. Keep
++            # its fallback portable; the deployed PyNCCL path above remains
++            # zero-copy.
++            gather_input = input_tensor.clone()
++        dist.all_gather_into_tensor(output_tensor, gather_input, group=device_group)
+         return
+ 
+     gathered = group.all_gather(input_tensor, dim=0)
+     output_tensor.copy_(gathered)
+ 
+ 
++def _query_split_all_gather_indices(
++    group,
++    local_indices: torch.Tensor,
++    gathered_indices: torch.Tensor,
++) -> None:
++    """Restore query-split rows directly into their shared index buffer.
++
++    Args:
++        group: Query-split process group and rank metadata.
++        local_indices: Contiguous rank-local rows aliasing their output slot.
++        gathered_indices: Contiguous output containing every rank's rows.
++
++    Raises:
++        RuntimeError: If the buffers are noncontiguous, have incompatible
++            shapes, or do not satisfy the rank-local alias contract.
++    """
++    if group.world_size <= 1:
++        return
++    if not local_indices.is_contiguous() or not gathered_indices.is_contiguous():
++        raise RuntimeError("query-split top-k buffers must be contiguous")
++    if gathered_indices.shape[0] != local_indices.shape[0] * group.world_size:
++        raise RuntimeError("query-split output has an invalid row count")
++    if gathered_indices.shape[1:] != local_indices.shape[1:]:
++        raise RuntimeError("query-split output has an invalid trailing shape")
++
++    rank = int(group.rank_in_group)
++    expected_local = gathered_indices.narrow(
++        0, rank * local_indices.shape[0], local_indices.shape[0]
++    )
++    if expected_local.data_ptr() != local_indices.data_ptr():
++        raise RuntimeError(
++            "query-split local indices must alias their rank slot in the output"
++        )
++
++    # NCCL supports in-place all-gather when the send buffer aliases the
++    # rank-local slice of the receive buffer. The generic fallback in
++    # _dcp_all_gather_first_dim_into remains correct when PyNCCL is unavailable.
++    _dcp_all_gather_first_dim_into(group, local_indices, gathered_indices)
++
++
+ def _unpack_b12x_dcp_gathered_candidates(
+     gathered_candidates: torch.Tensor,
+     candidate_indices: torch.Tensor,
+@@ -440,8 +500,11 @@ def _unpack_b12x_dcp_gathered_candidates(
+         candidate_score_bits[:, start:end].copy_(gathered_view[rank, :, 1, :])
+ 
+ 
+-def _get_dcp_warmup_params() -> tuple[int, int, int]:
+-    dcp_world_size = 1
++def _get_dcp_warmup_params(
++    expected_dcp_world_size: int | None = None,
++) -> tuple[int, int, int]:
++    dcp_world_size = int(expected_dcp_world_size or 1)
++    group_world_size = expected_dcp_world_size
+     dcp_rank = 0
+     cp_kv_cache_interleave_size = 1
+     try:
+@@ -450,7 +513,9 @@ def _get_dcp_warmup_params() -> tuple[int, int, int]:
+         vllm_config = get_current_vllm_config_or_none()
+         if vllm_config is not None:
+             parallel_config = vllm_config.parallel_config
+-            dcp_world_size = int(parallel_config.decode_context_parallel_size)
++            if expected_dcp_world_size is None:
++                dcp_world_size = int(parallel_config.decode_context_parallel_size)
++                group_world_size = dcp_world_size
+             cp_kv_cache_interleave_size = int(
+                 parallel_config.cp_kv_cache_interleave_size
+             )
+@@ -458,9 +523,9 @@ def _get_dcp_warmup_params() -> tuple[int, int, int]:
+         pass
+ 
+     try:
+-        from vllm.distributed.parallel_state import get_dcp_group
++        from vllm.distributed.parallel_state import get_indexer_dcp_group
+ 
+-        dcp_group = get_dcp_group()
++        dcp_group = get_indexer_dcp_group(group_world_size)
+         if int(dcp_group.world_size) > 1:
+             dcp_world_size = int(dcp_group.world_size)
+             dcp_rank = int(dcp_group.rank_in_group)
+@@ -470,15 +535,15 @@ def _get_dcp_warmup_params() -> tuple[int, int, int]:
+     return dcp_world_size, dcp_rank, cp_kv_cache_interleave_size
+ 
+ 
+-def _sync_dcp_warmup() -> None:
++def _sync_dcp_warmup(dcp_world_size: int) -> None:
+     """Finish one-time DCP warmup on every rank before graph warmup proceeds."""
+     if current_platform.is_cuda():
+         torch.accelerator.synchronize()
+ 
+     try:
+-        from vllm.distributed.parallel_state import get_dcp_group
++        from vllm.distributed.parallel_state import get_indexer_dcp_group
+ 
+-        dcp_group = get_dcp_group()
++        dcp_group = get_indexer_dcp_group(dcp_world_size)
+         if int(dcp_group.world_size) <= 1:
+             return
+         dcp_group.barrier()
+@@ -524,7 +589,7 @@ def _prewarm_b12x_dcp_topk_merge(
+             dcp_rank=int(dcp_rank),
+             cp_kv_cache_interleave_size=int(cp_kv_cache_interleave_size),
+         )
+-        _sync_dcp_warmup()
++        _sync_dcp_warmup(dcp_world_size)
+ 
+ 
+ def _dcp_global_topk_remap(
+@@ -540,7 +605,7 @@ def _dcp_global_topk_remap(
+     if world_size <= 1 or topk_indices.numel() == 0:
+         return
+ 
+-    from vllm.distributed.parallel_state import get_dcp_group
++    from vllm.distributed.parallel_state import get_indexer_dcp_group
+ 
+     candidates = _dcp_pack_topk_candidates(
+         topk_indices,
+@@ -551,7 +616,9 @@ def _dcp_global_topk_remap(
+         interleave,
+         row_starts=row_starts,
+     )
+-    all_candidates = get_dcp_group().all_gather(candidates.contiguous(), dim=2)
++    all_candidates = get_indexer_dcp_group(world_size).all_gather(
++        candidates.contiguous(), dim=2
++    )
+     all_scores = all_candidates[:, 1, :].view(torch.float32)
+     _, selected = torch.topk(all_scores, topk_tokens, dim=1)
+     _dcp_finalize_topk_remap(
+@@ -767,7 +834,7 @@ def _merge_dcp_topk_global(
+         cp_interleave,
+         row_starts,
+     )
+-    gathered = get_dcp_group().all_gather(packed, dim=1)
++    gathered = get_indexer_dcp_group(dcp_world_size).all_gather(packed, dim=1)
+     stable_topk_from_gathered_candidates_cutedsl(
+         gathered, topk_tokens, out=topk_indices
+     )
+@@ -1076,7 +1143,7 @@ def _merge_b12x_dcp_topk(
+ 
+     from sparkinfer.attention.nsa_indexer.tiled_topk import run_row_topk
+ 
+-    from vllm.distributed.parallel_state import get_dcp_group
++    from vllm.distributed.parallel_state import get_indexer_dcp_group
+     from vllm.v1.attention.backends.mla.sparse_utils import (
+         triton_convert_dcp_local_topk_to_global,
+         triton_gather_topk_ids_by_position,
+@@ -1111,7 +1178,7 @@ def _merge_b12x_dcp_topk(
+     candidates[:, 0, :].copy_(topk_indices)
+     candidates[:, 1, :].copy_(topk_scores.view(torch.int32))
+ 
+-    dcp_group = get_dcp_group()
++    dcp_group = get_indexer_dcp_group(dcp_world_size)
+     _dcp_all_gather_first_dim_into(
+         dcp_group,
+         candidates,
+@@ -1679,7 +1746,7 @@ def sparse_attn_indexer(
+                 dcp_world_size,
+                 dcp_rank,
+                 cp_kv_cache_interleave_size,
+-            ) = _get_dcp_warmup_params()
++            ) = _get_dcp_warmup_params(dcp_world_size)
+             _prewarm_b12x_paged_indexer_prefill(
+                 q_quant=q_quant,
+                 weights=weights,
+@@ -1756,15 +1823,19 @@ def sparse_attn_indexer(
+     qs_group = None
+     qs_world_size = 1
+     qs_rank = 0
+-    if envs.VLLM_DCP_QUERY_SPLIT and dcp_world_size > 1:
+-        try:
+-            _qs = get_query_split_group()
+-            if int(_qs.world_size) > 1:
+-                qs_group = _qs
+-                qs_world_size = int(_qs.world_size)
+-                qs_rank = int(_qs.rank_in_group)
+-        except Exception:
+-            pass
++    if envs.VLLM_DCP_QUERY_SPLIT:
++        from vllm.distributed import parallel_state
++
++        selector = getattr(parallel_state, "get_indexer_query_split_group", None)
++        _qs = (
++            selector(dcp_world_size)
++            if selector is not None
++            else get_query_split_group()
++        )
++        if int(_qs.world_size) > 1:
++            qs_group = _qs
++            qs_world_size = int(_qs.world_size)
++            qs_rank = int(_qs.rank_in_group)
+     if output_physical_slots:
+         if not _use_b12x_sparse_indexer(use_b12x_sparse_indexer):
+             raise RuntimeError(
+@@ -1847,7 +1918,11 @@ def sparse_attn_indexer(
+             qs_active = False
+             qs_row_start = chunk.token_start
+             qs_row_end = chunk.token_end
+-            if qs_world_size > 1 and use_b12x_indexer and chunk.total_seq_lens > 0:
++            if (
++                qs_world_size > 1
++                and use_b12x_indexer
++                and _dcp_query_split_context_eligible(chunk.total_seq_lens)
++            ):
+                 chunk_tokens = chunk.token_end - chunk.token_start
+                 if chunk_tokens % qs_world_size == 0:
+                     slice_tokens = chunk_tokens // qs_world_size
+@@ -1969,19 +2044,17 @@ def sparse_attn_indexer(
+                 if used_owner_merge:
+                     continue
+                 if qs_active:
+-                    gathered_indices = qs_group.all_gather(
+-                        topk_indices.contiguous(), dim=0
+-                    )
+-                    topk_indices_buffer[
++                    gathered_indices = topk_indices_buffer[
+                         chunk.token_start : chunk.token_end, :topk_tokens
+-                    ].copy_(gathered_indices)
+-                    if topk_scores is not None:
+-                        gathered_scores = qs_group.all_gather(
+-                            topk_scores.contiguous(), dim=0
+-                        )
+-                        topk_scores_buffer[
+-                            chunk.token_start : chunk.token_end, :topk_tokens
+-                        ].copy_(gathered_scores)
++                    ]
++                    _query_split_all_gather_indices(
++                        qs_group,
++                        topk_indices,
++                        gathered_indices,
++                    )
++                    # Scores are only needed for the DCP-local candidate merge
++                    # above. Sparse attention consumes the restored indices, so
++                    # gathering scores here would double query-split traffic.
+                 continue
+ 
+             cu_seqlen_ks = chunk.cu_seqlen_ks
+@@ -2393,6 +2466,7 @@ class SparseAttnIndexer(CustomOp):
+         output_physical_slots: bool = False,
+         num_q_heads: int | None = None,
+         dcp_replicated: bool = False,
++        dcp_kv_shard_count: int | None = None,
+     ):
+         super().__init__()
+         self.k_cache = k_cache
+@@ -2414,8 +2488,21 @@ class SparseAttnIndexer(CustomOp):
+         parallel_config = get_current_vllm_config().parallel_config
+         self.dcp_replicated = bool(dcp_replicated)
+         configured_dcp_world_size = parallel_config.decode_context_parallel_size
+-        self.dcp_world_size = 1 if self.dcp_replicated else configured_dcp_world_size
+-        self.dcp_rank = get_dcp_group().rank_in_group if self.dcp_world_size > 1 else 0
++        self.dcp_world_size = (
++            1
++            if self.dcp_replicated
++            else int(dcp_kv_shard_count or configured_dcp_world_size)
++        )
++        if self.dcp_world_size > 1:
++            indexer_group = get_indexer_dcp_group(self.dcp_world_size)
++            if int(indexer_group.world_size) != self.dcp_world_size:
++                raise RuntimeError(
++                    "Sparse-indexer DCP group does not match its KV shard count: "
++                    f"group={indexer_group.world_size}, shards={self.dcp_world_size}"
++                )
++            self.dcp_rank = int(indexer_group.rank_in_group)
++        else:
++            self.dcp_rank = 0
+         self.cp_kv_cache_interleave_size = parallel_config.cp_kv_cache_interleave_size
+         self.use_b12x_sparse_indexer = use_b12x_sparse_indexer()
+         if self.output_physical_slots and not self.use_b12x_sparse_indexer:
+diff --git a/vllm/model_executor/models/deepseek_v2.py b/vllm/model_executor/models/deepseek_v2.py
+index a18f3ca1709a5ea602bf746bf407f977ee27cbf6..21b43a3365105ad771f81a6305903fb08a92a221 100644
+--- a/vllm/model_executor/models/deepseek_v2.py
++++ b/vllm/model_executor/models/deepseek_v2.py
+@@ -617,39 +617,71 @@ class DeepseekV2Attention(nn.Module):
+         return output
+ 
+ 
+-def _replicate_indexer_cache_under_dcp(prefix: str, vllm_config: VllmConfig) -> bool:
++def _indexer_cache_dcp_shard_count(prefix: str, vllm_config: VllmConfig) -> int:
++    parallel_config = vllm_config.parallel_config
++    dcp_size = parallel_config.decode_context_parallel_size
++    pcp_size = parallel_config.prefill_context_parallel_size
++    configured_cp_size = dcp_size * pcp_size
+     layer_id = extract_layer_index(prefix)
+     num_hidden_layers = getattr(
+         vllm_config.model_config.hf_config, "num_hidden_layers", None
+     )
+     if layer_id is None or num_hidden_layers is None:
+-        return False
+-
+-    parallel_config = vllm_config.parallel_config
+-    dcp_size = parallel_config.decode_context_parallel_size
+-    pcp_size = parallel_config.prefill_context_parallel_size
+-    if dcp_size * pcp_size <= 1:
+-        return False
++        return configured_cp_size
++    if configured_cp_size <= 1:
++        return configured_cp_size
+ 
+     if int(layer_id) >= int(num_hidden_layers):
+-        return False
++        return configured_cp_size
++
++    requested_shards = envs.VLLM_DCP_INDEXER_SHARDS
++    requested_replicated = envs.VLLM_DCP_REPLICATE_INDEXER_CACHE
++    if requested_replicated and requested_shards not in (0, 1):
++        raise ValueError(
++            "VLLM_DCP_REPLICATE_INDEXER_CACHE conflicts with "
++            f"VLLM_DCP_INDEXER_SHARDS={requested_shards}"
++        )
++    if requested_replicated:
++        requested_shards = 1
++    if requested_shards == 0:
++        return configured_cp_size
+ 
+-    requested = envs.VLLM_DCP_REPLICATE_INDEXER_CACHE
+-    if requested and not vllm_config.use_v2_model_runner:
++    if not vllm_config.use_v2_model_runner:
+         raise NotImplementedError(
+-            "Replicated sparse-indexer KV requires the V2 model runner's "
++            "Partially replicated sparse-indexer KV requires the V2 model runner's "
+             "per-group context-parallel block tables."
+         )
+-    if requested and (not 2 <= dcp_size <= 8 or pcp_size != 1):
++    if not 2 <= dcp_size <= 8 or pcp_size != 1:
+         raise NotImplementedError(
+-            "Replicated sparse-indexer KV currently supports DCP2 through "
++            "Partially replicated sparse-indexer KV currently supports DCP2 through "
+             "DCP8 with PCP1."
+         )
+-    if requested and not use_b12x_sparse_indexer():
++    if (
++        requested_shards < 1
++        or requested_shards > dcp_size
++        or dcp_size % requested_shards != 0
++    ):
++        raise ValueError(
++            "VLLM_DCP_INDEXER_SHARDS must be a positive divisor of DCP, "
++            f"got shards={requested_shards}, DCP={dcp_size}."
++        )
++    if not use_b12x_sparse_indexer():
+         raise RuntimeError(
+-            "VLLM_DCP_REPLICATE_INDEXER_CACHE requires the B12X sparse indexer."
++            "Partial sparse-indexer KV replication requires the B12X sparse indexer."
+         )
+-    return requested
++    return requested_shards
++
++
++def _replicate_indexer_cache_under_dcp(prefix: str, vllm_config: VllmConfig) -> bool:
++    parallel_config = vllm_config.parallel_config
++    configured_cp_size = (
++        parallel_config.decode_context_parallel_size
++        * parallel_config.prefill_context_parallel_size
++    )
++    return (
++        configured_cp_size > 1
++        and _indexer_cache_dcp_shard_count(prefix, vllm_config) == 1
++    )
+ 
+ 
+ class DeepseekV32IndexerCache(torch.nn.Module, AttentionLayerBase):
+@@ -663,7 +695,17 @@ class DeepseekV32IndexerCache(torch.nn.Module, AttentionLayerBase):
+         self.cache_config = cache_config
+         self.dtype = dtype
+         vllm_config = get_current_vllm_config()
+-        self.dcp_replicated = _replicate_indexer_cache_under_dcp(prefix, vllm_config)
++        configured_cp_size = (
++            vllm_config.parallel_config.decode_context_parallel_size
++            * vllm_config.parallel_config.prefill_context_parallel_size
++        )
++        self.dcp_shard_count = _indexer_cache_dcp_shard_count(prefix, vllm_config)
++        self.dcp_replicated = configured_cp_size > 1 and self.dcp_shard_count == 1
++        self.dcp_kv_shard_count = (
++            self.dcp_shard_count
++            if 1 < self.dcp_shard_count < configured_cp_size
++            else None
++        )
+         compilation_config = vllm_config.compilation_config
+         if prefix in compilation_config.static_forward_context:
+             raise ValueError(f"Duplicate layer name: {prefix}")
+@@ -671,15 +713,18 @@ class DeepseekV32IndexerCache(torch.nn.Module, AttentionLayerBase):
+ 
+     def get_kv_cache_spec(self, vllm_config: VllmConfig) -> KVCacheSpec:
+         block_size = self.cache_config.block_size
+-        if self.dcp_replicated:
++        if self.dcp_replicated or self.dcp_kv_shard_count is not None:
+             parallel_config = vllm_config.parallel_config
+-            block_size *= (
++            configured_cp_size = (
+                 parallel_config.decode_context_parallel_size
+                 * parallel_config.prefill_context_parallel_size
+             )
++            block_size *= configured_cp_size // self.dcp_shard_count
+             logger.info_once(
+-                "Using a DCP-replicated sparse-indexer K cache with %d-token "
+-                "manager pages.",
++                "Using %d sparse-indexer KV shards across DCP%d with "
++                "%d-token manager pages.",
++                self.dcp_shard_count,
++                configured_cp_size,
+                 block_size,
+             )
+         layer_id = extract_layer_index(self.prefix)
+@@ -700,6 +745,7 @@ class DeepseekV32IndexerCache(torch.nn.Module, AttentionLayerBase):
+             head_size=self.head_dim,
+             dtype=self.dtype,
+             dcp_replicated=self.dcp_replicated or draft_replicated,
++            dcp_kv_shard_count=self.dcp_kv_shard_count,
+         )
+ 
+     def forward(self): ...
+@@ -801,6 +847,7 @@ class Indexer(nn.Module):
+             output_physical_slots=self.output_physical_slots,
+             num_q_heads=self.n_head,
+             dcp_replicated=self.k_cache.dcp_replicated,
++            dcp_kv_shard_count=self.k_cache.dcp_kv_shard_count,
+         )
+ 
+         self.is_inplace_rope = is_inplace_rope
+diff --git a/vllm/model_executor/warmup/kernel_warmup.py b/vllm/model_executor/warmup/kernel_warmup.py
+index aee48506f02cb1ecff6c3747b542ea950fdfd130..6813e64965eb45ce1640d34c7ac9c5ccd9df9fd7 100644
+--- a/vllm/model_executor/warmup/kernel_warmup.py
++++ b/vllm/model_executor/warmup/kernel_warmup.py
+@@ -135,11 +135,12 @@ def _contains_flashinfer_object(
+ 
+ 
+ def _uses_flashinfer_attention(runner: "GPUModelRunner") -> bool:
++    attn_groups = getattr(runner, "attn_groups", None)
+     return bool(
+-        runner.attn_groups
++        attn_groups
+         and any(
+             _is_flashinfer_backend(group.backend)
+-            for groups in runner.attn_groups
++            for groups in attn_groups
+             for group in groups
+         )
+     )
+@@ -375,15 +376,16 @@ def kernel_warmup(worker: "Worker"):
+     # FlashInfer attention warmup
+     # Only warmup if the model has FlashInfer attention groups
+     # and is not a pooling model
++    attn_groups = getattr(worker.model_runner, "attn_groups", None)
+     if (
+         not worker.model_runner.is_pooling_model
+-        and worker.model_runner.attn_groups
++        and attn_groups
+         # NOTE: This should be `any` instead of `all` but other hybrid attention
+         # backends don't support this dummy run. Once we remove
+         # `build_for_cudagraph_capture`, we can change it to `any`.
+         and all(
+             _is_flashinfer_backend(group.backend)
+-            for groups in worker.model_runner.attn_groups
++            for groups in attn_groups
+             for group in groups
+         )
+     ):
+diff --git a/vllm/v1/attention/backends/mla/indexer.py b/vllm/v1/attention/backends/mla/indexer.py
+index 90bc67c63a3304670f4a840ee1655d5b0f84f44b..fa4fbcafd24a7a4668928974c5a445afdcfe76d4 100644
+--- a/vllm/v1/attention/backends/mla/indexer.py
++++ b/vllm/v1/attention/backends/mla/indexer.py
+@@ -8,7 +8,7 @@ import torch
+ 
+ import vllm.envs as envs
+ from vllm.config import VllmConfig
+-from vllm.distributed import get_dcp_group
++from vllm.distributed import get_indexer_dcp_group
+ from vllm.logger import init_logger
+ from vllm.platforms import current_platform
+ from vllm.triton_utils import tl, triton
+@@ -30,7 +30,11 @@ from vllm.v1.attention.backends.utils import (
+     get_dcp_local_seq_lens,
+     split_decodes_and_prefills,
+ )
+-from vllm.v1.kv_cache_interface import AttentionSpec, MLAAttentionSpec
++from vllm.v1.kv_cache_interface import (
++    AttentionSpec,
++    MLAAttentionSpec,
++    get_kv_cache_cp_shard_count,
++)
+ 
+ logger = init_logger(__name__)
+ 
+@@ -284,9 +288,12 @@ def get_indexer_max_num_blocks_per_req(
+     block_size: int,
+     configured_cp_world_size: int,
+     dcp_replicated: bool,
++    dcp_kv_shard_count: int | None = None,
+ ) -> int:
+     """Size indexer metadata for the cache group's effective DCP layout."""
+-    effective_cp_world_size = 1 if dcp_replicated else configured_cp_world_size
++    effective_cp_world_size = (
++        1 if dcp_replicated else int(dcp_kv_shard_count or configured_cp_world_size)
++    )
+     return cdiv(max_model_len, block_size * effective_cp_world_size)
+ 
+ 
+@@ -370,8 +377,21 @@ class DeepseekV32IndexerMetadataBuilder(AttentionMetadataBuilder):
+         configured_cp_world_size = (
+             configured_dcp_world_size * parallel_config.prefill_context_parallel_size
+         )
+-        self.dcp_world_size = 1 if self.dcp_replicated else configured_dcp_world_size
+-        self.dcp_rank = get_dcp_group().rank_in_group if self.dcp_world_size > 1 else 0
++        self.dcp_world_size = get_kv_cache_cp_shard_count(
++            self.kv_cache_spec,
++            configured_dcp_world_size,
++            parallel_config.prefill_context_parallel_size,
++        )
++        if self.dcp_world_size > 1:
++            indexer_group = get_indexer_dcp_group(self.dcp_world_size)
++            if int(indexer_group.world_size) != self.dcp_world_size:
++                raise RuntimeError(
++                    "Indexer metadata DCP group does not match its KV shard count: "
++                    f"group={indexer_group.world_size}, shards={self.dcp_world_size}"
++                )
++            self.dcp_rank = int(indexer_group.rank_in_group)
++        else:
++            self.dcp_rank = 0
+         self.cp_kv_cache_interleave_size = parallel_config.cp_kv_cache_interleave_size
+         # The DCP sparse-indexer code is parameterized by interleave size, but
+         # interleave > 1 is not yet validated end-to-end (gsm8k parity fails),
+@@ -472,6 +492,7 @@ class DeepseekV32IndexerMetadataBuilder(AttentionMetadataBuilder):
+             self.kv_cache_spec.block_size,
+             configured_cp_world_size,
+             self.dcp_replicated,
++            getattr(self.kv_cache_spec, "dcp_kv_shard_count", None),
+         )
+         # Keep the expanded decode table layout identical to the model
+         # runner's block table. The runner right-pads rows to a 128-token
+diff --git a/vllm/v1/core/kv_cache_coordinator.py b/vllm/v1/core/kv_cache_coordinator.py
+index b32419acbe69c528e08db8c4cb9eccf0cfd42aed..8731c4e3ce8a25dbfb72dd3f43c076cad25e296b 100644
+--- a/vllm/v1/core/kv_cache_coordinator.py
++++ b/vllm/v1/core/kv_cache_coordinator.py
+@@ -331,15 +331,34 @@ class KVCacheCoordinator(ABC):
+             for manager in managers[1:]
+         )
+ 
++        cow_block_idx = managers[0].pending_cow_block_index(request_id)
+         new_blocks = managers[0].allocate_new_blocks(
+             request_id,
+             num_tokens,
+             num_tokens_main_model,
+         )
++        blocks_to_append = new_blocks
++        cow_block = None
++        if cow_block_idx is not None:
++            cow_block = managers[0].req_to_blocks[request_id][cow_block_idx]
++            assert new_blocks and new_blocks[0] is cow_block
++            blocks_to_append = new_blocks[1:]
++
+         for manager in managers[1:]:
+-            if new_blocks:
+-                self.block_pool.touch(new_blocks)
+-                manager.req_to_blocks[request_id].extend(new_blocks)
++            peer_cow_idx = manager.pending_cow_block_index(request_id)
++            assert peer_cow_idx == cow_block_idx
++            if cow_block_idx is not None:
++                assert cow_block is not None
++                manager.apply_lockstep_cow(request_id, cow_block_idx, cow_block)
++            if blocks_to_append:
++                self.block_pool.touch(blocks_to_append)
++                manager.req_to_blocks[request_id].extend(blocks_to_append)
++
++        final_ids = [block.block_id for block in managers[0].req_to_blocks[request_id]]
++        assert all(
++            [block.block_id for block in manager.req_to_blocks[request_id]] == final_ids
++            for manager in managers[1:]
++        )
+         return tuple(list(new_blocks) for _ in managers)
+ 
+     def cache_blocks(self, request: Request, num_computed_tokens: int) -> None:
+diff --git a/vllm/v1/core/kv_cache_utils.py b/vllm/v1/core/kv_cache_utils.py
+index fbd71d5bb23268cb831d16839de0c202058bd2e8..ec85b5936e413425c295eb245c156ab18b7bb042 100644
+--- a/vllm/v1/core/kv_cache_utils.py
++++ b/vllm/v1/core/kv_cache_utils.py
+@@ -33,6 +33,8 @@ from vllm.v1.kv_cache_interface import (
+     SlidingWindowMLASpec,
+     SlidingWindowSpec,
+     UniformTypeKVCacheSpecs,
++    get_kv_cache_cp_shard_count,
++    has_nondefault_kv_cp_layout,
+ )
+ from vllm.v1.kv_cache_spec_registry import KVCacheSpecRegistry
+ from vllm.v1.request import Request
+@@ -647,14 +649,19 @@ def resolve_kv_cache_block_sizes(
+     pcp = vllm_config.parallel_config.prefill_context_parallel_size
+     groups = kv_cache_config.kv_cache_groups
+ 
+-    if len(groups) <= 1:  # Single group: block_size * dcp * pcp
+-        bs = cache_config.block_size * dcp * pcp
++    if len(groups) <= 1:
++        spec = groups[0].kv_cache_spec
++        bs = (
++            spec.block_size * get_kv_cache_cp_shard_count(spec, dcp, pcp)
++            if isinstance(spec, AttentionSpec)
++            else spec.block_size
++        )
+         return bs, bs
+ 
+     group_block_sizes = [
+-        g.kv_cache_spec.block_size * dcp * pcp
++        g.kv_cache_spec.block_size
++        * get_kv_cache_cp_shard_count(g.kv_cache_spec, dcp, pcp)
+         if isinstance(g.kv_cache_spec, AttentionSpec)
+-        and not getattr(g.kv_cache_spec, "dcp_replicated", False)
+         else g.kv_cache_spec.block_size
+         for g in groups
+     ]
+@@ -1341,14 +1348,16 @@ def _is_lockstep_mla_spec_layout(
+     if not all(isinstance(spec, MLAAttentionSpec) for spec in specs):
+         return False
+ 
+-    replication_modes = {bool(getattr(spec, "dcp_replicated", False)) for spec in specs}
++    shard_counts = {
++        get_kv_cache_cp_shard_count(spec, dcp_world_size, pcp_world_size)
++        for spec in specs
++    }
+     global_block_sizes = {
+         spec.block_size
+-        if getattr(spec, "dcp_replicated", False)
+-        else spec.block_size * cp_world_size
++        * get_kv_cache_cp_shard_count(spec, dcp_world_size, pcp_world_size)
+         for spec in specs
+     }
+-    return replication_modes == {False, True} and len(global_block_sizes) == 1
++    return len(shard_counts) > 1 and len(global_block_sizes) == 1
+ 
+ 
+ def _use_lockstep_mla_allocation(
+@@ -1368,10 +1377,11 @@ def _use_lockstep_mla_allocation(
+             if isinstance(group_spec, UniformTypeKVCacheSpecs)
+             else [group_spec]
+         )
+-        group_modes = {
+-            bool(getattr(spec, "dcp_replicated", False)) for spec in group_layer_specs
++        group_layouts = {
++            get_kv_cache_cp_shard_count(spec, dcp_world_size, pcp_world_size)
++            for spec in group_layer_specs
+         }
+-        if len(group_modes) != 1:
++        if len(group_layouts) != 1:
+             return False
+         layer_specs.extend(group_layer_specs)
+ 
+@@ -1677,14 +1687,14 @@ def group_and_unify_kv_cache_specs(
+     lockstep_mla_layout = _is_lockstep_mla_spec_layout(
+         kv_cache_spec.values(), dcp_world_size, pcp_world_size
+     )
+-    # Replicated layers need a group separate from sharded layers because they
+-    # have different token ownership and block-table semantics.
+-    has_repl = any(
+-        getattr(spec, "dcp_replicated", False)
++    # Any non-default CP layout needs a group separate from normally sharded
++    # layers because token ownership and block-table semantics differ.
++    has_custom_cp = any(
++        has_nondefault_kv_cp_layout(spec, dcp_world_size, pcp_world_size)
+         and (not isinstance(spec, MLAAttentionSpec) or lockstep_mla_layout)
+         for spec in kv_cache_spec.values()
+     )
+-    if not (has_swa or has_repl):
++    if not (has_swa or has_custom_cp):
+         return None
+ 
+     # Other uniform page layouts do not need tuple packing.
+@@ -1696,11 +1706,11 @@ def group_and_unify_kv_cache_specs(
+     grouped_swa_mla_specs: dict[tuple[int, int, bool, bool], dict[str, KVCacheSpec]] = (
+         defaultdict(dict)
+     )
+-    # Keep incompatible replicated types and page layouts separate. This
+-    # includes DFlash drafts and replicated MLA indexer caches.
+-    grouped_repl_specs: dict[
+-        tuple[int] | tuple[str, int, int], dict[str, KVCacheSpec]
+-    ] = defaultdict(dict)
++    # Keep incompatible custom-CP types and page layouts separate. This
++    # includes DFlash drafts and partially/fully replicated MLA indexer caches.
++    grouped_repl_specs: dict[tuple[Any, ...], dict[str, KVCacheSpec]] = defaultdict(
++        dict
++    )
+     # NOTE: Here we group SWA layers by (block_size, sliding_window,
+     # dcp_replicated, dcp_sharded), which separates SWA layers, C4I+C4A
+     # layers, C128A layers, and replicated compressor-state groups.
+@@ -1714,13 +1724,18 @@ def group_and_unify_kv_cache_specs(
+                     spec.dcp_sharded,
+                 )
+             ][name] = spec
+-        elif getattr(spec, "dcp_replicated", False) and (
++        elif has_nondefault_kv_cp_layout(spec, dcp_world_size, pcp_world_size) and (
+             not isinstance(spec, MLAAttentionSpec) or lockstep_mla_layout
+         ):
+             key = (
+-                (type(spec).__name__, spec.block_size, spec.page_size_bytes)
++                (
++                    type(spec).__name__,
++                    spec.block_size,
++                    spec.page_size_bytes,
++                    get_kv_cache_cp_shard_count(spec, dcp_world_size, pcp_world_size),
++                )
+                 if isinstance(spec, MLAAttentionSpec)
+-                else (spec.block_size,)
++                else (type(spec).__name__, spec.block_size)
+             )
+             grouped_repl_specs[key][name] = spec
+         elif isinstance(spec, MLAAttentionSpec):
+@@ -1842,12 +1857,15 @@ def _get_kv_cache_groups_uniform_groups(
+     for sm_spec in swa_mla_specs:
+         sm_page_sizes = sm_spec.get_page_sizes()
+         layers_per_size: dict[int, list[str]] = defaultdict(list)
+-        is_replicated_mla = all(
++        is_nondefault_cp_mla = all(
+             isinstance(spec, MLAAttentionSpec)
+-            and getattr(spec, "dcp_replicated", False)
++            and (
++                getattr(spec, "dcp_replicated", False)
++                or getattr(spec, "dcp_kv_shard_count", None) is not None
++            )
+             for spec in sm_spec.kv_cache_specs.values()
+         )
+-        if not is_replicated_mla:
++        if not is_nondefault_cp_mla:
+             assert max(sm_page_sizes) <= max(all_page_sizes)
+ 
+         # Unify page size by padding layers' page_size to the nearest larger page_size.
+@@ -1859,7 +1877,7 @@ def _get_kv_cache_groups_uniform_groups(
+         # Pad and collect layer names per page size.
+         for layer_name, layer_spec in sm_spec.kv_cache_specs.items():
+             current_size = layer_spec.page_size_bytes
+-            if is_replicated_mla:
++            if is_nondefault_cp_mla:
+                 candidate = current_size
+             else:
+                 assert current_size <= max(all_page_sizes)
+diff --git a/vllm/v1/core/single_type_kv_cache_manager.py b/vllm/v1/core/single_type_kv_cache_manager.py
+index bf02f48cb543b3ee662448fbdcd1c6215445d3c5..01f1ac46cf19fe6df3254c140cff4897033e332f 100644
+--- a/vllm/v1/core/single_type_kv_cache_manager.py
++++ b/vllm/v1/core/single_type_kv_cache_manager.py
+@@ -28,6 +28,7 @@ from vllm.v1.kv_cache_interface import (
+     SlidingWindowMLASpec,
+     SlidingWindowSpec,
+     TQFullAttentionSpec,
++    get_kv_cache_cp_shard_count,
+ )
+ from vllm.v1.kv_cache_spec_registry import KVCacheSpecRegistry
+ from vllm.v1.request import Request
+@@ -81,10 +82,10 @@ class SingleTypeKVCacheManager(ABC):
+         # dcp_replicated groups (e.g. the DFlash draft) instead keep the full
+         # cache on every rank, so one block covers exactly `block_size` global
+         # tokens and must not be scaled.
+-        if dcp_world_size * pcp_world_size > 1 and not getattr(
+-            kv_cache_spec, "dcp_replicated", False
+-        ):
+-            self.block_size *= dcp_world_size * pcp_world_size
++        if dcp_world_size * pcp_world_size > 1:
++            self.block_size *= get_kv_cache_cp_shard_count(
++                kv_cache_spec, dcp_world_size, pcp_world_size
++            )
+         self.kv_cache_spec = kv_cache_spec
+         self.block_pool = block_pool
+         self.enable_caching = enable_caching
+@@ -386,6 +387,31 @@ class SingleTypeKVCacheManager(ABC):
+         self._pending_cow_copies = []
+         return pending_copies
+ 
++    def pending_cow_block_index(self, request_id: str) -> int | None:
++        """Return the pending partial-hit CoW index without consuming it."""
++        partial_hit = self._partial_hit_reqs.get(request_id)
++        return partial_hit[0] if partial_hit is not None else None
++
++    def apply_lockstep_cow(
++        self,
++        request_id: str,
++        block_idx: int,
++        cow_block: KVCacheBlock,
++    ) -> None:
++        """Mirror a peer manager's CoW substitution using the same block ID.
++
++        The primary manager owns the physical copy operation. A lockstep peer
++        only transfers its request reference from the shared source block to
++        the already allocated destination block.
++        """
++        pending_idx, source_block = self._partial_hit_reqs.pop(request_id)
++        assert pending_idx == block_idx
++        req_blocks = self.req_to_blocks[request_id]
++        assert req_blocks[block_idx] is source_block
++        self.block_pool.touch([cow_block])
++        req_blocks[block_idx] = cow_block
++        self.block_pool.free_blocks([source_block])
++
+     def _apply_cow(
+         self,
+         request_id: str,
+@@ -682,13 +708,13 @@ class FullAttentionManager(SingleTypeKVCacheManager):
+             "and chunked local attention groups"
+         )
+         block_size = kv_cache_spec.block_size
+-        if dcp_world_size * pcp_world_size > 1 and not getattr(
+-            kv_cache_spec, "dcp_replicated", False
+-        ):
++        if dcp_world_size * pcp_world_size > 1:
+             # DCP/PCP shard each block's KV across ranks; hashes must be
+             # viewed at the sharded (scaled) block size. Replicated groups
+             # keep the model block size on every rank.
+-            block_size *= dcp_world_size * pcp_world_size
++            block_size *= get_kv_cache_cp_shard_count(
++                kv_cache_spec, dcp_world_size, pcp_world_size
++            )
+         block_hashes = resolve_block_hashes(
+             block_hashes,
+             block_pool.hash_block_size,
+@@ -894,12 +920,12 @@ class SlidingWindowManager(SingleTypeKVCacheManager):
+         assert isinstance(kv_cache_spec, SlidingWindowSpec), (
+             "SlidingWindowManager can only be used for sliding window groups"
+         )
+-        assert (
+-            dcp_world_size == 1 or kv_cache_spec.dcp_replicated
+-        ), "DCP only supports sliding-window KV when it is dcp_replicated."
+-        assert (
+-            pcp_world_size == 1 or kv_cache_spec.dcp_replicated
+-        ), "PCP only supports sliding-window KV when it is dcp_replicated."
++        assert dcp_world_size == 1 or kv_cache_spec.dcp_replicated, (
++            "DCP only supports sliding-window KV when it is dcp_replicated."
++        )
++        assert pcp_world_size == 1 or kv_cache_spec.dcp_replicated, (
++            "PCP only supports sliding-window KV when it is dcp_replicated."
++        )
+         # Fine-grained partial hits are not supported for sliding window now
+         assert alignment_tokens % kv_cache_spec.block_size == 0, (
+             "SlidingWindowManager does not support fine-grained (partial) cache hits"
+@@ -1831,9 +1857,9 @@ def get_manager_for_kv_cache_spec(
+                 kv_cache_spec.sliding_window - 1 + max_in_flight_tokens,
+                 max_model_len,
+             )
+-            kwargs["max_admission_blocks_per_request"] = cdiv(
+-                num_tokens, block_size
+-            ) + 1
++            kwargs["max_admission_blocks_per_request"] = (
++                cdiv(num_tokens, block_size) + 1
++            )
+         else:
+             kwargs["max_admission_blocks_per_request"] = (
+                 kv_cache_spec.max_admission_blocks_per_request(
+diff --git a/vllm/v1/kv_cache_interface.py b/vllm/v1/kv_cache_interface.py
+index ed8c025833debfe5f773c0eb223f936b4f5eedd2..00ee98ce7a94c54bd5258cc5d2ea137656cdabcf 100644
+--- a/vllm/v1/kv_cache_interface.py
++++ b/vllm/v1/kv_cache_interface.py
+@@ -170,10 +170,17 @@ class KVCacheSpec:
+         # Keep DCP-replicated layers (DFlash draft) out of a shared group with
+         # DCP-sharded layers (MLA target): one group carries a single cp_size.
+         # group_and_unify_kv_cache_specs then routes them as separate groups.
+-        self_repl = getattr(self, "dcp_replicated", False)
++        self_layout = (
++            getattr(self, "dcp_replicated", False),
++            getattr(self, "dcp_kv_shard_count", None),
++        )
+         return all(
+             isinstance(spec, uniform_type_base_spec)
+-            and getattr(spec, "dcp_replicated", False) == self_repl
++            and (
++                getattr(spec, "dcp_replicated", False),
++                getattr(spec, "dcp_kv_shard_count", None),
++            )
++            == self_layout
+             for spec in kv_cache_specs.values()
+         )
+ 
+@@ -268,6 +275,15 @@ class FullAttentionSpec(AttentionSpec):
+     backend cannot reduce across DCP ranks (e.g. the DFlash draft); every
+     rank then stores and attends over the full context."""
+ 
++    dcp_kv_shard_count: int | None = None
++    """Optional number of unique KV shards inside the configured DCP group.
++
++    ``None`` uses every configured DCP/PCP rank. A proper divisor creates
++    replicated shard groups; for example, four shards under DCP8 stores the
++    same shard on ranks ``r`` and ``r + 4``. Full replication continues to use
++    ``dcp_replicated=True``.
++    """
++
+     def __post_init__(self):
+         if self.head_size_v is None:
+             object.__setattr__(self, "head_size_v", self.head_size)
+@@ -276,10 +292,9 @@ class FullAttentionSpec(AttentionSpec):
+         max_model_len = vllm_config.model_config.max_model_len
+         dcp_world_size = vllm_config.parallel_config.decode_context_parallel_size
+         pcp_world_size = vllm_config.parallel_config.prefill_context_parallel_size
+-        # Note(hc): each dcp rank only need save
+-        # (max_model_len//dcp_world_size) tokens locally.
+-        if dcp_world_size * pcp_world_size > 1 and not self.dcp_replicated:
+-            max_model_len = cdiv(max_model_len, dcp_world_size * pcp_world_size)
++        cp_shards = get_kv_cache_cp_shard_count(self, dcp_world_size, pcp_world_size)
++        if cp_shards > 1:
++            max_model_len = cdiv(max_model_len, cp_shards)
+         return cdiv(max_model_len, self.block_size) * self.page_size_bytes
+ 
+     @classmethod
+@@ -330,6 +345,7 @@ class FullAttentionSpec(AttentionSpec):
+             # non-causal so the engine core disables incompatible scheduling.
+             non_causal=any(spec.non_causal for spec in specs),
+             dcp_replicated=specs[0].dcp_replicated,
++            dcp_kv_shard_count=specs[0].dcp_kv_shard_count,
+         )
+         for spec in specs:
+             for f in fields(AttentionSpec):
+@@ -363,6 +379,48 @@ class FullAttentionSpec(AttentionSpec):
+         )
+ 
+ 
++def get_kv_cache_cp_shard_count(
++    spec: KVCacheSpec,
++    dcp_world_size: int,
++    pcp_world_size: int = 1,
++) -> int:
++    """Return the number of unique token-position shards for a cache group."""
++    configured_cp = int(dcp_world_size) * int(pcp_world_size)
++    if configured_cp < 1:
++        raise ValueError(
++            f"Configured context-parallel size must be positive: {configured_cp}"
++        )
++    replicated = bool(getattr(spec, "dcp_replicated", False))
++    override = getattr(spec, "dcp_kv_shard_count", None)
++    if replicated:
++        if override not in (None, 1):
++            raise ValueError(
++                f"dcp_replicated cannot be combined with dcp_kv_shard_count={override}"
++            )
++        return 1
++    if override is None:
++        return configured_cp
++    override = int(override)
++    if pcp_world_size != 1:
++        raise ValueError("Partial KV replication currently requires PCP1")
++    if override < 1 or override > configured_cp or configured_cp % override != 0:
++        raise ValueError(
++            "dcp_kv_shard_count must be a positive divisor of the configured "
++            f"DCP size, got shards={override}, DCP={configured_cp}"
++        )
++    return override
++
++
++def has_nondefault_kv_cp_layout(
++    spec: KVCacheSpec,
++    dcp_world_size: int,
++    pcp_world_size: int = 1,
++) -> bool:
++    return get_kv_cache_cp_shard_count(spec, dcp_world_size, pcp_world_size) != int(
++        dcp_world_size
++    ) * int(pcp_world_size)
++
++
+ def _apply_alignment_padding(spec: MLAAttentionSpec | SlidingWindowMLASpec):
+     if spec.alignment is None:
+         return
+@@ -463,6 +521,7 @@ class MLAAttentionSpec(FullAttentionSpec):
+         model_version_set = set(spec.model_version for spec in specs)
+         block_stride_set = set(spec.indexes_kv_by_block_stride for spec in specs)
+         dcp_replicated_set = set(spec.dcp_replicated for spec in specs)
++        dcp_kv_shard_count_set = set(spec.dcp_kv_shard_count for spec in specs)
+         assert (
+             len(cache_dtype_str_set) == 1
+             and len(dtype_set) == 1
+@@ -471,6 +530,7 @@ class MLAAttentionSpec(FullAttentionSpec):
+             and len(model_version_set) == 1
+             and len(block_stride_set) == 1
+             and len(dcp_replicated_set) == 1
++            and len(dcp_kv_shard_count_set) == 1
+         ), (
+             "All attention layers in the same KV cache group must use the same "
+             "dtype, quantization method, compress ratio, model version, and "
+@@ -488,6 +548,7 @@ class MLAAttentionSpec(FullAttentionSpec):
+             compress_ratio=compress_ratio_set.pop(),
+             model_version=model_version_set.pop(),
+             dcp_replicated=dcp_replicated_set.pop(),
++            dcp_kv_shard_count=dcp_kv_shard_count_set.pop(),
+         )
+ 
+ 
+@@ -921,6 +982,18 @@ class UniformTypeKVCacheSpecs(KVCacheSpec):
+             for spec in self.kv_cache_specs.values()
+         )
+ 
++    @property
++    def dcp_kv_shard_count(self) -> int | None:
++        shard_counts = {
++            getattr(spec, "dcp_kv_shard_count", None)
++            for spec in self.kv_cache_specs.values()
++        }
++        if len(shard_counts) != 1:
++            raise ValueError(
++                f"A uniform KV cache group cannot mix DCP shard counts: {shard_counts}"
++            )
++        return shard_counts.pop()
++
+     def max_memory_usage_bytes(self, vllm_config: VllmConfig) -> int:
+         max_num_pages = max(
+             cdiv(spec.max_memory_usage_bytes(vllm_config), spec.page_size_bytes)
+diff --git a/vllm/v1/worker/gpu/block_table.py b/vllm/v1/worker/gpu/block_table.py
+index 85ce1a8f9ae83ac49b5e1514ba02d38f6f92d691..2af34060c90caf88a6c3d3dd8c16b6146020cd3a 100644
+--- a/vllm/v1/worker/gpu/block_table.py
++++ b/vllm/v1/worker/gpu/block_table.py
+@@ -332,8 +332,11 @@ def _compute_slot_mappings_kernel(
+             if group_cp_size == 1:
+                 slot_ids = block_numbers * block_size + block_offsets
+             else:
+-                is_local = block_offsets // CP_INTERLEAVE % CP_SIZE == cp_rank
+-                rounds = block_offsets // (CP_INTERLEAVE * CP_SIZE)
++                group_cp_rank = cp_rank % group_cp_size
++                is_local = (
++                    block_offsets // CP_INTERLEAVE % group_cp_size == group_cp_rank
++                )
++                rounds = block_offsets // (CP_INTERLEAVE * group_cp_size)
+                 remainder = block_offsets % CP_INTERLEAVE
+                 local_offsets = rounds * CP_INTERLEAVE + remainder
+                 slot_ids = block_numbers * block_size + local_offsets
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index 658edd7adc169b096739e531610af07352974845..596b1c2b5be77a318371ca2ccf0bf30c514a5a87 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -56,7 +56,11 @@ from vllm.utils.math_utils import cdiv
+ from vllm.utils.mem_utils import DeviceMemoryProfiler, format_gib
+ from vllm.utils.torch_utils import PIN_MEMORY, STR_DTYPE_TO_TORCH_DTYPE
+ from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
+-from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec
++from vllm.v1.kv_cache_interface import (
++    KVCacheConfig,
++    MambaSpec,
++    get_kv_cache_cp_shard_count,
++)
+ from vllm.v1.kv_cache_spec_registry import KVCacheSpecRegistry
+ from vllm.v1.outputs import DraftTokenIds, ModelRunnerOutput
+ from vllm.v1.utils import record_function_or_nullcontext
+@@ -515,8 +519,10 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             # As a result, one block on the current rank covers `block_size * cp_size`
+             # tokens in the full, global (unsharded) sequence. dcp_replicated
+             # groups keep the full cache on every rank instead.
+-            group_cp_size = (
+-                1 if getattr(spec, "dcp_replicated", False) else self.dcp_size
++            group_cp_size = get_kv_cache_cp_shard_count(
++                spec,
++                self.dcp_size,
++                self.parallel_config.prefill_context_parallel_size,
+             )
+             group_cp_sizes.append(group_cp_size)
+             max_num_blocks = cdiv(
+diff --git a/vllm/v1/worker/gpu_worker.py b/vllm/v1/worker/gpu_worker.py
+index 448167fb0285ed05006fbd312b662395ed878d9c..d5f1d27d900cf65fb03063b08145e269bb4e0964 100644
+--- a/vllm/v1/worker/gpu_worker.py
++++ b/vllm/v1/worker/gpu_worker.py
+@@ -454,6 +454,27 @@ class Worker(WorkerBase):
+     def reload_weights(self, *args, **kwargs) -> None:
+         self.model_runner.reload_weights(*args, **kwargs)
+ 
++    def _warmup_kernels_once(self) -> None:
++        """Materialize persistent kernel resources before KV cache sizing."""
++        if getattr(self, "_kernel_warmup_complete", False):
++            return
++        kernel_warmup(self)
++        self._kernel_warmup_complete = True
++
++    def _profile_model_with_kernel_warmup(self) -> None:
++        """Profile activations on top of persistent kernel allocations."""
++        # The first pass initializes runner state required by some warmups.
++        self.model_runner.profile_run()
++        deepseek_v4_compressor_triton_warmup(
++            self.get_model(), self.get_kv_cache_spec(), self.vllm_config
++        )
++        self._warmup_kernels_once()
++
++        # Kernel warmup can create persistent modules and communication pools.
++        # A second pass is required so the measured peak contains both those
++        # allocations and the model's transient activation workspace.
++        self.model_runner.profile_run()
++
+     @torch.inference_mode()
+     def determine_available_memory(self) -> int:
+         """Profiles the peak memory usage of the model to determine how much
+@@ -476,6 +497,7 @@ class Worker(WorkerBase):
+             deepseek_v4_compressor_triton_warmup(
+                 self.get_model(), self.get_kv_cache_spec(), self.vllm_config
+             )
++            self._warmup_kernels_once()
+ 
+             msg = (
+                 f"Initial free memory {format_gib(self.init_snapshot.free_memory)} "
+@@ -498,10 +520,7 @@ class Worker(WorkerBase):
+             self.init_snapshot,
+             weights_memory=int(self.model_runner.model_memory_usage),
+         ) as profile_result:
+-            self.model_runner.profile_run()
+-            deepseek_v4_compressor_triton_warmup(
+-                self.get_model(), self.get_kv_cache_spec(), self.vllm_config
+-            )
++            self._profile_model_with_kernel_warmup()
+ 
+             profile_torch_peak = torch.accelerator.memory_stats(self.device).get(
+                 "allocated_bytes.all.peak", 0
+@@ -797,7 +816,7 @@ class Worker(WorkerBase):
+ 
+         # Warmup and tune the kernels used during model execution before
+         # cuda graph capture.
+-        kernel_warmup(self)
++        self._warmup_kernels_once()
+ 
+         cuda_graph_memory_bytes = 0
+         if not self.model_config.enforce_eager:

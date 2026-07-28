@@ -120,6 +120,18 @@ VLLM_RELEASE_COMPOSITION=reproduce-r4 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
+The validated r5 image is reproducible from its archived, hash-verified source
+locks and integration patches even after either upstream branch advances:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r5 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+This historical mode still verifies the pinned base commits, patch hashes, and
+resulting Git trees. It only skips the normal requirement that the current
+remote branch heads remain equal to the archived base commits.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
