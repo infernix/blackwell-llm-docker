@@ -68,6 +68,12 @@ ARG LMCACHE_PATCH_FILE=
 ARG LMCACHE_PATCH_SHA256=
 ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.3
 
+ARG XGRAMMAR_REPO=https://github.com/mlc-ai/xgrammar.git
+ARG XGRAMMAR_REF=v0.2.5
+ARG XGRAMMAR_COMMIT=2ea71da4ccb997a06928c9fb69b99f330da56697
+ARG XGRAMMAR_VERSION=0.2.5
+ARG XGRAMMAR_TRANSFORMERS5_COMPAT=1
+
 ARG CUTLASS_REPO=https://github.com/NVIDIA/cutlass.git
 ARG CUTLASS_REF=main
 ARG CUTLASS_COMMIT=982cb9e718bcd4d7ac546b1795702a08326dfe4b
@@ -571,6 +577,13 @@ ARG TRITON_KERNELS_REPO
 ARG TRITON_KERNELS_REF
 ARG TRITON_KERNELS_COMMIT
 ARG CUTLASS_DSL_VERSION
+ARG XGRAMMAR_REPO
+ARG XGRAMMAR_REF
+ARG XGRAMMAR_COMMIT
+ARG XGRAMMAR_VERSION
+ARG XGRAMMAR_TRANSFORMERS5_COMPAT
+
+COPY tests/verify_xgrammar_required_tools.py /tmp/build-tests/verify_xgrammar_required_tools.py
 
 WORKDIR /build
 
@@ -656,6 +669,63 @@ RUN cd /opt/vllm \
  && python -m pip install "fastapi[standard]>=0.115.0,<0.137" \
  && python -m pip install setuptools_scm "setuptools-rust>=1.9.0" \
  && (python -m pip check || true)
+
+RUN <<'SH'
+set -euxo pipefail
+if [[ -z "${XGRAMMAR_REF}" ]]; then
+  echo "Using the xgrammar version supplied by vLLM requirements"
+  exit 0
+fi
+[[ -n "${XGRAMMAR_COMMIT}" ]]
+[[ -n "${XGRAMMAR_VERSION}" ]]
+git clone --filter=blob:none "${XGRAMMAR_REPO}" /tmp/xgrammar-src
+cd /tmp/xgrammar-src
+if [[ "${XGRAMMAR_REF}" =~ ^[0-9a-f]{40}$ ]]; then
+  git fetch --depth=1 origin "${XGRAMMAR_REF}"
+  git checkout FETCH_HEAD
+elif [[ "${XGRAMMAR_REF}" == refs/* ]]; then
+  git fetch origin "${XGRAMMAR_REF}"
+  git checkout FETCH_HEAD
+else
+  git checkout "${XGRAMMAR_REF}"
+fi
+actual_commit="$(git rev-parse HEAD)"
+[[ "${actual_commit}" == "${XGRAMMAR_COMMIT}" ]] || {
+  echo "ERROR: XGRAMMAR_COMMIT mismatch: HEAD=${actual_commit} expected=${XGRAMMAR_COMMIT}" >&2
+  exit 1
+}
+git submodule update --init --recursive
+if [[ "${XGRAMMAR_TRANSFORMERS5_COMPAT}" == "1" ]]; then
+  # Upstream caps Transformers below 5 because several unrelated tokenizers
+  # regress there. This GLM-only image validates its tokenizer against the
+  # image's Transformers 5 runtime, so only relax that package-metadata cap.
+  python - <<'PY'
+from pathlib import Path
+
+path = Path("pyproject.toml")
+text = path.read_text()
+needle = '  "transformers>=4.38.0,<5",'
+replacement = '  "transformers>=4.38.0",'
+assert text.count(needle) == 1, "unexpected xgrammar Transformers requirement"
+path.write_text(text.replace(needle, replacement))
+PY
+elif [[ "${XGRAMMAR_TRANSFORMERS5_COMPAT}" != "0" ]]; then
+  echo "ERROR: XGRAMMAR_TRANSFORMERS5_COMPAT must be 0 or 1" >&2
+  exit 1
+fi
+python -m pip install --no-cache-dir "scikit-build-core>=0.10.0"
+mkdir -p /tmp/xgrammar-wheels
+SKBUILD_BUILD_DIR=/tmp/xgrammar-build \
+  CMAKE_BUILD_PARALLEL_LEVEL="${VLLM_MAX_JOBS}" \
+  python -m pip wheel --no-build-isolation --no-deps \
+    -w /tmp/xgrammar-wheels /tmp/xgrammar-src
+test "$(find /tmp/xgrammar-wheels -maxdepth 1 -name 'xgrammar-*.whl' | wc -l)" -eq 1
+python -m pip install --no-deps --force-reinstall \
+  /tmp/xgrammar-wheels/xgrammar-*.whl
+printf '%s\n' "${XGRAMMAR_VERSION}" > /opt/venv/.xgrammar-version
+python /tmp/build-tests/verify_xgrammar_required_tools.py \
+  --expected-version "${XGRAMMAR_VERSION}"
+SH
 
 WORKDIR /opt/vllm
 
@@ -797,6 +867,7 @@ done
 python - <<'PY'
 import importlib.metadata as md
 import importlib.util
+from pathlib import Path
 import torch
 import flashinfer
 import deep_gemm
@@ -809,6 +880,11 @@ print("torch nccl", torch.cuda.nccl.version())
 print("flashinfer", getattr(flashinfer, "__version__", "unknown"))
 print("deep_gemm", getattr(deep_gemm, "__version__", md.version("deep_gemm")))
 print("vllm", getattr(vllm, "__version__", "unknown"))
+print("xgrammar", md.version("xgrammar"))
+xgrammar_version_file = Path("/opt/venv/.xgrammar-version")
+if xgrammar_version_file.is_file():
+    expected_xgrammar = xgrammar_version_file.read_text().strip()
+    assert md.version("xgrammar") == expected_xgrammar
 kernel_package = "sparkinfer" if importlib.util.find_spec("sparkinfer") else "b12x"
 print(kernel_package, md.version(kernel_package))
 spec = importlib.util.find_spec("vllm._rust_tool_parser")
@@ -1236,6 +1312,11 @@ ARG LMCACHE_REF
 ARG LMCACHE_COMMIT
 ARG LMCACHE_PATCH_SHA256
 ARG LMCACHE_BUILD_VERSION
+ARG XGRAMMAR_REPO
+ARG XGRAMMAR_REF
+ARG XGRAMMAR_COMMIT
+ARG XGRAMMAR_VERSION
+ARG XGRAMMAR_TRANSFORMERS5_COMPAT
 
 LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, SparkInfer and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
@@ -1294,6 +1375,11 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.lmcache.commit="${LMCACHE_COMMIT}" \
       local-inference.lmcache.patch_sha256="${LMCACHE_PATCH_SHA256}" \
       local-inference.lmcache.version="${LMCACHE_BUILD_VERSION}" \
+      local-inference.xgrammar.repo="${XGRAMMAR_REPO}" \
+      local-inference.xgrammar.ref="${XGRAMMAR_REF}" \
+      local-inference.xgrammar.commit="${XGRAMMAR_COMMIT}" \
+      local-inference.xgrammar.version="${XGRAMMAR_VERSION}" \
+      local-inference.xgrammar.transformers5_compat="${XGRAMMAR_TRANSFORMERS5_COMPAT}" \
       local-inference.launcher.branch="${LAUNCHER_REF}" \
       local-inference.launcher.commit="${LAUNCHER_COMMIT}" \
       local-inference.launchers="${VLLM_REQUIRED_LAUNCHERS}"

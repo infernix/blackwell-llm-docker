@@ -54,8 +54,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
   configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r7}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r7}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r8}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r8}"
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
@@ -151,6 +151,21 @@ export TVM_FFI_VERSION="${TVM_FFI_VERSION:-0.1.10}"
 export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
+export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
+if [[ "${composition_mode}" == "clean" ]]; then
+  export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
+  export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
+  export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
+  export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-1}"
+else
+  # Historical composition modes retain the xgrammar supplied by their
+  # original vLLM requirements instead of silently changing old releases.
+  export XGRAMMAR_REF="${XGRAMMAR_REF-}"
+  export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT-}"
+  export XGRAMMAR_VERSION="${XGRAMMAR_VERSION-}"
+  export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-0}"
+fi
+
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
@@ -171,11 +186,13 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
     "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
     "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
-    "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}"
+    "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}" \
+    "${XGRAMMAR_REPO}" "${XGRAMMAR_REF}" "${XGRAMMAR_COMMIT}" \
+    "${XGRAMMAR_VERSION}" "${XGRAMMAR_TRANSFORMERS5_COMPAT}"
   exit 0
 fi
 export HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.10}"
@@ -218,6 +235,11 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
+if [[ -n "${XGRAMMAR_REF}" ]]; then
+  jq -e --arg value "${XGRAMMAR_COMMIT}" '."local-inference.xgrammar.commit" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${XGRAMMAR_VERSION}" '."local-inference.xgrammar.version" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${XGRAMMAR_TRANSFORMERS5_COMPAT}" '."local-inference.xgrammar.transformers5_compat" == $value' <<<"${labels}" >/dev/null
+fi
 if [[ "${composition_mode}" != "reproduce-r4" ]]; then
   jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
@@ -254,6 +276,7 @@ docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
   -e EXPECTED_CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
   -e EXPECTED_TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX}" \
   -e EXPECTED_LMCACHE_VERSION="${LMCACHE_BUILD_VERSION}" \
+  -e EXPECTED_XGRAMMAR_VERSION="${XGRAMMAR_VERSION}" \
   --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
 import importlib.metadata as md
 import inspect
@@ -291,6 +314,8 @@ from vllm.v1.worker.gpu_worker import Worker
 
 assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
+if os.environ.get("EXPECTED_XGRAMMAR_VERSION"):
+    assert md.version("xgrammar") == os.environ["EXPECTED_XGRAMMAR_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
 assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"

@@ -57,5 +57,9 @@ grep -Fxq \
   <<<"${output_r7}"
 grep -Fxq 'lmcache_patch=' <<<"${output_r7}"
 grep -Fxq 'lmcache_version=0.5.2+glm52dcp.3' <<<"${output_r7}"
+grep -Fxq 'xgrammar_ref=' <<<"${output_r7}"
+grep -Fxq 'xgrammar_commit=' <<<"${output_r7}"
+grep -Fxq 'xgrammar_version=' <<<"${output_r7}"
+grep -Fxq 'xgrammar_transformers5_compat=0' <<<"${output_r7}"
 
 echo 'Gilded Gnosis release composition: PASS'

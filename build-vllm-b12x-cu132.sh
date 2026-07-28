@@ -62,6 +62,10 @@ LMCACHE_REF="${LMCACHE_REF:-release/v0.5.2-glm52-dcp-base}"
 LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
 LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
 LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
+XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
+XGRAMMAR_REF="${XGRAMMAR_REF-v0.2.5}"
+XGRAMMAR_VERSION="${XGRAMMAR_VERSION-0.2.5}"
+XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-1}"
 HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.4}"
 VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-}"
 
@@ -109,6 +113,11 @@ if [[ "${PIN_SOURCE_COMMITS}" == "1" ]]; then
     INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-}"
   fi
   LMCACHE_COMMIT="${LMCACHE_COMMIT:-$(resolve_ref "${LMCACHE_REPO}" "${LMCACHE_REF}")}"
+  if [[ -n "${XGRAMMAR_REF}" ]]; then
+    XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-$(resolve_ref "${XGRAMMAR_REPO}" "${XGRAMMAR_REF}")}"
+  else
+    XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-}"
+  fi
 else
   NCCL_COMMIT="${NCCL_COMMIT:-}"
   FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-}"
@@ -121,6 +130,16 @@ else
   TRITON_KERNELS_COMMIT="${TRITON_KERNELS_COMMIT:-}"
   INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-}"
   LMCACHE_COMMIT="${LMCACHE_COMMIT:-}"
+  XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-}"
+fi
+
+if [[ -n "${XGRAMMAR_REF}" && ( -z "${XGRAMMAR_COMMIT}" || -z "${XGRAMMAR_VERSION}" ) ]]; then
+  echo "Pinned xgrammar requires XGRAMMAR_COMMIT and XGRAMMAR_VERSION" >&2
+  exit 1
+fi
+if [[ "${XGRAMMAR_TRANSFORMERS5_COMPAT}" != "0" && "${XGRAMMAR_TRANSFORMERS5_COMPAT}" != "1" ]]; then
+  echo "XGRAMMAR_TRANSFORMERS5_COMPAT must be 0 or 1" >&2
+  exit 1
 fi
 
 if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
@@ -293,6 +312,7 @@ fi
 
 runtime_files_sha="$({
   sha256sum Dockerfile.vllm-b12x-cu132
+  sha256sum tests/verify_xgrammar_required_tools.py
   find launchers -type f -print0 | sort -z | xargs -0 sha256sum
 } | sha256sum | awk '{print $1}')"
 
@@ -352,6 +372,11 @@ cache_hash="$(printf '%s\n' \
   "LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
   "LMCACHE_PATCH_FILE_SHA256=${lmcache_local_patch_sha}" \
   "LMCACHE_BUILD_VERSION=${LMCACHE_BUILD_VERSION}" \
+  "XGRAMMAR_REPO=${XGRAMMAR_REPO}" \
+  "XGRAMMAR_REF=${XGRAMMAR_REF}" \
+  "XGRAMMAR_COMMIT=${XGRAMMAR_COMMIT}" \
+  "XGRAMMAR_VERSION=${XGRAMMAR_VERSION}" \
+  "XGRAMMAR_TRANSFORMERS5_COMPAT=${XGRAMMAR_TRANSFORMERS5_COMPAT}" \
   "HUMMING_KERNELS_SPEC=${HUMMING_KERNELS_SPEC}" \
   "VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}" \
   "RUNTIME_FILES_SHA256=${runtime_files_sha}" \
@@ -407,6 +432,7 @@ echo "  HUMMING_KERNELS_SPEC=${HUMMING_KERNELS_SPEC}"
 echo "  VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}"
 echo "  LMCACHE=${LMCACHE_REPO} ${LMCACHE_REF} ${LMCACHE_COMMIT}"
 echo "  LMCACHE_PATCH_FILE=${LMCACHE_PATCH_FILE} sha256=${LMCACHE_PATCH_SHA256}"
+echo "  XGRAMMAR=${XGRAMMAR_REPO} ${XGRAMMAR_REF} ${XGRAMMAR_COMMIT} version=${XGRAMMAR_VERSION} transformers5_compat=${XGRAMMAR_TRANSFORMERS5_COMPAT}"
 echo "  CACHE_FINGERPRINT=${CACHE_FINGERPRINT}"
 
 if [[ "${BUILD_BASE_IMAGE}" == "1" ]]; then
@@ -499,6 +525,11 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE}" \
   --build-arg LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256}" \
   --build-arg LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION}" \
+  --build-arg XGRAMMAR_REPO="${XGRAMMAR_REPO}" \
+  --build-arg XGRAMMAR_REF="${XGRAMMAR_REF}" \
+  --build-arg XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT}" \
+  --build-arg XGRAMMAR_VERSION="${XGRAMMAR_VERSION}" \
+  --build-arg XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT}" \
   --build-arg HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC}" \
   --build-arg VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES}" \
   --build-arg CACHE_FINGERPRINT="${CACHE_FINGERPRINT}" \
@@ -525,6 +556,24 @@ image_lmcache_commit="$(docker image inspect "${IMAGE}" --format '{{index .Confi
   echo "Image LMCache source mismatch: got ${image_lmcache_commit}, expected ${LMCACHE_COMMIT}" >&2
   exit 1
 }
+
+if [[ -n "${XGRAMMAR_REF}" ]]; then
+  image_xgrammar_commit="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.xgrammar.commit"}}')"
+  image_xgrammar_version="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.xgrammar.version"}}')"
+  image_xgrammar_transformers5_compat="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.xgrammar.transformers5_compat"}}')"
+  [[ "${image_xgrammar_commit}" == "${XGRAMMAR_COMMIT}" ]] || {
+    echo "Image xgrammar source mismatch: got ${image_xgrammar_commit}, expected ${XGRAMMAR_COMMIT}" >&2
+    exit 1
+  }
+  [[ "${image_xgrammar_version}" == "${XGRAMMAR_VERSION}" ]] || {
+    echo "Image xgrammar version mismatch: got ${image_xgrammar_version}, expected ${XGRAMMAR_VERSION}" >&2
+    exit 1
+  }
+  [[ "${image_xgrammar_transformers5_compat}" == "${XGRAMMAR_TRANSFORMERS5_COMPAT}" ]] || {
+    echo "Image xgrammar Transformers compatibility label mismatch: got ${image_xgrammar_transformers5_compat}, expected ${XGRAMMAR_TRANSFORMERS5_COMPAT}" >&2
+    exit 1
+  }
+fi
 
 image_env="$(docker image inspect "${IMAGE}" --format '{{range .Config.Env}}{{println .}}{{end}}')"
 cache_root="/cache/jit/${CACHE_FINGERPRINT}"

@@ -148,6 +148,16 @@ This historical mode still verifies the pinned base commits, patch hashes, and
 resulting Git trees. It only skips the normal requirement that the current
 remote branch heads remain equal to the archived base commits.
 
+Current clean r8 candidates also build XGrammar `0.2.5` from the immutable
+`v0.2.5` source commit. The image build verifies GLM `tool_choice=required`
+semantics: at least one tool call is required, while multiple calls and normal
+termination after a call remain valid. XGrammar caps Transformers below 5 for
+tokenizer regressions in other model families; this GLM image removes only that
+package-metadata cap and validates the pinned GLM tokenizer with its
+Transformers 5 runtime. The override is recorded in the image labels.
+Historical reproduction modes keep the XGrammar version and metadata supplied
+by their original vLLM requirements.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
