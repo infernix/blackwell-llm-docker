@@ -8,12 +8,13 @@ export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-lo}"
 printf 'Process-group interfaces: GLOO_SOCKET_IFNAME=%s NCCL_SOCKET_IFNAME=%s\n' \
   "${GLOO_SOCKET_IFNAME}" "${NCCL_SOCKET_IFNAME}"
 
+model_command=()
 case "${MODEL_FAMILY:-}" in
   glm52|glm5.2|glm)
-    exec /usr/local/bin/serve-glm52-v19.sh "$@"
+    model_command=(/usr/local/bin/serve-glm52-v19.sh "$@")
     ;;
   glm52-hybrid|nf3)
-    exec /usr/local/bin/serve-glm52-hybrid-v19.sh "$@"
+    model_command=(/usr/local/bin/serve-glm52-hybrid-v19.sh "$@")
     ;;
   glm52-exl3|exl3)
     export MODEL="${MODEL:-brandonmusic/GLM-5.2-EXL3-TR3-3.0bpw}"
@@ -43,13 +44,30 @@ case "${MODEL_FAMILY:-}" in
     export VLLM_EXL3_PREFILL_TRELLIS="${VLLM_EXL3_PREFILL_TRELLIS:-1}"
     export VLLM_EXL3_PREFILL_BLOCK_M="${VLLM_EXL3_PREFILL_BLOCK_M:-64}"
     export VLLM_EXL3_PREFILL_CHUNK="${VLLM_EXL3_PREFILL_CHUNK:-128}"
-    exec /usr/local/bin/serve-glm52-v19.sh "$@"
+    model_command=(/usr/local/bin/serve-glm52-v19.sh "$@")
     ;;
   ds4|ds4-flash|dspark)
-    exec /usr/local/bin/serve-ds4-flash.sh "$@"
+    model_command=(/usr/local/bin/serve-ds4-flash.sh "$@")
     ;;
   *)
     echo "ERROR: MODEL_FAMILY must be glm52, glm52-hybrid, glm52-exl3, or ds4" >&2
     exit 2
     ;;
 esac
+
+lmcache_mode="${LMCACHE_MODE:-off}"
+lmcache_mode="${lmcache_mode,,}"
+if [[ "${lmcache_mode}" == "off" || "${lmcache_mode}" == "0" ]]; then
+  exec "${model_command[@]}"
+fi
+
+case "${MODEL_FAMILY:-}" in
+  glm52|glm5.2|glm|glm52-hybrid|nf3)
+    ;;
+  *)
+    echo "ERROR: LMCache is validated only for GLM-5.2 MLA model families" >&2
+    exit 2
+    ;;
+esac
+
+exec /usr/local/bin/glm52-lmcache-wrapper.sh "${model_command[@]}"

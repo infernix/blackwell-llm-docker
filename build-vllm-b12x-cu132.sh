@@ -57,6 +57,11 @@ TRITON_KERNELS_REPO="${TRITON_KERNELS_REPO:-https://github.com/triton-lang/trito
 TRITON_KERNELS_REF="${TRITON_KERNELS_REF:-}"
 INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-main}"
+LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/local-inference-lab/LMCache.git}"
+LMCACHE_REF="${LMCACHE_REF:-release/v0.5.2-glm52-dcp-base}"
+LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
+LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
+LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
 HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.4}"
 VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-}"
 
@@ -103,6 +108,7 @@ if [[ "${PIN_SOURCE_COMMITS}" == "1" ]]; then
   else
     INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-}"
   fi
+  LMCACHE_COMMIT="${LMCACHE_COMMIT:-$(resolve_ref "${LMCACHE_REPO}" "${LMCACHE_REF}")}"
 else
   NCCL_COMMIT="${NCCL_COMMIT:-}"
   FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-}"
@@ -114,6 +120,7 @@ else
   CUTLASS_COMMIT="${CUTLASS_COMMIT:-}"
   TRITON_KERNELS_COMMIT="${TRITON_KERNELS_COMMIT:-}"
   INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-}"
+  LMCACHE_COMMIT="${LMCACHE_COMMIT:-}"
 fi
 
 if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
@@ -264,6 +271,26 @@ if [[ -n "${VLLM_PATCH_FILE}" ]]; then
   fi
 fi
 
+lmcache_local_patch_sha=""
+lmcache_local_patch_path=""
+if [[ -n "${LMCACHE_PATCH_FILE}" ]]; then
+  if [[ -f "${LMCACHE_PATCH_FILE}" ]]; then
+    lmcache_local_patch_path="${LMCACHE_PATCH_FILE}"
+  elif [[ -f "patches/${LMCACHE_PATCH_FILE}" ]]; then
+    lmcache_local_patch_path="patches/${LMCACHE_PATCH_FILE}"
+  fi
+  [[ -n "${lmcache_local_patch_path}" ]] || {
+    echo "LMCACHE_PATCH_FILE does not exist: ${LMCACHE_PATCH_FILE}" >&2
+    exit 1
+  }
+  lmcache_local_patch_sha="$(sha256sum "${lmcache_local_patch_path}" | awk '{print $1}')"
+  if [[ -n "${LMCACHE_PATCH_SHA256}" && "${lmcache_local_patch_sha}" != "${LMCACHE_PATCH_SHA256}" ]]; then
+    echo "LMCACHE_PATCH_FILE SHA256 mismatch: got ${lmcache_local_patch_sha}, expected ${LMCACHE_PATCH_SHA256}" >&2
+    exit 1
+  fi
+  LMCACHE_PATCH_SHA256="${lmcache_local_patch_sha}"
+fi
+
 runtime_files_sha="$({
   sha256sum Dockerfile.vllm-b12x-cu132
   find launchers -type f -print0 | sort -z | xargs -0 sha256sum
@@ -320,6 +347,11 @@ cache_hash="$(printf '%s\n' \
   "INSTANTTENSOR_REPO=${INSTANTTENSOR_REPO}" \
   "INSTANTTENSOR_REF=${INSTANTTENSOR_REF}" \
   "INSTANTTENSOR_COMMIT=${INSTANTTENSOR_COMMIT}" \
+  "LMCACHE_REPO=${LMCACHE_REPO}" \
+  "LMCACHE_REF=${LMCACHE_REF}" \
+  "LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
+  "LMCACHE_PATCH_FILE_SHA256=${lmcache_local_patch_sha}" \
+  "LMCACHE_BUILD_VERSION=${LMCACHE_BUILD_VERSION}" \
   "HUMMING_KERNELS_SPEC=${HUMMING_KERNELS_SPEC}" \
   "VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}" \
   "RUNTIME_FILES_SHA256=${runtime_files_sha}" \
@@ -373,6 +405,8 @@ echo "  INSTANTTENSOR_REF=${INSTANTTENSOR_REF} ${INSTANTTENSOR_COMMIT}"
 echo "  NCCL_REF=${NCCL_REF} ${NCCL_COMMIT}"
 echo "  HUMMING_KERNELS_SPEC=${HUMMING_KERNELS_SPEC}"
 echo "  VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}"
+echo "  LMCACHE=${LMCACHE_REPO} ${LMCACHE_REF} ${LMCACHE_COMMIT}"
+echo "  LMCACHE_PATCH_FILE=${LMCACHE_PATCH_FILE} sha256=${LMCACHE_PATCH_SHA256}"
 echo "  CACHE_FINGERPRINT=${CACHE_FINGERPRINT}"
 
 if [[ "${BUILD_BASE_IMAGE}" == "1" ]]; then
@@ -459,6 +493,12 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO}" \
   --build-arg INSTANTTENSOR_REF="${INSTANTTENSOR_REF}" \
   --build-arg INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT}" \
+  --build-arg LMCACHE_REPO="${LMCACHE_REPO}" \
+  --build-arg LMCACHE_REF="${LMCACHE_REF}" \
+  --build-arg LMCACHE_COMMIT="${LMCACHE_COMMIT}" \
+  --build-arg LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE}" \
+  --build-arg LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256}" \
+  --build-arg LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION}" \
   --build-arg HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC}" \
   --build-arg VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES}" \
   --build-arg CACHE_FINGERPRINT="${CACHE_FINGERPRINT}" \
@@ -477,6 +517,12 @@ image_cache_fingerprint="$(docker image inspect "${IMAGE}" --format '{{index .Co
 image_exllamav3_commit="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.exllamav3.commit"}}')"
 [[ "${image_exllamav3_commit}" == "${EXLLAMAV3_COMMIT}" ]] || {
   echo "Image EXL3 source mismatch: got ${image_exllamav3_commit}, expected ${EXLLAMAV3_COMMIT}" >&2
+  exit 1
+}
+
+image_lmcache_commit="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.lmcache.commit"}}')"
+[[ "${image_lmcache_commit}" == "${LMCACHE_COMMIT}" ]] || {
+  echo "Image LMCache source mismatch: got ${image_lmcache_commit}, expected ${LMCACHE_COMMIT}" >&2
   exit 1
 }
 

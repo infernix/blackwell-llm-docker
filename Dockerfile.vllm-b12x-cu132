@@ -61,6 +61,13 @@ ARG INSTANTTENSOR_REPO=https://github.com/scitix/InstantTensor.git
 ARG INSTANTTENSOR_REF=main
 ARG INSTANTTENSOR_COMMIT=
 
+ARG LMCACHE_REPO=https://github.com/local-inference-lab/LMCache.git
+ARG LMCACHE_REF=release/v0.5.2-glm52-dcp-base
+ARG LMCACHE_COMMIT=9cebd405d0caf4bebe01d694b5a8bf4e3e354314
+ARG LMCACHE_PATCH_FILE=
+ARG LMCACHE_PATCH_SHA256=
+ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.3
+
 ARG CUTLASS_REPO=https://github.com/NVIDIA/cutlass.git
 ARG CUTLASS_REF=main
 ARG CUTLASS_COMMIT=982cb9e718bcd4d7ac546b1795702a08326dfe4b
@@ -833,7 +840,67 @@ RUN python -m pip install --force-reinstall --no-deps "nvidia-cutlass-dsl-libs-c
  && find /opt/venv -name "*.a" -delete 2>/dev/null || true
 
 # =============================================================================
-# Stage 3: clean final runtime
+# Stage 3: LMCache 0.5.2 with GLM-5.2 MLA+DCP support
+# =============================================================================
+FROM vllm-build AS lmcache-build
+
+ARG LMCACHE_REPO
+ARG LMCACHE_REF
+ARG LMCACHE_COMMIT
+ARG LMCACHE_PATCH_FILE
+ARG LMCACHE_PATCH_SHA256
+ARG LMCACHE_BUILD_VERSION
+ARG MAX_JOBS
+
+COPY patches/ /tmp/build-patches/
+
+RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
+ && cd /tmp/lmcache-src \
+ && git checkout "${LMCACHE_REF}" \
+ && if [[ -n "${LMCACHE_COMMIT}" ]]; then \
+      actual_commit="$(git rev-parse HEAD)"; \
+      [[ "${actual_commit}" = "${LMCACHE_COMMIT}" ]] || { \
+        echo "ERROR: LMCACHE_COMMIT mismatch: HEAD=${actual_commit} expected=${LMCACHE_COMMIT}" >&2; \
+        exit 1; \
+      }; \
+    fi \
+ && if [[ -n "${LMCACHE_PATCH_FILE}" ]]; then \
+      patch_path="/tmp/build-patches/${LMCACHE_PATCH_FILE}"; \
+      actual_patch_sha256="$(sha256sum "${patch_path}" | cut -d' ' -f1)"; \
+      [[ "${actual_patch_sha256}" = "${LMCACHE_PATCH_SHA256}" ]] || { \
+        echo "ERROR: LMCACHE_PATCH_SHA256 mismatch: actual=${actual_patch_sha256} expected=${LMCACHE_PATCH_SHA256}" >&2; \
+        exit 1; \
+      }; \
+      git apply --check "${patch_path}"; \
+      git apply "${patch_path}"; \
+    fi \
+ && git diff --check \
+ && python -m pip install \
+      pytest==8.4.1 \
+      sortedcontainers==2.4.0 \
+      aiofile==3.11.1 \
+      aiofiles==25.1.0 \
+      redis==8.0.1 \
+      numba==0.65.0 \
+      opentelemetry-exporter-prometheus==0.65b0 \
+ && mkdir -p /tmp/lmcache-wheels \
+ && BUILD_WITH_CUDA=1 \
+      TORCH_CUDA_ARCH_LIST=12.0 \
+      MAX_JOBS="${MAX_JOBS}" \
+      SETUPTOOLS_SCM_PRETEND_VERSION_FOR_LMCACHE="${LMCACHE_BUILD_VERSION}" \
+      python -m pip wheel --no-build-isolation --no-deps \
+      -w /tmp/lmcache-wheels /tmp/lmcache-src \
+ && test "$(find /tmp/lmcache-wheels -maxdepth 1 -name 'lmcache-*.whl' | wc -l)" -eq 1 \
+ && python -m pip install --no-deps --force-reinstall \
+      /tmp/lmcache-wheels/lmcache-*.whl \
+ && cd /tmp \
+ && python -m pytest --import-mode=importlib \
+      --confcutdir=/tmp/lmcache-src/tests/v1 \
+      /tmp/lmcache-src/tests/v1/test_vllm_dcp_parallel_strategy.py \
+      /tmp/lmcache-src/tests/v1/test_vllm_mp_adapter.py -q
+
+# =============================================================================
+# Stage 4: clean final runtime
 # =============================================================================
 FROM ${VLLM_B12X_CU132_SYSTEM_BASE_IMAGE} AS final
 
@@ -848,7 +915,6 @@ COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
 COPY --from=exllamav3-build /opt/exllamav3 /opt/exllamav3
-
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
 ARG VLLM_RUNTIME_EXTRA_PACKAGES=""
 ARG INSTANTTENSOR_REPO
@@ -857,6 +923,7 @@ ARG INSTANTTENSOR_COMMIT
 ARG CUTLASS_DSL_VERSION
 ARG TOKENSPEED_MLA_VERSION
 ARG TVM_FFI_VERSION
+ARG LMCACHE_BUILD_VERSION
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     printf '%s\n' \
@@ -900,6 +967,44 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         ${VLLM_RUNTIME_EXTRA_PACKAGES}; \
     fi \
  && /opt/venv/bin/python -m pip check
+
+# Install only the dependencies needed by the in-process RAM and buffered
+# filesystem tiers. LMCache's cloud/GDS dependencies are intentionally omitted
+# so it cannot downgrade the release's NumPy or OpenTelemetry stack.
+RUN --mount=type=bind,from=lmcache-build,source=/tmp/lmcache-wheels,target=/tmp/lmcache-wheels,ro \
+    /opt/venv/bin/python -m pip install \
+      sortedcontainers==2.4.0 \
+      aiofile==3.11.1 \
+      aiofiles==25.1.0 \
+      cupy-cuda13x==13.6.0 \
+      redis==8.0.1 \
+      opentelemetry-exporter-prometheus==0.65b0 \
+ && /opt/venv/bin/python -m pip install --no-deps --force-reinstall \
+      /tmp/lmcache-wheels/lmcache-*.whl \
+ && LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION}" /opt/venv/bin/python - <<'PY'
+import importlib.metadata as md
+import os
+
+import cupy
+from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
+
+assert md.version("lmcache") == os.environ["LMCACHE_BUILD_VERSION"]
+assert md.version("cupy-cuda13x") == "13.6.0"
+strategy = ParallelStrategy(
+    use_mla=True,
+    vllm_world_size=8,
+    vllm_worker_id=5,
+    tp_size=8,
+    pp_size=1,
+    n_servers=1,
+    dcp_size=4,
+)
+assert strategy.kv_world_size == 4
+assert strategy.kv_worker_id == 1
+assert strategy.kv_tp_size == 2
+assert strategy.kv_readers_per_object == 2
+print("lmcache", md.version("lmcache"))
+PY
 
 RUN if [[ -n "${INSTANTTENSOR_REF}" ]]; then \
       git clone --recursive "${INSTANTTENSOR_REPO}" /tmp/instanttensor-src; \
@@ -1126,6 +1231,11 @@ ARG TVM_FFI_VERSION
 ARG EXLLAMAV3_REPO
 ARG EXLLAMAV3_REF
 ARG EXLLAMAV3_COMMIT
+ARG LMCACHE_REPO
+ARG LMCACHE_REF
+ARG LMCACHE_COMMIT
+ARG LMCACHE_PATCH_SHA256
+ARG LMCACHE_BUILD_VERSION
 
 LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, SparkInfer and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
@@ -1179,6 +1289,11 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.exllamav3.repo="${EXLLAMAV3_REPO}" \
       local-inference.exllamav3.branch="${EXLLAMAV3_REF}" \
       local-inference.exllamav3.commit="${EXLLAMAV3_COMMIT}" \
+      local-inference.lmcache.repo="${LMCACHE_REPO}" \
+      local-inference.lmcache.ref="${LMCACHE_REF}" \
+      local-inference.lmcache.commit="${LMCACHE_COMMIT}" \
+      local-inference.lmcache.patch_sha256="${LMCACHE_PATCH_SHA256}" \
+      local-inference.lmcache.version="${LMCACHE_BUILD_VERSION}" \
       local-inference.launcher.branch="${LAUNCHER_REF}" \
       local-inference.launcher.commit="${LAUNCHER_COMMIT}" \
       local-inference.launchers="${VLLM_REQUIRED_LAUNCHERS}"

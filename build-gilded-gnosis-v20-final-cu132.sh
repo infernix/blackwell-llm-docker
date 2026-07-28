@@ -54,8 +54,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
   configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r5}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r5}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r7}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r7}"
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
@@ -64,6 +64,26 @@ elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r5}"
   export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r5}"
+elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
+  # r6 changes only the container/runtime integration. Reuse the immutable r5
+  # vLLM and SparkInfer source archives instead of consulting moving branches.
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r6}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r6}"
+elif [[ "${composition_mode}" == "reproduce-r7" ]]; then
+  # r7 keeps the validated model stacks and moves the LMCache integration from
+  # a release patch to its merged, immutable source commit.
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r7}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r7}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
@@ -118,9 +138,9 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-fix/clean-gg-compose-20260727}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a2129e983b07fbfaa5b872a1a0b25a07c3f01876}"
-export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
+export LAUNCHER_REF="${LAUNCHER_REF:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
+export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py glm52-lmcache-wrapper.sh"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
 export CUTLASS_COMMIT="${CUTLASS_COMMIT:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -134,6 +154,30 @@ export TRITON_KERNELS_COMMIT=
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
+if [[ "${composition_mode}" == "reproduce-r6" ]]; then
+  export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
+  export LMCACHE_REF="${LMCACHE_REF:-v0.5.2}"
+  export LMCACHE_COMMIT="${LMCACHE_COMMIT:-cd2c0d6a6a982ec5e334bae7704e1029c06d3c97}"
+  export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-lmcache/glm52-dcp-v052.patch}"
+  export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-504434b7d0ccd7bffa2b01a716ad0471405fa6dad8b2ba78a3b0ec4b8627a255}"
+  export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.2}"
+else
+  export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/local-inference-lab/LMCache.git}"
+  export LMCACHE_REF="${LMCACHE_REF:-release/v0.5.2-glm52-dcp-base}"
+  export LMCACHE_COMMIT="${LMCACHE_COMMIT:-9cebd405d0caf4bebe01d694b5a8bf4e3e354314}"
+  export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
+  export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
+  export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
+fi
+
+if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\n' \
+    "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
+    "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
+    "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
+    "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}"
+  exit 0
+fi
 export HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.10}"
 export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 PyNvVideoCodec==2.0.4 nccl4py==0.3.1}"
 
@@ -146,6 +190,7 @@ runtime_source_paths=(
   tests/test-glm52-pcie-calibration-helper.sh
   tests/test-glm52-online-quant-policy.sh
   tests/test-glm52-exl3-helper.sh
+  tests/test-glm52-lmcache-helper.sh
   tests/test-glm52-pcie-calibration.py
 )
 if ! git diff --quiet "${LAUNCHER_COMMIT}" -- "${runtime_source_paths[@]}" || \
@@ -159,6 +204,7 @@ fi
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
 ./tests/test-glm52-exl3-helper.sh
+./tests/test-glm52-lmcache-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 ./build-vllm-sparkinfer-cu132.sh "$@"
 
@@ -169,6 +215,9 @@ jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" =
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
 if [[ "${composition_mode}" != "reproduce-r4" ]]; then
   jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
@@ -204,6 +253,7 @@ docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
   -e EXPECTED_SPARKINFER_VERSION="${SPARKINFER_VERSION}" \
   -e EXPECTED_CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
   -e EXPECTED_TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX}" \
+  -e EXPECTED_LMCACHE_VERSION="${LMCACHE_BUILD_VERSION}" \
   --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
 import importlib.metadata as md
 import inspect
@@ -211,6 +261,8 @@ import os
 
 import torch
 import vllm._C_stable_libtorch  # noqa: F401
+import lmcache.c_ops  # noqa: F401
+from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
 from sparkinfer.attention.sparse_mla._scratch import SPARKINFERSparseMLAScratchCaps
 from sparkinfer.attention.nsa_indexer import tiled_topk
 from sparkinfer.comm.pcie import DcpAllToAllPool, DcpTopKOwnerExchange
@@ -238,6 +290,7 @@ from vllm.v1.attention.ops.common import cp_lse_ag_out_rs
 from vllm.v1.worker.gpu_worker import Worker
 
 assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
+assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
 assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"
@@ -303,6 +356,19 @@ caps = SPARKINFERSparseMLAScratchCaps(
     head_major_output=True,
 )
 assert caps.head_major_output is True
+lmcache_strategy = ParallelStrategy(
+    use_mla=True,
+    vllm_world_size=8,
+    vllm_worker_id=5,
+    tp_size=8,
+    pp_size=1,
+    n_servers=1,
+    dcp_size=4,
+)
+assert lmcache_strategy.kv_world_size == 4
+assert lmcache_strategy.kv_worker_id == 1
+assert lmcache_strategy.kv_tp_size == 2
+assert not lmcache_strategy.is_kv_writer
 assert __import__("pathlib").Path(
     "/opt/vllm/kv-scales/glm52-nvfp4-nf3-hybrid_mla_outer_scales_v1.json"
 ).is_file()
@@ -465,6 +531,24 @@ docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
   "${IMAGE}" | tee "${absorb_disabled_dry_run_file}"
 
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=0' "${absorb_disabled_dry_run_file}"
+
+lmcache_dry_run_file="/tmp/gilded-gnosis-v20-final-lmcache.txt"
+docker run --rm --gpus "device=${VALIDATION_GPU}" --shm-size=2g \
+  --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+  -e DRY_RUN=1 \
+  -e MODEL_FAMILY=glm52 \
+  -e MODEL=/model \
+  -e TP=8 \
+  -e DCP=4 \
+  -e MTP=0 \
+  -e LMCACHE_MODE=ram \
+  -e LMCACHE_L1_GB=1 \
+  -e LMCACHE_L1_INIT_GB=1 \
+  "${IMAGE}" | tee "${lmcache_dry_run_file}"
+
+grep -Fq 'LMCache ready: mode=ram' "${lmcache_dry_run_file}"
+grep -Fq -- '--kv-transfer-config' "${lmcache_dry_run_file}"
+grep -Fq 'LMCacheMPConnector' "${lmcache_dry_run_file}"
 
 if [[ "${requested_push}" == "1" ]]; then
   docker push "${IMAGE}"

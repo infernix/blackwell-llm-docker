@@ -128,6 +128,22 @@ VLLM_RELEASE_COMPOSITION=reproduce-r5 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
+The r6 LMCache runtime uses the same immutable vLLM and SparkInfer trees as r5:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r6 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+The r7 candidate keeps those model stacks, but builds LMCache directly from
+the merged `local-inference-lab/LMCache` release commit instead of applying a
+container-local source patch:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r7 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
 This historical mode still verifies the pinned base commits, patch hashes, and
 resulting Git trees. It only skips the normal requirement that the current
 remote branch heads remain equal to the archived base commits.
