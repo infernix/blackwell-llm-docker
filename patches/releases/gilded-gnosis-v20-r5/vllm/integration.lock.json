@@ -4,10 +4,10 @@
     "ref": "refs/heads/dev/gilded-gnosis",
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
-  "generated_at": "2026-07-28T00:07:42.544164+00:00",
+  "generated_at": "2026-07-28T10:53:01.726104+00:00",
   "manifest": {
     "path": "/root/vllm/worktrees/blackwell-clean-gg-compose-20260727/manifests/vllm/gilded-gnosis-v20.json",
-    "sha256": "87b941f8de9f9e3359b25e79052a1a843eaced39127364d4325bf17b09ba5890"
+    "sha256": "1a3598defd2f812a5a03c1a06d41fd86f40746622d086840d67e39dd5de34716"
   },
   "name": "gilded-gnosis-v20",
   "pull_requests": [
@@ -52,12 +52,19 @@
       "number": 185,
       "ref": "refs/pull/185/head",
       "title": "Gate DCP query split by measured context crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "417030797cc2ba156c09c1c9a520d77df646d769",
+      "number": 190,
+      "ref": "refs/pull/190/head",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "9121bd8ec69b63a4db08eb10770baf8303bb1aebc28b74c753c3f6a5d71ff64a",
-    "tree": "99287e8898587f536b5710e25d1b65229f1d6d78"
+    "patch_sha256": "86a3e50b3310334a30c2e523ba56ebb341a7522acfd1a24f0354d2e25682cd87",
+    "tree": "936ed4829ed6b6a34b9052a7a2614333ee3b2623"
   },
   "schema_version": 1
 }

@@ -4,10 +4,10 @@
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/sparkinfer.git"
   },
-  "generated_at": "2026-07-28T00:07:45.721104+00:00",
+  "generated_at": "2026-07-28T10:53:06.234886+00:00",
   "manifest": {
     "path": "/root/vllm/worktrees/blackwell-clean-gg-compose-20260727/manifests/sparkinfer/gilded-gnosis-v20.json",
-    "sha256": "434c1d9e50b7774896e3735340d3afa0266773f64105dbcb12c94d0102955939"
+    "sha256": "315f5c90a79ca5bda5bcef45a3d6b3e047bc34e58e7513236d594e9895084f0d"
   },
   "name": "gilded-gnosis-v20-sparkinfer",
   "pull_requests": [
@@ -17,12 +17,19 @@
       "number": 81,
       "ref": "refs/pull/81/head",
       "title": "Add lossless PCIe serving calibration probe"
+    },
+    {
+      "disposition": "merged",
+      "head": "669a12ddc7cf3021e91a25f398b1a883b703fd12",
+      "number": 49,
+      "ref": "refs/pull/49/head",
+      "title": "Add planned EXL3 Trellis path for fused Blackwell MoE"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "fee6f34dfa39a33b97cdc40ec03232ee227aeadb0b794e94a7035c1cb2be3c27",
-    "tree": "4ecc87fbe51090b7932e3ba8fa06d9649296ba38"
+    "patch_sha256": "160e531862d71f7f1e2496050ff1d5145326f4dcfb51caff29698d3a5beced3d",
+    "tree": "f532ec965a70b710ba45e6f751fe5d7135001108"
   },
   "schema_version": 1
 }

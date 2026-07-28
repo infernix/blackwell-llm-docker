@@ -62,8 +62,8 @@ elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_sparkinfer_composition \
     "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm99287e8-si4ecc87f-fi801d57a-cu132-20260728-r5}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm99287e8.si4ecc87f.fi801d57a.cu132.20260728.r5}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r5}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r5}"
 elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
   export VLLM_REPO="https://github.com/voipmonitor/vllm.git"

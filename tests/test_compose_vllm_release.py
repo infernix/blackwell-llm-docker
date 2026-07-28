@@ -127,13 +127,13 @@ def test_composition_identifies_conflicting_pr(tmp_path: Path) -> None:
     [
         (
             "vllm",
-            "0c4ef43a7f01c4e0ac011edd813af1f840c272fdb253fb7598dbc15cd0880c2f",
-            "99287e8898587f536b5710e25d1b65229f1d6d78",
+            "9f412dc26bde604e83b288bb10172bc8026035bbcb78c31fd530c381bba388bd",
+            "936ed4829ed6b6a34b9052a7a2614333ee3b2623",
         ),
         (
             "sparkinfer",
-            "f3e066067bfa35f5c6d86778c16fee091305e57e715203f89266f122980f682b",
-            "4ecc87fbe51090b7932e3ba8fa06d9649296ba38",
+            "c08e3a90ad260d0b817e3be3971aceb04ab9af6132a5175b3b77d4f94ce2b2d9",
+            "f532ec965a70b710ba45e6f751fe5d7135001108",
         ),
     ],
 )
