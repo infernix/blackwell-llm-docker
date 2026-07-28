@@ -21,11 +21,25 @@ DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.git}"
 DEEPGEMM_REF="${DEEPGEMM_REF:-refs/pull/324/head}"
 B12X_REPO="${B12X_REPO:-https://github.com/lukealonso/b12x.git}"
 B12X_REF="${B12X_REF:-refs/pull/11/head}"
+B12X_PATCH_SHA256="${B12X_PATCH_SHA256:-}"
+B12X_PATCH_FILE="${B12X_PATCH_FILE:-}"
+REQUIRE_CLEAN_B12X_COMPOSITION="${REQUIRE_CLEAN_B12X_COMPOSITION:-0}"
+B12X_INTEGRATION_LOCK_FILE="${B12X_INTEGRATION_LOCK_FILE:-}"
+B12X_INTEGRATION_BASE_COMMIT="${B12X_INTEGRATION_BASE_COMMIT:-}"
+B12X_INTEGRATION_TREE="${B12X_INTEGRATION_TREE:-}"
+B12X_INTEGRATION_PRS="${B12X_INTEGRATION_PRS:-}"
+B12X_INTEGRATION_LOCK_SHA256="${B12X_INTEGRATION_LOCK_SHA256:-}"
 VLLM_REPO="${VLLM_REPO:-https://github.com/local-inference-lab/vllm.git}"
 VLLM_REF="${VLLM_REF:-dev/black-benediction}"
 VLLM_PATCH_URL="${VLLM_PATCH_URL:-}"
 VLLM_PATCH_SHA256="${VLLM_PATCH_SHA256:-}"
 VLLM_PATCH_FILE="${VLLM_PATCH_FILE:-}"
+REQUIRE_CLEAN_VLLM_COMPOSITION="${REQUIRE_CLEAN_VLLM_COMPOSITION:-0}"
+VLLM_INTEGRATION_LOCK_FILE="${VLLM_INTEGRATION_LOCK_FILE:-}"
+VLLM_INTEGRATION_BASE_COMMIT="${VLLM_INTEGRATION_BASE_COMMIT:-}"
+VLLM_INTEGRATION_TREE="${VLLM_INTEGRATION_TREE:-}"
+VLLM_INTEGRATION_PRS="${VLLM_INTEGRATION_PRS:-}"
+VLLM_INTEGRATION_LOCK_SHA256="${VLLM_INTEGRATION_LOCK_SHA256:-}"
 LAUNCHER_REPO="${LAUNCHER_REPO:-${VLLM_REPO}}"
 LAUNCHER_REF="${LAUNCHER_REF:-${VLLM_REF}}"
 VLLM_REQUIRED_LAUNCHERS="${VLLM_REQUIRED_LAUNCHERS:-}"
@@ -96,13 +110,136 @@ else
   INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-}"
 fi
 
+if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
+  command -v jq >/dev/null || {
+    echo "jq is required for clean vLLM release composition" >&2
+    exit 1
+  }
+  [[ "${VLLM_REF}" == "dev/gilded-gnosis" ]] || {
+    echo "Clean GG composition requires VLLM_REF=dev/gilded-gnosis, got ${VLLM_REF}" >&2
+    exit 1
+  }
+  [[ -n "${VLLM_COMMIT}" && -n "${VLLM_PATCH_FILE}" && -n "${VLLM_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "Clean GG composition requires a base commit, generated patch, and lockfile" >&2
+    exit 1
+  }
+  [[ -f "${VLLM_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "VLLM integration lockfile does not exist: ${VLLM_INTEGRATION_LOCK_FILE}" >&2
+    exit 1
+  }
+
+  lock_repo="$(jq -er '.base.repository' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  lock_ref="$(jq -er '.base.ref' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  lock_commit="$(jq -er '.base.commit' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  lock_patch_sha="$(jq -er '.result.patch_sha256' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  VLLM_INTEGRATION_PRS="$(jq -r '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${VLLM_INTEGRATION_LOCK_FILE}")"
+  VLLM_INTEGRATION_LOCK_SHA256="$(sha256sum "${VLLM_INTEGRATION_LOCK_FILE}" | awk '{print $1}')"
+  VLLM_INTEGRATION_BASE_COMMIT="${lock_commit}"
+
+  [[ "${lock_repo}" == "${VLLM_REPO}" ]] || {
+    echo "Integration lock repository mismatch: ${lock_repo} != ${VLLM_REPO}" >&2
+    exit 1
+  }
+  [[ "${lock_ref}" == "refs/heads/${VLLM_REF}" ]] || {
+    echo "Integration lock base ref mismatch: ${lock_ref} != refs/heads/${VLLM_REF}" >&2
+    exit 1
+  }
+  [[ "${lock_commit}" == "${VLLM_COMMIT}" ]] || {
+    echo "Integration lock base commit mismatch: ${lock_commit} != ${VLLM_COMMIT}" >&2
+    exit 1
+  }
+  current_base_commit="$(resolve_ref "${VLLM_REPO}" "${VLLM_REF}")"
+  [[ "${current_base_commit}" == "${VLLM_COMMIT}" ]] || {
+    echo "GG advanced from ${VLLM_COMMIT} to ${current_base_commit}; rerun the release composer" >&2
+    exit 1
+  }
+  if [[ -n "${VLLM_PATCH_SHA256}" && "${VLLM_PATCH_SHA256}" != "${lock_patch_sha}" ]]; then
+    echo "Integration lock patch SHA mismatch: ${lock_patch_sha} != ${VLLM_PATCH_SHA256}" >&2
+    exit 1
+  fi
+  VLLM_PATCH_SHA256="${lock_patch_sha}"
+fi
+
+if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
+  command -v jq >/dev/null || {
+    echo "jq is required for clean B12X/SparkInfer release composition" >&2
+    exit 1
+  }
+  [[ -n "${B12X_COMMIT}" && -n "${B12X_PATCH_FILE}" && -n "${B12X_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "Clean B12X/SparkInfer composition requires a base commit, generated patch, and lockfile" >&2
+    exit 1
+  }
+  [[ -f "${B12X_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "B12X/SparkInfer integration lockfile does not exist: ${B12X_INTEGRATION_LOCK_FILE}" >&2
+    exit 1
+  }
+
+  b12x_lock_repo="$(jq -er '.base.repository' "${B12X_INTEGRATION_LOCK_FILE}")"
+  b12x_lock_ref="$(jq -er '.base.ref' "${B12X_INTEGRATION_LOCK_FILE}")"
+  b12x_lock_commit="$(jq -er '.base.commit' "${B12X_INTEGRATION_LOCK_FILE}")"
+  B12X_INTEGRATION_TREE="$(jq -er '.result.tree' "${B12X_INTEGRATION_LOCK_FILE}")"
+  b12x_lock_patch_sha="$(jq -er '.result.patch_sha256' "${B12X_INTEGRATION_LOCK_FILE}")"
+  B12X_INTEGRATION_PRS="$(jq -r '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${B12X_INTEGRATION_LOCK_FILE}")"
+  B12X_INTEGRATION_LOCK_SHA256="$(sha256sum "${B12X_INTEGRATION_LOCK_FILE}" | awk '{print $1}')"
+  B12X_INTEGRATION_BASE_COMMIT="${b12x_lock_commit}"
+
+  [[ "${b12x_lock_repo}" == "${B12X_REPO}" ]] || {
+    echo "B12X/SparkInfer integration lock repository mismatch: ${b12x_lock_repo} != ${B12X_REPO}" >&2
+    exit 1
+  }
+  [[ "${b12x_lock_ref}" == "refs/heads/${B12X_REF}" ]] || {
+    echo "B12X/SparkInfer integration lock base ref mismatch: ${b12x_lock_ref} != refs/heads/${B12X_REF}" >&2
+    exit 1
+  }
+  [[ "${b12x_lock_commit}" == "${B12X_COMMIT}" ]] || {
+    echo "B12X/SparkInfer integration lock base commit mismatch: ${b12x_lock_commit} != ${B12X_COMMIT}" >&2
+    exit 1
+  }
+  current_b12x_base_commit="$(resolve_ref "${B12X_REPO}" "${B12X_REF}")"
+  [[ "${current_b12x_base_commit}" == "${B12X_COMMIT}" ]] || {
+    echo "B12X/SparkInfer base advanced from ${B12X_COMMIT} to ${current_b12x_base_commit}; rerun the release composer" >&2
+    exit 1
+  }
+  if [[ -n "${B12X_PATCH_SHA256}" && "${B12X_PATCH_SHA256}" != "${b12x_lock_patch_sha}" ]]; then
+    echo "B12X/SparkInfer integration lock patch SHA mismatch: ${b12x_lock_patch_sha} != ${B12X_PATCH_SHA256}" >&2
+    exit 1
+  fi
+  B12X_PATCH_SHA256="${b12x_lock_patch_sha}"
+fi
+
+b12x_local_patch_sha=""
+b12x_local_patch_path=""
+if [[ -n "${B12X_PATCH_FILE}" ]]; then
+  if [[ -f "${B12X_PATCH_FILE}" ]]; then
+    b12x_local_patch_path="${B12X_PATCH_FILE}"
+  elif [[ -f "patches/${B12X_PATCH_FILE}" ]]; then
+    b12x_local_patch_path="patches/${B12X_PATCH_FILE}"
+  fi
+  [[ -n "${b12x_local_patch_path}" ]] || {
+    echo "B12X_PATCH_FILE does not exist: ${B12X_PATCH_FILE}" >&2
+    exit 1
+  }
+  b12x_local_patch_sha="$(sha256sum "${b12x_local_patch_path}" | awk '{print $1}')"
+  if [[ -n "${B12X_PATCH_SHA256}" && "${b12x_local_patch_sha}" != "${B12X_PATCH_SHA256}" ]]; then
+    echo "B12X_PATCH_FILE SHA256 mismatch: got ${b12x_local_patch_sha}, expected ${B12X_PATCH_SHA256}" >&2
+    exit 1
+  fi
+fi
+
 local_patch_sha=""
+local_patch_path=""
 if [[ -n "${VLLM_PATCH_FILE}" ]]; then
-  [[ -f "${VLLM_PATCH_FILE}" ]] || {
+  if [[ -f "${VLLM_PATCH_FILE}" ]]; then
+    local_patch_path="${VLLM_PATCH_FILE}"
+  elif [[ -f "patches/${VLLM_PATCH_FILE}" ]]; then
+    local_patch_path="patches/${VLLM_PATCH_FILE}"
+  fi
+  [[ -n "${local_patch_path}" ]] || {
     echo "VLLM_PATCH_FILE does not exist: ${VLLM_PATCH_FILE}" >&2
     exit 1
   }
-  local_patch_sha="$(sha256sum "${VLLM_PATCH_FILE}" | awk '{print $1}')"
+  local_patch_sha="$(sha256sum "${local_patch_path}" | awk '{print $1}')"
   if [[ -n "${VLLM_PATCH_SHA256}" && "${local_patch_sha}" != "${VLLM_PATCH_SHA256}" ]]; then
     echo "VLLM_PATCH_FILE SHA256 mismatch: got ${local_patch_sha}, expected ${VLLM_PATCH_SHA256}" >&2
     exit 1
@@ -130,12 +267,22 @@ cache_hash="$(printf '%s\n' \
   "B12X_REPO=${B12X_REPO}" \
   "B12X_REF=${B12X_REF}" \
   "B12X_COMMIT=${B12X_COMMIT}" \
+  "B12X_PATCH_SHA256=${B12X_PATCH_SHA256}" \
+  "B12X_PATCH_FILE_SHA256=${b12x_local_patch_sha}" \
+  "B12X_INTEGRATION_BASE_COMMIT=${B12X_INTEGRATION_BASE_COMMIT}" \
+  "B12X_INTEGRATION_TREE=${B12X_INTEGRATION_TREE}" \
+  "B12X_INTEGRATION_PRS=${B12X_INTEGRATION_PRS}" \
+  "B12X_INTEGRATION_LOCK_SHA256=${B12X_INTEGRATION_LOCK_SHA256}" \
   "VLLM_REPO=${VLLM_REPO}" \
   "VLLM_REF=${VLLM_REF}" \
   "VLLM_COMMIT=${VLLM_COMMIT}" \
   "VLLM_PATCH_URL=${VLLM_PATCH_URL}" \
   "VLLM_PATCH_SHA256=${VLLM_PATCH_SHA256}" \
   "VLLM_PATCH_FILE_SHA256=${local_patch_sha}" \
+  "VLLM_INTEGRATION_BASE_COMMIT=${VLLM_INTEGRATION_BASE_COMMIT}" \
+  "VLLM_INTEGRATION_TREE=${VLLM_INTEGRATION_TREE}" \
+  "VLLM_INTEGRATION_PRS=${VLLM_INTEGRATION_PRS}" \
+  "VLLM_INTEGRATION_LOCK_SHA256=${VLLM_INTEGRATION_LOCK_SHA256}" \
   "VLLM_BUILD_VERSION=${VLLM_BUILD_VERSION}" \
   "LAUNCHER_REPO=${LAUNCHER_REPO}" \
   "LAUNCHER_REF=${LAUNCHER_REF}" \
@@ -179,10 +326,20 @@ echo "  FLASHINFER_REF=${FLASHINFER_REF} ${FLASHINFER_COMMIT}"
 echo "  FLASHINFER_BUILD_CUBIN=${FLASHINFER_BUILD_CUBIN}"
 echo "  DEEPGEMM_REF=${DEEPGEMM_REF} ${DEEPGEMM_COMMIT}"
 echo "  B12X_REF=${B12X_REF} ${B12X_COMMIT}"
+echo "  B12X_PATCH_SHA256=${B12X_PATCH_SHA256}"
+echo "  B12X_PATCH_FILE=${B12X_PATCH_FILE}"
+echo "  B12X_INTEGRATION_BASE_COMMIT=${B12X_INTEGRATION_BASE_COMMIT}"
+echo "  B12X_INTEGRATION_TREE=${B12X_INTEGRATION_TREE}"
+echo "  B12X_INTEGRATION_PRS=${B12X_INTEGRATION_PRS}"
+echo "  B12X_INTEGRATION_LOCK_SHA256=${B12X_INTEGRATION_LOCK_SHA256}"
 echo "  VLLM_REF=${VLLM_REF} ${VLLM_COMMIT}"
 echo "  VLLM_PATCH_URL=${VLLM_PATCH_URL}"
 echo "  VLLM_PATCH_SHA256=${VLLM_PATCH_SHA256}"
 echo "  VLLM_PATCH_FILE=${VLLM_PATCH_FILE}"
+echo "  VLLM_INTEGRATION_BASE_COMMIT=${VLLM_INTEGRATION_BASE_COMMIT}"
+echo "  VLLM_INTEGRATION_TREE=${VLLM_INTEGRATION_TREE}"
+echo "  VLLM_INTEGRATION_PRS=${VLLM_INTEGRATION_PRS}"
+echo "  VLLM_INTEGRATION_LOCK_SHA256=${VLLM_INTEGRATION_LOCK_SHA256}"
 echo "  LAUNCHER_REF=${LAUNCHER_REF} ${LAUNCHER_COMMIT}"
 echo "  VLLM_REQUIRED_LAUNCHERS=${VLLM_REQUIRED_LAUNCHERS}"
 echo "  CUTLASS_REF=${CUTLASS_REF} ${CUTLASS_COMMIT}"
@@ -244,12 +401,22 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg B12X_REPO="${B12X_REPO}" \
   --build-arg B12X_REF="${B12X_REF}" \
   --build-arg B12X_COMMIT="${B12X_COMMIT}" \
+  --build-arg B12X_PATCH_SHA256="${B12X_PATCH_SHA256}" \
+  --build-arg B12X_PATCH_FILE="${B12X_PATCH_FILE}" \
+  --build-arg B12X_INTEGRATION_BASE_COMMIT="${B12X_INTEGRATION_BASE_COMMIT}" \
+  --build-arg B12X_INTEGRATION_TREE="${B12X_INTEGRATION_TREE}" \
+  --build-arg B12X_INTEGRATION_PRS="${B12X_INTEGRATION_PRS}" \
+  --build-arg B12X_INTEGRATION_LOCK_SHA256="${B12X_INTEGRATION_LOCK_SHA256}" \
   --build-arg VLLM_REPO="${VLLM_REPO}" \
   --build-arg VLLM_REF="${VLLM_REF}" \
   --build-arg VLLM_COMMIT="${VLLM_COMMIT}" \
   --build-arg VLLM_PATCH_URL="${VLLM_PATCH_URL}" \
   --build-arg VLLM_PATCH_SHA256="${VLLM_PATCH_SHA256}" \
   --build-arg VLLM_PATCH_FILE="${VLLM_PATCH_FILE}" \
+  --build-arg VLLM_INTEGRATION_BASE_COMMIT="${VLLM_INTEGRATION_BASE_COMMIT}" \
+  --build-arg VLLM_INTEGRATION_TREE="${VLLM_INTEGRATION_TREE}" \
+  --build-arg VLLM_INTEGRATION_PRS="${VLLM_INTEGRATION_PRS}" \
+  --build-arg VLLM_INTEGRATION_LOCK_SHA256="${VLLM_INTEGRATION_LOCK_SHA256}" \
   --build-arg VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION}" \
   --build-arg LAUNCHER_REPO="${LAUNCHER_REPO}" \
   --build-arg LAUNCHER_REF="${LAUNCHER_REF}" \

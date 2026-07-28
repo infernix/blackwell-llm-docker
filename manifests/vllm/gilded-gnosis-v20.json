@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "name": "gilded-gnosis-v20",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/gilded-gnosis",
+  "pull_requests": [
+    {
+      "number": 145,
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "number": 172,
+      "head": "0c05ab9ec43c2446bfa4197fe1bbc1c1ec7e6cbe",
+      "title": "MRV2 high-utilization startup memory profiling"
+    },
+    {
+      "number": 175,
+      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
+      "title": "Shard sparse prefill queries and halve result traffic"
+    },
+    {
+      "number": 179,
+      "head": "673733e9711aa87f6b4e85f6db021ad676250a48",
+      "title": "Partial replicated sparse-indexer topology"
+    },
+    {
+      "number": 184,
+      "head": "c4022e80099e9bffa6091691663970591f8f05ec",
+      "title": "Calibrate lossless PCIe DMA dispatch crossover"
+    },
+    {
+      "number": 185,
+      "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
+      "title": "Gate DCP query split by measured context crossover"
+    }
+  ]
+}

@@ -452,6 +452,11 @@ FROM deepgemm-build AS b12x-build
 ARG B12X_REPO
 ARG B12X_REF
 ARG B12X_COMMIT
+ARG B12X_PATCH_SHA256
+ARG B12X_PATCH_FILE
+ARG B12X_INTEGRATION_TREE
+
+COPY patches /tmp/build-patches
 
 RUN git clone --filter=blob:none "${B12X_REPO}" /tmp/b12x-src \
  && cd /tmp/b12x-src \
@@ -465,6 +470,23 @@ RUN git clone --filter=blob:none "${B12X_REPO}" /tmp/b12x-src \
       git checkout "${B12X_REF}"; \
     fi \
  && if [[ -n "${B12X_COMMIT}" ]]; then [[ "$(git rev-parse HEAD)" = "${B12X_COMMIT}" ]] || { echo "ERROR: B12X_COMMIT mismatch: HEAD=$(git rev-parse HEAD) expected=${B12X_COMMIT}" >&2; exit 1; }; fi \
+ && if [[ -n "${B12X_PATCH_FILE}" ]]; then \
+      b12x_patch="/tmp/build-patches/${B12X_PATCH_FILE}"; \
+      [[ -f "${b12x_patch}" ]] || { echo "ERROR: B12X patch is missing: ${b12x_patch}" >&2; exit 1; }; \
+      if [[ -n "${B12X_PATCH_SHA256}" ]]; then \
+        echo "${B12X_PATCH_SHA256}  ${b12x_patch}" | sha256sum -c -; \
+      fi; \
+      git apply --verbose "${b12x_patch}"; \
+      git diff --check; \
+    fi \
+ && if [[ -n "${B12X_INTEGRATION_TREE}" ]]; then \
+      git add -A; \
+      actual_tree="$(git write-tree)"; \
+      [[ "${actual_tree}" == "${B12X_INTEGRATION_TREE}" ]] || { \
+        echo "ERROR: composed B12X/SparkInfer tree mismatch: ${actual_tree} != ${B12X_INTEGRATION_TREE}" >&2; \
+        exit 1; \
+      }; \
+    fi \
  && python -m pip install --no-deps --force-reinstall . \
  && rm -rf /tmp/b12x-src
 
@@ -479,6 +501,7 @@ ARG VLLM_COMMIT
 ARG VLLM_PATCH_URL
 ARG VLLM_PATCH_SHA256
 ARG VLLM_PATCH_FILE
+ARG VLLM_INTEGRATION_TREE
 ARG VLLM_BUILD_VERSION
 ARG LAUNCHER_REPO
 ARG LAUNCHER_REF
@@ -492,15 +515,19 @@ ARG TRITON_KERNELS_COMMIT
 ARG CUTLASS_DSL_VERSION
 
 WORKDIR /build
-COPY patches /tmp/build-patches
 
 RUN git clone --recursive --filter=blob:none "${VLLM_REPO}" /opt/vllm \
  && cd /opt/vllm \
  && git checkout "${VLLM_REF}" \
  && if [[ -n "${VLLM_COMMIT}" ]]; then [[ "$(git rev-parse HEAD)" = "${VLLM_COMMIT}" ]] || { echo "ERROR: VLLM_COMMIT mismatch: HEAD=$(git rev-parse HEAD) expected=${VLLM_COMMIT}" >&2; exit 1; }; fi \
  && if [[ -n "${VLLM_PATCH_FILE}" ]]; then \
-      git apply --verbose "/tmp/build-patches/${VLLM_PATCH_FILE}" \
-      && git diff --check; \
+      vllm_patch="/tmp/build-patches/${VLLM_PATCH_FILE}"; \
+      [[ -f "${vllm_patch}" ]] || { echo "ERROR: vLLM patch is missing: ${vllm_patch}" >&2; exit 1; }; \
+      if [[ -n "${VLLM_PATCH_SHA256}" ]]; then \
+        echo "${VLLM_PATCH_SHA256}  ${vllm_patch}" | sha256sum -c -; \
+      fi; \
+      git apply --verbose "${vllm_patch}"; \
+      git diff --check; \
     fi \
  && if [[ -n "${VLLM_PATCH_URL}" ]]; then \
       curl -fsSL "${VLLM_PATCH_URL}" -o /tmp/vllm-extra.patch; \
@@ -509,6 +536,14 @@ RUN git clone --recursive --filter=blob:none "${VLLM_REPO}" /opt/vllm \
       fi; \
       git apply --verbose /tmp/vllm-extra.patch; \
       git diff --check; \
+    fi \
+ && if [[ -n "${VLLM_INTEGRATION_TREE}" ]]; then \
+      git add -A; \
+      actual_tree="$(git write-tree)"; \
+      [[ "${actual_tree}" == "${VLLM_INTEGRATION_TREE}" ]] || { \
+        echo "ERROR: composed vLLM tree mismatch: ${actual_tree} != ${VLLM_INTEGRATION_TREE}" >&2; \
+        exit 1; \
+      }; \
     fi \
  && CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" python - <<'PY'
 import os
@@ -1006,8 +1041,18 @@ ARG VLLM_COMMIT
 ARG VLLM_PATCH_URL
 ARG VLLM_PATCH_SHA256
 ARG VLLM_PATCH_FILE
+ARG VLLM_INTEGRATION_BASE_COMMIT
+ARG VLLM_INTEGRATION_TREE
+ARG VLLM_INTEGRATION_PRS
+ARG VLLM_INTEGRATION_LOCK_SHA256
 ARG B12X_REF
 ARG B12X_COMMIT
+ARG B12X_PATCH_SHA256
+ARG B12X_PATCH_FILE
+ARG B12X_INTEGRATION_BASE_COMMIT
+ARG B12X_INTEGRATION_TREE
+ARG B12X_INTEGRATION_PRS
+ARG B12X_INTEGRATION_LOCK_SHA256
 ARG FLASHINFER_REF
 ARG FLASHINFER_COMMIT
 ARG DEEPGEMM_REF
@@ -1045,11 +1090,27 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.vllm.patch_url="${VLLM_PATCH_URL}" \
       local-inference.vllm.patch_sha256="${VLLM_PATCH_SHA256}" \
       local-inference.vllm.patch_file="${VLLM_PATCH_FILE}" \
+      local-inference.vllm.integration.base_commit="${VLLM_INTEGRATION_BASE_COMMIT}" \
+      local-inference.vllm.integration.tree="${VLLM_INTEGRATION_TREE}" \
+      local-inference.vllm.integration.prs="${VLLM_INTEGRATION_PRS}" \
+      local-inference.vllm.integration.lock_sha256="${VLLM_INTEGRATION_LOCK_SHA256}" \
       local-inference.b12x.branch="${B12X_REF}" \
       local-inference.b12x.commit="${B12X_COMMIT}" \
+      local-inference.b12x.patch_sha256="${B12X_PATCH_SHA256}" \
+      local-inference.b12x.patch_file="${B12X_PATCH_FILE}" \
+      local-inference.b12x.integration.base_commit="${B12X_INTEGRATION_BASE_COMMIT}" \
+      local-inference.b12x.integration.tree="${B12X_INTEGRATION_TREE}" \
+      local-inference.b12x.integration.prs="${B12X_INTEGRATION_PRS}" \
+      local-inference.b12x.integration.lock_sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
       local-inference.b12x.runtime_version="source" \
       local-inference.sparkinfer.branch="${B12X_REF}" \
       local-inference.sparkinfer.commit="${B12X_COMMIT}" \
+      local-inference.sparkinfer.patch_sha256="${B12X_PATCH_SHA256}" \
+      local-inference.sparkinfer.patch_file="${B12X_PATCH_FILE}" \
+      local-inference.sparkinfer.integration.base_commit="${B12X_INTEGRATION_BASE_COMMIT}" \
+      local-inference.sparkinfer.integration.tree="${B12X_INTEGRATION_TREE}" \
+      local-inference.sparkinfer.integration.prs="${B12X_INTEGRATION_PRS}" \
+      local-inference.sparkinfer.integration.lock_sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
       local-inference.sparkinfer.runtime_version="source" \
       local-inference.flashinfer.branch="${FLASHINFER_REF}" \
       local-inference.flashinfer.commit="${FLASHINFER_COMMIT}" \

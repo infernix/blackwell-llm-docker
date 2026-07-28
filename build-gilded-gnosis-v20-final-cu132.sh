@@ -3,12 +3,65 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# GG v20 release candidate. The vLLM integration source is exactly
-# dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178,
-# #179, #180, #184, and #185. SparkInfer combines the v20 calibration release
-# with canonical master through merged PRs #79 and #85. Every source is pinned
-# and no build-only source patch is applied.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
+# Every new GG image is composed from the current clean dev/gilded-gnosis head
+# plus the exact PR heads in the versioned manifest. A precomposed build branch
+# is available only for explicit reproduction of the historical r4 image.
+composition_mode="${VLLM_RELEASE_COMPOSITION:-clean}"
+release_date="${RELEASE_DATE:-$(date -u +%Y%m%d)}"
+if [[ "${composition_mode}" == "clean" ]]; then
+  composition_dir="patches/generated/gilded-gnosis-v20/vllm"
+  python3 scripts/compose_vllm_release.py \
+    manifests/vllm/gilded-gnosis-v20.json \
+    --output-dir "${composition_dir}" >/dev/null
+  composition_lock="${composition_dir}/integration.lock.json"
+
+  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
+  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  export VLLM_PATCH_FILE="generated/gilded-gnosis-v20/vllm/integration.patch"
+  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export REQUIRE_CLEAN_VLLM_COMPOSITION=1
+
+  sparkinfer_composition_dir="patches/generated/gilded-gnosis-v20/sparkinfer"
+  python3 scripts/compose_vllm_release.py \
+    manifests/sparkinfer/gilded-gnosis-v20.json \
+    --output-dir "${sparkinfer_composition_dir}" >/dev/null
+  sparkinfer_composition_lock="${sparkinfer_composition_dir}/integration.lock.json"
+
+  export SPARKINFER_REPO="$(jq -er '.base.repository' "${sparkinfer_composition_lock}")"
+  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${sparkinfer_composition_lock}")"
+  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${sparkinfer_composition_lock}")"
+  export SPARKINFER_PATCH_FILE="generated/gilded-gnosis-v20/sparkinfer/integration.patch"
+  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${sparkinfer_composition_lock}")"
+  export SPARKINFER_INTEGRATION_LOCK_FILE="${sparkinfer_composition_lock}"
+  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${sparkinfer_composition_lock}")"
+  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r5}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r5}"
+elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
+  export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
+  export VLLM_REF="build/gilded-gnosis-v20-pcie-auto-20260726"
+  export VLLM_COMMIT="0c79e41db41f250ccdfc4be92d171960a5787f73"
+  export VLLM_BUILD_VERSION="0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sic3828fd.fi801d57a.cu132.20260727"
+  export VLLM_PATCH_URL=
+  export VLLM_PATCH_SHA256=
+  export VLLM_PATCH_FILE=
+  export REQUIRE_CLEAN_VLLM_COMPOSITION=0
+  export SPARKINFER_REPO="https://github.com/local-inference-lab/sparkinfer.git"
+  export SPARKINFER_REF="build/sparkinfer-v20-runtime-stride-20260727"
+  export SPARKINFER_COMMIT="c3828fd7f807ce237a9ac36ef033659e6f6b6dd3"
+  export SPARKINFER_PATCH_FILE=
+  export SPARKINFER_PATCH_SHA256=
+  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=0
+else
+  printf 'Unknown VLLM_RELEASE_COMPOSITION=%s\n' "${composition_mode}" >&2
+  exit 1
+fi
+
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -33,22 +86,13 @@ export DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.g
 export DEEPGEMM_REF="${DEEPGEMM_REF:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 
-export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
-export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-pcie-auto-20260726}"
-export VLLM_COMMIT="${VLLM_COMMIT:-0c79e41db41f250ccdfc4be92d171960a5787f73}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sic3828fd.fi801d57a.cu132.20260727}"
 export VLLM_PATCH_URL=
-export VLLM_PATCH_SHA256=
-export VLLM_PATCH_FILE=
 
-export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
-export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-runtime-stride-20260727}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-c3828fd7f807ce237a9ac36ef033659e6f6b6dd3}"
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-build/gilded-gnosis-v20-runtime-stride-20260727}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-5a73c6790ba0aea041c1fe43144fcba28a606021}"
+export LAUNCHER_REF="${LAUNCHER_REF:-main}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-211141bc7ccb27f4753bf86f78e6686e07c6faa4}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -69,8 +113,15 @@ export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 
 requested_push="${PUSH_IMAGE:-0}"
 export PUSH_IMAGE=0
 
-if ! git diff --quiet "${LAUNCHER_COMMIT}" -- launchers tests || \
-   [[ -n "$(git status --porcelain --untracked-files=all -- launchers tests)" ]]; then
+runtime_source_paths=(
+  launchers
+  tests/test-glm52-dcp-prefill-policy.sh
+  tests/test-glm52-pcie-calibration-helper.sh
+  tests/test-glm52-online-quant-policy.sh
+  tests/test-glm52-pcie-calibration.py
+)
+if ! git diff --quiet "${LAUNCHER_COMMIT}" -- "${runtime_source_paths[@]}" || \
+   [[ -n "$(git status --porcelain --untracked-files=all -- "${runtime_source_paths[@]}")" ]]; then
   printf 'Launcher/test sources do not match pinned commit %s\n' \
     "${LAUNCHER_COMMIT}" >&2
   exit 1
@@ -88,7 +139,17 @@ jq -e --arg value "${SPARKINFER_COMMIT}" '."local-inference.sparkinfer.commit" =
 jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
-jq -e '."local-inference.vllm.patch_file" == "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+if [[ "${composition_mode}" == "clean" ]]; then
+  jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.vllm.patch_file" != "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+  jq -e --arg value "${SPARKINFER_INTEGRATION_TREE}" '."local-inference.sparkinfer.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${SPARKINFER_PATCH_SHA256}" '."local-inference.sparkinfer.patch_sha256" == $value' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.sparkinfer.patch_file" != ""' <<<"${labels}" >/dev/null
+else
+  jq -e '."local-inference.vllm.patch_file" == "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.sparkinfer.patch_file" == ""' <<<"${labels}" >/dev/null
+fi
 
 for launcher in ${VLLM_REQUIRED_LAUNCHERS}; do
   expected_launcher_sha="$(git show "${LAUNCHER_COMMIT}:launchers/${launcher}" | sha256sum | cut -d' ' -f1)"
