@@ -3,12 +3,88 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# GG v20 release candidate. The vLLM integration source is exactly
-# dev/gilded-gnosis@89b4a98 plus open PRs #145, #172, #175, #177, #178,
-# #179, #180, #184, and #185. SparkInfer combines the v20 calibration release
-# with canonical master through merged PRs #79 and #85. Every source is pinned
-# and no build-only source patch is applied.
-export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
+# Every new GG image is composed from the current clean dev/gilded-gnosis head
+# plus the exact PR heads in the versioned manifest. Historical release modes
+# are explicit and use immutable source artifacts.
+composition_mode="${VLLM_RELEASE_COMPOSITION:-clean}"
+release_date="${RELEASE_DATE:-$(date -u +%Y%m%d)}"
+
+configure_vllm_composition() {
+  local composition_dir="$1"
+  local verify_base_head="$2"
+  local composition_lock="${composition_dir}/integration.lock.json"
+
+  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
+  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  export VLLM_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export REQUIRE_CLEAN_VLLM_COMPOSITION=1
+  export VERIFY_VLLM_BASE_HEAD="${verify_base_head}"
+}
+
+configure_sparkinfer_composition() {
+  local composition_dir="$1"
+  local verify_base_head="$2"
+  local composition_lock="${composition_dir}/integration.lock.json"
+
+  export SPARKINFER_REPO="$(jq -er '.base.repository' "${composition_lock}")"
+  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  export SPARKINFER_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export SPARKINFER_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
+  export VERIFY_SPARKINFER_BASE_HEAD="${verify_base_head}"
+}
+
+if [[ "${composition_mode}" == "clean" ]]; then
+  composition_dir="patches/generated/gilded-gnosis-v20/vllm"
+  python3 scripts/compose_vllm_release.py \
+    manifests/vllm/gilded-gnosis-v20.json \
+    --output-dir "${composition_dir}" >/dev/null
+  configure_vllm_composition "${composition_dir}" 1
+
+  sparkinfer_composition_dir="patches/generated/gilded-gnosis-v20/sparkinfer"
+  python3 scripts/compose_vllm_release.py \
+    manifests/sparkinfer/gilded-gnosis-v20.json \
+    --output-dir "${sparkinfer_composition_dir}" >/dev/null
+  configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r5}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r5}"
+elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r5/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r5}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm936ed48.sif532ec9.fi801d57a.cu132.20260728.r5}"
+elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0c79e41-sic3828fd-fi801d57a-cu132-20260727-r4}"
+  export VLLM_REPO="https://github.com/voipmonitor/vllm.git"
+  export VLLM_REF="build/gilded-gnosis-v20-pcie-auto-20260726"
+  export VLLM_COMMIT="0c79e41db41f250ccdfc4be92d171960a5787f73"
+  export VLLM_BUILD_VERSION="0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sic3828fd.fi801d57a.cu132.20260727"
+  export VLLM_PATCH_URL=
+  export VLLM_PATCH_SHA256=
+  export VLLM_PATCH_FILE=
+  export REQUIRE_CLEAN_VLLM_COMPOSITION=0
+  export SPARKINFER_REPO="https://github.com/local-inference-lab/sparkinfer.git"
+  export SPARKINFER_REF="build/sparkinfer-v20-runtime-stride-20260727"
+  export SPARKINFER_COMMIT="c3828fd7f807ce237a9ac36ef033659e6f6b6dd3"
+  export SPARKINFER_PATCH_FILE=
+  export SPARKINFER_PATCH_SHA256=
+  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=0
+else
+  printf 'Unknown VLLM_RELEASE_COMPOSITION=%s\n' "${composition_mode}" >&2
+  exit 1
+fi
+
 export SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:glm-kimi-cu132-system-base-20260626}"
 export BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:glm-kimi-cu132-build-base-20260626}"
 export BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-0}"
@@ -33,22 +109,17 @@ export DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.g
 export DEEPGEMM_REF="${DEEPGEMM_REF:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 export DEEPGEMM_COMMIT="${DEEPGEMM_COMMIT:-a6b593d2826719dcf4892609af7b84ee23aaf32a}"
 
-export VLLM_REPO="${VLLM_REPO:-https://github.com/voipmonitor/vllm.git}"
-export VLLM_REF="${VLLM_REF:-build/gilded-gnosis-v20-pcie-auto-20260726}"
-export VLLM_COMMIT="${VLLM_COMMIT:-0c79e41db41f250ccdfc4be92d171960a5787f73}"
-export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0c79e41.sic3828fd.fi801d57a.cu132.20260727}"
-export VLLM_PATCH_URL=
-export VLLM_PATCH_SHA256=
-export VLLM_PATCH_FILE=
+export EXLLAMAV3_REPO="${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}"
+export EXLLAMAV3_REF="${EXLLAMAV3_REF:-a1-retile-sm120}"
+export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b964c7d8}"
 
-export SPARKINFER_REPO="${SPARKINFER_REPO:-https://github.com/local-inference-lab/sparkinfer.git}"
-export SPARKINFER_REF="${SPARKINFER_REF:-build/sparkinfer-v20-runtime-stride-20260727}"
-export SPARKINFER_COMMIT="${SPARKINFER_COMMIT:-c3828fd7f807ce237a9ac36ef033659e6f6b6dd3}"
+export VLLM_PATCH_URL=
+
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-build/gilded-gnosis-v20-runtime-stride-20260727}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-5a73c6790ba0aea041c1fe43144fcba28a606021}"
+export LAUNCHER_REF="${LAUNCHER_REF:-fix/clean-gg-compose-20260727}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a2129e983b07fbfaa5b872a1a0b25a07c3f01876}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -69,8 +140,16 @@ export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 
 requested_push="${PUSH_IMAGE:-0}"
 export PUSH_IMAGE=0
 
-if ! git diff --quiet "${LAUNCHER_COMMIT}" -- launchers tests || \
-   [[ -n "$(git status --porcelain --untracked-files=all -- launchers tests)" ]]; then
+runtime_source_paths=(
+  launchers
+  tests/test-glm52-dcp-prefill-policy.sh
+  tests/test-glm52-pcie-calibration-helper.sh
+  tests/test-glm52-online-quant-policy.sh
+  tests/test-glm52-exl3-helper.sh
+  tests/test-glm52-pcie-calibration.py
+)
+if ! git diff --quiet "${LAUNCHER_COMMIT}" -- "${runtime_source_paths[@]}" || \
+   [[ -n "$(git status --porcelain --untracked-files=all -- "${runtime_source_paths[@]}")" ]]; then
   printf 'Launcher/test sources do not match pinned commit %s\n' \
     "${LAUNCHER_COMMIT}" >&2
   exit 1
@@ -79,6 +158,7 @@ fi
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
+./tests/test-glm52-exl3-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 ./build-vllm-sparkinfer-cu132.sh "$@"
 
@@ -88,7 +168,18 @@ jq -e --arg value "${SPARKINFER_COMMIT}" '."local-inference.sparkinfer.commit" =
 jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
-jq -e '."local-inference.vllm.patch_file" == "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == $value' <<<"${labels}" >/dev/null
+if [[ "${composition_mode}" != "reproduce-r4" ]]; then
+  jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.vllm.patch_file" != "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+  jq -e --arg value "${SPARKINFER_INTEGRATION_TREE}" '."local-inference.sparkinfer.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${SPARKINFER_PATCH_SHA256}" '."local-inference.sparkinfer.patch_sha256" == $value' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.sparkinfer.patch_file" != ""' <<<"${labels}" >/dev/null
+else
+  jq -e '."local-inference.vllm.patch_file" == "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.sparkinfer.patch_file" == ""' <<<"${labels}" >/dev/null
+fi
 
 for launcher in ${VLLM_REQUIRED_LAUNCHERS}; do
   expected_launcher_sha="$(git show "${LAUNCHER_COMMIT}:launchers/${launcher}" | sha256sum | cut -d' ' -f1)"
@@ -134,6 +225,7 @@ from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
+from vllm.model_executor.layers.quantization.exl3 import _load_exl3_ext
 from vllm.model_executor.layers.sparse_attn_indexer import (
     _merge_b12x_dcp_topk_by_owner,
 )
@@ -149,6 +241,18 @@ assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
 assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"
+assert "VLLM_EXL3_ABI_SHIM" not in os.environ
+exl3_ext = _load_exl3_ext()
+for exl3_export in (
+    "exl3_gemm",
+    "exl3_moe_fused",
+    "exl3_moe_fused_retile",
+    "exl3_moe_max_concurrency",
+):
+    assert hasattr(exl3_ext, exl3_export), exl3_export
+from sparkinfer.moe import trellis_moe
+for trellis_export in ("Caps", "plan", "prepare_weights", "bind", "run"):
+    assert hasattr(trellis_moe, trellis_export), trellis_export
 assert fused_moe_impl._dynamic_kernel_intermediate_size(352, "w4a8_mx") == 384
 assert tiled_topk._COARSE_RADIX_BITS == 10
 assert tiled_topk._SMEM_CANDS == 8192
@@ -230,6 +334,25 @@ grep -Fxq 'VLLM_DCP_INDEXER_SHARDS=0' "${dry_run_file}"
 grep -Fxq 'VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0' "${dry_run_file}"
 grep -Fxq 'VLLM_PCIE_DMA_MIN_BYTES=6MB' "${dry_run_file}"
 grep -Fxq 'PCIE_CALIBRATION_STATUS=skipped:dry-run' "${dry_run_file}"
+
+exl3_dry_run_file="/tmp/gilded-gnosis-v20-final-exl3.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+  -e DRY_RUN=1 \
+  -e MODEL_FAMILY=glm52-exl3 \
+  "${IMAGE}" | tee "${exl3_dry_run_file}"
+
+grep -q -- '--tensor-parallel-size 4' "${exl3_dry_run_file}"
+grep -q -- '--decode-context-parallel-size 4' "${exl3_dry_run_file}"
+grep -q -- '--quantization exl3' "${exl3_dry_run_file}"
+grep -q -- '--load-format safetensors' "${exl3_dry_run_file}"
+grep -q -- '--no-async-scheduling' "${exl3_dry_run_file}"
+grep -Fq -- '\"moe_backend\":\"triton\"' "${exl3_dry_run_file}"
+grep -Fq -- '\"draft_sample_method\":\"greedy\"' "${exl3_dry_run_file}"
+grep -Fq -- '\"cudagraph_capture_sizes\":\[4\,8\,12\,16\,20\,24\,28\,32\]' "${exl3_dry_run_file}"
+if grep -q -- '--quantization-config' "${exl3_dry_run_file}"; then
+  printf 'EXL3 helper unexpectedly enabled online quantization\n' >&2
+  exit 1
+fi
 
 assert_dcp_policy() {
   local name="$1"

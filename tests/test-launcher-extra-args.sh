@@ -26,9 +26,11 @@ grep -Fq -- '--profiler-config.torch_profiler_dir=/tmp/profile\ with\ spaces' \
 grep -Fq -- '--max-num-seqs=3' <<<"${command_line}"
 
 # Keep every public GLM wrapper forwarding arguments to the terminal launcher.
-grep -Fq 'exec /usr/local/bin/serve-glm52-v19.sh "$@"' \
+grep -Fq 'glm52-exl3|exl3)' \
   "${repo_root}/launchers/serve-gilded-gnosis.sh"
 grep -Fq 'exec /usr/local/bin/serve-glm52-hybrid-v19.sh "$@"' \
+  "${repo_root}/launchers/serve-gilded-gnosis.sh"
+grep -Fq 'exec /usr/local/bin/serve-glm52-v19.sh "$@"' \
   "${repo_root}/launchers/serve-gilded-gnosis.sh"
 grep -Fq 'exec /usr/local/bin/serve-glm52-v19.sh "$@"' \
   "${repo_root}/launchers/serve-glm52-hybrid-v19.sh"

@@ -32,9 +32,16 @@ measured="$(run_helper \
 assert_contains "${measured}" "VLLM_DCP_QUERY_SPLIT=1"
 assert_contains "${measured}" \
   "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=8192"
+assert_contains "${measured}" \
+  "VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=140000"
 assert_contains "${measured}" "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=1"
 assert_contains "${measured}" "VLLM_PCIE_DMA_MIN_BYTES=25165824"
 assert_contains "${measured}" "PCIE_CALIBRATION_STATUS=measured"
+
+source_alias="$(run_helper \
+  VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=196608)"
+assert_contains "${source_alias}" \
+  "VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=196608"
 
 # An empty Compose GPUS entry must preserve an intentional CUDA device order
 # for both calibration and the vLLM launcher that follows it.
@@ -65,11 +72,14 @@ assert_contains "${no_dma}" "VLLM_PCIE_DMA_MIN_BYTES=off"
 explicit="$(run_helper \
   DCP_QUERY_SPLIT=0 \
   DCP_CKV_GATHER=1 \
+  DCP_CKV_GATHER_MAX_TOKENS=262144 \
   DCP_CKV_PREFETCH_DEPTH=0 \
   PCIE_DMA_MIN_BYTES=12MB)"
 assert_contains "${explicit}" "VLLM_DCP_QUERY_SPLIT=0"
 assert_contains "${explicit}" \
   "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0"
+assert_contains "${explicit}" \
+  "VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=262144"
 assert_contains "${explicit}" "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0"
 assert_contains "${explicit}" "VLLM_PCIE_DMA_MIN_BYTES=12MB"
 assert_contains "${explicit}" "PCIE_CALIBRATION_STATUS=skipped:all-explicit"
@@ -100,6 +110,16 @@ assert_contains "${fallback}" "VLLM_PCIE_DMA_MIN_BYTES=6MB"
 
 if run_helper PCIE_CALIBRATION_TIMEOUT=0 >/dev/null; then
   echo "zero calibration timeout was accepted" >&2
+  exit 1
+fi
+
+if run_helper DCP_CKV_GATHER_MAX_TOKENS=0 >/dev/null; then
+  echo "zero CKV gather capacity was accepted" >&2
+  exit 1
+fi
+
+if run_helper DCP_CKV_GATHER_MAX_TOKENS=not-a-number >/dev/null; then
+  echo "non-numeric CKV gather capacity was accepted" >&2
   exit 1
 fi
 

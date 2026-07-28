@@ -1,0 +1,70 @@
+{
+  "base": {
+    "commit": "4247d6765398fd42de3c108a8d991b2634fe88d1",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "generated_at": "2026-07-28T10:53:01.726104+00:00",
+  "manifest": {
+    "path": "/root/vllm/worktrees/blackwell-clean-gg-compose-20260727/manifests/vllm/gilded-gnosis-v20.json",
+    "sha256": "1a3598defd2f812a5a03c1a06d41fd86f40746622d086840d67e39dd5de34716"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "0c05ab9ec43c2446bfa4197fe1bbc1c1ec7e6cbe",
+      "number": 172,
+      "ref": "refs/pull/172/head",
+      "title": "MRV2 high-utilization startup memory profiling"
+    },
+    {
+      "disposition": "merged",
+      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
+      "number": 175,
+      "ref": "refs/pull/175/head",
+      "title": "Shard sparse prefill queries and halve result traffic"
+    },
+    {
+      "disposition": "merged",
+      "head": "673733e9711aa87f6b4e85f6db021ad676250a48",
+      "number": 179,
+      "ref": "refs/pull/179/head",
+      "title": "Partial replicated sparse-indexer topology"
+    },
+    {
+      "disposition": "merged",
+      "head": "c4022e80099e9bffa6091691663970591f8f05ec",
+      "number": 184,
+      "ref": "refs/pull/184/head",
+      "title": "Calibrate lossless PCIe DMA dispatch crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
+      "number": 185,
+      "ref": "refs/pull/185/head",
+      "title": "Gate DCP query split by measured context crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "417030797cc2ba156c09c1c9a520d77df646d769",
+      "number": 190,
+      "ref": "refs/pull/190/head",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "86a3e50b3310334a30c2e523ba56ebb341a7522acfd1a24f0354d2e25682cd87",
+    "tree": "936ed4829ed6b6a34b9052a7a2614333ee3b2623"
+  },
+  "schema_version": 1
+}

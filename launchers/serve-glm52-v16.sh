@@ -22,8 +22,10 @@ DCP_A2A_MAX_TOKENS="${DCP_A2A_MAX_TOKENS:-64}"
 DCP_A2A_LARGE_BACKEND="${DCP_A2A_LARGE_BACKEND:-ag_rs}"
 DCP_PREFILL_WORKSPACE="${DCP_PREFILL_WORKSPACE:-auto}"
 MTP="${MTP:-0}"
+ASYNC_SCHEDULING="${ASYNC_SCHEDULING:-1}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-64}"
 GRAPH="${GRAPH:-$((MAX_NUM_SEQS * 4))}"
+NUM_GPU_BLOCKS_OVERRIDE="${NUM_GPU_BLOCKS_OVERRIDE:-}"
 MAX_BATCHED_TOKENS="${MAX_BATCHED_TOKENS:-8192}"
 if [[ "${TP}" == "6" ]]; then
   MAX_MODEL_LEN="${MAX_MODEL_LEN:-128000}"
@@ -34,6 +36,8 @@ else
 fi
 MOE_MODE="${MOE_MODE:-a4}"
 MOE_BACKEND="${MOE_BACKEND:-b12x}"
+MTP_MOE_BACKEND="${MTP_MOE_BACKEND:-${MOE_BACKEND}}"
+MTP_DRAFT_SAMPLE_METHOD="${MTP_DRAFT_SAMPLE_METHOD:-probabilistic}"
 LINEAR_BACKEND="${LINEAR_BACKEND:-auto}"
 ONLINE_MXFP8="${ONLINE_MXFP8:-0}"
 ONLINE_FP8="${ONLINE_FP8:-0}"
@@ -47,7 +51,9 @@ INSTANTTENSOR_BACKEND="${INSTANTTENSOR_BACKEND:-BUFFERED}"
 PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF-expandable_segments:True}"
 QUANTIZATION="${QUANTIZATION:-modelopt_fp4}"
 QUANTIZATION_CONFIG_JSON="${QUANTIZATION_CONFIG_JSON:-}"
+COMPILATION_CONFIG_JSON="${COMPILATION_CONFIG_JSON:-}"
 KV_CACHE_DTYPE="${KV_CACHE_DTYPE:-fp8}"
+DCP_KV_CACHE_INTERLEAVE_SIZE="${DCP_KV_CACHE_INTERLEAVE_SIZE:-1}"
 GLM52_INDEX_TOPK_PATTERN="${GLM52_INDEX_TOPK_PATTERN:-FFFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSS}"
 
 case "${MOE_MODE}" in
@@ -108,9 +114,16 @@ esac
 [[ "${ONLINE_FP8_MXFP4}" =~ ^(0|1)$ ]] || die "ONLINE_FP8_MXFP4 must be 0 or 1"
 [[ "${NF3_GRID188}" =~ ^(0|1)$ ]] || die "NF3_GRID188 must be 0 or 1"
 [[ "${MTP}" =~ ^[0-9]+$ ]] || die "MTP must be an integer token count"
+[[ "${ASYNC_SCHEDULING}" =~ ^[01]$ ]] || die "ASYNC_SCHEDULING must be 0 or 1"
 [[ "${DCP_A2A_MAX_TOKENS}" =~ ^[0-9]+$ ]] || die "DCP_A2A_MAX_TOKENS must be an integer token count"
 [[ "${MAX_NUM_SEQS}" =~ ^[0-9]+$ ]] || die "MAX_NUM_SEQS must be an integer"
 [[ "${GRAPH}" =~ ^[0-9]+$ ]] || die "GRAPH must be an integer"
+[[ -z "${NUM_GPU_BLOCKS_OVERRIDE}" || "${NUM_GPU_BLOCKS_OVERRIDE}" =~ ^[1-9][0-9]*$ ]] || die "NUM_GPU_BLOCKS_OVERRIDE must be empty or a positive integer"
+[[ "${DCP_KV_CACHE_INTERLEAVE_SIZE}" =~ ^[1-9][0-9]*$ ]] || die "DCP_KV_CACHE_INTERLEAVE_SIZE must be a positive integer"
+case "${MTP_DRAFT_SAMPLE_METHOD}" in
+  greedy|probabilistic) ;;
+  *) die "MTP_DRAFT_SAMPLE_METHOD must be greedy or probabilistic" ;;
+esac
 [[ "${#GLM52_INDEX_TOPK_PATTERN}" -eq 78 ]] || die "GLM52_INDEX_TOPK_PATTERN must be exactly 78 characters, got ${#GLM52_INDEX_TOPK_PATTERN}"
 
 if [[ "${DCP_PREFILL_WORKSPACE}" == "auto" ]]; then
@@ -281,7 +294,7 @@ mkdir -p \
 
 spec_arg=()
 if [[ "${MTP}" != "0" ]]; then
-  spec_json="$(printf '{"model":"%s","method":"mtp","num_speculative_tokens":%s,"moe_backend":"%s","draft_sample_method":"probabilistic"}' "${MODEL}" "${MTP}" "${MOE_BACKEND}")"
+  spec_json="$(printf '{"model":"%s","method":"mtp","num_speculative_tokens":%s,"moe_backend":"%s","draft_sample_method":"%s"}' "${MODEL}" "${MTP}" "${MTP_MOE_BACKEND}" "${MTP_DRAFT_SAMPLE_METHOD}")"
   spec_arg=(--speculative-config "${spec_json}")
 fi
 
@@ -305,7 +318,31 @@ fi
 
 dcp_args=(--decode-context-parallel-size "${DCP}")
 if [[ "${DCP}" != "1" ]]; then
-  dcp_args+=(--dcp-comm-backend "${DCP_BACKEND}" --dcp-kv-cache-interleave-size 1)
+  dcp_args+=(--dcp-comm-backend "${DCP_BACKEND}" --dcp-kv-cache-interleave-size "${DCP_KV_CACHE_INTERLEAVE_SIZE}")
+fi
+
+async_args=(--async-scheduling)
+[[ "${ASYNC_SCHEDULING}" == "0" ]] && async_args=(--no-async-scheduling)
+
+gpu_blocks_args=()
+if [[ -n "${NUM_GPU_BLOCKS_OVERRIDE}" ]]; then
+  gpu_blocks_args=(--num-gpu-blocks-override "${NUM_GPU_BLOCKS_OVERRIDE}")
+fi
+
+if [[ "${QUANTIZATION}" == "exl3" && -z "${COMPILATION_CONFIG_JSON}" ]]; then
+  graph_step=$((MTP + 1))
+  graph_sizes=""
+  for ((capture_size = graph_step; capture_size <= GRAPH; capture_size += graph_step)); do
+    [[ -n "${graph_sizes}" ]] && graph_sizes+=,
+    graph_sizes+="${capture_size}"
+  done
+  [[ -n "${graph_sizes}" ]] || graph_sizes="${GRAPH}"
+  COMPILATION_CONFIG_JSON="$(printf '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[%s],"custom_ops":["all"],"pass_config":{"fuse_allreduce_rms":true}}' "${graph_sizes}")"
+fi
+
+compilation_args=(-cc.pass_config.fuse_allreduce_rms=True --max-cudagraph-capture-size "${GRAPH}")
+if [[ -n "${COMPILATION_CONFIG_JSON}" ]]; then
+  compilation_args=(--compilation-config "${COMPILATION_CONFIG_JSON}")
 fi
 
 hf_overrides="$(printf '{"use_index_cache":true,"index_topk_pattern":"%s"}' "${GLM52_INDEX_TOPK_PATTERN}")"
@@ -324,13 +361,13 @@ cmd=(vllm serve "${MODEL}" \
   "${linear_args[@]}" \
   "${quant_args[@]}" \
   --load-format "${LOAD_FORMAT}" \
-  -cc.pass_config.fuse_allreduce_rms=True \
+  "${compilation_args[@]}" \
   --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
   --max-model-len "${MAX_MODEL_LEN}" \
   --max-num-seqs "${MAX_NUM_SEQS}" \
   --max-num-batched-tokens "${MAX_BATCHED_TOKENS}" \
-  --max-cudagraph-capture-size "${GRAPH}" \
-  --async-scheduling \
+  "${gpu_blocks_args[@]}" \
+  "${async_args[@]}" \
   --enable-chunked-prefill \
   --enable-prefix-caching \
   --enable-flashinfer-autotune \
@@ -372,6 +409,12 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   printf 'QUANTIZATION=%q\n' "${QUANTIZATION}"
   printf 'ONLINE_QUANT=%q\n' "${ONLINE_QUANT}"
   printf 'QUANTIZATION_CONFIG_JSON=%q\n' "${QUANTIZATION_CONFIG_JSON}"
+  printf 'COMPILATION_CONFIG_JSON=%q\n' "${COMPILATION_CONFIG_JSON}"
+  printf 'ASYNC_SCHEDULING=%q\n' "${ASYNC_SCHEDULING}"
+  printf 'MTP_MOE_BACKEND=%q\n' "${MTP_MOE_BACKEND}"
+  printf 'MTP_DRAFT_SAMPLE_METHOD=%q\n' "${MTP_DRAFT_SAMPLE_METHOD}"
+  printf 'DCP_KV_CACHE_INTERLEAVE_SIZE=%q\n' "${DCP_KV_CACHE_INTERLEAVE_SIZE}"
+  printf 'NUM_GPU_BLOCKS_OVERRIDE=%q\n' "${NUM_GPU_BLOCKS_OVERRIDE}"
   printf 'VLLM_NF3_GRID188_DECODE=%q\n' "${VLLM_NF3_GRID188_DECODE}"
   printf 'Command:'
   printf ' %q' "${cmd[@]}"

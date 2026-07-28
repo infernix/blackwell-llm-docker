@@ -94,7 +94,43 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # Build the current unified v17 image with NF3/NVFP4-KV support and the
 # validated TP4/TP6/TP8 sparse-MLA DCP prefill workspace paths.
 ./build-fathomless-firmament-v17-cu132.sh
+
+# Build a new GG v20 candidate. This always resolves the current clean
+# dev/gilded-gnosis and SparkInfer master heads and composes both pinned PR
+# manifests from scratch.
+./build-gilded-gnosis-v20-final-cu132.sh
 ```
+
+### Clean GG release composition
+
+New Gilded Gnosis images must not use an earlier `build/*` integration branch
+as their source. `build-gilded-gnosis-v20-final-cu132.sh` reads the manifests
+under `manifests/vllm/` and `manifests/sparkinfer/`, resolves the current
+`dev/gilded-gnosis` and SparkInfer `master` heads, verifies every pinned PR
+head, and creates fresh integration patches and lockfiles. The build stops if
+either base advances, a PR changes, or a PR conflicts. The Dockerfile
+independently verifies that applying each patch produces its locked Git tree
+and records both bases, PR heads, trees, patch hashes, and lock hashes in image
+labels.
+
+The old r4 source can only be selected explicitly for reproducibility:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r4 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+The validated r5 image is reproducible from its archived, hash-verified source
+locks and integration patches even after either upstream branch advances:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r5 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+This historical mode still verifies the pinned base commits, patch hashes, and
+resulting Git trees. It only skips the normal requirement that the current
+remote branch heads remain equal to the archived base commits.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or

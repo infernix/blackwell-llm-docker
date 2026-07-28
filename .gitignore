@@ -1,2 +1,4 @@
 .tmp-flashinfer-wheels/*
 !.tmp-flashinfer-wheels/.gitkeep
+patches/generated/
+__pycache__/
