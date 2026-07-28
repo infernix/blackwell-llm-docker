@@ -155,8 +155,14 @@ termination after a call remain valid. XGrammar caps Transformers below 5 for
 tokenizer regressions in other model families; this GLM image removes only that
 package-metadata cap and validates the pinned GLM tokenizer with its
 Transformers 5 runtime. The override is recorded in the image labels.
-Historical reproduction modes keep the XGrammar version and metadata supplied
-by their original vLLM requirements.
+Historical r4-r7 reproduction modes keep the XGrammar version and metadata
+supplied by their original vLLM requirements. Reproduce the exact r8 source
+composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r8 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
