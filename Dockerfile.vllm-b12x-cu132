@@ -65,8 +65,8 @@ ARG LMCACHE_REPO=https://github.com/LMCache/LMCache.git
 ARG LMCACHE_REF=v0.5.2
 ARG LMCACHE_COMMIT=cd2c0d6a6a982ec5e334bae7704e1029c06d3c97
 ARG LMCACHE_PATCH_FILE=lmcache/glm52-dcp-v052.patch
-ARG LMCACHE_PATCH_SHA256=0303a0010e60e179609a91210c65d53e01747f8e1a173804899e15bd7939811f
-ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp
+ARG LMCACHE_PATCH_SHA256=504434b7d0ccd7bffa2b01a716ad0471405fa6dad8b2ba78a3b0ec4b8627a255
+ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.2
 
 ARG CUTLASS_REPO=https://github.com/NVIDIA/cutlass.git
 ARG CUTLASS_REF=main
@@ -869,6 +869,7 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
       aiofile==3.11.1 \
       aiofiles==25.1.0 \
       redis==8.0.1 \
+      numba==0.65.0 \
       opentelemetry-exporter-prometheus==0.65b0 \
  && python -m pytest --confcutdir=tests/v1 \
       tests/v1/test_vllm_dcp_parallel_strategy.py \
@@ -960,6 +961,7 @@ RUN /opt/venv/bin/python -m pip install \
       sortedcontainers==2.4.0 \
       aiofile==3.11.1 \
       aiofiles==25.1.0 \
+      cupy-cuda13x==13.6.0 \
       redis==8.0.1 \
       opentelemetry-exporter-prometheus==0.65b0 \
  && /opt/venv/bin/python -m pip install --no-deps --force-reinstall \
@@ -969,9 +971,11 @@ import importlib.metadata as md
 import inspect
 import os
 
+import cupy
 from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
 
 assert md.version("lmcache") == os.environ["LMCACHE_BUILD_VERSION"]
+assert md.version("cupy-cuda13x") == "13.6.0"
 source = inspect.getsource(ParallelStrategy)
 assert "dcp_size" in source
 assert "self.vllm_worker_id % self.dcp_size" in source

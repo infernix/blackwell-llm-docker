@@ -39,10 +39,22 @@ lmcache_host="${LMCACHE_HOST:-127.0.0.1}"
 lmcache_port="${LMCACHE_PORT:-$((5555 + port_offset))}"
 lmcache_http_port="${LMCACHE_HTTP_PORT:-$((8089 + port_offset))}"
 lmcache_prometheus_port="${LMCACHE_PROMETHEUS_PORT:-$((9090 + port_offset))}"
-lmcache_chunk_size="${LMCACHE_CHUNK_SIZE:-512}"
+lmcache_chunk_size="${LMCACHE_CHUNK_SIZE:-}"
+if [[ -z "${lmcache_chunk_size}" ]]; then
+  # LMCache chunks must align to every effective DCP paged-cache block.
+  # TP6 uses 192-token (DCP3) or 384-token (DCP6) manager blocks; 512 is
+  # invalid for both. Power-of-two DCP layouts retain the established 512.
+  case "${DCP:-1}" in
+    3|6) lmcache_chunk_size=384 ;;
+    *) lmcache_chunk_size=512 ;;
+  esac
+fi
 lmcache_l1_gb="${LMCACHE_L1_GB:-24}"
 lmcache_l1_init_gb="${LMCACHE_L1_INIT_GB:-${lmcache_l1_gb}}"
-lmcache_gpu_workers="${LMCACHE_MAX_GPU_WORKERS:-1}"
+# Every TP rank registers an independent GPU client, including at DCP1. Give
+# each client its own affinity worker so rank transfers are not serialized.
+# Constrained hosts can still override this explicitly.
+lmcache_gpu_workers="${LMCACHE_MAX_GPU_WORKERS:-${TP:-1}}"
 lmcache_cpu_workers="${LMCACHE_MAX_CPU_WORKERS:-4}"
 lmcache_log="${LMCACHE_LOG:-/tmp/lmcache-mp-${service_port}.log}"
 
@@ -121,6 +133,19 @@ print(
 )
 PY
 )"
+
+# LMCache registers KV storage by address. PyTorch expandable segments can
+# remap those virtual addresses, so vLLM intentionally rejects this pairing.
+# Keep any unrelated allocator settings while forcing the incompatible option
+# off before the downstream GLM helper applies its normal default.
+allocator_config="${PYTORCH_CUDA_ALLOC_CONF:-}"
+if [[ -z "${allocator_config}" ]]; then
+  allocator_config="expandable_segments:False"
+elif [[ "${allocator_config}" =~ (^|,)expandable_segments:True(,|$) ]]; then
+  allocator_config="${allocator_config//expandable_segments:True/expandable_segments:False}"
+  echo "LMCache disabled PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+fi
+export PYTORCH_CUDA_ALLOC_CONF="${allocator_config}"
 
 rm -f "${lmcache_log}"
 export LMCACHE_DISABLE_BANNER="${LMCACHE_DISABLE_BANNER:-1}"

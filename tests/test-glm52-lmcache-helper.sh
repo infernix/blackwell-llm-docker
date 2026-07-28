@@ -28,6 +28,9 @@ cat >"${tmp_root}/model-server" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$@" >"${LMCACHE_TEST_MODEL_ARGS}"
+if [[ -n "${LMCACHE_TEST_MODEL_ENV:-}" ]]; then
+  printf '%s\n' "${PYTORCH_CUDA_ALLOC_CONF-<unset>}" >"${LMCACHE_TEST_MODEL_ENV}"
+fi
 sleep "${LMCACHE_TEST_MODEL_SLEEP:-0}"
 SH
 chmod +x "${tmp_root}/model-server"
@@ -35,22 +38,72 @@ chmod +x "${tmp_root}/model-server"
 PATH="${tmp_root}/bin:${PATH}" \
 LMCACHE_MODE=ram \
 PORT=8002 \
+TP=8 \
+DCP=4 \
 LMCACHE_L1_GB=2 \
 LMCACHE_LOG="${tmp_root}/ram.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/ram-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/ram-model.args" \
+LMCACHE_TEST_MODEL_ENV="${tmp_root}/ram-model.env" \
 bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
   "${tmp_root}/model-server" --model-arg value
 
 grep -Fq -- '--port 5557' "${tmp_root}/ram-server.args"
 grep -Fq -- '--http-port 8091' "${tmp_root}/ram-server.args"
 grep -Fq -- '--l1-size-gb 2' "${tmp_root}/ram-server.args"
+grep -Fq -- '--max-gpu-workers 8' "${tmp_root}/ram-server.args"
+grep -Fq -- '--chunk-size 512' "${tmp_root}/ram-server.args"
 if grep -Fq -- '--l2-adapter' "${tmp_root}/ram-server.args"; then
   echo 'RAM-only mode unexpectedly enabled L2' >&2
   exit 1
 fi
 grep -Fq -- '--kv-transfer-config' "${tmp_root}/ram-model.args"
 grep -Fq -- '"lmcache.mp.port":5557' "${tmp_root}/ram-model.args"
+grep -Fxq 'expandable_segments:False' "${tmp_root}/ram-model.env"
+
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8006 \
+TP=6 \
+DCP=3 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/tp6.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/tp6-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/tp6-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server"
+grep -Fq -- '--max-gpu-workers 6' "${tmp_root}/tp6-server.args"
+grep -Fq -- '--chunk-size 384' "${tmp_root}/tp6-server.args"
+
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8007 \
+TP=6 \
+DCP=6 \
+LMCACHE_CHUNK_SIZE=768 \
+LMCACHE_MAX_GPU_WORKERS=2 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/override.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/override-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/override-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server"
+grep -Fq -- '--max-gpu-workers 2' "${tmp_root}/override-server.args"
+grep -Fq -- '--chunk-size 768' "${tmp_root}/override-server.args"
+
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8005 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/allocator.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/allocator-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/allocator-model.args" \
+LMCACHE_TEST_MODEL_ENV="${tmp_root}/allocator-model.env" \
+PYTORCH_CUDA_ALLOC_CONF='max_split_size_mb:256,expandable_segments:True' \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server"
+grep -Fxq 'max_split_size_mb:256,expandable_segments:False' \
+  "${tmp_root}/allocator-model.env"
 
 PATH="${tmp_root}/bin:${PATH}" \
 LMCACHE_MODE=disk \
@@ -79,9 +132,11 @@ fi
 
 LMCACHE_MODE=off \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/off-model.args" \
+LMCACHE_TEST_MODEL_ENV="${tmp_root}/off-model.env" \
 bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
   "${tmp_root}/model-server" untouched
 grep -Fxq 'untouched' "${tmp_root}/off-model.args"
+grep -Fxq '<unset>' "${tmp_root}/off-model.env"
 
 if LMCACHE_MODE=ram \
   MODEL_FAMILY=ds4 \
