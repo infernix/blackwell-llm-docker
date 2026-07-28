@@ -55,7 +55,9 @@ case "${MODEL_FAMILY:-}" in
     ;;
 esac
 
-if [[ "${LMCACHE_MODE:-off}" == "off" || "${LMCACHE_MODE:-off}" == "0" ]]; then
+lmcache_mode="${LMCACHE_MODE:-off}"
+lmcache_mode="${lmcache_mode,,}"
+if [[ "${lmcache_mode}" == "off" || "${lmcache_mode}" == "0" ]]; then
   exec "${model_command[@]}"
 fi
 

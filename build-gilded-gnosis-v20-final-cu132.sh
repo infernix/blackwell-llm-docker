@@ -54,8 +54,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
   configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r6}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r6}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r7}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r7}"
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
@@ -151,12 +151,21 @@ export TRITON_KERNELS_COMMIT=
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
-export LMCACHE_REF="${LMCACHE_REF:-v0.5.2}"
-export LMCACHE_COMMIT="${LMCACHE_COMMIT:-cd2c0d6a6a982ec5e334bae7704e1029c06d3c97}"
-export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-lmcache/glm52-dcp-v052.patch}"
-export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-504434b7d0ccd7bffa2b01a716ad0471405fa6dad8b2ba78a3b0ec4b8627a255}"
-export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.2}"
+if [[ "${composition_mode}" == "reproduce-r6" ]]; then
+  export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
+  export LMCACHE_REF="${LMCACHE_REF:-v0.5.2}"
+  export LMCACHE_COMMIT="${LMCACHE_COMMIT:-cd2c0d6a6a982ec5e334bae7704e1029c06d3c97}"
+  export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-lmcache/glm52-dcp-v052.patch}"
+  export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-504434b7d0ccd7bffa2b01a716ad0471405fa6dad8b2ba78a3b0ec4b8627a255}"
+  export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.2}"
+else
+  export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/local-inference-lab/LMCache.git}"
+  export LMCACHE_REF="${LMCACHE_REF:-release/v0.5.2-glm52-dcp-base}"
+  export LMCACHE_COMMIT="${LMCACHE_COMMIT:-9cebd405d0caf4bebe01d694b5a8bf4e3e354314}"
+  export LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
+  export LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
+  export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
+fi
 export HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.10}"
 export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 PyNvVideoCodec==2.0.4 nccl4py==0.3.1}"
 

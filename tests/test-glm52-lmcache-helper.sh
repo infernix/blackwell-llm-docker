@@ -13,7 +13,7 @@ printf '%q ' "$@" >"${LMCACHE_TEST_SERVER_ARGS}"
 printf '\n' >>"${LMCACHE_TEST_SERVER_ARGS}"
 echo 'LMCache ZMQ cache server is running'
 if [[ "${LMCACHE_TEST_EXIT_AFTER_READY:-0}" == 1 ]]; then
-  sleep 0.1
+  sleep "${LMCACHE_TEST_EXIT_DELAY:-2}"
   exit 23
 fi
 trap 'exit 0' INT TERM
@@ -23,6 +23,15 @@ while true; do
 done
 SH
 chmod +x "${tmp_root}/bin/lmcache"
+
+cat >"${tmp_root}/bin/curl" <<'SH'
+#!/usr/bin/env bash
+if [[ "${LMCACHE_TEST_HTTP_READY:-0}" == 1 ]]; then
+  exit 0
+fi
+exit 22
+SH
+chmod +x "${tmp_root}/bin/curl"
 
 cat >"${tmp_root}/model-server" <<'SH'
 #!/usr/bin/env bash
@@ -60,6 +69,21 @@ fi
 grep -Fq -- '--kv-transfer-config' "${tmp_root}/ram-model.args"
 grep -Fq -- '"lmcache.mp.port":5557' "${tmp_root}/ram-model.args"
 grep -Fxq 'expandable_segments:False' "${tmp_root}/ram-model.env"
+
+# HTTP health is the primary readiness contract; this test intentionally uses
+# a log string that cannot satisfy the fallback.
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8008 \
+LMCACHE_L1_GB=2 \
+LMCACHE_READY_LOG_TEXT='not-present' \
+LMCACHE_TEST_HTTP_READY=1 \
+LMCACHE_LOG="${tmp_root}/http-ready.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/http-ready-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/http-ready-model.args" \
+bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  "${tmp_root}/model-server" http-ready
+grep -Fxq 'http-ready' "${tmp_root}/http-ready-model.args"
 
 PATH="${tmp_root}/bin:${PATH}" \
 LMCACHE_MODE=ram \
@@ -145,6 +169,7 @@ if LMCACHE_MODE=ram \
   exit 1
 fi
 
+crash_stderr="${tmp_root}/crash.stderr"
 if PATH="${tmp_root}/bin:${PATH}" \
   LMCACHE_MODE=ram \
   PORT=8004 \
@@ -155,9 +180,11 @@ if PATH="${tmp_root}/bin:${PATH}" \
   LMCACHE_TEST_SERVER_ARGS="${tmp_root}/crash-server.args" \
   LMCACHE_TEST_MODEL_ARGS="${tmp_root}/crash-model.args" \
   bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
-    "${tmp_root}/model-server"; then
+    "${tmp_root}/model-server" 2>"${crash_stderr}"; then
   echo 'Wrapper unexpectedly survived an LMCache server failure' >&2
   exit 1
 fi
+grep -Fq 'ERROR: LMCache exited while the model server was running' \
+  "${crash_stderr}"
 
 echo 'GLM-5.2 LMCache helper: PASS'

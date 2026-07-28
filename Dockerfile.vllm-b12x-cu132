@@ -61,12 +61,12 @@ ARG INSTANTTENSOR_REPO=https://github.com/scitix/InstantTensor.git
 ARG INSTANTTENSOR_REF=main
 ARG INSTANTTENSOR_COMMIT=
 
-ARG LMCACHE_REPO=https://github.com/LMCache/LMCache.git
-ARG LMCACHE_REF=v0.5.2
-ARG LMCACHE_COMMIT=cd2c0d6a6a982ec5e334bae7704e1029c06d3c97
-ARG LMCACHE_PATCH_FILE=lmcache/glm52-dcp-v052.patch
-ARG LMCACHE_PATCH_SHA256=504434b7d0ccd7bffa2b01a716ad0471405fa6dad8b2ba78a3b0ec4b8627a255
-ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.2
+ARG LMCACHE_REPO=https://github.com/local-inference-lab/LMCache.git
+ARG LMCACHE_REF=release/v0.5.2-glm52-dcp-base
+ARG LMCACHE_COMMIT=9cebd405d0caf4bebe01d694b5a8bf4e3e354314
+ARG LMCACHE_PATCH_FILE=
+ARG LMCACHE_PATCH_SHA256=
+ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.3
 
 ARG CUTLASS_REPO=https://github.com/NVIDIA/cutlass.git
 ARG CUTLASS_REF=main
@@ -857,11 +857,23 @@ COPY patches/ /tmp/build-patches/
 RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
  && cd /tmp/lmcache-src \
  && git checkout "${LMCACHE_REF}" \
- && [[ "$(git rev-parse HEAD)" = "${LMCACHE_COMMIT}" ]] \
- && patch_path="/tmp/build-patches/${LMCACHE_PATCH_FILE}" \
- && [[ "$(sha256sum "${patch_path}" | cut -d' ' -f1)" = "${LMCACHE_PATCH_SHA256}" ]] \
- && git apply --check "${patch_path}" \
- && git apply "${patch_path}" \
+ && if [[ -n "${LMCACHE_COMMIT}" ]]; then \
+      actual_commit="$(git rev-parse HEAD)"; \
+      [[ "${actual_commit}" = "${LMCACHE_COMMIT}" ]] || { \
+        echo "ERROR: LMCACHE_COMMIT mismatch: HEAD=${actual_commit} expected=${LMCACHE_COMMIT}" >&2; \
+        exit 1; \
+      }; \
+    fi \
+ && if [[ -n "${LMCACHE_PATCH_FILE}" ]]; then \
+      patch_path="/tmp/build-patches/${LMCACHE_PATCH_FILE}"; \
+      actual_patch_sha256="$(sha256sum "${patch_path}" | cut -d' ' -f1)"; \
+      [[ "${actual_patch_sha256}" = "${LMCACHE_PATCH_SHA256}" ]] || { \
+        echo "ERROR: LMCACHE_PATCH_SHA256 mismatch: actual=${actual_patch_sha256} expected=${LMCACHE_PATCH_SHA256}" >&2; \
+        exit 1; \
+      }; \
+      git apply --check "${patch_path}"; \
+      git apply "${patch_path}"; \
+    fi \
  && git diff --check \
  && python -m pip install \
       pytest==8.4.1 \
@@ -903,8 +915,6 @@ COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
 COPY --from=exllamav3-build /opt/exllamav3 /opt/exllamav3
-COPY --from=lmcache-build /tmp/lmcache-wheels/ /tmp/lmcache-wheels/
-
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
 ARG VLLM_RUNTIME_EXTRA_PACKAGES=""
 ARG INSTANTTENSOR_REPO
@@ -961,7 +971,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Install only the dependencies needed by the in-process RAM and buffered
 # filesystem tiers. LMCache's cloud/GDS dependencies are intentionally omitted
 # so it cannot downgrade the release's NumPy or OpenTelemetry stack.
-RUN /opt/venv/bin/python -m pip install \
+RUN --mount=type=bind,from=lmcache-build,source=/tmp/lmcache-wheels,target=/tmp/lmcache-wheels,ro \
+    /opt/venv/bin/python -m pip install \
       sortedcontainers==2.4.0 \
       aiofile==3.11.1 \
       aiofiles==25.1.0 \
@@ -972,7 +983,6 @@ RUN /opt/venv/bin/python -m pip install \
       /tmp/lmcache-wheels/lmcache-*.whl \
  && LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION}" /opt/venv/bin/python - <<'PY'
 import importlib.metadata as md
-import inspect
 import os
 
 import cupy
@@ -980,12 +990,21 @@ from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
 
 assert md.version("lmcache") == os.environ["LMCACHE_BUILD_VERSION"]
 assert md.version("cupy-cuda13x") == "13.6.0"
-source = inspect.getsource(ParallelStrategy)
-assert "dcp_size" in source
-assert "self.vllm_worker_id % self.dcp_size" in source
+strategy = ParallelStrategy(
+    use_mla=True,
+    vllm_world_size=8,
+    vllm_worker_id=5,
+    tp_size=8,
+    pp_size=1,
+    n_servers=1,
+    dcp_size=4,
+)
+assert strategy.kv_world_size == 4
+assert strategy.kv_worker_id == 1
+assert strategy.kv_tp_size == 2
+assert strategy.kv_readers_per_object == 2
 print("lmcache", md.version("lmcache"))
 PY
-RUN rm -rf /tmp/lmcache-wheels
 
 RUN if [[ -n "${INSTANTTENSOR_REF}" ]]; then \
       git clone --recursive "${INSTANTTENSOR_REPO}" /tmp/instanttensor-src; \

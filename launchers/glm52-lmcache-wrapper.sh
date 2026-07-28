@@ -36,6 +36,8 @@ if [[ "${service_port}" =~ ^[0-9]+$ ]] && (( service_port >= 8000 )); then
 fi
 
 lmcache_host="${LMCACHE_HOST:-127.0.0.1}"
+# Derived ports assume each service uses a unique PORT offset. Deployments with
+# custom spacing must set all three LMCACHE_*_PORT values explicitly.
 lmcache_port="${LMCACHE_PORT:-$((5555 + port_offset))}"
 lmcache_http_port="${LMCACHE_HTTP_PORT:-$((8089 + port_offset))}"
 lmcache_prometheus_port="${LMCACHE_PROMETHEUS_PORT:-$((9090 + port_offset))}"
@@ -168,7 +170,14 @@ for _ in $(seq 1 "${LMCACHE_START_TIMEOUT:-120}"); do
   if ! kill -0 "${lmcache_pid}" 2>/dev/null; then
     break
   fi
-  if grep -Fq 'LMCache ZMQ cache server is running' "${lmcache_log}"; then
+  if curl --fail --silent --show-error --max-time 1 \
+      "http://127.0.0.1:${lmcache_http_port}/healthcheck" \
+      >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  if grep -Fq "${LMCACHE_READY_LOG_TEXT:-LMCache ZMQ cache server is running}" \
+      "${lmcache_log}"; then
     ready=1
     break
   fi
