@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "name": "gilded-gnosis-v20-lmcache",
+  "repository": "https://github.com/local-inference-lab/LMCache.git",
+  "base_ref": "refs/heads/release/v0.5.2-glm52-dcp-base",
+  "pull_requests": [
+    {
+      "number": 7,
+      "head": "7b7583aef55e98ba05a6c199e71601d78552e794",
+      "title": "Return bounded LMCache MP RPC handler errors"
+    },
+    {
+      "number": 8,
+      "head": "31c4175d2134518e5b43fe8f4a7d072df6043a13",
+      "title": "Recover failed MP retrieves by recomputing invalid blocks"
+    },
+    {
+      "number": 9,
+      "head": "c3b73de74d855f6263deea8b6c6c4dde87e6e5b9",
+      "title": "Restore the largest exact L1 prefix after allocation failure"
+    },
+    {
+      "number": 10,
+      "head": "59186798bb5859b7add7bcac81dff9f2fd4037ab",
+      "title": "Protect native lookup keys from concurrent deletion"
+    },
+    {
+      "number": 11,
+      "head": "2cee5a2c1ef7e80028e94b1bc4bfbfc02e2c2a8d",
+      "title": "Log bounded prefetch failure key samples"
+    },
+    {
+      "number": 12,
+      "head": "baf1345106ebe568a116a35fdcee36bfec73da57",
+      "title": "Return native per-key store results"
+    },
+    {
+      "number": 13,
+      "head": "d4dce69bf90362953cf9ac9a86cccc186b3219dc",
+      "title": "Enforce native filesystem O_DIRECT alignment"
+    },
+    {
+      "number": 14,
+      "head": "502b3c60f2e61625d6e32a31d0d725eedc620792",
+      "title": "Support current and legacy native filesystem object-group keys"
+    },
+    {
+      "number": 15,
+      "head": "7892d42a6996df855fe743edb271fa154503bef8",
+      "title": "Make native stores durable before reporting completion"
+    },
+    {
+      "number": 16,
+      "head": "e6c2708fe8ae8a96d3c66e83bf4b548c734fbb13",
+      "title": "Restore native filesystem capacity accounting after restart"
+    },
+    {
+      "number": 17,
+      "head": "01743addbc3afd818a24390e1c40346d3378d77a",
+      "title": "Add bounded L1 writeback to durable storage"
+    }
+  ]
+}
