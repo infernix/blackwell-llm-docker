@@ -238,20 +238,31 @@ fi
   DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
 
 prefetch_overlap_safe=1
+owner_merge_topology_safe=1
 if [[ -n "${calibration_prefetch}" && \
       "${DCP_CKV_PREFETCH_TOPOLOGY}" == "auto" ]]; then
   prefetch_topology_decision="measured:${calibration_status}"
 else
   prefetch_topology_decision="not-applicable"
 fi
+topology_policy_needed=0
 if [[ "${DCP_CKV_PREFETCH_DEPTH}" == "auto" && "${DCP}" != "1" ]]; then
+  topology_policy_needed=1
+fi
+if [[ "${DCP_TOPK_OWNER_MERGE}" == "auto" && \
+      "${TP}:${DCP}" == "8:8" ]]; then
+  topology_policy_needed=1
+fi
+if [[ "${topology_policy_needed}" == "1" ]]; then
   case "${DCP_CKV_PREFETCH_TOPOLOGY}" in
     safe)
       prefetch_overlap_safe=1
+      owner_merge_topology_safe=1
       prefetch_topology_decision="safe:explicit-override"
       ;;
     unsafe)
       prefetch_overlap_safe=0
+      owner_merge_topology_safe=0
       prefetch_topology_decision="unsafe:explicit-override"
       ;;
     auto)
@@ -268,8 +279,10 @@ if [[ "${DCP_CKV_PREFETCH_DEPTH}" == "auto" && "${DCP}" != "1" ]]; then
       fi
       if [[ "${prefetch_topology_decision}" == safe:* ]]; then
         prefetch_overlap_safe=1
+        owner_merge_topology_safe=1
       else
         prefetch_overlap_safe=0
+        owner_merge_topology_safe=0
       fi
       ;;
   esac
@@ -289,10 +302,11 @@ read -r \
       "${DCP_TOPK_OWNER_MERGE}" \
       "${DCP_INDEXER_SHARDS}" \
       "${DCP_CKV_PREFETCH_DEPTH}" \
-      "${prefetch_overlap_safe}"
+      "${prefetch_overlap_safe}" \
+      "${owner_merge_topology_safe}"
   )
 
-printf 'GLM-5.2 DCP CKV prefetch topology: %s\n' \
+printf 'GLM-5.2 DCP transport topology: %s\n' \
   "${prefetch_topology_decision}" >&2
 
 export VLLM_DCP_QUERY_SPLIT="${DCP_QUERY_SPLIT}"
@@ -307,6 +321,14 @@ export VLLM_DCP_INDEXER_SHARDS="${DCP_INDEXER_SHARDS}"
 export VLLM_B12X_MLA_CKV_PREFETCH_DEPTH="${DCP_CKV_PREFETCH_DEPTH}"
 export VLLM_B12X_MLA_CKV_PREFETCH_WORKSPACE_MIB="${DCP_CKV_PREFETCH_WORKSPACE_MIB}"
 export VLLM_PCIE_DMA_MIN_BYTES="${PCIE_DMA_MIN_BYTES}"
+
+printf 'GLM-5.2 DCP prefill policy: query-split=%s min-context=%s CKV-gather=%s owner-merge=%s indexer-shards=%s prefetch-depth=%s\n' \
+  "${VLLM_DCP_QUERY_SPLIT}" \
+  "${VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS}" \
+  "${VLLM_B12X_MLA_CKV_GATHER}" \
+  "${VLLM_DCP_TOPK_OWNER_MERGE}" \
+  "${VLLM_DCP_INDEXER_SHARDS}" \
+  "${VLLM_B12X_MLA_CKV_PREFETCH_DEPTH}" >&2
 
 printf 'GLM-5.2 PCIe calibration: %s cache=%s DMA-min=%s\n' \
   "${calibration_status}" "${calibration_cache:-none}" \

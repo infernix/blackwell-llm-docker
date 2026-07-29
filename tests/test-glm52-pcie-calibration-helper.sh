@@ -48,6 +48,18 @@ assert_contains "${split_probe_negative}" "VLLM_DCP_QUERY_SPLIT=1"
 assert_contains "${split_probe_negative}" \
   "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0"
 
+dcp8_local_fabric="$(run_helper \
+  DCP=8 \
+  DCP_CKV_PREFETCH_TOPOLOGY=safe \
+  PCIE_CALIBRATION=off)"
+assert_contains "${dcp8_local_fabric}" "VLLM_DCP_TOPK_OWNER_MERGE=1"
+
+dcp8_cross_numa="$(run_helper \
+  DCP=8 \
+  DCP_CKV_PREFETCH_TOPOLOGY=unsafe \
+  PCIE_CALIBRATION=off)"
+assert_contains "${dcp8_cross_numa}" "VLLM_DCP_TOPK_OWNER_MERGE=0"
+
 source_alias="$(run_helper \
   VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=196608)"
 assert_contains "${source_alias}" \

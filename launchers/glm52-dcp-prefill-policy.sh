@@ -126,6 +126,7 @@ resolve_glm52_dcp_prefill_policy() {
   local indexer_shards="$6"
   local prefetch_depth="$7"
   local prefetch_overlap_safe="${8:-1}"
+  local owner_merge_topology_safe="${9:-1}"
 
   case "${tp}:${dcp}" in
     4:1|8:1)
@@ -143,7 +144,16 @@ resolve_glm52_dcp_prefill_policy() {
   esac
 
   if [[ "${owner_merge}" == "auto" ]]; then
-    [[ "${dcp}" == "1" ]] && owner_merge=0 || owner_merge=1
+    if [[ "${dcp}" == "1" ]]; then
+      owner_merge=0
+    elif [[ "${tp}:${dcp}" == "8:8" && \
+            "${owner_merge_topology_safe}" != "1" ]]; then
+      # The exact owner exchange wins on a local PCIe fabric but loses its
+      # launch/transport advantage when every rank crosses a NUMA boundary.
+      owner_merge=0
+    else
+      owner_merge=1
+    fi
   fi
 
   if [[ "${indexer_shards}" == "auto" ]]; then
