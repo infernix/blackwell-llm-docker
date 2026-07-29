@@ -21,7 +21,7 @@
     },
     {
       "number": 179,
-      "head": "673733e9711aa87f6b4e85f6db021ad676250a48",
+      "head": "ef60ee72e95084cfbdc054b54941094516b102df",
       "title": "Partial replicated sparse-indexer topology"
     },
     {
@@ -36,8 +36,13 @@
     },
     {
       "number": 190,
-      "head": "417030797cc2ba156c09c1c9a520d77df646d769",
+      "head": "d35dd8ffd6d7e48e54e6917aa559b89465b61387",
       "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    },
+    {
+      "number": 194,
+      "head": "854735ac77896eca1447faa9468db0acf8d7da05",
+      "title": "Preload CUDA-clean worker modules with forkserver"
     },
     {
       "number": 189,
