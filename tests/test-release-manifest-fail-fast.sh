@@ -13,4 +13,18 @@ if grep -Eq '^[[:space:]]*export[[:space:]]+[A-Z0-9_]+="\$\((jq|sha256sum)' \
 fi
 
 bash -n "${build_script}"
+
+launcher_ref="$(sed -n 's/^export LAUNCHER_REF="${LAUNCHER_REF:-\([^}]*\)}"$/\1/p' \
+  "${build_script}")"
+launcher_commit="$(sed -n 's/^export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-\([^}]*\)}"$/\1/p' \
+  "${build_script}")"
+[[ "${launcher_ref}" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "default LAUNCHER_REF is not an immutable commit" >&2
+  exit 1
+}
+[[ "${launcher_ref}" == "${launcher_commit}" ]] || {
+  echo "default LAUNCHER_REF and LAUNCHER_COMMIT differ" >&2
+  exit 1
+}
+
 echo "release manifest fail-fast contract: PASS"
