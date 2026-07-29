@@ -13,14 +13,20 @@ configure_vllm_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
+  local vllm_repo vllm_ref vllm_commit vllm_patch_sha256 vllm_tree
 
-  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  vllm_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  vllm_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  vllm_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  vllm_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  vllm_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  export VLLM_REPO="${vllm_repo}"
+  export VLLM_REF="${vllm_ref}"
+  export VLLM_COMMIT="${vllm_commit}"
   export VLLM_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export VLLM_PATCH_SHA256="${vllm_patch_sha256}"
   export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export VLLM_INTEGRATION_TREE="${vllm_tree}"
   export REQUIRE_CLEAN_VLLM_COMPOSITION=1
   export VERIFY_VLLM_BASE_HEAD="${verify_base_head}"
 }
@@ -29,14 +35,21 @@ configure_sparkinfer_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
+  local sparkinfer_repo sparkinfer_ref sparkinfer_commit
+  local sparkinfer_patch_sha256 sparkinfer_tree
 
-  export SPARKINFER_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  sparkinfer_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  sparkinfer_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  sparkinfer_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  sparkinfer_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  sparkinfer_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  export SPARKINFER_REPO="${sparkinfer_repo}"
+  export SPARKINFER_REF="${sparkinfer_ref}"
+  export SPARKINFER_COMMIT="${sparkinfer_commit}"
   export SPARKINFER_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export SPARKINFER_PATCH_SHA256="${sparkinfer_patch_sha256}"
   export SPARKINFER_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export SPARKINFER_INTEGRATION_TREE="${sparkinfer_tree}"
   export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
   export VERIFY_SPARKINFER_BASE_HEAD="${verify_base_head}"
 }
@@ -45,17 +58,26 @@ configure_lmcache_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
+  local lmcache_repo lmcache_ref lmcache_commit lmcache_patch_sha256
+  local lmcache_tree lmcache_prs lmcache_lock_sha256
 
-  export LMCACHE_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export LMCACHE_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export LMCACHE_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  lmcache_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  lmcache_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  lmcache_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  lmcache_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  lmcache_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  lmcache_prs="$(jq -er '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${composition_lock}")"
+  lmcache_lock_sha256="$(sha256sum "${composition_lock}" | awk '{print $1}')"
+  export LMCACHE_REPO="${lmcache_repo}"
+  export LMCACHE_REF="${lmcache_ref}"
+  export LMCACHE_COMMIT="${lmcache_commit}"
   export LMCACHE_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export LMCACHE_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export LMCACHE_PATCH_SHA256="${lmcache_patch_sha256}"
   export LMCACHE_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export LMCACHE_INTEGRATION_BASE_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
-  export LMCACHE_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
-  export LMCACHE_INTEGRATION_PRS="$(jq -r '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${composition_lock}")"
-  export LMCACHE_INTEGRATION_LOCK_SHA256="$(sha256sum "${composition_lock}" | awk '{print $1}')"
+  export LMCACHE_INTEGRATION_BASE_COMMIT="${lmcache_commit}"
+  export LMCACHE_INTEGRATION_TREE="${lmcache_tree}"
+  export LMCACHE_INTEGRATION_PRS="${lmcache_prs}"
+  export LMCACHE_INTEGRATION_LOCK_SHA256="${lmcache_lock_sha256}"
   export REQUIRE_CLEAN_LMCACHE_COMPOSITION=1
   export VERIFY_LMCACHE_BASE_HEAD="${verify_base_head}"
 }
@@ -253,6 +275,7 @@ runtime_source_paths=(
   tests/test-glm52-pcie-calibration-helper.sh
   tests/test-glm52-online-quant-policy.sh
   tests/test-glm52-worker-multiproc-policy.sh
+  tests/test-release-manifest-fail-fast.sh
   tests/test-glm52-exl3-helper.sh
   tests/test-glm52-lmcache-helper.sh
   tests/test-glm52-pcie-calibration.py
@@ -268,6 +291,7 @@ fi
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
 ./tests/test-glm52-worker-multiproc-policy.sh
+./tests/test-release-manifest-fail-fast.sh
 ./tests/test-glm52-exl3-helper.sh
 ./tests/test-glm52-lmcache-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
