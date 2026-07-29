@@ -9,9 +9,10 @@ printf 'Process-group interfaces: GLOO_SOCKET_IFNAME=%s NCCL_SOCKET_IFNAME=%s\n'
   "${GLOO_SOCKET_IFNAME}" "${NCCL_SOCKET_IFNAME}"
 
 model_command=()
+glm52_server="${GLM52_SERVER:-/usr/local/bin/serve-glm52-v19.sh}"
 case "${MODEL_FAMILY:-}" in
   glm52|glm5.2|glm)
-    model_command=(/usr/local/bin/serve-glm52-v19.sh "$@")
+    model_command=("${glm52_server}" "$@")
     ;;
   glm52-hybrid|nf3)
     model_command=(/usr/local/bin/serve-glm52-hybrid-v19.sh "$@")
@@ -44,7 +45,7 @@ case "${MODEL_FAMILY:-}" in
     export VLLM_EXL3_PREFILL_TRELLIS="${VLLM_EXL3_PREFILL_TRELLIS:-1}"
     export VLLM_EXL3_PREFILL_BLOCK_M="${VLLM_EXL3_PREFILL_BLOCK_M:-64}"
     export VLLM_EXL3_PREFILL_CHUNK="${VLLM_EXL3_PREFILL_CHUNK:-128}"
-    model_command=(/usr/local/bin/serve-glm52-v19.sh "$@")
+    model_command=("${glm52_server}" "$@")
     ;;
   ds4|ds4-flash|dspark)
     model_command=(/usr/local/bin/serve-ds4-flash.sh "$@")
@@ -62,7 +63,7 @@ if [[ "${lmcache_mode}" == "off" || "${lmcache_mode}" == "0" ]]; then
 fi
 
 case "${MODEL_FAMILY:-}" in
-  glm52|glm5.2|glm|glm52-hybrid|nf3)
+  glm52|glm5.2|glm|glm52-hybrid|nf3|glm52-exl3|exl3)
     ;;
   *)
     echo "ERROR: LMCache is validated only for GLM-5.2 MLA model families" >&2
@@ -70,4 +71,5 @@ case "${MODEL_FAMILY:-}" in
     ;;
 esac
 
-exec /usr/local/bin/glm52-lmcache-wrapper.sh "${model_command[@]}"
+lmcache_wrapper="${GLM52_LMCACHE_WRAPPER:-/usr/local/bin/glm52-lmcache-wrapper.sh}"
+exec "${lmcache_wrapper}" "${model_command[@]}"

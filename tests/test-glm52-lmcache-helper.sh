@@ -162,6 +162,30 @@ bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
 grep -Fxq 'untouched' "${tmp_root}/off-model.args"
 grep -Fxq '<unset>' "${tmp_root}/off-model.env"
 
+# The EXL3 preset uses the same GLM-5.2 MLA KV-transfer contract. Exercise the
+# unified entrypoint so this allowlist cannot drift from the model preset above.
+for model_family in glm52-exl3 exl3; do
+  PATH="${tmp_root}/bin:${PATH}" \
+  LMCACHE_MODE=ram \
+  MODEL_FAMILY="${model_family}" \
+  GLM52_LMCACHE_WRAPPER="${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  GLM52_SERVER="${tmp_root}/model-server" \
+  DRY_RUN=1 \
+  PORT=8010 \
+  TP=4 \
+  DCP=2 \
+  LMCACHE_L1_GB=2 \
+  LMCACHE_LOG="${tmp_root}/${model_family}.log" \
+  LMCACHE_TEST_SERVER_ARGS="${tmp_root}/${model_family}-server.args" \
+  LMCACHE_TEST_MODEL_ARGS="${tmp_root}/${model_family}-model.args" \
+  bash "${repo_root}/launchers/serve-gilded-gnosis.sh"
+
+  grep -Fq -- '--kv-transfer-config' \
+    "${tmp_root}/${model_family}-model.args"
+  grep -Fq 'LMCacheMPConnector' \
+    "${tmp_root}/${model_family}-model.args"
+done
+
 if LMCACHE_MODE=ram \
   MODEL_FAMILY=ds4 \
   bash "${repo_root}/launchers/serve-gilded-gnosis.sh"; then
