@@ -188,11 +188,23 @@ else
     fi
     if [[ "${DCP_QUERY_SPLIT}" == "auto" && \
           "${calibration_default_query_split}" == "1" ]]; then
-      DCP_QUERY_SPLIT="${calibration_query_split}"
+      # Query-split is an end-to-end scheduling policy, not an isolated
+      # transport-kernel choice. Keep the release default for supported
+      # geometries even when the standalone probe loses without the model's
+      # compute/communication overlap. An explicit DCP_QUERY_SPLIT=0 remains
+      # the operator kill switch.
+      DCP_QUERY_SPLIT=1
     fi
     if [[ "${DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS}" == "auto" ]]; then
       if [[ "${DCP_QUERY_SPLIT}" == "1" ]]; then
-        DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS="${calibration_query_split_min_context_tokens}"
+        if [[ "${calibration_query_split}" == "1" ]]; then
+          DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS="${calibration_query_split_min_context_tokens}"
+        else
+          # A negative isolated result cannot safely predict the E2E
+          # crossover. Use query-split for all contexts rather than disabling
+          # the known-good release path.
+          DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
+        fi
       else
         DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
       fi

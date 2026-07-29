@@ -38,6 +38,16 @@ assert_contains "${measured}" "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=1"
 assert_contains "${measured}" "VLLM_PCIE_DMA_MIN_BYTES=25165824"
 assert_contains "${measured}" "PCIE_CALIBRATION_STATUS=measured"
 
+# The isolated transport probe does not model the query-split path's E2E
+# compute/communication overlap. A negative probe result must not disable the
+# release default; operators can still do that explicitly.
+split_probe_negative="$(run_helper \
+  FAKE_PCIE_QUERY_SPLIT=0 \
+  FAKE_PCIE_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0)"
+assert_contains "${split_probe_negative}" "VLLM_DCP_QUERY_SPLIT=1"
+assert_contains "${split_probe_negative}" \
+  "VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0"
+
 source_alias="$(run_helper \
   VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS=196608)"
 assert_contains "${source_alias}" \
