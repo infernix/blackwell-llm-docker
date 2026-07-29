@@ -224,6 +224,7 @@ runtime_source_paths=(
   tests/test-glm52-dcp-prefill-policy.sh
   tests/test-glm52-pcie-calibration-helper.sh
   tests/test-glm52-online-quant-policy.sh
+  tests/test-glm52-worker-multiproc-policy.sh
   tests/test-glm52-exl3-helper.sh
   tests/test-glm52-lmcache-helper.sh
   tests/test-glm52-pcie-calibration.py
@@ -238,6 +239,7 @@ fi
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
+./tests/test-glm52-worker-multiproc-policy.sh
 ./tests/test-glm52-exl3-helper.sh
 ./tests/test-glm52-lmcache-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
