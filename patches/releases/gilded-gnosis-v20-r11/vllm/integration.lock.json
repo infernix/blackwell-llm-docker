@@ -1,0 +1,96 @@
+{
+  "base": {
+    "commit": "4247d6765398fd42de3c108a8d991b2634fe88d1",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "6e2bc951a0ae36b727d5eb3f26146095ce462114094f549d88560315f46a5655"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "0c05ab9ec43c2446bfa4197fe1bbc1c1ec7e6cbe",
+      "number": 172,
+      "ref": "refs/pull/172/head",
+      "title": "MRV2 high-utilization startup memory profiling"
+    },
+    {
+      "disposition": "merged",
+      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
+      "number": 175,
+      "ref": "refs/pull/175/head",
+      "title": "Shard sparse prefill queries and halve result traffic"
+    },
+    {
+      "disposition": "merged",
+      "head": "ef60ee72e95084cfbdc054b54941094516b102df",
+      "number": 179,
+      "ref": "refs/pull/179/head",
+      "title": "Partial replicated sparse-indexer topology"
+    },
+    {
+      "disposition": "merged",
+      "head": "c4022e80099e9bffa6091691663970591f8f05ec",
+      "number": 184,
+      "ref": "refs/pull/184/head",
+      "title": "Calibrate lossless PCIe DMA dispatch crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
+      "number": 185,
+      "ref": "refs/pull/185/head",
+      "title": "Gate DCP query split by measured context crossover"
+    },
+    {
+      "disposition": "merged",
+      "head": "d35dd8ffd6d7e48e54e6917aa559b89465b61387",
+      "number": 190,
+      "ref": "refs/pull/190/head",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    },
+    {
+      "disposition": "merged",
+      "head": "854735ac77896eca1447faa9468db0acf8d7da05",
+      "number": 194,
+      "ref": "refs/pull/194/head",
+      "title": "Preload CUDA-clean worker modules with forkserver"
+    },
+    {
+      "disposition": "merged",
+      "head": "b57062274c3f53bec69b431bfae7230977f5f10c",
+      "number": 189,
+      "ref": "refs/pull/189/head",
+      "title": "Wire dynamic per-token NVFP4 scaling and cache ABI"
+    },
+    {
+      "disposition": "merged",
+      "head": "e06891f20ae276d41600d318d9f22d31bbc46a77",
+      "number": 195,
+      "ref": "refs/pull/195/head",
+      "title": "Preserve required tool choice with an empty tools list"
+    },
+    {
+      "disposition": "merged",
+      "head": "bc5dbf497dfaa14f820921c5db87fa84eee7a16f",
+      "number": 196,
+      "ref": "refs/pull/196/head",
+      "title": "Resolve late GLM KV transfer configuration"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "257c4b6487a4c38f7a205d85d11d17dec888027553225b1d99575cb4e9ed75fb",
+    "tree": "9502cc7ee9dbc060899a2b1d30fac6916d3a4a95"
+  },
+  "schema_version": 1
+}
