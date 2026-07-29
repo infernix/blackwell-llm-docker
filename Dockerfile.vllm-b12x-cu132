@@ -978,8 +978,11 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
  && test "$(find /tmp/lmcache-wheels -maxdepth 1 -name 'lmcache-*.whl' | wc -l)" -eq 1 \
  && python -m pip install --no-deps --force-reinstall \
       /tmp/lmcache-wheels/lmcache-*.whl \
+ && mkdir -p /tmp/lmcache-test-support \
+ && ln -s /tmp/lmcache-src/tests /tmp/lmcache-test-support/tests \
  && cd /tmp \
- && python -m pytest --import-mode=importlib \
+ && PYTHONPATH=/tmp/lmcache-test-support \
+      python -m pytest --import-mode=importlib \
       --confcutdir=/tmp/lmcache-src/tests/v1 \
       /tmp/lmcache-src/tests/v1/distributed/test_fs_native_startup_scan.py \
       /tmp/lmcache-src/tests/v1/distributed/test_l1_manager.py \
