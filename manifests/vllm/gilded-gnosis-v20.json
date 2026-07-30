@@ -16,7 +16,7 @@
     },
     {
       "number": 190,
-      "head": "e55627045ac68aa2ab87273e26a0cc190b6e2b78",
+      "head": "46c36c0f89a44fade81947c1bf84faede14755ad",
       "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
     },
     {

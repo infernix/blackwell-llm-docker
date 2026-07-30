@@ -1,0 +1,2673 @@
+diff --git a/benchmarks/benchmark_mixed_trellis.py b/benchmarks/benchmark_mixed_trellis.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..eee2aa27b0580befd0c17cd74b9696b2464b1f93
+--- /dev/null
++++ b/benchmarks/benchmark_mixed_trellis.py
+@@ -0,0 +1,437 @@
++#!/usr/bin/env python3
++"""Benchmark one-grid mixed K3/K4 Trellis against two serial tier launches."""
++
++from __future__ import annotations
++
++import argparse
++import statistics
++from dataclasses import replace
++
++import torch
++
++from sparkinfer.moe._shared.kernels.w4a16.host import (
++    make_w4a16_packed_buffers,
++    max_packed_route_slots,
++)
++from sparkinfer.moe._shared.kernels.w4a16.kernel import (
++    compile_w4a16_fused_moe,
++    compile_w4a16_topk_sum,
++    run_w4a16_moe,
++)
++from sparkinfer.moe._shared.kernels.w4a16.mixed_trellis import (
++    MixedTrellisRotations,
++    build_ordered_maps,
++    compile_mixed_trellis,
++    make_mixed_trellis_buffers,
++    run_mixed_trellis,
++)
++from sparkinfer.moe._shared.kernels.w4a16.prepare import (
++    prepare_trellis256_moe_weights,
++)
++
++
++HIDDEN = 6144
++INTERMEDIATE = 512
++TOPK = 8
++K3_EXPERTS = 192
++K4_EXPERTS = 64
++TOTAL_EXPERTS = K3_EXPERTS + K4_EXPERTS
++TILE_CONFIG = (128, 128, 32, 512)
++
++
++def _prepared(bits: int, experts: int, seed: int, device: torch.device):
++    generator = torch.Generator(device=device).manual_seed(seed)
++
++    def scales(shape: tuple[int, ...]) -> torch.Tensor:
++        return (
++            0.875 + 0.25 * torch.rand(shape, generator=generator, device=device)
++        ).to(torch.float16)
++
++    return prepare_trellis256_moe_weights(
++        hidden_size=HIDDEN,
++        intermediate_size=INTERMEDIATE,
++        num_experts=experts,
++        activation="silu",
++        fc1_tile_n=TILE_CONFIG[1],
++        fc2_tile_n=TILE_CONFIG[3],
++        device=device,
++        seed=seed,
++        params_dtype=torch.float16,
++        w13_layout="trellis3_t256_proj",
++        trellis_bits=bits,
++        gate_suh=scales((experts, HIDDEN)),
++        up_suh=scales((experts, HIDDEN)),
++        intermediate_rotations=scales((experts, 3 * INTERMEDIATE)),
++        down_svh=scales((experts, HIDDEN)),
++        tile_config=TILE_CONFIG,
++    )
++
++
++def _routing(m: int, materialized: int, device: torch.device) -> torch.Tensor:
++    rows = []
++    generator = torch.Generator(device="cpu").manual_seed(20260730 + m)
++    for _ in range(m):
++        k3 = torch.randperm(materialized, generator=generator)[:6]
++        k4 = K3_EXPERTS + torch.randperm(materialized, generator=generator)[:2]
++        rows.append(torch.cat((k3, k4))[torch.randperm(TOPK, generator=generator)])
++    return torch.stack(rows).to(dtype=torch.int32, device=device)
++
++
++def _serial_state(m, tier, expert_map, props, device):
++    buffers = make_w4a16_packed_buffers(
++        tier,
++        m=m,
++        topk=TOPK,
++        dtype=torch.float16,
++        device=device,
++        route_num_experts=TOTAL_EXPERTS,
++        full_rotation=True,
++        block_size_m=8,
++    )
++    launch = compile_w4a16_fused_moe(
++        size_m=m,
++        hidden_size=HIDDEN,
++        intermediate_size=INTERMEDIATE,
++        num_experts=int(tier.num_experts),
++        top_k=TOPK,
++        activation="silu",
++        apply_router_weight_on_input=False,
++        zero_fc2_output=False,
++        moe_block_size=8,
++        max_m_blocks=int(buffers.block_expert_ids.numel()),
++        element_dtype="fp16",
++        sms=int(props.multi_processor_count),
++        max_shared_mem=int(props.shared_memory_per_block_optin),
++        weight_layout="trellis3_t256",
++        scale_format="e4m3_k32",
++        w13_layout="trellis3_t256_proj",
++        trellis_bits=int(tier.trellis_bits),
++        force_tile_config=TILE_CONFIG,
++        intermediate_rotation=True,
++        full_rotation=True,
++        rotation_input_dtype="bf16",
++    )
++    topk_sum = compile_w4a16_topk_sum(
++        m=m,
++        topk=TOPK,
++        hidden_size=HIDDEN,
++        element_dtype="fp16",
++        full_rotation=True,
++        num_experts=int(tier.num_experts),
++        route_num_experts=TOTAL_EXPERTS,
++        route_ids_dtype=torch.int32,
++        use_expert_map=True,
++    )
++    return buffers, launch, topk_sum, expert_map
++
++
++def _run_serial(state, x, weights, ids):
++    tier, buffers, launch, topk_sum, expert_map = state
++    return run_w4a16_moe(
++        x,
++        tier,
++        weights,
++        ids,
++        activation="silu",
++        intermediate_cache13=buffers.intermediate_cache13,
++        intermediate_cache2=buffers.intermediate_cache2,
++        output=buffers.output,
++        fc1_c_tmp=buffers.fc1_c_tmp,
++        fc2_c_tmp=buffers.fc2_c_tmp,
++        packed_route_indices=buffers.packed_route_indices,
++        block_expert_ids=buffers.block_expert_ids,
++        packed_route_count=buffers.packed_route_count,
++        expert_offsets=buffers.expert_offsets,
++        expert_counts=buffers.expert_counts,
++        expert_map=expert_map,
++        output_expert_map=expert_map,
++        fused_launch=launch,
++        topk_sum_launch=topk_sum,
++        route_block_size_m=8,
++        intermediate_rotation_scales=tier.intermediate_rotations,
++        full_rotation=True,
++        suh_gate_table=tier.gate_suh,
++        suh_up_table=tier.up_suh,
++        svh_table=tier.down_svh,
++        rotation_a_gate=buffers.rotation_a_gate,
++        rotation_a_up=buffers.rotation_a_up,
++    )
++
++
++def _capture(fn, warmup: int) -> torch.cuda.CUDAGraph:
++    for _ in range(warmup):
++        fn()
++    torch.cuda.synchronize()
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        fn()
++    graph.replay()
++    torch.cuda.synchronize()
++    return graph
++
++
++def _times(graph: torch.cuda.CUDAGraph, replays: int) -> list[float]:
++    starts = [torch.cuda.Event(enable_timing=True) for _ in range(replays)]
++    ends = [torch.cuda.Event(enable_timing=True) for _ in range(replays)]
++    for start, end in zip(starts, ends, strict=True):
++        start.record()
++        graph.replay()
++        end.record()
++    torch.cuda.synchronize()
++    return [
++        start.elapsed_time(end) * 1000.0
++        for start, end in zip(starts, ends, strict=True)
++    ]
++
++
++def _bytes(tensors) -> int:
++    storages: dict[tuple[int, int], int] = {}
++    for tensor in tensors:
++        storage = tensor.untyped_storage()
++        key = (storage.data_ptr(), storage.nbytes())
++        storages[key] = storage.nbytes()
++    return sum(storages.values())
++
++
++def _padded_rotations(tier0, tier1, device: torch.device) -> MixedTrellisRotations:
++    intermediate = torch.ones(
++        (TOTAL_EXPERTS, 3 * INTERMEDIATE), dtype=torch.float16, device=device
++    )
++    gate_suh = torch.ones((TOTAL_EXPERTS, HIDDEN), dtype=torch.float16, device=device)
++    up_suh = torch.ones_like(gate_suh)
++    down_svh = torch.ones_like(gate_suh)
++    k3 = int(tier0.num_experts)
++    k4 = int(tier1.num_experts)
++    intermediate[:k3].copy_(tier0.intermediate_rotations)
++    intermediate[K3_EXPERTS : K3_EXPERTS + k4].copy_(tier1.intermediate_rotations)
++    gate_suh[:k3].copy_(tier0.gate_suh)
++    gate_suh[K3_EXPERTS : K3_EXPERTS + k4].copy_(tier1.gate_suh)
++    up_suh[:k3].copy_(tier0.up_suh)
++    up_suh[K3_EXPERTS : K3_EXPERTS + k4].copy_(tier1.up_suh)
++    down_svh[:k3].copy_(tier0.down_svh)
++    down_svh[K3_EXPERTS : K3_EXPERTS + k4].copy_(tier1.down_svh)
++    return MixedTrellisRotations(intermediate, gate_suh, up_suh, down_svh)
++
++
++def _pad_projection_major_w13(tier, compiled_experts: int):
++    """Preserve the [projection, expert, ...] plane stride used by codegen."""
++    materialized = int(tier.num_experts)
++    bits = int(tier.trellis_bits)
++    source = tier.w13.view(
++        2,
++        materialized,
++        HIDDEN // 16,
++        INTERMEDIATE // 16,
++        8 * bits,
++    )
++    padded = torch.zeros(
++        (
++            2,
++            int(compiled_experts),
++            HIDDEN // 16,
++            INTERMEDIATE // 16,
++            8 * bits,
++        ),
++        dtype=torch.int32,
++        device=tier.w13.device,
++    )
++    padded[:, :materialized].copy_(source)
++    return replace(tier, w13=padded.view(-1), num_experts=int(compiled_experts))
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--m", type=int, nargs="+", default=[1, 2, 4, 8, 32])
++    parser.add_argument("--warmup", type=int, default=10)
++    parser.add_argument("--replays", type=int, default=100)
++    parser.add_argument("--materialized-experts", type=int, default=16)
++    parser.add_argument(
++        "--variant",
++        choices=("both", "serial", "serial-overlap", "mixed"),
++        default="both",
++    )
++    parser.add_argument(
++        "--separate-fc2",
++        action="store_true",
++        help="A/B control: replace the aliased FC2 output with separate storage",
++    )
++    args = parser.parse_args()
++    device = torch.device("cuda", torch.cuda.current_device())
++    props = torch.cuda.get_device_properties(device)
++    torch.manual_seed(20260730)
++    materialized = int(args.materialized_experts)
++    if materialized < 6 or materialized > K4_EXPERTS:
++        raise ValueError(f"materialized-experts must be in [6, {K4_EXPERTS}]")
++    tier0 = _prepared(3, materialized, 301, device)
++    tier1 = _prepared(4, materialized, 401, device)
++    mixed_tier0 = mixed_tier1 = rotations = None
++    if args.variant in ("both", "mixed"):
++        mixed_tier0 = _pad_projection_major_w13(tier0, K3_EXPERTS)
++        mixed_tier1 = _pad_projection_major_w13(tier1, K4_EXPERTS)
++        rotations = _padded_rotations(tier0, tier1, device)
++    global_map, descriptor = build_ordered_maps(K3_EXPERTS, K4_EXPERTS, device=device)
++    map0 = torch.cat(
++        (
++            torch.arange(materialized, dtype=torch.int32, device=device),
++            torch.full(
++                (TOTAL_EXPERTS - materialized,), -1, dtype=torch.int32, device=device
++            ),
++        )
++    )
++    map1 = torch.cat(
++        (
++            torch.full((K3_EXPERTS,), -1, dtype=torch.int32, device=device),
++            torch.arange(materialized, dtype=torch.int32, device=device),
++            torch.full(
++                (K4_EXPERTS - materialized,), -1, dtype=torch.int32, device=device
++            ),
++        )
++    )
++    print(
++        f"device={props.name} H={HIDDEN} I={INTERMEDIATE} topk={TOPK} "
++        f"experts={K3_EXPERTS}xK3+{K4_EXPERTS}xK4"
++    )
++    for m in args.m:
++        ids = _routing(m, materialized, device)
++        weights = torch.softmax(
++            torch.randn((m, TOPK), dtype=torch.float32, device=device), dim=-1
++        )
++        x = (torch.randn((m, HIDDEN), device=device) * 1.0e-3).to(torch.bfloat16)
++        state0 = state1 = serial_output = serial_fn = None
++        serial_med = serial_buffer_bytes = None
++        if args.variant in ("both", "serial", "serial-overlap"):
++            state0 = (tier0, *_serial_state(m, tier0, map0, props, device))
++            state1 = (tier1, *_serial_state(m, tier1, map1, props, device))
++            serial_output = torch.empty((m, HIDDEN), dtype=torch.float32, device=device)
++            tier_streams = None
++            if args.variant == "serial-overlap":
++                tier_streams = (torch.cuda.Stream(), torch.cuda.Stream())
++
++            def serial_fn(
++                state0=state0,
++                state1=state1,
++                serial_output=serial_output,
++                tier_streams=tier_streams,
++                x=x,
++                weights=weights,
++                ids=ids,
++            ):
++                assert state0 is not None and state1 is not None
++                assert serial_output is not None
++                if tier_streams is None:
++                    out0 = _run_serial(state0, x, weights, ids)
++                    out1 = _run_serial(state1, x, weights, ids)
++                else:
++                    current = torch.cuda.current_stream()
++                    tier_streams[0].wait_stream(current)
++                    tier_streams[1].wait_stream(current)
++                    with torch.cuda.stream(tier_streams[0]):
++                        out0 = _run_serial(state0, x, weights, ids)
++                    with torch.cuda.stream(tier_streams[1]):
++                        out1 = _run_serial(state1, x, weights, ids)
++                    current.wait_stream(tier_streams[0])
++                    current.wait_stream(tier_streams[1])
++                torch.add(out0, out1, out=serial_output)
++
++            serial_fn()
++            serial_graph = _capture(serial_fn, args.warmup)
++            serial_med = statistics.median(_times(serial_graph, args.replays))
++            serial_buffer_bytes = _bytes(vars(state0[1]).values()) + _bytes(
++                vars(state1[1]).values()
++            )
++
++        launch = mixed_buffers = mixed_fn = None
++        mixed_med = mixed_buffer_bytes = None
++        if args.variant in ("both", "mixed"):
++            route_slots = max_packed_route_slots(m * TOPK, 8, TOTAL_EXPERTS)
++            launch = compile_mixed_trellis(
++                size_m=m,
++                hidden_size=HIDDEN,
++                intermediate_size=INTERMEDIATE,
++                tier0_num_experts=K3_EXPERTS,
++                tier1_num_experts=K4_EXPERTS,
++                top_k=TOPK,
++                max_m_blocks=(route_slots + 7) // 8,
++                sms=int(props.multi_processor_count),
++                max_shared_mem=int(props.shared_memory_per_block_optin),
++                force_tile_config=TILE_CONFIG,
++            )
++            mixed_buffers = make_mixed_trellis_buffers(
++                launch, device=device, sms=int(props.multi_processor_count)
++            )
++            if args.separate_fc2:
++                mixed_buffers.fc2 = torch.empty_like(mixed_buffers.rotation_gate)
++
++            def mixed_fn(
++                mixed_tier0=mixed_tier0,
++                mixed_tier1=mixed_tier1,
++                rotations=rotations,
++                launch=launch,
++                mixed_buffers=mixed_buffers,
++                x=x,
++                weights=weights,
++                ids=ids,
++                global_map=global_map,
++                descriptor=descriptor,
++            ):
++                assert mixed_tier0 is not None and mixed_tier1 is not None
++                assert rotations is not None and launch is not None
++                assert mixed_buffers is not None
++                run_mixed_trellis(
++                    x,
++                    mixed_tier0,
++                    mixed_tier1,
++                    weights,
++                    ids,
++                    global_map,
++                    descriptor,
++                    rotations,
++                    launch,
++                    mixed_buffers,
++                )
++
++            mixed_fn()
++            mixed_graph = _capture(mixed_fn, args.warmup)
++            mixed_med = statistics.median(_times(mixed_graph, args.replays))
++            mixed_buffer_bytes = _bytes(vars(mixed_buffers).values())
++
++        torch.cuda.synchronize()
++        if args.variant == "both":
++            assert serial_output is not None and mixed_buffers is not None
++            assert serial_med is not None and mixed_med is not None
++            assert serial_buffer_bytes is not None and mixed_buffer_bytes is not None
++            assert launch is not None
++            rel = (
++                serial_output - mixed_buffers.output[:m]
++            ).norm() / serial_output.norm().clamp_min(1.0e-12)
++            cosine = torch.nn.functional.cosine_similarity(
++                serial_output.flatten(), mixed_buffers.output[:m].flatten(), dim=0
++            )
++            if float(rel) > 4.0e-3 or float(cosine) < 0.99999:
++                raise RuntimeError(
++                    f"correctness failed: rel={float(rel)} cos={float(cosine)}"
++                )
++            print(
++                f"m={m:4d} serial={serial_med:9.2f}us mixed={mixed_med:9.2f}us "
++                f"speedup={serial_med / mixed_med:6.3f}x rel={float(rel):.3e} "
++                f"regs={launch.registers_per_thread} local={launch.local_memory_bytes} "
++                f"buffers={mixed_buffer_bytes / 2**20:.1f}/{serial_buffer_bytes / 2**20:.1f}MiB"
++            )
++        elif args.variant in ("serial", "serial-overlap"):
++            assert serial_med is not None and serial_buffer_bytes is not None
++            print(
++                f"m={m:4d} variant={args.variant} time={serial_med:9.2f}us "
++                f"buffers={serial_buffer_bytes / 2**20:.1f}MiB"
++            )
++        else:
++            assert mixed_med is not None and mixed_buffer_bytes is not None
++            assert launch is not None
++            print(
++                f"m={m:4d} variant=mixed time={mixed_med:9.2f}us "
++                f"regs={launch.registers_per_thread} local={launch.local_memory_bytes} "
++                f"buffers={mixed_buffer_bytes / 2**20:.1f}MiB"
++            )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/benchmarks/validate_mixed_trellis_checkpoint.py b/benchmarks/validate_mixed_trellis_checkpoint.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a247ce010f2b1188e38627867fb40e811c42411
+--- /dev/null
++++ b/benchmarks/validate_mixed_trellis_checkpoint.py
+@@ -0,0 +1,351 @@
++#!/usr/bin/env python3
++"""Validate mixed K3/K4 Trellis execution with one real checkpoint layer."""
++
++from __future__ import annotations
++
++import argparse
++import json
++import statistics
++from pathlib import Path
++
++import torch
++from safetensors import safe_open
++
++from sparkinfer.moe._shared.kernels.w4a16.host import (
++    make_w4a16_packed_buffers,
++    max_packed_route_slots,
++)
++from sparkinfer.moe._shared.kernels.w4a16.kernel import run_w4a16_moe
++from sparkinfer.moe._shared.kernels.w4a16.mixed_trellis import (
++    build_tiered_maps,
++    combine_trellis_rotations,
++    compile_mixed_trellis,
++    make_mixed_trellis_buffers,
++    run_mixed_trellis,
++)
++from sparkinfer.moe._shared.kernels.w4a16.prepare import (
++    prepare_trellis256_moe_weights,
++)
++
++
++HIDDEN = 6144
++INTERMEDIATE = 512
++TOPK = 8
++K3_EXPERTS = 192
++K4_EXPERTS = 64
++TOTAL_EXPERTS = K3_EXPERTS + K4_EXPERTS
++DEFAULT_TILE_CONFIG = (128, 128, 32, 512)
++
++
++def _key(layer: int, expert: int, projection: str, rank: int, field: str) -> str:
++    return f"model.layers.{layer}.mlp.experts.{expert}.{projection}.rank{rank}.{field}"
++
++
++def _load_tier(
++    checkpoint: Path,
++    *,
++    layer: int,
++    rank: int,
++    expert_ids: list[int],
++    bits: int,
++    tile_config: tuple[int, int, int, int],
++    device: torch.device,
++):
++    shard = checkpoint / f"model-layer-{layer:03d}.safetensors"
++    with safe_open(shard, framework="pt", device="cpu") as handle:
++
++        def stack(projection: str, field: str) -> torch.Tensor:
++            host = torch.stack(
++                [
++                    handle.get_tensor(_key(layer, expert, projection, rank, field))
++                    for expert in expert_ids
++                ]
++            )
++            return host.to(device=device, non_blocking=False).contiguous()
++
++        gate = stack("gate_proj", "trellis")
++        up = stack("up_proj", "trellis")
++        down = stack("down_proj", "trellis")
++        gate_suh = stack("gate_proj", "suh")
++        gate_svh = stack("gate_proj", "svh")
++        up_suh = stack("up_proj", "suh")
++        up_svh = stack("up_proj", "svh")
++        down_suh = stack("down_proj", "suh")
++        down_svh = stack("down_proj", "svh")
++
++    expected_last = 16 * bits
++    expected_projection = (
++        len(expert_ids),
++        HIDDEN // 16,
++        INTERMEDIATE // 16,
++        expected_last,
++    )
++    expected_down = (len(expert_ids), INTERMEDIATE // 16, HIDDEN // 16, expected_last)
++    if (
++        tuple(gate.shape) != expected_projection
++        or tuple(up.shape) != expected_projection
++    ):
++        raise ValueError(
++            f"K{bits} FC1 geometry mismatch: gate={tuple(gate.shape)} up={tuple(up.shape)} "
++            f"expected={expected_projection}"
++        )
++    if tuple(down.shape) != expected_down:
++        raise ValueError(
++            f"K{bits} FC2 geometry mismatch: down={tuple(down.shape)} "
++            f"expected={expected_down}"
++        )
++
++    w13 = torch.stack((gate, up), dim=0).contiguous()
++    intermediate_rotations = torch.cat((gate_svh, up_svh, down_suh), dim=1).contiguous()
++    return prepare_trellis256_moe_weights(
++        w13=w13,
++        w2=down,
++        hidden_size=HIDDEN,
++        intermediate_size=INTERMEDIATE,
++        num_experts=len(expert_ids),
++        activation="silu",
++        fc1_tile_n=tile_config[1],
++        fc2_tile_n=tile_config[3],
++        params_dtype=torch.float16,
++        w13_layout="trellis3_t256_proj",
++        trellis_bits=bits,
++        codebook="mcg",
++        gate_suh=gate_suh,
++        up_suh=up_suh,
++        intermediate_rotations=intermediate_rotations,
++        down_svh=down_svh,
++        tile_config=tile_config,
++    )
++
++
++def _serial_state(prepared, expert_map: torch.Tensor, m: int, device: torch.device):
++    buffers = make_w4a16_packed_buffers(
++        prepared,
++        m=m,
++        topk=TOPK,
++        dtype=torch.float16,
++        device=device,
++        route_num_experts=int(expert_map.numel()),
++        full_rotation=True,
++        block_size_m=8,
++    )
++    return prepared, expert_map, buffers
++
++
++def _run_serial(
++    state,
++    x: torch.Tensor,
++    topk_weights: torch.Tensor,
++    topk_ids: torch.Tensor,
++) -> torch.Tensor:
++    prepared, expert_map, buffers = state
++    assert buffers.rotation_a_gate is not None
++    assert buffers.rotation_a_up is not None
++    return run_w4a16_moe(
++        x,
++        prepared,
++        topk_weights,
++        topk_ids,
++        activation="silu",
++        intermediate_cache13=buffers.intermediate_cache13,
++        intermediate_cache2=buffers.intermediate_cache2,
++        output=buffers.output,
++        fc1_c_tmp=buffers.fc1_c_tmp,
++        fc2_c_tmp=buffers.fc2_c_tmp,
++        packed_route_indices=buffers.packed_route_indices,
++        block_expert_ids=buffers.block_expert_ids,
++        packed_route_count=buffers.packed_route_count,
++        expert_offsets=buffers.expert_offsets,
++        expert_counts=buffers.expert_counts,
++        expert_map=expert_map,
++        output_expert_map=expert_map,
++        route_block_size_m=8,
++        intermediate_rotation_scales=prepared.intermediate_rotations,
++        full_rotation=True,
++        suh_gate_table=prepared.gate_suh,
++        suh_up_table=prepared.up_suh,
++        svh_table=prepared.down_svh,
++        rotation_a_gate=buffers.rotation_a_gate,
++        rotation_a_up=buffers.rotation_a_up,
++    )
++
++
++def _time_us(fn, warmup: int, iterations: int) -> float:
++    for _ in range(warmup):
++        fn()
++    torch.cuda.synchronize()
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        fn()
++    graph.replay()
++    torch.cuda.synchronize()
++    samples: list[float] = []
++    for _ in range(iterations):
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        start.record()
++        graph.replay()
++        end.record()
++        end.synchronize()
++        samples.append(start.elapsed_time(end) * 1000.0)
++    return statistics.median(samples)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("checkpoint", type=Path)
++    parser.add_argument("--layer", type=int, default=3)
++    parser.add_argument("--rank", type=int, default=0)
++    parser.add_argument("--m", type=int, default=1)
++    parser.add_argument("--capacity", type=int)
++    parser.add_argument("--warmup", type=int, default=3)
++    parser.add_argument("--iterations", type=int, default=10)
++    parser.add_argument(
++        "--tile-config",
++        type=int,
++        nargs=4,
++        metavar=("FC1_K", "FC1_N", "FC2_K", "FC2_N"),
++        default=DEFAULT_TILE_CONFIG,
++    )
++    args = parser.parse_args()
++    tile_config = tuple(int(value) for value in args.tile_config)
++    if tile_config[0] < 128:
++        parser.error("--tile-config FC1_K must be at least 128")
++    capacity = args.m if args.capacity is None else int(args.capacity)
++    if capacity < args.m:
++        raise ValueError("capacity must cover m")
++
++    device = torch.device("cuda", torch.cuda.current_device())
++    bitmap = json.loads((args.checkpoint / "tier_bitmap.json").read_text())
++    bitrates = [int(bits) for bits in bitmap[str(args.layer)]["k"]]
++    k3_ids = [expert for expert, bits in enumerate(bitrates) if bits == 3]
++    k4_ids = [expert for expert, bits in enumerate(bitrates) if bits == 4]
++    if len(k3_ids) != K3_EXPERTS or len(k4_ids) != K4_EXPERTS:
++        raise ValueError(
++            f"expected {K3_EXPERTS} K3 and {K4_EXPERTS} K4 experts, "
++            f"got {len(k3_ids)} and {len(k4_ids)}"
++        )
++
++    print(
++        f"loading layer={args.layer} rank={args.rank} K3={len(k3_ids)} K4={len(k4_ids)}"
++    )
++    tier0 = _load_tier(
++        args.checkpoint,
++        layer=args.layer,
++        rank=args.rank,
++        expert_ids=k3_ids,
++        bits=3,
++        tile_config=tile_config,
++        device=device,
++    )
++    tier1 = _load_tier(
++        args.checkpoint,
++        layer=args.layer,
++        rank=args.rank,
++        expert_ids=k4_ids,
++        bits=4,
++        tile_config=tile_config,
++        device=device,
++    )
++    global_to_combined, descriptor = build_tiered_maps(k3_ids, k4_ids, device=device)
++    map0 = torch.full((TOTAL_EXPERTS,), -1, dtype=torch.int32, device=device)
++    map1 = torch.full((TOTAL_EXPERTS,), -1, dtype=torch.int32, device=device)
++    map0[torch.tensor(k3_ids, dtype=torch.long, device=device)] = torch.arange(
++        len(k3_ids), dtype=torch.int32, device=device
++    )
++    map1[torch.tensor(k4_ids, dtype=torch.long, device=device)] = torch.arange(
++        len(k4_ids), dtype=torch.int32, device=device
++    )
++
++    generator = torch.Generator(device="cpu").manual_seed(20260730)
++    rows = []
++    for _ in range(args.m):
++        ids = k3_ids[:6] + k4_ids[:2]
++        perm = torch.randperm(TOPK, generator=generator).tolist()
++        rows.append([ids[index] for index in perm])
++    topk_ids = torch.tensor(rows, dtype=torch.int32, device=device)
++    topk_weights = torch.softmax(
++        torch.randn((args.m, TOPK), dtype=torch.float32, device=device), dim=-1
++    )
++    x = (torch.randn((args.m, HIDDEN), device=device) * 1.0e-3).to(torch.bfloat16)
++
++    serial0 = _serial_state(tier0, map0, args.m, device)
++    serial1 = _serial_state(tier1, map1, args.m, device)
++    serial_output = torch.empty((args.m, HIDDEN), dtype=torch.float32, device=device)
++
++    def serial_fn() -> torch.Tensor:
++        return torch.add(
++            _run_serial(serial0, x, topk_weights, topk_ids),
++            _run_serial(serial1, x, topk_weights, topk_ids),
++            out=serial_output,
++        )
++
++    props = torch.cuda.get_device_properties(device)
++    route_slots = max_packed_route_slots(capacity * TOPK, 8, TOTAL_EXPERTS)
++    launch = compile_mixed_trellis(
++        size_m=capacity,
++        hidden_size=HIDDEN,
++        intermediate_size=INTERMEDIATE,
++        tier0_num_experts=len(k3_ids),
++        tier1_num_experts=len(k4_ids),
++        top_k=TOPK,
++        max_m_blocks=(route_slots + 7) // 8,
++        sms=int(props.multi_processor_count),
++        max_shared_mem=int(props.shared_memory_per_block_optin),
++        force_tile_config=tile_config,
++    )
++    buffers = make_mixed_trellis_buffers(
++        launch, device=device, sms=int(props.multi_processor_count)
++    )
++    rotations = combine_trellis_rotations(tier0, tier1)
++
++    def mixed_fn() -> torch.Tensor:
++        return run_mixed_trellis(
++            x,
++            tier0,
++            tier1,
++            topk_weights,
++            topk_ids,
++            global_to_combined,
++            descriptor,
++            rotations,
++            launch,
++            buffers,
++        )
++
++    reference = serial_fn().clone()
++    actual = mixed_fn().clone()
++    torch.cuda.synchronize()
++    relative = (reference - actual).norm() / reference.norm().clamp_min(1.0e-12)
++    cosine = torch.nn.functional.cosine_similarity(
++        reference.flatten(), actual.flatten(), dim=0
++    )
++    if float(relative) > 4.0e-3 or float(cosine) < 0.99999:
++        raise RuntimeError(
++            f"checkpoint correctness failed: rel={float(relative):.6e} "
++            f"cos={float(cosine):.9f}"
++        )
++
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        captured = mixed_fn()
++    graph.replay()
++    torch.cuda.synchronize()
++    if not torch.equal(captured, actual):
++        raise RuntimeError("mixed checkpoint output changed under CUDA graph replay")
++
++    serial_us = _time_us(serial_fn, args.warmup, args.iterations)
++    mixed_us = _time_us(mixed_fn, args.warmup, args.iterations)
++    allocated = torch.cuda.memory_allocated(device) / 2**30
++    print(
++        f"PASS m={args.m} capacity={capacity} tile={tile_config} "
++        f"rel={float(relative):.6e} "
++        f"cos={float(cosine):.9f} "
++        f"serial={serial_us:.2f}us mixed={mixed_us:.2f}us "
++        f"speedup={serial_us / mixed_us:.3f}x allocated={allocated:.3f}GiB "
++        f"regs={launch.registers_per_thread} local={launch.local_memory_bytes}"
++    )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/sparkinfer/moe/_shared/kernels/w4a16/mixed_trellis.py b/sparkinfer/moe/_shared/kernels/w4a16/mixed_trellis.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..71fce7554255592b890901bbd96daf9213de3337
+--- /dev/null
++++ b/sparkinfer/moe/_shared/kernels/w4a16/mixed_trellis.py
+@@ -0,0 +1,1014 @@
++"""One-launch mixed-bitrate EXL3 Trellis MoE execution.
++
++The route packer assigns every global expert to one combined expert namespace.
++Input/intermediate rotations therefore run once. Per-tile dispatch resolves the
++combined expert to a bitrate-specialized K3 or K4 decoder while preserving the
++single cooperative FC1/activation/FC2 grid used by homogeneous Trellis.
++
++The module stays internal because checkpoint interpretation and runtime planning
++belong to the serving framework; SparkInfer owns only the prepared kernel path.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++from functools import partial
++from typing import Protocol, Sequence
++
++import cuda.bindings.driver as cuda
++import cutlass
++import cutlass.cute as cute
++import torch
++from cutlass.base_dsl.compiler import OptLevel
++from cutlass.cutlass_dsl import Int32
++
++from sparkinfer._lib.compiler import KernelCompileSpec, compile as sparkinfer_compile
++from sparkinfer._lib.intrinsics import shared_ptr_to_u32
++from sparkinfer._lib.runtime_control import raise_if_kernel_resolution_frozen
++from sparkinfer._lib.utils import current_cuda_stream, make_ptr
++
++from .host import max_packed_route_slots, packed_gemm_scratch_elements
++from .kernel import (
++    W4A16FusedMoeKernel,
++    _cutlass_element_dtype,
++    _fake_m_for_specialization,
++    _query_w4a16_kernel_resources,
++    compile_w4a16_topk_sum,
++    pack_topk_routes_by_expert,
++)
++
++
++@dataclass(frozen=True)
++class MixedTrellisCompileResult:
++    compiled: object
++    topk_sum: object
++    size_m: int
++    hidden_size: int
++    intermediate_size: int
++    top_k: int
++    tier0_num_experts: int
++    tier1_num_experts: int
++    tier0_bits: int
++    tier1_bits: int
++    fc1_tile_k: int
++    fc1_tile_n: int
++    fc2_tile_k: int
++    fc2_tile_n: int
++    moe_block_size: int
++    max_m_blocks: int
++    blocks_per_sm: int
++    sms: int
++    shared_memory_bytes: int
++    registers_per_thread: int
++    local_memory_bytes: int
++    rotation_input_dtype: str
++    route_ids_dtype: torch.dtype
++
++
++@dataclass(frozen=True)
++class MixedTrellisRotations:
++    intermediate: torch.Tensor
++    gate_suh: torch.Tensor
++    up_suh: torch.Tensor
++    down_svh: torch.Tensor
++
++
++@dataclass
++class MixedTrellisBuffers:
++    rotation_gate: torch.Tensor
++    rotation_up: torch.Tensor
++    fc1: torch.Tensor
++    activated: torch.Tensor
++    fc2: torch.Tensor
++    output: torch.Tensor
++    packed_route_indices: torch.Tensor
++    block_expert_ids: torch.Tensor
++    packed_route_count: torch.Tensor
++    expert_offsets: torch.Tensor
++    expert_counts: torch.Tensor
++    fc1_scratch: torch.Tensor
++    fc2_scratch: torch.Tensor
++    workspace: torch.Tensor
++
++
++class MixedTrellisTier(Protocol):
++    """Prepared Trellis tier fields consumed by the mixed launch."""
++
++    intermediate_rotations: torch.Tensor
++    gate_suh: torch.Tensor
++    up_suh: torch.Tensor
++    down_svh: torch.Tensor
++    w13: torch.Tensor
++    w2: torch.Tensor
++    w13_scale: torch.Tensor
++    w2_scale: torch.Tensor
++    w13_global_scale: torch.Tensor
++    w2_global_scale: torch.Tensor
++
++
++class W4A16MixedTrellisKernel:
++    """One cooperative grid over two native Trellis bitrates."""
++
++    ABI_VERSION = 1
++
++    def __init__(
++        self,
++        *,
++        driver: W4A16FusedMoeKernel,
++        tier0: W4A16FusedMoeKernel,
++        tier1: W4A16FusedMoeKernel,
++    ):
++        for name, moe in (("driver", driver), ("tier0", tier0), ("tier1", tier1)):
++            if not moe.full_rotation or not moe.intermediate_rotation:
++                raise ValueError(f"mixed Trellis {name} requires full rotation")
++            if moe.direct_topk_routes or moe.tc_decode_fused_sum:
++                raise ValueError(f"mixed Trellis {name} requires route packing")
++            if moe.weight_layout != "trellis3_t256":
++                raise ValueError(f"mixed Trellis {name} requires native t256 weights")
++            if moe.element_dtype != "fp16":
++                raise ValueError(f"mixed Trellis {name} requires fp16 GEMM operands")
++        for attr in (
++            "size_m",
++            "hidden_size",
++            "intermediate_size",
++            "fc1_cols",
++            "top_k",
++            "moe_block_size",
++            "activation",
++            "rotation_input_dtype",
++            "cta_threads",
++            "sms",
++        ):
++            values = tuple(getattr(moe, attr) for moe in (driver, tier0, tier1))
++            if values[1:] != values[:-1]:
++                raise ValueError(f"mixed Trellis kernels disagree on {attr}: {values}")
++        for phase in ("fc1", "fc2"):
++            gemms = tuple(getattr(moe, phase) for moe in (driver, tier0, tier1))
++            geometry = tuple(
++                (g.n_tiles, g.k_tiles, g.tile_n, g.tile_k, g.cta_threads) for g in gemms
++            )
++            if geometry[1:] != geometry[:-1]:
++                raise ValueError(
++                    f"mixed Trellis kernels disagree on {phase} geometry: {geometry}"
++                )
++        if tier0.num_experts > 256 or tier1.num_experts > 256:
++            raise ValueError("tier-local expert ids must fit in eight bits")
++        if driver.num_experts != tier0.num_experts + tier1.num_experts:
++            raise ValueError("driver expert count must equal the sum of both tiers")
++        self.driver = driver
++        self.tier0 = tier0
++        self.tier1 = tier1
++        self.total_experts = driver.num_experts
++        self.size_m = driver.size_m
++        self.hidden_size = driver.hidden_size
++        self.intermediate_size = driver.intermediate_size
++        self.top_k = driver.top_k
++        self.cta_threads = driver.cta_threads
++        self.sms = driver.sms
++        self.blocks_per_sm = min(
++            driver.blocks_per_sm, tier0.blocks_per_sm, tier1.blocks_per_sm
++        )
++        self.shared_words = max(
++            driver.shared_words, tier0.shared_words, tier1.shared_words
++        )
++
++    @property
++    def __cache_key__(self) -> tuple[object, ...]:
++        return (
++            "w4a16_mixed_trellis",
++            self.ABI_VERSION,
++            self.driver.__cache_key__,
++            self.tier0.__cache_key__,
++            self.tier1.__cache_key__,
++            self.blocks_per_sm,
++            self.shared_words,
++        )
++
++    @cute.jit
++    def _emit_tier_tile(
++        self,
++        is_fc1: cutlass.Constexpr,
++        a_flat: cute.Tensor,
++        a_alt_flat: cute.Tensor,
++        t0_b_flat: cute.Tensor,
++        t0_scales_flat: cute.Tensor,
++        t0_global_scale: cute.Tensor,
++        t1_b_flat: cute.Tensor,
++        t1_scales_flat: cute.Tensor,
++        t1_global_scale: cute.Tensor,
++        c_flat: cute.Tensor,
++        packed_route_indices: cute.Tensor,
++        block_expert_ids: cute.Tensor,
++        descriptor_map: cute.Tensor,
++        topk_weights: cute.Tensor,
++        c_tmp: cute.Tensor,
++        locks: cute.Tensor,
++        smem_base: Int32,
++        tid: Int32,
++        active_size_m: Int32,
++        route_block_idx: Int32,
++        output_n_tile: Int32,
++        reduce_k_tile: Int32,
++        reduce_tile_count: Int32,
++        reduce_slice_count: Int32,
++        reduce_slice_idx: Int32,
++        lock_slot: Int32,
++    ):
++        combined_expert = block_expert_ids[route_block_idx].to(Int32)
++        if combined_expert >= Int32(0) and combined_expert < Int32(self.total_experts):
++            descriptor = descriptor_map[combined_expert].to(Int32)
++            if descriptor >= Int32(0):
++                tier = descriptor >> Int32(8)
++                local_expert = descriptor & Int32(0xFF)
++                if tier == Int32(0) and local_expert < Int32(self.tier0.num_experts):
++                    if cutlass.const_expr(is_fc1):
++                        gemm = self.tier0.fc1
++                    else:
++                        gemm = self.tier0.fc2
++                    gemm._run_tile(
++                        a_flat,
++                        a_alt_flat,
++                        t0_b_flat,
++                        c_flat,
++                        t0_scales_flat,
++                        t0_global_scale,
++                        packed_route_indices,
++                        topk_weights,
++                        c_tmp,
++                        locks,
++                        smem_base,
++                        tid,
++                        route_block_idx,
++                        local_expert,
++                        output_n_tile,
++                        reduce_k_tile,
++                        reduce_tile_count,
++                        reduce_slice_count,
++                        reduce_slice_idx,
++                        lock_slot,
++                        active_size_m,
++                    )
++                elif tier == Int32(1) and local_expert < Int32(self.tier1.num_experts):
++                    if cutlass.const_expr(is_fc1):
++                        gemm = self.tier1.fc1
++                    else:
++                        gemm = self.tier1.fc2
++                    gemm._run_tile(
++                        a_flat,
++                        a_alt_flat,
++                        t1_b_flat,
++                        c_flat,
++                        t1_scales_flat,
++                        t1_global_scale,
++                        packed_route_indices,
++                        topk_weights,
++                        c_tmp,
++                        locks,
++                        smem_base,
++                        tid,
++                        route_block_idx,
++                        local_expert,
++                        output_n_tile,
++                        reduce_k_tile,
++                        reduce_tile_count,
++                        reduce_slice_count,
++                        reduce_slice_idx,
++                        lock_slot,
++                        active_size_m,
++                    )
++
++    @cute.jit
++    def __call__(
++        self,
++        rotation_input_ptr: cute.Pointer,
++        rotation_gate: cute.Tensor,
++        rotation_up: cute.Tensor,
++        t0_w13: cute.Tensor,
++        t0_w2: cute.Tensor,
++        t0_w13_scales: cute.Tensor,
++        t0_w2_scales: cute.Tensor,
++        t0_w13_global: cute.Tensor,
++        t0_w2_global: cute.Tensor,
++        t1_w13: cute.Tensor,
++        t1_w2: cute.Tensor,
++        t1_w13_scales: cute.Tensor,
++        t1_w2_scales: cute.Tensor,
++        t1_w13_global: cute.Tensor,
++        t1_w2_global: cute.Tensor,
++        fc1: cute.Tensor,
++        activated: cute.Tensor,
++        fc2: cute.Tensor,
++        packed_route_indices: cute.Tensor,
++        block_expert_ids: cute.Tensor,
++        packed_route_count: cute.Tensor,
++        descriptor_map: cute.Tensor,
++        topk_weights_ptr: cute.Pointer,
++        fc1_scratch: cute.Tensor,
++        fc2_scratch: cute.Tensor,
++        workspace: cute.Tensor,
++        intermediate_rotations: cute.Tensor,
++        gate_suh: cute.Tensor,
++        up_suh: cute.Tensor,
++        active_m: cutlass.Int32,
++        grid_x: cutlass.Int32,
++        stream: cuda.CUstream,
++    ):
++        rotation_input = cute.make_tensor(
++            rotation_input_ptr,
++            layout=cute.make_layout(
++                (active_m.to(cutlass.Int64) * cutlass.Int64(self.hidden_size),),
++                stride=(1,),
++            ),
++        )
++        topk_weights = cute.make_tensor(
++            topk_weights_ptr,
++            layout=cute.make_layout(
++                (active_m.to(cutlass.Int64) * cutlass.Int64(self.top_k),),
++                stride=(1,),
++            ),
++        )
++        self.kernel(
++            rotation_input,
++            rotation_gate,
++            rotation_up,
++            t0_w13,
++            t0_w2,
++            t0_w13_scales,
++            t0_w2_scales,
++            t0_w13_global,
++            t0_w2_global,
++            t1_w13,
++            t1_w2,
++            t1_w13_scales,
++            t1_w2_scales,
++            t1_w13_global,
++            t1_w2_global,
++            fc1,
++            activated,
++            fc2,
++            packed_route_indices,
++            block_expert_ids,
++            packed_route_count,
++            descriptor_map,
++            topk_weights,
++            fc1_scratch,
++            fc2_scratch,
++            workspace,
++            intermediate_rotations,
++            gate_suh,
++            up_suh,
++            active_m,
++        ).launch(
++            grid=(grid_x, 1, 1),
++            block=[self.cta_threads, 1, 1],
++            min_blocks_per_mp=self.blocks_per_sm,
++            cooperative=True,
++            stream=stream,
++        )
++
++    @cute.kernel
++    def kernel(
++        self,
++        rotation_input: cute.Tensor,
++        rotation_gate: cute.Tensor,
++        rotation_up: cute.Tensor,
++        t0_w13: cute.Tensor,
++        t0_w2: cute.Tensor,
++        t0_w13_scales: cute.Tensor,
++        t0_w2_scales: cute.Tensor,
++        t0_w13_global: cute.Tensor,
++        t0_w2_global: cute.Tensor,
++        t1_w13: cute.Tensor,
++        t1_w2: cute.Tensor,
++        t1_w13_scales: cute.Tensor,
++        t1_w2_scales: cute.Tensor,
++        t1_w13_global: cute.Tensor,
++        t1_w2_global: cute.Tensor,
++        fc1: cute.Tensor,
++        activated: cute.Tensor,
++        fc2: cute.Tensor,
++        packed_route_indices: cute.Tensor,
++        block_expert_ids: cute.Tensor,
++        packed_route_count: cute.Tensor,
++        descriptor_map: cute.Tensor,
++        topk_weights: cute.Tensor,
++        fc1_scratch: cute.Tensor,
++        fc2_scratch: cute.Tensor,
++        workspace: cute.Tensor,
++        intermediate_rotations: cute.Tensor,
++        gate_suh: cute.Tensor,
++        up_suh: cute.Tensor,
++        active_m: cutlass.Int32,
++    ):
++        tidx, _, _ = cute.arch.thread_idx()
++        bidx, _, _ = cute.arch.block_idx()
++        grid_x_raw, _, _ = cute.arch.grid_dim()
++        tid = Int32(tidx)
++        cta = Int32(bidx)
++        grid_x = Int32(grid_x_raw)
++
++        smem = cutlass.utils.SmemAllocator()
++
++        @cute.struct
++        class Storage:
++            words: cute.struct.Align[
++                cute.struct.MemRange[cutlass.Uint32, self.shared_words], 1024
++            ]
++
++        storage = smem.allocate(Storage)
++        smem_base = shared_ptr_to_u32(storage.words.data_ptr())
++        fc1_emit = partial(
++            self._emit_tier_tile,
++            True,
++            rotation_gate,
++            rotation_up,
++            t0_w13,
++            t0_w13_scales,
++            t0_w13_global,
++            t1_w13,
++            t1_w13_scales,
++            t1_w13_global,
++            fc1,
++            packed_route_indices,
++            block_expert_ids,
++            descriptor_map,
++            topk_weights,
++            fc1_scratch,
++            workspace,
++            smem_base,
++            tid,
++            active_m,
++        )
++        fc2_emit = partial(
++            self._emit_tier_tile,
++            False,
++            activated,
++            activated,
++            t0_w2,
++            t0_w2_scales,
++            t0_w2_global,
++            t1_w2,
++            t1_w2_scales,
++            t1_w2_global,
++            fc2,
++            packed_route_indices,
++            block_expert_ids,
++            descriptor_map,
++            topk_weights,
++            fc2_scratch,
++            workspace,
++            smem_base,
++            tid,
++            active_m * Int32(self.top_k),
++        )
++        self.driver._moe_body(
++            rotation_gate,
++            rotation_up,
++            rotation_input,
++            t0_w13,
++            t0_w2,
++            fc1,
++            activated,
++            fc2,
++            t0_w13_scales,
++            t0_w2_scales,
++            t0_w13_global,
++            t0_w2_global,
++            packed_route_indices,
++            block_expert_ids,
++            packed_route_count,
++            t0_w13_global,
++            Int32(0),
++            topk_weights,
++            fc1_scratch,
++            fc2_scratch,
++            workspace,
++            intermediate_rotations,
++            gate_suh,
++            up_suh,
++            smem_base,
++            tid,
++            cta,
++            grid_x,
++            active_m,
++            fc1_emit,
++            fc2_emit,
++        )
++
++
++_CACHE: dict[tuple[object, ...], MixedTrellisCompileResult] = {}
++
++
++def _trellis_weight_fake(
++    *, num_experts: int, size_k: int, size_n: int, bits: int
++) -> cute.Tensor:
++    return cute.runtime.make_fake_compact_tensor(
++        cutlass.Int32,
++        (num_experts * (size_k // 16) * (size_n // 16) * (8 * bits),),
++        assumed_align=16,
++    )
++
++
++def compile_mixed_trellis(
++    *,
++    size_m: int,
++    hidden_size: int,
++    intermediate_size: int,
++    tier0_num_experts: int,
++    tier1_num_experts: int,
++    top_k: int,
++    max_m_blocks: int,
++    sms: int,
++    max_shared_mem: int,
++    force_tile_config: tuple[int, int, int, int],
++    tier0_bits: int = 3,
++    tier1_bits: int = 4,
++    moe_block_size: int = 8,
++    rotation_input_dtype: str = "bf16",
++    route_ids_dtype: torch.dtype = torch.int32,
++) -> MixedTrellisCompileResult:
++    if route_ids_dtype not in (torch.int32, torch.int64):
++        raise TypeError("mixed Trellis route IDs must be int32 or int64")
++    if int(size_m) * int(top_k) > torch.iinfo(torch.int32).max:
++        raise ValueError("mixed Trellis routed-row count must fit in int32")
++    fc1_tile_k, fc1_tile_n, fc2_tile_k, fc2_tile_n = (
++        int(value) for value in force_tile_config
++    )
++    if fc1_tile_k < 128:
++        raise ValueError(
++            "mixed Trellis FC1 requires tile_k >= 128; narrower K tiles lose "
++            "large-M cross-tier partial reductions"
++        )
++    total_experts = int(tier0_num_experts) + int(tier1_num_experts)
++
++    def make_kernel(num_experts: int, bits: int) -> W4A16FusedMoeKernel:
++        return W4A16FusedMoeKernel(
++            size_m=size_m,
++            hidden_size=hidden_size,
++            intermediate_size=intermediate_size,
++            num_experts=num_experts,
++            top_k=top_k,
++            activation="silu",
++            apply_router_weight_on_input=False,
++            zero_fc2_output=False,
++            fc1_tile_n=fc1_tile_n,
++            fc1_tile_k=fc1_tile_k,
++            fc2_tile_n=fc2_tile_n,
++            fc2_tile_k=fc2_tile_k,
++            moe_block_size=moe_block_size,
++            max_m_blocks=max_m_blocks,
++            element_dtype="fp16",
++            weight_layout="trellis3_t256",
++            scale_format="e4m3_k32",
++            w13_layout="trellis3_t256_proj",
++            trellis_bits=bits,
++            intermediate_rotation=True,
++            full_rotation=True,
++            rotation_input_dtype=rotation_input_dtype,
++            schedule_whole_tiles=True,
++        )
++
++    kernel = W4A16MixedTrellisKernel(
++        driver=make_kernel(total_experts, tier0_bits),
++        tier0=make_kernel(int(tier0_num_experts), int(tier0_bits)),
++        tier1=make_kernel(int(tier1_num_experts), int(tier1_bits)),
++    )
++    if kernel.shared_words * 4 > int(max_shared_mem) - 512:
++        raise ValueError(
++            "mixed Trellis shared-memory requirement exceeds the device limit"
++        )
++    device = int(torch.cuda.current_device())
++    cache_key = (
++        "mixed_trellis",
++        device,
++        kernel.__cache_key__,
++        str(route_ids_dtype),
++        int(size_m),
++        int(max_m_blocks),
++    )
++    cached = _CACHE.get(cache_key)
++    if cached is not None:
++        return cached
++
++    compile_m = _fake_m_for_specialization(size_m)
++    compile_rows = compile_m * top_k
++    fc1_cols = 2 * intermediate_size
++    cutlass_dtype = cutlass.Float16
++    rotation_dtype = _cutlass_element_dtype(rotation_input_dtype)
++
++    def tensor(dtype, elements: int, *, align: int = 16):
++        return cute.runtime.make_fake_compact_tensor(
++            dtype, (max(int(elements), 1),), assumed_align=align
++        )
++
++    def tier_args(experts: int, bits: int):
++        return (
++            _trellis_weight_fake(
++                num_experts=experts,
++                size_k=hidden_size,
++                size_n=fc1_cols,
++                bits=bits,
++            ),
++            _trellis_weight_fake(
++                num_experts=experts,
++                size_k=intermediate_size,
++                size_n=hidden_size,
++                bits=bits,
++            ),
++            tensor(cutlass.Int32, 1),
++            tensor(cutlass.Int32, 1),
++            tensor(cutlass.Float32, experts),
++            tensor(cutlass.Float32, experts),
++        )
++
++    scratch_elements = max(
++        fc1_cols * compile_rows,
++        hidden_size * compile_rows,
++        4 * 256 * moe_block_size * 256,
++    )
++    compile_args = (
++        make_ptr(rotation_dtype, 16, cute.AddressSpace.gmem, assumed_align=16),
++        tensor(cutlass_dtype, compile_rows * hidden_size),
++        tensor(cutlass_dtype, compile_rows * hidden_size),
++        *tier_args(int(tier0_num_experts), int(tier0_bits)),
++        *tier_args(int(tier1_num_experts), int(tier1_bits)),
++        tensor(cutlass_dtype, compile_rows * fc1_cols),
++        tensor(cutlass_dtype, compile_rows * intermediate_size),
++        tensor(cutlass_dtype, compile_rows * hidden_size),
++        tensor(cutlass.Int32, moe_block_size),
++        tensor(cutlass.Int32, 1),
++        tensor(cutlass.Int32, 1, align=4),
++        tensor(cutlass.Int32, total_experts),
++        make_ptr(cutlass.Float32, 4, cute.AddressSpace.gmem, assumed_align=4),
++        tensor(cutlass.Float32, scratch_elements),
++        tensor(cutlass.Float32, scratch_elements),
++        tensor(cutlass.Int32, 4 * 256 + 2),
++        tensor(cutlass.Float16, total_experts * 3 * intermediate_size),
++        tensor(cutlass.Float16, total_experts * hidden_size),
++        tensor(cutlass.Float16, total_experts * hidden_size),
++        1,
++        1,
++        current_cuda_stream(),
++    )
++    raise_if_kernel_resolution_frozen(
++        "cute.compile", target=kernel, cache_key=cache_key
++    )
++    compiled = sparkinfer_compile(
++        kernel,
++        *compile_args,
++        compile_spec=KernelCompileSpec.from_key(
++            "moe.w4a16.mixed_trellis", W4A16MixedTrellisKernel.ABI_VERSION, cache_key
++        ),
++        dsl_compile_options=OptLevel(2),
++    )
++    registers = -1
++    local_bytes = -1
++    resources = _query_w4a16_kernel_resources(compiled)
++    if resources is not None:
++        _, registers, local_bytes = resources
++        if local_bytes != 0:
++            raise RuntimeError(
++                "mixed Trellis codegen spills to local memory "
++                f"({local_bytes} bytes/thread)"
++            )
++    topk_sum = compile_w4a16_topk_sum(
++        m=size_m,
++        topk=top_k,
++        hidden_size=hidden_size,
++        element_dtype="fp16",
++        full_rotation=True,
++        num_experts=total_experts,
++        route_num_experts=total_experts,
++        route_ids_dtype=route_ids_dtype,
++        use_expert_map=True,
++    )
++    result = MixedTrellisCompileResult(
++        compiled=compiled,
++        topk_sum=topk_sum,
++        size_m=int(size_m),
++        hidden_size=int(hidden_size),
++        intermediate_size=int(intermediate_size),
++        top_k=int(top_k),
++        tier0_num_experts=int(tier0_num_experts),
++        tier1_num_experts=int(tier1_num_experts),
++        tier0_bits=int(tier0_bits),
++        tier1_bits=int(tier1_bits),
++        fc1_tile_k=fc1_tile_k,
++        fc1_tile_n=fc1_tile_n,
++        fc2_tile_k=fc2_tile_k,
++        fc2_tile_n=fc2_tile_n,
++        moe_block_size=int(moe_block_size),
++        max_m_blocks=int(max_m_blocks),
++        blocks_per_sm=int(kernel.blocks_per_sm),
++        sms=int(sms),
++        shared_memory_bytes=int(kernel.shared_words * 4),
++        registers_per_thread=registers,
++        local_memory_bytes=local_bytes,
++        rotation_input_dtype=str(rotation_input_dtype),
++        route_ids_dtype=route_ids_dtype,
++    )
++    _CACHE[cache_key] = result
++    return result
++
++
++def make_mixed_trellis_buffers(
++    launch: MixedTrellisCompileResult,
++    *,
++    device: torch.device,
++    sms: int,
++) -> MixedTrellisBuffers:
++    capacity_rows = launch.size_m * launch.top_k
++    total_experts = launch.tier0_num_experts + launch.tier1_num_experts
++    route_slots = max_packed_route_slots(
++        capacity_rows, launch.moe_block_size, total_experts
++    )
++    route_blocks = (route_slots + launch.moe_block_size - 1) // launch.moe_block_size
++    if route_blocks > launch.max_m_blocks:
++        raise ValueError(
++            "mixed Trellis route buffers require "
++            f"{route_blocks} blocks, but the launch was compiled for "
++            f"{launch.max_m_blocks}"
++        )
++    fc1_cols = 2 * launch.intermediate_size
++    # FC1 consumes rotation_gate before the grid-wide activation barrier. FC2
++    # starts only after that barrier, so its output can safely reuse the same
++    # storage without changing either phase's tensor layout.
++    rotation_gate = torch.empty(
++        (capacity_rows, launch.hidden_size), dtype=torch.float16, device=device
++    )
++    return MixedTrellisBuffers(
++        rotation_gate=rotation_gate,
++        rotation_up=torch.empty(
++            (capacity_rows, launch.hidden_size), dtype=torch.float16, device=device
++        ),
++        fc1=torch.empty((capacity_rows, fc1_cols), dtype=torch.float16, device=device),
++        activated=torch.empty(
++            (capacity_rows, launch.intermediate_size),
++            dtype=torch.float16,
++            device=device,
++        ),
++        fc2=rotation_gate,
++        output=torch.empty(
++            (launch.size_m, launch.hidden_size), dtype=torch.float32, device=device
++        ),
++        packed_route_indices=torch.empty(route_slots, dtype=torch.int32, device=device),
++        block_expert_ids=torch.empty(route_blocks, dtype=torch.int32, device=device),
++        packed_route_count=torch.empty(1, dtype=torch.int32, device=device),
++        expert_offsets=torch.empty(total_experts + 1, dtype=torch.int32, device=device),
++        expert_counts=torch.empty(total_experts, dtype=torch.int32, device=device),
++        fc1_scratch=torch.empty(
++            packed_gemm_scratch_elements(
++                size_n=fc1_cols,
++                route_slots=route_slots,
++                moe_block_size=launch.moe_block_size,
++                sms=sms,
++            ),
++            dtype=torch.float32,
++            device=device,
++        ),
++        fc2_scratch=torch.empty(
++            packed_gemm_scratch_elements(
++                size_n=launch.hidden_size,
++                route_slots=route_slots,
++                moe_block_size=launch.moe_block_size,
++                sms=sms,
++            ),
++            dtype=torch.float32,
++            device=device,
++        ),
++        workspace=torch.zeros(
++            max(sms * 4, launch.blocks_per_sm * sms) + 2,
++            dtype=torch.int32,
++            device=device,
++        ),
++    )
++
++
++def build_ordered_maps(
++    tier0_num_experts: int,
++    tier1_num_experts: int,
++    *,
++    device: torch.device,
++) -> tuple[torch.Tensor, torch.Tensor]:
++    tier0_num_experts = int(tier0_num_experts)
++    tier1_num_experts = int(tier1_num_experts)
++    return build_tiered_maps(
++        range(tier0_num_experts),
++        range(tier0_num_experts, tier0_num_experts + tier1_num_experts),
++        device=device,
++    )
++
++
++def build_tiered_maps(
++    tier0_global_ids: Sequence[int],
++    tier1_global_ids: Sequence[int],
++    *,
++    device: torch.device,
++) -> tuple[torch.Tensor, torch.Tensor]:
++    """Build immutable route and descriptor maps for one mixed expert layer."""
++
++    tier0_ids = tuple(int(expert_id) for expert_id in tier0_global_ids)
++    tier1_ids = tuple(int(expert_id) for expert_id in tier1_global_ids)
++    if len(tier0_ids) > 256 or len(tier1_ids) > 256:
++        raise ValueError("each mixed Trellis tier supports at most 256 experts")
++    total = len(tier0_ids) + len(tier1_ids)
++    if sorted((*tier0_ids, *tier1_ids)) != list(range(total)):
++        raise ValueError(
++            f"mixed Trellis tier ids must be a disjoint partition of [0, {total})"
++        )
++    global_to_combined_host = [-1] * total
++    for local_id, global_id in enumerate(tier0_ids):
++        global_to_combined_host[global_id] = local_id
++    for local_id, global_id in enumerate(tier1_ids):
++        global_to_combined_host[global_id] = len(tier0_ids) + local_id
++    global_to_combined = torch.tensor(
++        global_to_combined_host, dtype=torch.int32, device=device
++    )
++    descriptor = torch.tensor(
++        [*range(len(tier0_ids)), *((1 << 8) | i for i in range(len(tier1_ids)))],
++        dtype=torch.int32,
++        device=device,
++    )
++    return global_to_combined, descriptor
++
++
++def combine_trellis_rotations(
++    tier0: MixedTrellisTier, tier1: MixedTrellisTier
++) -> MixedTrellisRotations:
++    """Materialize one tier-ordered table set once during model preparation."""
++    return MixedTrellisRotations(
++        intermediate=torch.cat(
++            (tier0.intermediate_rotations, tier1.intermediate_rotations), dim=0
++        ).contiguous(),
++        gate_suh=torch.cat((tier0.gate_suh, tier1.gate_suh), dim=0).contiguous(),
++        up_suh=torch.cat((tier0.up_suh, tier1.up_suh), dim=0).contiguous(),
++        down_svh=torch.cat((tier0.down_svh, tier1.down_svh), dim=0).contiguous(),
++    )
++
++
++def run_mixed_trellis(
++    x: torch.Tensor,
++    tier0: MixedTrellisTier,
++    tier1: MixedTrellisTier,
++    topk_weights: torch.Tensor,
++    topk_ids: torch.Tensor,
++    global_to_combined: torch.Tensor,
++    descriptor_map: torch.Tensor,
++    rotations: MixedTrellisRotations,
++    launch: MixedTrellisCompileResult,
++    buffers: MixedTrellisBuffers,
++) -> torch.Tensor:
++    m = int(x.shape[0])
++    if m <= 0:
++        raise ValueError(f"mixed Trellis requires at least one active row, got {m}")
++    if m > launch.size_m:
++        raise ValueError(f"active rows {m} exceed launch capacity {launch.size_m}")
++    expected_input_dtype = (
++        torch.bfloat16 if launch.rotation_input_dtype == "bf16" else torch.float16
++    )
++    for name, tensor, expected_dtype in (
++        ("input", x, expected_input_dtype),
++        ("topk_ids", topk_ids, launch.route_ids_dtype),
++        ("topk_weights", topk_weights, torch.float32),
++    ):
++        if tensor.dtype != expected_dtype:
++            raise TypeError(
++                f"mixed Trellis {name} must be {expected_dtype}, got {tensor.dtype}"
++            )
++        if not tensor.is_contiguous():
++            raise ValueError(f"mixed Trellis {name} must be contiguous")
++    total_experts = launch.tier0_num_experts + launch.tier1_num_experts
++    if int(global_to_combined.numel()) != total_experts:
++        raise ValueError("global_to_combined must cover every routed expert")
++    if int(descriptor_map.numel()) != total_experts:
++        raise ValueError("descriptor_map must cover the combined namespace")
++    required_route_slots = max_packed_route_slots(
++        m * launch.top_k, launch.moe_block_size, total_experts
++    )
++    required_route_blocks = (
++        required_route_slots + launch.moe_block_size - 1
++    ) // launch.moe_block_size
++    if required_route_blocks > launch.max_m_blocks:
++        raise RuntimeError(
++            "mixed Trellis request requires "
++            f"{required_route_blocks} route blocks, but the launch supports "
++            f"{launch.max_m_blocks}"
++        )
++    if buffers.packed_route_indices.numel() < required_route_slots:
++        raise RuntimeError(
++            "mixed Trellis packed-route buffer is below request capacity"
++        )
++    if buffers.block_expert_ids.numel() < required_route_blocks:
++        raise RuntimeError(
++            "mixed Trellis block-expert buffer is below request capacity"
++        )
++    packed, block_experts, packed_count = pack_topk_routes_by_expert(
++        topk_ids,
++        launch.moe_block_size,
++        total_experts,
++        expert_map=global_to_combined,
++        packed_route_indices=buffers.packed_route_indices,
++        block_expert_ids=buffers.block_expert_ids,
++        packed_route_count=buffers.packed_route_count,
++        expert_offsets=buffers.expert_offsets,
++        expert_counts=buffers.expert_counts,
++    )
++    stream = current_cuda_stream()
++    launch.compiled(
++        make_ptr(
++            _cutlass_element_dtype(launch.rotation_input_dtype),
++            x.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=16,
++        ),
++        buffers.rotation_gate.view(-1),
++        buffers.rotation_up.view(-1),
++        tier0.w13.view(torch.int32).view(-1),
++        tier0.w2.view(torch.int32).view(-1),
++        tier0.w13_scale.view(torch.uint8).view(torch.int32).view(-1),
++        tier0.w2_scale.view(torch.uint8).view(torch.int32).view(-1),
++        tier0.w13_global_scale,
++        tier0.w2_global_scale,
++        tier1.w13.view(torch.int32).view(-1),
++        tier1.w2.view(torch.int32).view(-1),
++        tier1.w13_scale.view(torch.uint8).view(torch.int32).view(-1),
++        tier1.w2_scale.view(torch.uint8).view(torch.int32).view(-1),
++        tier1.w13_global_scale,
++        tier1.w2_global_scale,
++        buffers.fc1.view(-1),
++        buffers.activated.view(-1),
++        buffers.fc2.view(-1),
++        packed,
++        block_experts,
++        packed_count,
++        descriptor_map,
++        make_ptr(
++            cutlass.Float32,
++            topk_weights.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=4,
++        ),
++        buffers.fc1_scratch,
++        buffers.fc2_scratch,
++        buffers.workspace,
++        rotations.intermediate.view(-1),
++        rotations.gate_suh.view(-1),
++        rotations.up_suh.view(-1),
++        m,
++        max(int(launch.blocks_per_sm) * int(launch.sms), 1),
++        stream,
++    )
++    launch.topk_sum.compiled(
++        make_ptr(
++            cutlass.Float16,
++            buffers.fc2.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=16,
++        ),
++        make_ptr(
++            cutlass.Float32,
++            buffers.output.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=16,
++        ),
++        make_ptr(
++            cutlass.Float32,
++            topk_weights.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=4,
++        ),
++        make_ptr(
++            cutlass.Int32 if topk_ids.dtype == torch.int32 else cutlass.Int64,
++            topk_ids.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=4 if topk_ids.dtype == torch.int32 else 8,
++        ),
++        make_ptr(
++            cutlass.Int32,
++            global_to_combined.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=4,
++        ),
++        make_ptr(
++            cutlass.Float16,
++            rotations.down_svh.data_ptr(),
++            cute.AddressSpace.gmem,
++            assumed_align=16,
++        ),
++        m,
++        stream,
++    )
++    return buffers.output[:m]
++
++
++__all__ = [
++    "MixedTrellisBuffers",
++    "MixedTrellisCompileResult",
++    "MixedTrellisRotations",
++    "build_ordered_maps",
++    "build_tiered_maps",
++    "combine_trellis_rotations",
++    "compile_mixed_trellis",
++    "make_mixed_trellis_buffers",
++    "run_mixed_trellis",
++]
+diff --git a/sparkinfer/moe/fused_moe/_impl.py b/sparkinfer/moe/fused_moe/_impl.py
+index 2a340db1bcffd61d368922d681ac795715496cee..185419719a9c7ae7bd9e59358c5b7f3dd172c976 100644
+--- a/sparkinfer/moe/fused_moe/_impl.py
++++ b/sparkinfer/moe/fused_moe/_impl.py
+@@ -858,6 +858,14 @@ class TPMoEScratchPlan:
+     launch_plan: TPMoEPlan
+     _core_workspace_plan: _TPCoreWorkspacePlan
+     _scratch_specs: tuple[ScratchBufferSpec, ...]
++    _prewarmed_fused_launches: tuple[tuple[int, object], ...] = field(
++        default=(), repr=False
++    )
++    _prewarmed_topk_sum_launches: tuple[
++        tuple[torch.dtype, bool, object], ...
++    ] = field(
++        default=(), repr=False
++    )
+ 
+     @property
+     def full_rotation(self) -> bool:
+@@ -946,6 +954,8 @@ class TPMoEScratchPlan:
+             layer_idx=layer_idx,
+             route_expert_map=route_expert_map,
+             output_expert_map=output_expert_map,
++            fused_launch=None,
++            topk_sum_launch=None,
+         )
+ 
+ 
+@@ -1882,11 +1892,12 @@ def _arena_core_token_counts(
+     num_topk: int,
+     core_token_counts: tuple[int, ...] | None,
+     quant_mode: str,
++    bucket_w4a16_tokens: bool = True,
+ ) -> tuple[int, ...]:
+     max_tokens = max(int(max_tokens), 1)
+     num_topk = max(int(num_topk), 1)
+     quant_mode = _normalize_quant_mode(quant_mode)
+-    if quant_mode == "w4a16":
++    if quant_mode == "w4a16" and bucket_w4a16_tokens:
+         from sparkinfer.moe._shared.kernels.w4a16.host import (
+             route_pack_token_capacity,
+         )
+@@ -1898,7 +1909,7 @@ def _arena_core_token_counts(
+         normalized = tuple(
+             max(int(token_count), 1) for token_count in core_token_counts
+         )
+-        if quant_mode == "w4a16":
++        if quant_mode == "w4a16" and bucket_w4a16_tokens:
+             normalized = tuple(
+                 route_pack_token_capacity(token_count, num_topk)
+                 for token_count in normalized
+@@ -1910,7 +1921,7 @@ def _arena_core_token_counts(
+     max_micro_tokens = micro_cutover_pairs // num_topk
+     if max_micro_tokens >= 1:
+         micro_boundary_tokens = min(max_tokens, max_micro_tokens)
+-        if quant_mode == "w4a16":
++        if quant_mode == "w4a16" and bucket_w4a16_tokens:
+             micro_boundary_tokens = route_pack_token_capacity(
+                 micro_boundary_tokens,
+                 num_topk,
+@@ -2194,6 +2205,8 @@ def _build_tp_moe_fp4_binding_from_views(
+     layer_idx: int | None = None,
+     route_expert_map: torch.Tensor | None = None,
+     output_expert_map: torch.Tensor | None = None,
++    fused_launch: object | None = None,
++    topk_sum_launch: object | None = None,
+ ) -> TPMoEFP4Binding:
+     if not isinstance(experts, SPARKINFERFP4ExpertWeights):
+         raise TypeError("experts must come from prepare_sparkinfer_fp4_moe_weights")
+@@ -2385,6 +2398,8 @@ def _build_tp_moe_fp4_binding_from_views(
+             route_block_size_m=plan.route_block_size_m,
+             route_expert_map=route_expert_map,
+             output_expert_map=output_expert_map,
++            fused_launch=fused_launch,
++            topk_sum_launch=topk_sum_launch,
+         )
+ 
+     if plan.implementation == "micro":
+@@ -6070,6 +6085,12 @@ def plan_tp_moe_arena_layout(
+         num_topk=num_topk,
+         core_token_counts=core_token_counts,
+         quant_mode=quant_mode,
++        # Trellis plans one fixed caller-owned capacity and its route-pack
++        # wrapper already falls back to that exact capacity when the supplied
++        # buffers are smaller than the generic compile bucket. Rounding a
++        # 3072-token EXL3 plan to 4096 therefore reserves roughly 320 MiB of
++        # unreachable activation scratch without reducing launch variants.
++        bucket_w4a16_tokens=source_format != "exl3_trellis_mcg",
+     )
+     route_num_experts = int(
+         route_num_experts if route_num_experts is not None else weight_E
+@@ -6137,6 +6158,213 @@ def plan_tp_moe_arena_layout(
+     )
+ 
+ 
++def _plan_full_rotation_w4a16_launches(
++    *,
++    caps: TPMoEScratchCaps,
++    core_plan: _TPCoreWorkspacePlan,
++    capacity_tokens: int,
++) -> tuple[
++    tuple[tuple[int, object], ...],
++    tuple[tuple[torch.dtype, bool, object], ...],
++]:
++    """Compile the fixed Trellis launches before serving memory profiling.
++
++    The caller-owned scratch path cannot use the mutable workspace prewarm
++    dictionaries.  Keeping the launch objects on the immutable scratch plan
++    preserves the old Trellis API contract and prevents first-use compilation
++    from being charged as peak activation memory by vLLM.
++    """
++    if not core_plan.full_rotation:
++        return (), ()
++    if caps.quant_mode != "w4a16":
++        raise RuntimeError("full-rotation TP MoE requires W4A16 execution")
++    if core_plan.device.type != "cuda":
++        return (), ()
++    if not torch.cuda.is_available():
++        raise RuntimeError("CUDA must be available before planning Trellis MoE")
++    if torch.cuda.is_current_stream_capturing():
++        raise RuntimeError("Trellis launch planning cannot run during capture")
++
++    from sparkinfer.moe._shared.kernels.w4a16.host import (
++        max_packed_route_slots,
++    )
++    from sparkinfer.moe._shared.kernels.w4a16.kernel import (
++        _DEFAULT_MAX_SHARED_MEM,
++        compile_w4a16_fused_moe,
++        compile_w4a16_topk_sum,
++        pack_topk_routes_by_expert,
++    )
++
++    capacity_tokens = max(int(capacity_tokens), 1)
++    if not core_plan.route_block_size_m:
++        raise RuntimeError(
++            "Trellis launch planning requires the arena's route_block_size_m"
++        )
++    block_size_m = int(core_plan.route_block_size_m)
++    weight_layout = _normalize_w4a16_weight_layout(
++        caps.w4a16_weight_layout
++        or _w4a16_weight_layout_for_source(caps.source_format)
++    )
++    scale_format = _normalize_w4a16_scale_format(
++        caps.w4a16_scale_format
++        or _w4a16_scale_format_for_source(caps.source_format)
++    )
++    if weight_layout != "trellis3_t256" or scale_format != "e4m3_k32":
++        raise RuntimeError(
++            "full-rotation Trellis launch planning requires "
++            "weight_layout='trellis3_t256' and scale_format='e4m3_k32'; "
++            f"got weight_layout={weight_layout!r}, scale_format={scale_format!r}"
++        )
++    w13_layout = "trellis3_t256_proj"
++    capacity_route_slots = max_packed_route_slots(
++        capacity_tokens * core_plan.num_topk,
++        block_size_m,
++        core_plan.route_E,
++    )
++    capacity_m_blocks = (
++        capacity_route_slots + block_size_m - 1
++    ) // block_size_m
++    rotation_input_dtype = _w4a16_element_dtype(core_plan.dtype)
++
++    with torch.cuda.device(core_plan.device):
++        props = torch.cuda.get_device_properties(core_plan.device)
++        sms = int(props.multi_processor_count)
++        max_shared_mem = int(
++            getattr(
++                props,
++                "shared_memory_per_block_optin",
++                _DEFAULT_MAX_SHARED_MEM,
++            )
++        )
++        # Decode plans are deliberately exact-M: the unified API's measured
++        # speedup over the retired Trellis wrapper comes from specializing the
++        # small live shapes instead of always launching its M=32 capacity
++        # kernel.  Large prefill plans retain one capacity launch.
++        fused_token_counts = (
++            tuple(range(1, capacity_tokens + 1))
++            if capacity_tokens <= 32
++            else (capacity_tokens,)
++        )
++
++        def compile_fused(token_count: int) -> object:
++            return compile_w4a16_fused_moe(
++                size_m=token_count,
++                hidden_size=core_plan.k,
++                intermediate_size=core_plan.n,
++                num_experts=core_plan.weight_E,
++                top_k=core_plan.num_topk,
++                activation=core_plan.activation,
++                apply_router_weight_on_input=caps.apply_router_weight_on_input,
++                zero_fc2_output=False,
++                moe_block_size=block_size_m,
++                # Match the lazy unified path: specialize the live M while
++                # retaining the caller-owned route arena's full grid capacity.
++                max_m_blocks=capacity_m_blocks,
++                element_dtype="fp16",
++                fast_math=caps.w4a16_fast_math,
++                sms=sms,
++                max_shared_mem=max_shared_mem,
++                swiglu_limit=core_plan.swiglu_limit,
++                swiglu_alpha=core_plan.swiglu_alpha,
++                swiglu_beta=core_plan.swiglu_beta,
++                weight_layout=weight_layout,
++                scale_format=scale_format,
++                w13_layout=w13_layout,
++                trellis_bits=core_plan.trellis_bits,
++                force_tile_config=core_plan.trellis_tile_config,
++                intermediate_rotation=True,
++                full_rotation=True,
++                rotation_input_dtype=rotation_input_dtype,
++            )
++
++        fused_launches = tuple(
++            (token_count, compile_fused(token_count))
++            for token_count in fused_token_counts
++        )
++        topk_sum_launches = tuple(
++            (
++                ids_dtype,
++                mapped,
++                compile_w4a16_topk_sum(
++                    m=capacity_tokens,
++                    topk=core_plan.num_topk,
++                    hidden_size=core_plan.k,
++                    element_dtype="fp16",
++                    full_rotation=True,
++                    num_experts=core_plan.weight_E,
++                    route_num_experts=(core_plan.route_E if mapped else 0),
++                    route_ids_dtype=ids_dtype,
++                    use_expert_map=mapped,
++                ),
++            )
++            for ids_dtype in (torch.int32, torch.int64)
++            for mapped in (False, True)
++        )
++        for mapped in (False, True):
++            route_pack_key = (
++                core_plan.device.type,
++                int(torch.cuda.current_device()),
++                capacity_tokens * core_plan.num_topk,
++                int(block_size_m),
++                int(core_plan.route_E),
++                mapped,
++            )
++            if route_pack_key in _W4A16_ROUTE_PACK_PREWARMED:
++                continue
++            dummy_topk_ids = torch.zeros(
++                capacity_tokens,
++                core_plan.num_topk,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            packed_route_indices = torch.empty(
++                capacity_route_slots,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            block_expert_ids = torch.empty(
++                capacity_m_blocks,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            packed_route_count = torch.empty(
++                1,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            expert_offsets = torch.empty(
++                core_plan.route_E + 1,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            expert_counts = torch.empty(
++                core_plan.route_E,
++                dtype=torch.int32,
++                device=core_plan.device,
++            )
++            expert_map = None
++            if mapped:
++                expert_map = torch.arange(
++                    core_plan.route_E,
++                    dtype=torch.int32,
++                    device=core_plan.device,
++                )
++            pack_topk_routes_by_expert(
++                dummy_topk_ids,
++                block_size_m,
++                core_plan.route_E,
++                expert_map=expert_map,
++                packed_route_indices=packed_route_indices,
++                block_expert_ids=block_expert_ids,
++                packed_route_count=packed_route_count,
++                expert_offsets=expert_offsets,
++                expert_counts=expert_counts,
++            )
++            torch.cuda.current_stream(core_plan.device).synchronize()
++            _W4A16_ROUTE_PACK_PREWARMED.add(route_pack_key)
++    return fused_launches, topk_sum_launches
++
++
+ def plan_tp_moe_scratch(caps: TPMoEScratchCaps) -> TPMoEScratchPlan:
+     deterministic_output = caps.deterministic_output
+     if deterministic_output is None:
+@@ -6203,6 +6431,11 @@ def plan_tp_moe_scratch(caps: TPMoEScratchCaps) -> TPMoEScratchPlan:
+         swiglu_alpha=launch_plan.swiglu_alpha,
+         swiglu_beta=launch_plan.swiglu_beta,
+     )
++    fused_launches, topk_sum_launches = _plan_full_rotation_w4a16_launches(
++        caps=caps,
++        core_plan=core_workspace_plan,
++        capacity_tokens=capacity_tokens,
++    )
+     return TPMoEScratchPlan(
+         caps=caps,
+         layout=layout,
+@@ -6215,6 +6448,12 @@ def plan_tp_moe_scratch(caps: TPMoEScratchCaps) -> TPMoEScratchPlan:
+                 device=torch.device(caps.device),
+             ),
+         ),
++        # Keep strong references to the launches primed in the module caches,
++        # but leave the runtime binding unresolved.  ``run_w4a16_moe`` uses a
++        # None launch as a dispatch signal and then gets these exact objects
++        # from its compile cache without doing first-use JIT work.
++        _prewarmed_fused_launches=fused_launches,
++        _prewarmed_topk_sum_launches=topk_sum_launches,
+     )
+ 
+ 
+diff --git a/tests/moe/test_tp_moe_scratch_bindings.py b/tests/moe/test_tp_moe_scratch_bindings.py
+index c885570b92d9d92aaf5e46055f4f5b6128ef8c1c..3e2e463bb73b405084b900316c84a0fc8f109a7f 100644
+--- a/tests/moe/test_tp_moe_scratch_bindings.py
++++ b/tests/moe/test_tp_moe_scratch_bindings.py
+@@ -525,6 +525,158 @@ def test_w4a16_scratch_plan_uses_route_pack_capacity_buckets(
+     assert plan_4080.shapes_and_dtypes() == plan_4096.shapes_and_dtypes()
+ 
+ 
++def test_trellis_scratch_plan_preserves_exact_fixed_capacity(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Trellis must not pay the generic W4A16 compile-bucket memory cost."""
++    monkeypatch.setattr(tp_moe_impl, "get_num_sm", lambda _device: 188)
++    weight_plan = plan_sparkinfer_fp4_moe_weights(
++        quant_modes="w4a16",
++        source_format="exl3_trellis_mcg",
++        activation="silu",
++        params_dtype=torch.bfloat16,
++        num_experts=256,
++        hidden_size=6144,
++        intermediate_size=512,
++        trellis_bits=3,
++        trellis_tile_config=(64, 256, 64, 256),
++    )
++    plan = plan_tp_moe_scratch(
++        TPMoEScratchCaps(
++            max_tokens=3072,
++            core_token_counts=(3072,),
++            num_topk=8,
++            route_num_experts=0,
++            device="cpu",
++            weight_plan=weight_plan,
++            quant_mode="w4a16",
++            w4a16_block_size_m=64,
++        )
++    )
++
++    assert plan.layout.core_token_counts[0] == 3072
++    assert 4096 not in plan.layout.core_token_counts
++    assert plan.layout.route_workspace_nbytes == 0
++    # This GLM-5.2 Trellis geometry currently needs 1054.16 MiB. Keep a small
++    # alignment margin while rejecting the much larger generic 4096-token
++    # bucket that this fixed-capacity path exists to avoid.
++    min_fixed_capacity_bytes = 1000 * (1 << 20)
++    max_fixed_capacity_bytes = 1060 * (1 << 20)
++    assert (
++        min_fixed_capacity_bytes
++        < plan.layout.core_workspace_nbytes
++        < max_fixed_capacity_bytes
++    )
++    assert plan.layout.total_nbytes == plan.layout.core_workspace_nbytes
++
++
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
++def test_trellis_launch_planner_compiles_fixed_launch_matrix() -> None:
++    """The real planner must cover every fixed decode and route-pack variant."""
++    weight_plan = plan_sparkinfer_fp4_moe_weights(
++        quant_modes="w4a16",
++        source_format="exl3_trellis_mcg",
++        activation="silu",
++        params_dtype=torch.bfloat16,
++        num_experts=8,
++        hidden_size=128,
++        intermediate_size=128,
++        trellis_bits=3,
++        trellis_tile_config=(64, 128, 64, 128),
++    )
++    plan = plan_tp_moe_scratch(
++        TPMoEScratchCaps(
++            max_tokens=4,
++            core_token_counts=(4,),
++            num_topk=2,
++            route_num_experts=8,
++            device="cuda",
++            weight_plan=weight_plan,
++            quant_mode="w4a16",
++            w4a16_block_size_m=8,
++        )
++    )
++
++    assert tuple(tokens for tokens, _launch in plan._prewarmed_fused_launches) == (
++        1,
++        2,
++        3,
++        4,
++    )
++    assert {
++        (ids_dtype, mapped)
++        for ids_dtype, mapped, _launch in plan._prewarmed_topk_sum_launches
++    } == {
++        (torch.int32, False),
++        (torch.int32, True),
++        (torch.int64, False),
++        (torch.int64, True),
++    }
++
++
++def test_trellis_scratch_plan_prewarms_without_forcing_runtime_dispatch(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    fused_launches = tuple((tokens, object()) for tokens in range(1, 5))
++    sums = tuple(
++        (ids_dtype, mapped, object())
++        for ids_dtype in (torch.int32, torch.int64)
++        for mapped in (False, True)
++    )
++    monkeypatch.setattr(tp_moe_impl, "get_num_sm", lambda _device: 188)
++    monkeypatch.setattr(
++        tp_moe_impl,
++        "_plan_full_rotation_w4a16_launches",
++        lambda **_kwargs: (fused_launches, sums),
++    )
++    weight_plan = plan_sparkinfer_fp4_moe_weights(
++        quant_modes="w4a16",
++        source_format="exl3_trellis_mcg",
++        activation="silu",
++        params_dtype=torch.bfloat16,
++        num_experts=8,
++        hidden_size=128,
++        intermediate_size=128,
++        trellis_bits=3,
++        trellis_tile_config=(64, 128, 64, 128),
++    )
++    plan = plan_tp_moe_scratch(
++        TPMoEScratchCaps(
++            max_tokens=4,
++            core_token_counts=(4,),
++            num_topk=2,
++            route_num_experts=0,
++            device="cpu",
++            weight_plan=weight_plan,
++            quant_mode="w4a16",
++            w4a16_block_size_m=8,
++        )
++    )
++    tensors = _runtime_tensors(n=128)
++    captured = {}
++
++    def _capture_binding(**kwargs):
++        captured.update(kwargs)
++        return SimpleNamespace()
++
++    monkeypatch.setattr(
++        tp_moe_impl,
++        "_build_tp_moe_fp4_binding_from_views",
++        _capture_binding,
++    )
++    output_expert_map = torch.arange(8, dtype=torch.int32)
++    plan.bind(
++        scratch=_scratch_for_plan(plan),
++        **_binding_args(tensors, _experts(tensors, weight_plan)),
++        output_expert_map=output_expert_map,
++    )
++
++    assert plan._prewarmed_fused_launches == fused_launches
++    assert plan._prewarmed_topk_sum_launches == sums
++    assert captured["fused_launch"] is None
++    assert captured["topk_sum_launch"] is None
++
++
+ def test_w4a16_topk6_bucket_binds_with_planned_scratch(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+diff --git a/tests/moe/test_w4a16_mixed_trellis.py b/tests/moe/test_w4a16_mixed_trellis.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3949583ac89cf2891b4b0194f43f3a1cb2d02726
+--- /dev/null
++++ b/tests/moe/test_w4a16_mixed_trellis.py
+@@ -0,0 +1,354 @@
++from __future__ import annotations
++
++import pytest
++import torch
++
++pytest.importorskip("cutlass")
++
++from sparkinfer.moe._shared.kernels.w4a16.host import (
++    make_w4a16_packed_buffers,
++    max_packed_route_slots,
++)
++from sparkinfer.moe._shared.kernels.w4a16.kernel import run_w4a16_moe
++from sparkinfer.moe._shared.kernels.w4a16.mixed_trellis import (
++    build_tiered_maps,
++    combine_trellis_rotations,
++    compile_mixed_trellis,
++    make_mixed_trellis_buffers,
++    run_mixed_trellis,
++)
++from sparkinfer.moe._shared.kernels.w4a16.prepare import (
++    prepare_trellis256_moe_weights,
++)
++
++
++def _sm12x_available() -> bool:
++    if not torch.cuda.is_available():
++        return False
++    major, minor = torch.cuda.get_device_capability(torch.cuda.current_device())
++    return major == 12 and minor in (0, 1)
++
++
++def _prepared(
++    *,
++    experts: int,
++    hidden: int,
++    intermediate: int,
++    bits: int,
++    seed: int,
++    device: torch.device,
++    tile_config: tuple[int, int, int, int] = (128, 128, 128, 128),
++):
++    generator = torch.Generator(device=device).manual_seed(seed)
++
++    def scales(shape: tuple[int, ...]) -> torch.Tensor:
++        return (
++            0.875 + 0.25 * torch.rand(shape, generator=generator, device=device)
++        ).to(torch.float16)
++
++    return prepare_trellis256_moe_weights(
++        hidden_size=hidden,
++        intermediate_size=intermediate,
++        num_experts=experts,
++        activation="silu",
++        fc1_tile_n=tile_config[1],
++        fc2_tile_n=tile_config[3],
++        device=device,
++        seed=seed,
++        params_dtype=torch.float16,
++        w13_layout="trellis3_t256_proj",
++        trellis_bits=bits,
++        gate_suh=scales((experts, hidden)),
++        up_suh=scales((experts, hidden)),
++        intermediate_rotations=scales((experts, 3 * intermediate)),
++        down_svh=scales((experts, hidden)),
++        tile_config=tile_config,
++    )
++
++
++def _serial_tier(
++    x: torch.Tensor,
++    prepared,
++    topk_weights: torch.Tensor,
++    topk_ids: torch.Tensor,
++    expert_map: torch.Tensor,
++) -> torch.Tensor:
++    m, topk = int(topk_ids.shape[0]), int(topk_ids.shape[1])
++    buffers = make_w4a16_packed_buffers(
++        prepared,
++        m=m,
++        topk=topk,
++        dtype=torch.float16,
++        device=x.device,
++        route_num_experts=int(expert_map.numel()),
++        full_rotation=True,
++        block_size_m=8,
++    )
++    assert buffers.rotation_a_gate is not None
++    assert buffers.rotation_a_up is not None
++    return run_w4a16_moe(
++        x,
++        prepared,
++        topk_weights,
++        topk_ids,
++        activation="silu",
++        intermediate_cache13=buffers.intermediate_cache13,
++        intermediate_cache2=buffers.intermediate_cache2,
++        output=buffers.output,
++        fc1_c_tmp=buffers.fc1_c_tmp,
++        fc2_c_tmp=buffers.fc2_c_tmp,
++        packed_route_indices=buffers.packed_route_indices,
++        block_expert_ids=buffers.block_expert_ids,
++        packed_route_count=buffers.packed_route_count,
++        expert_offsets=buffers.expert_offsets,
++        expert_counts=buffers.expert_counts,
++        expert_map=expert_map,
++        output_expert_map=expert_map,
++        route_block_size_m=8,
++        intermediate_rotation_scales=prepared.intermediate_rotations,
++        full_rotation=True,
++        suh_gate_table=prepared.gate_suh,
++        suh_up_table=prepared.up_suh,
++        svh_table=prepared.down_svh,
++        rotation_a_gate=buffers.rotation_a_gate,
++        rotation_a_up=buffers.rotation_a_up,
++    )
++
++
++@pytest.mark.skipif(not _sm12x_available(), reason="requires an SM120/SM121 GPU")
++@pytest.mark.parametrize("route_ids_dtype", [torch.int32, torch.int64])
++def test_mixed_k3_k4_matches_serial_and_captures(
++    route_ids_dtype: torch.dtype,
++) -> None:
++    torch.manual_seed(20260730)
++    device = torch.device("cuda", torch.cuda.current_device())
++    m, hidden, intermediate, topk = 2, 128, 128, 2
++    tier0 = _prepared(
++        experts=2,
++        hidden=hidden,
++        intermediate=intermediate,
++        bits=3,
++        seed=301,
++        device=device,
++    )
++    tier1 = _prepared(
++        experts=2,
++        hidden=hidden,
++        intermediate=intermediate,
++        bits=4,
++        seed=401,
++        device=device,
++    )
++    x = (torch.randn((m, hidden), device=device) * 1.0e-3).to(torch.bfloat16)
++    # Global expert ids deliberately interleave K3 and K4 tiers. The combined
++    # namespace remains tier ordered so weight and rotation tables stay dense.
++    topk_ids = torch.tensor([[0, 1], [3, 2]], dtype=route_ids_dtype, device=device)
++    topk_weights = torch.tensor(
++        [[0.65, 0.35], [0.2, 0.8]], dtype=torch.float32, device=device
++    )
++    map0 = torch.tensor([1, -1, 0, -1], dtype=torch.int32, device=device)
++    map1 = torch.tensor([-1, 1, -1, 0], dtype=torch.int32, device=device)
++    serial = _serial_tier(x, tier0, topk_weights, topk_ids, map0)
++    serial = serial + _serial_tier(x, tier1, topk_weights, topk_ids, map1)
++    torch.cuda.synchronize(device)
++
++    props = torch.cuda.get_device_properties(device)
++    launch = compile_mixed_trellis(
++        size_m=m,
++        hidden_size=hidden,
++        intermediate_size=intermediate,
++        tier0_num_experts=2,
++        tier1_num_experts=2,
++        top_k=topk,
++        max_m_blocks=8,
++        sms=int(props.multi_processor_count),
++        max_shared_mem=int(props.shared_memory_per_block_optin),
++        force_tile_config=(128, 128, 128, 128),
++        route_ids_dtype=route_ids_dtype,
++    )
++    assert launch.local_memory_bytes == 0
++    global_to_combined, descriptor = build_tiered_maps((2, 0), (3, 1), device=device)
++    rotations = combine_trellis_rotations(tier0, tier1)
++    buffers = make_mixed_trellis_buffers(
++        launch, device=device, sms=int(props.multi_processor_count)
++    )
++    assert buffers.fc2.data_ptr() == buffers.rotation_gate.data_ptr()
++
++    eager = run_mixed_trellis(
++        x,
++        tier0,
++        tier1,
++        topk_weights,
++        topk_ids,
++        global_to_combined,
++        descriptor,
++        rotations,
++        launch,
++        buffers,
++    )
++    torch.cuda.synchronize(device)
++    eager = eager.clone()
++    assert not torch.isnan(eager).any()
++    relative = (eager - serial).norm() / serial.norm().clamp_min(1.0e-12)
++    assert float(relative) < 4.0e-3
++
++    repeat = run_mixed_trellis(
++        x,
++        tier0,
++        tier1,
++        topk_weights,
++        topk_ids,
++        global_to_combined,
++        descriptor,
++        rotations,
++        launch,
++        buffers,
++    )
++    torch.cuda.synchronize(device)
++    assert torch.equal(repeat, eager)
++
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        captured = run_mixed_trellis(
++            x,
++            tier0,
++            tier1,
++            topk_weights,
++            topk_ids,
++            global_to_combined,
++            descriptor,
++            rotations,
++            launch,
++            buffers,
++        )
++    graph.replay()
++    torch.cuda.synchronize(device)
++    assert torch.equal(captured, eager)
++
++    # An unmapped global expert must contribute zero without changing any
++    # mapped route. This is the contract needed by expert-parallel placement.
++    skipped_map1 = map1.clone()
++    skipped_map1[3] = -1
++    skipped_serial = _serial_tier(
++        x, tier0, topk_weights, topk_ids, map0
++    ) + _serial_tier(x, tier1, topk_weights, topk_ids, skipped_map1)
++    skipped_global_to_combined = global_to_combined.clone()
++    skipped_global_to_combined[3] = -1
++    skipped = run_mixed_trellis(
++        x,
++        tier0,
++        tier1,
++        topk_weights,
++        topk_ids,
++        skipped_global_to_combined,
++        descriptor,
++        rotations,
++        launch,
++        buffers,
++    )
++    torch.cuda.synchronize(device)
++    skipped_relative = (
++        skipped - skipped_serial
++    ).norm() / skipped_serial.norm().clamp_min(1.0e-12)
++    assert float(skipped_relative) < 4.0e-3
++
++
++def test_build_tiered_maps_rejects_invalid_partitions() -> None:
++    with pytest.raises(ValueError, match="disjoint partition"):
++        build_tiered_maps((0, 1), (1, 2), device=torch.device("cpu"))
++    with pytest.raises(ValueError, match="disjoint partition"):
++        build_tiered_maps((0, 4), (1, 2), device=torch.device("cpu"))
++
++
++@pytest.mark.skipif(not _sm12x_available(), reason="requires an SM120/SM121 GPU")
++def test_glm52_large_m_mixed_k3_k4_matches_serial() -> None:
++    """Cover the production prefill shape that exposed lost FC1 reductions."""
++
++    torch.manual_seed(20260730)
++    device = torch.device("cuda", torch.cuda.current_device())
++    m, hidden, intermediate, topk = 3072, 6144, 512, 8
++    tile_config = (128, 128, 32, 512)
++    tier0_experts, tier1_experts = 192, 64
++    tier0 = _prepared(
++        experts=tier0_experts,
++        hidden=hidden,
++        intermediate=intermediate,
++        bits=3,
++        seed=301,
++        device=device,
++        tile_config=tile_config,
++    )
++    tier1 = _prepared(
++        experts=tier1_experts,
++        hidden=hidden,
++        intermediate=intermediate,
++        bits=4,
++        seed=401,
++        device=device,
++        tile_config=tile_config,
++    )
++    x = (torch.randn((m, hidden), device=device) * 1.0e-3).to(torch.bfloat16)
++    route_row = torch.tensor(
++        [0, 1, 2, 3, 4, 5, tier0_experts, tier0_experts + 1],
++        dtype=torch.int32,
++        device=device,
++    )
++    topk_ids = route_row.expand(m, -1).contiguous()
++    topk_weights = torch.softmax(
++        torch.randn((m, topk), dtype=torch.float32, device=device), dim=-1
++    )
++    map0 = torch.cat(
++        (
++            torch.arange(tier0_experts, dtype=torch.int32, device=device),
++            torch.full((tier1_experts,), -1, dtype=torch.int32, device=device),
++        )
++    )
++    map1 = torch.cat(
++        (
++            torch.full((tier0_experts,), -1, dtype=torch.int32, device=device),
++            torch.arange(tier1_experts, dtype=torch.int32, device=device),
++        )
++    )
++    serial = _serial_tier(x, tier0, topk_weights, topk_ids, map0).clone()
++    serial.add_(_serial_tier(x, tier1, topk_weights, topk_ids, map1))
++
++    props = torch.cuda.get_device_properties(device)
++    route_slots = max_packed_route_slots(m * topk, 8, 256)
++    launch = compile_mixed_trellis(
++        size_m=m,
++        hidden_size=hidden,
++        intermediate_size=intermediate,
++        tier0_num_experts=tier0_experts,
++        tier1_num_experts=tier1_experts,
++        top_k=topk,
++        max_m_blocks=(route_slots + 7) // 8,
++        sms=int(props.multi_processor_count),
++        max_shared_mem=int(props.shared_memory_per_block_optin),
++        force_tile_config=tile_config,
++    )
++    assert launch.moe_block_size == 8
++    global_to_combined, descriptor = build_tiered_maps(
++        range(tier0_experts), range(tier0_experts, 256), device=device
++    )
++    buffers = make_mixed_trellis_buffers(
++        launch, device=device, sms=int(props.multi_processor_count)
++    )
++    mixed = run_mixed_trellis(
++        x,
++        tier0,
++        tier1,
++        topk_weights,
++        topk_ids,
++        global_to_combined,
++        descriptor,
++        combine_trellis_rotations(tier0, tier1),
++        launch,
++        buffers,
++    )
++    torch.cuda.synchronize(device)
++
++    relative = (serial - mixed).norm() / serial.norm().clamp_min(1.0e-12)
++    # The serial oracle sums two independently reduced tier outputs, while the
++    # mixed grid reduces them in one schedule. Normal rounding stays below
++    # 1e-4; the unsafe 64x256 FC1 geometry was three orders larger (~8e-3).
++    assert float(relative) < 1.0e-4

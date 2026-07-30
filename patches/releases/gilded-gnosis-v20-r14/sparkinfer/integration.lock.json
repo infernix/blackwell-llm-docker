@@ -1,0 +1,33 @@
+{
+  "base": {
+    "commit": "9b852b281250123fe323f63ccb1df3cac0f3bbca",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "36dd239080370f9266c73c4bc983cbcc4fdbb2ede52516668a481e2017603ff3"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "06032ce74afba49a683d01339ed2c971568cec3f",
+      "number": 92,
+      "ref": "refs/pull/92/head",
+      "title": "Stabilize Trellis arena memory profiling"
+    },
+    {
+      "disposition": "merged",
+      "head": "241718d427e0a0a098267710ee4a87d4e9337dd3",
+      "number": 104,
+      "ref": "refs/pull/104/head",
+      "title": "Add one-grid mixed K3/K4 Trellis execution"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "a17b62323c96543ecb9c7afa825afc31832b33b7d8bfcd6e5e7add291795e4f8",
+    "tree": "8110e3ea417794bfb08aff1fba20135102e5536b"
+  },
+  "schema_version": 1
+}

@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r13}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r13}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r14}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r14}"
+elif [[ "${composition_mode}" == "reproduce-r14" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r14/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r14/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r14/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm749050e-si8110e3e-fi801d57a-cu132-20260730-r14}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm749050e.si8110e3e.fi801d57a.cu132.20260730.r14}"
 elif [[ "${composition_mode}" == "reproduce-r13" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r13/vllm" 0
@@ -247,7 +257,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -264,7 +274,7 @@ fi
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -338,7 +348,7 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
@@ -409,6 +419,7 @@ from sparkinfer.gemm import bmm, can_implement_bmm, prewarm_bmm
 from sparkinfer.moe import fused_moe
 from sparkinfer.moe.fused_moe import _impl as fused_moe_impl
 from sparkinfer.moe._shared.kernels.w4a16 import kernel as w4a16_kernel
+from sparkinfer.moe._shared.kernels.w4a16 import mixed_trellis
 from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.model_executor.layers.attention import mla_attention
@@ -456,6 +467,8 @@ assert fused_moe_impl._dynamic_kernel_intermediate_size(352, "w4a8_mx") == 384
 assert tiled_topk._COARSE_RADIX_BITS == 10
 assert tiled_topk._SMEM_CANDS == 8192
 assert inspect.getsource(w4a16_kernel).count("cooperative=True") >= 2
+assert callable(mixed_trellis.compile_mixed_trellis)
+assert callable(mixed_trellis.run_mixed_trellis)
 assert _normalize_fp8_mode("i8-ring") == "i8_ring"
 assert _normalize_fp8_mode("mxfp8-ring") == "mx_ring"
 dma_source = inspect.getsource(PCIeDmaAllReduce.all_reduce)
