@@ -6,7 +6,7 @@
   "pull_requests": [
     {
       "number": 92,
-      "head": "de04125508c75e748016493f851e6bd4513b515b",
+      "head": "06032ce74afba49a683d01339ed2c971568cec3f",
       "title": "Stabilize Trellis arena memory profiling"
     }
   ]

@@ -143,8 +143,18 @@ grep -Fxq \
   'sparkinfer_tree=35aebc6d46a0d3d4f7275b81251211864f410269' \
   <<<"${output_r12}"
 grep -Fxq \
+  'launcher_ref=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
+  <<<"${output_r12}"
+grep -Fxq \
+  'launcher_commit=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
+  <<<"${output_r12}"
+grep -Fxq \
   'lmcache_tree=175e59294436a02861e9e3ebedf7358edea4ed36' \
   <<<"${output_r12}"
+grep -Fxq \
+  'lmcache_repo=https://github.com/local-inference-lab/LMCache.git' \
+  <<<"${output_r12}"
+grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output_r12}"
 grep -Fxq \
   'lmcache_commit=9cebd405d0caf4bebe01d694b5a8bf4e3e354314' \
   <<<"${output_r12}"
@@ -153,6 +163,56 @@ grep -Fxq \
   <<<"${output_r12}"
 grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r12}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r12}"
+grep -Fxq \
+  'xgrammar_commit=2ea71da4ccb997a06928c9fb69b99f330da56697' \
+  <<<"${output_r12}"
+grep -Fxq 'xgrammar_version=0.2.5' <<<"${output_r12}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r12}"
+
+output_r13="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r13 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r13' <<<"${output_r13}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm69ba80b-sia2ea608-fi801d57a-cu132-20260730-r13' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllm69ba80b.sia2ea608.fi801d57a.cu132.20260730.r13' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'vllm_tree=69ba80b9e49b5ad6740f8b3d5d0e592213b25959' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'sparkinfer_tree=a2ea6083713c15dcf7e2d2bcc74fbece837ff84d' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'launcher_ref=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'launcher_commit=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'lmcache_repo=https://github.com/local-inference-lab/LMCache.git' \
+  <<<"${output_r13}"
+grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output_r13}"
+grep -Fxq \
+  'lmcache_commit=9cebd405d0caf4bebe01d694b5a8bf4e3e354314' \
+  <<<"${output_r13}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r13/lmcache/integration.patch' \
+  <<<"${output_r13}"
+grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r13}"
+grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r13}"
+grep -Fxq \
+  'xgrammar_commit=2ea71da4ccb997a06928c9fb69b99f330da56697' \
+  <<<"${output_r13}"
+grep -Fxq 'xgrammar_version=0.2.5' <<<"${output_r13}"
+grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r13}"
 
 echo 'Gilded Gnosis release composition: PASS'
