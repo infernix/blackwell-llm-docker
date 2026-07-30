@@ -1,0 +1,47 @@
+{
+  "base": {
+    "commit": "f978d009fab996617f9a3cadef36ce727bcd83cd",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "bdf0d8abedaeedc3ab81e0b6800252af0823ce532f67752a5b1fbfb127d325a2"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
+      "number": 175,
+      "ref": "refs/pull/175/head",
+      "title": "Shard sparse prefill queries and halve result traffic"
+    },
+    {
+      "disposition": "merged",
+      "head": "214ccf58e472cb2135f26edfc240db2dd55ebda5",
+      "number": 190,
+      "ref": "refs/pull/190/head",
+      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+    },
+    {
+      "disposition": "merged",
+      "head": "703af3ffd6ae60e4b99abbd5fa8a5a03d629c7e7",
+      "number": 198,
+      "ref": "refs/pull/198/head",
+      "title": "Measure repeatable activation peak after kernel warmup"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "88d536c843f9161a818dc8ca340e69cd8ee591b1393953bbcfbf73adc1fb655e",
+    "tree": "b46c3aac9421ec6c03b9dfcb5aacc8c1eb11f09b"
+  },
+  "schema_version": 1
+}

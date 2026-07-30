@@ -1,0 +1,26 @@
+{
+  "base": {
+    "commit": "36cade0bd8d87a26b7eb2fc8cc46188496465a06",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "50feaf1e9fd2eeb14864285afce13907e1ec2f21374118bb9a0aec7d7a9b56fb"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "de04125508c75e748016493f851e6bd4513b515b",
+      "number": 92,
+      "ref": "refs/pull/92/head",
+      "title": "Stabilize Trellis arena memory profiling"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "eb1ade5a8bb021e6d9e362bb0ec584784192a2599282e6d116ffb315591d1945",
+    "tree": "35aebc6d46a0d3d4f7275b81251211864f410269"
+  },
+  "schema_version": 1
+}
