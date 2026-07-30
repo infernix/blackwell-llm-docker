@@ -5,24 +5,9 @@
   "base_ref": "refs/heads/master",
   "pull_requests": [
     {
-      "number": 81,
-      "head": "f049ccdfeafd80b1424e09983bfb75ce629246f1",
-      "title": "Add lossless PCIe serving calibration probe"
-    },
-    {
-      "number": 49,
-      "head": "669a12ddc7cf3021e91a25f398b1a883b703fd12",
-      "title": "Add planned EXL3 Trellis path for fused Blackwell MoE"
-    },
-    {
-      "number": 86,
-      "head": "0ddd13b4fdbb6a287581aec55fcf9dbbb7e52fd3",
-      "title": "Add inline per-token outer scales to 368-byte NVFP4 records"
-    },
-    {
-      "number": 87,
-      "head": "c24a01441f87c0eccd1390aee2a170c535340894",
-      "title": "Bound two-level fold workspace"
+      "number": 92,
+      "head": "06032ce74afba49a683d01339ed2c971568cec3f",
+      "title": "Stabilize Trellis arena memory profiling"
     }
   ]
 }

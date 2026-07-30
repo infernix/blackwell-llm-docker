@@ -10,54 +10,19 @@
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
-      "number": 172,
-      "head": "0c05ab9ec43c2446bfa4197fe1bbc1c1ec7e6cbe",
-      "title": "MRV2 high-utilization startup memory profiling"
-    },
-    {
       "number": 175,
       "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
       "title": "Shard sparse prefill queries and halve result traffic"
     },
     {
-      "number": 179,
-      "head": "ef60ee72e95084cfbdc054b54941094516b102df",
-      "title": "Partial replicated sparse-indexer topology"
-    },
-    {
-      "number": 184,
-      "head": "c4022e80099e9bffa6091691663970591f8f05ec",
-      "title": "Calibrate lossless PCIe DMA dispatch crossover"
-    },
-    {
-      "number": 185,
-      "head": "961f545b98dacbc160ffe595c7b8d6242fd81a7a",
-      "title": "Gate DCP query split by measured context crossover"
-    },
-    {
       "number": 190,
-      "head": "d35dd8ffd6d7e48e54e6917aa559b89465b61387",
+      "head": "e55627045ac68aa2ab87273e26a0cc190b6e2b78",
       "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
     },
     {
-      "number": 194,
-      "head": "854735ac77896eca1447faa9468db0acf8d7da05",
-      "title": "Preload CUDA-clean worker modules with forkserver"
-    },
-    {
-      "number": 189,
-      "head": "b57062274c3f53bec69b431bfae7230977f5f10c",
-      "title": "Wire dynamic per-token NVFP4 scaling and cache ABI"
-    },
-    {
-      "number": 195,
-      "head": "e06891f20ae276d41600d318d9f22d31bbc46a77",
-      "title": "Preserve required tool choice with an empty tools list"
-    },
-    {
-      "number": 196,
-      "head": "bc5dbf497dfaa14f820921c5db87fa84eee7a16f",
-      "title": "Resolve late GLM KV transfer configuration"
+      "number": 198,
+      "head": "703af3ffd6ae60e4b99abbd5fa8a5a03d629c7e7",
+      "title": "Measure repeatable activation peak after kernel warmup"
     }
   ]
 }
