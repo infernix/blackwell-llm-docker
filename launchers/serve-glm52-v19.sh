@@ -151,8 +151,14 @@ else
   force_arg=()
   [[ "${PCIE_CALIBRATION}" == "force" ]] && force_arg=(--force)
 
+  # Calibrator exit contract: 0 measured/cache-hit; 3 clean preflight skip
+  # (busy GPUs, nvidia-smi unavailable); 4 probe failure with the complete
+  # untruncated output parked in <cache-dir>/<digest>.failure.log. For 3
+  # and 4 the calibrator prints exactly one stderr line; no traceback or
+  # torchrun error wall ever reaches the boot log.
   calibration_line=""
-  if calibration_line="$(
+  calibration_exit=0
+  calibration_line="$(
     "${PCIE_CALIBRATOR}" \
       --tp-size "${TP}" \
       --dcp-size "${DCP}" \
@@ -161,7 +167,8 @@ else
       --cache-dir "${PCIE_CALIBRATION_CACHE_DIR}" \
       --timeout "${PCIE_CALIBRATION_TIMEOUT}" \
       "${force_arg[@]}"
-  )"; then
+  )" || calibration_exit=$?
+  if [[ "${calibration_exit}" -eq 0 ]]; then
     calibration_line="$(awk 'NF { line=$0 } END { print line }' \
       <<<"${calibration_line}")"
     IFS=$'\t' read -r \
@@ -188,11 +195,23 @@ else
     fi
     if [[ "${DCP_QUERY_SPLIT}" == "auto" && \
           "${calibration_default_query_split}" == "1" ]]; then
-      DCP_QUERY_SPLIT="${calibration_query_split}"
+      # Query-split is an end-to-end scheduling policy, not an isolated
+      # transport-kernel choice. Keep the release default for supported
+      # geometries even when the standalone probe loses without the model's
+      # compute/communication overlap. An explicit DCP_QUERY_SPLIT=0 remains
+      # the operator kill switch.
+      DCP_QUERY_SPLIT=1
     fi
     if [[ "${DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS}" == "auto" ]]; then
       if [[ "${DCP_QUERY_SPLIT}" == "1" ]]; then
-        DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS="${calibration_query_split_min_context_tokens}"
+        if [[ "${calibration_query_split}" == "1" ]]; then
+          DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS="${calibration_query_split_min_context_tokens}"
+        else
+          # A negative isolated result cannot safely predict the E2E
+          # crossover. Use query-split for all contexts rather than disabling
+          # the known-good release path.
+          DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
+        fi
       else
         DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
       fi
@@ -200,9 +219,15 @@ else
     if [[ "${PCIE_DMA_MIN_BYTES}" == "auto" ]]; then
       PCIE_DMA_MIN_BYTES="${calibration_dma_min_bytes}"
     fi
+  elif [[ "${calibration_exit}" -eq 3 ]]; then
+    # Expected condition (for example GPUs still hold memory from a
+    # previous instance); the calibrator already printed its one-line
+    # reason. The conservative topology policy applies.
+    calibration_status="skipped:preflight"
   else
     calibration_status="failed:fallback-to-topology"
-    printf 'WARNING: PCIe calibration failed; using conservative topology policy.\n' >&2
+    printf 'NOTICE: PCIe calibration unavailable (calibrator exit %s); using conservative topology policy.\n' \
+      "${calibration_exit}" >&2
   fi
 fi
 
@@ -213,20 +238,31 @@ fi
   DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS=0
 
 prefetch_overlap_safe=1
+owner_merge_topology_safe=1
 if [[ -n "${calibration_prefetch}" && \
       "${DCP_CKV_PREFETCH_TOPOLOGY}" == "auto" ]]; then
   prefetch_topology_decision="measured:${calibration_status}"
 else
   prefetch_topology_decision="not-applicable"
 fi
+topology_policy_needed=0
 if [[ "${DCP_CKV_PREFETCH_DEPTH}" == "auto" && "${DCP}" != "1" ]]; then
+  topology_policy_needed=1
+fi
+if [[ "${DCP_TOPK_OWNER_MERGE}" == "auto" && \
+      "${TP}:${DCP}" == "8:8" ]]; then
+  topology_policy_needed=1
+fi
+if [[ "${topology_policy_needed}" == "1" ]]; then
   case "${DCP_CKV_PREFETCH_TOPOLOGY}" in
     safe)
       prefetch_overlap_safe=1
+      owner_merge_topology_safe=1
       prefetch_topology_decision="safe:explicit-override"
       ;;
     unsafe)
       prefetch_overlap_safe=0
+      owner_merge_topology_safe=0
       prefetch_topology_decision="unsafe:explicit-override"
       ;;
     auto)
@@ -243,8 +279,10 @@ if [[ "${DCP_CKV_PREFETCH_DEPTH}" == "auto" && "${DCP}" != "1" ]]; then
       fi
       if [[ "${prefetch_topology_decision}" == safe:* ]]; then
         prefetch_overlap_safe=1
+        owner_merge_topology_safe=1
       else
         prefetch_overlap_safe=0
+        owner_merge_topology_safe=0
       fi
       ;;
   esac
@@ -264,10 +302,11 @@ read -r \
       "${DCP_TOPK_OWNER_MERGE}" \
       "${DCP_INDEXER_SHARDS}" \
       "${DCP_CKV_PREFETCH_DEPTH}" \
-      "${prefetch_overlap_safe}"
+      "${prefetch_overlap_safe}" \
+      "${owner_merge_topology_safe}"
   )
 
-printf 'GLM-5.2 DCP CKV prefetch topology: %s\n' \
+printf 'GLM-5.2 DCP transport topology: %s\n' \
   "${prefetch_topology_decision}" >&2
 
 export VLLM_DCP_QUERY_SPLIT="${DCP_QUERY_SPLIT}"
@@ -282,6 +321,14 @@ export VLLM_DCP_INDEXER_SHARDS="${DCP_INDEXER_SHARDS}"
 export VLLM_B12X_MLA_CKV_PREFETCH_DEPTH="${DCP_CKV_PREFETCH_DEPTH}"
 export VLLM_B12X_MLA_CKV_PREFETCH_WORKSPACE_MIB="${DCP_CKV_PREFETCH_WORKSPACE_MIB}"
 export VLLM_PCIE_DMA_MIN_BYTES="${PCIE_DMA_MIN_BYTES}"
+
+printf 'GLM-5.2 DCP prefill policy: query-split=%s min-context=%s CKV-gather=%s owner-merge=%s indexer-shards=%s prefetch-depth=%s\n' \
+  "${VLLM_DCP_QUERY_SPLIT}" \
+  "${VLLM_DCP_QUERY_SPLIT_MIN_CONTEXT_TOKENS}" \
+  "${VLLM_B12X_MLA_CKV_GATHER}" \
+  "${VLLM_DCP_TOPK_OWNER_MERGE}" \
+  "${VLLM_DCP_INDEXER_SHARDS}" \
+  "${VLLM_B12X_MLA_CKV_PREFETCH_DEPTH}" >&2
 
 printf 'GLM-5.2 PCIe calibration: %s cache=%s DMA-min=%s\n' \
   "${calibration_status}" "${calibration_cache:-none}" \

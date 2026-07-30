@@ -62,6 +62,13 @@ LMCACHE_REF="${LMCACHE_REF:-release/v0.5.2-glm52-dcp-base}"
 LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE:-}"
 LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256:-}"
 LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.3}"
+REQUIRE_CLEAN_LMCACHE_COMPOSITION="${REQUIRE_CLEAN_LMCACHE_COMPOSITION:-0}"
+VERIFY_LMCACHE_BASE_HEAD="${VERIFY_LMCACHE_BASE_HEAD:-1}"
+LMCACHE_INTEGRATION_LOCK_FILE="${LMCACHE_INTEGRATION_LOCK_FILE:-}"
+LMCACHE_INTEGRATION_BASE_COMMIT="${LMCACHE_INTEGRATION_BASE_COMMIT:-}"
+LMCACHE_INTEGRATION_TREE="${LMCACHE_INTEGRATION_TREE:-}"
+LMCACHE_INTEGRATION_PRS="${LMCACHE_INTEGRATION_PRS:-}"
+LMCACHE_INTEGRATION_LOCK_SHA256="${LMCACHE_INTEGRATION_LOCK_SHA256:-}"
 XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
 XGRAMMAR_REF="${XGRAMMAR_REF-v0.2.5}"
 XGRAMMAR_VERSION="${XGRAMMAR_VERSION-0.2.5}"
@@ -252,6 +259,61 @@ if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
   B12X_PATCH_SHA256="${b12x_lock_patch_sha}"
 fi
 
+if [[ "${REQUIRE_CLEAN_LMCACHE_COMPOSITION}" == "1" ]]; then
+  command -v jq >/dev/null || {
+    echo "jq is required for clean LMCache release composition" >&2
+    exit 1
+  }
+  [[ -n "${LMCACHE_COMMIT}" && -n "${LMCACHE_PATCH_FILE}" && \
+     -n "${LMCACHE_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "Clean LMCache composition requires a base commit, generated patch, and lockfile" >&2
+    exit 1
+  }
+  [[ -f "${LMCACHE_INTEGRATION_LOCK_FILE}" ]] || {
+    echo "LMCache integration lockfile does not exist: ${LMCACHE_INTEGRATION_LOCK_FILE}" >&2
+    exit 1
+  }
+
+  lmcache_lock_repo="$(jq -er '.base.repository' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  lmcache_lock_ref="$(jq -er '.base.ref' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  lmcache_lock_commit="$(jq -er '.base.commit' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  LMCACHE_INTEGRATION_TREE="$(jq -er '.result.tree' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  lmcache_lock_patch_sha="$(jq -er '.result.patch_sha256' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  LMCACHE_INTEGRATION_PRS="$(jq -r '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${LMCACHE_INTEGRATION_LOCK_FILE}")"
+  LMCACHE_INTEGRATION_LOCK_SHA256="$(sha256sum "${LMCACHE_INTEGRATION_LOCK_FILE}" | awk '{print $1}')"
+  LMCACHE_INTEGRATION_BASE_COMMIT="${lmcache_lock_commit}"
+
+  [[ "${lmcache_lock_repo}" == "${LMCACHE_REPO}" ]] || {
+    echo "LMCache integration lock repository mismatch: ${lmcache_lock_repo} != ${LMCACHE_REPO}" >&2
+    exit 1
+  }
+  [[ "${lmcache_lock_ref}" == "refs/heads/${LMCACHE_REF}" ]] || {
+    echo "LMCache integration lock base ref mismatch: ${lmcache_lock_ref} != refs/heads/${LMCACHE_REF}" >&2
+    exit 1
+  }
+  [[ "${lmcache_lock_commit}" == "${LMCACHE_COMMIT}" ]] || {
+    echo "LMCache integration lock base commit mismatch: ${lmcache_lock_commit} != ${LMCACHE_COMMIT}" >&2
+    exit 1
+  }
+  [[ "${VERIFY_LMCACHE_BASE_HEAD}" =~ ^[01]$ ]] || {
+    echo "VERIFY_LMCACHE_BASE_HEAD must be 0 or 1" >&2
+    exit 1
+  }
+  if [[ "${VERIFY_LMCACHE_BASE_HEAD}" == "1" ]]; then
+    current_lmcache_base="$(resolve_ref "${LMCACHE_REPO}" "${LMCACHE_REF}")"
+    [[ "${current_lmcache_base}" == "${LMCACHE_COMMIT}" ]] || {
+      echo "LMCache base advanced from ${LMCACHE_COMMIT} to ${current_lmcache_base}; rerun the release composer" >&2
+      exit 1
+    }
+  fi
+  if [[ -n "${LMCACHE_PATCH_SHA256}" && \
+        "${LMCACHE_PATCH_SHA256}" != "${lmcache_lock_patch_sha}" ]]; then
+    echo "LMCache integration lock patch SHA mismatch: ${lmcache_lock_patch_sha} != ${LMCACHE_PATCH_SHA256}" >&2
+    exit 1
+  fi
+  LMCACHE_PATCH_SHA256="${lmcache_lock_patch_sha}"
+fi
+
 b12x_local_patch_sha=""
 b12x_local_patch_path=""
 if [[ -n "${B12X_PATCH_FILE}" ]]; then
@@ -371,6 +433,10 @@ cache_hash="$(printf '%s\n' \
   "LMCACHE_REF=${LMCACHE_REF}" \
   "LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
   "LMCACHE_PATCH_FILE_SHA256=${lmcache_local_patch_sha}" \
+  "LMCACHE_INTEGRATION_BASE_COMMIT=${LMCACHE_INTEGRATION_BASE_COMMIT}" \
+  "LMCACHE_INTEGRATION_TREE=${LMCACHE_INTEGRATION_TREE}" \
+  "LMCACHE_INTEGRATION_PRS=${LMCACHE_INTEGRATION_PRS}" \
+  "LMCACHE_INTEGRATION_LOCK_SHA256=${LMCACHE_INTEGRATION_LOCK_SHA256}" \
   "LMCACHE_BUILD_VERSION=${LMCACHE_BUILD_VERSION}" \
   "XGRAMMAR_REPO=${XGRAMMAR_REPO}" \
   "XGRAMMAR_REF=${XGRAMMAR_REF}" \
@@ -432,6 +498,8 @@ echo "  HUMMING_KERNELS_SPEC=${HUMMING_KERNELS_SPEC}"
 echo "  VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}"
 echo "  LMCACHE=${LMCACHE_REPO} ${LMCACHE_REF} ${LMCACHE_COMMIT}"
 echo "  LMCACHE_PATCH_FILE=${LMCACHE_PATCH_FILE} sha256=${LMCACHE_PATCH_SHA256}"
+echo "  LMCACHE_INTEGRATION_TREE=${LMCACHE_INTEGRATION_TREE}"
+echo "  LMCACHE_INTEGRATION_PRS=${LMCACHE_INTEGRATION_PRS}"
 echo "  XGRAMMAR=${XGRAMMAR_REPO} ${XGRAMMAR_REF} ${XGRAMMAR_COMMIT} version=${XGRAMMAR_VERSION} transformers5_compat=${XGRAMMAR_TRANSFORMERS5_COMPAT}"
 echo "  CACHE_FINGERPRINT=${CACHE_FINGERPRINT}"
 
@@ -525,6 +593,10 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg LMCACHE_PATCH_FILE="${LMCACHE_PATCH_FILE}" \
   --build-arg LMCACHE_PATCH_SHA256="${LMCACHE_PATCH_SHA256}" \
   --build-arg LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION}" \
+  --build-arg LMCACHE_INTEGRATION_BASE_COMMIT="${LMCACHE_INTEGRATION_BASE_COMMIT}" \
+  --build-arg LMCACHE_INTEGRATION_TREE="${LMCACHE_INTEGRATION_TREE}" \
+  --build-arg LMCACHE_INTEGRATION_PRS="${LMCACHE_INTEGRATION_PRS}" \
+  --build-arg LMCACHE_INTEGRATION_LOCK_SHA256="${LMCACHE_INTEGRATION_LOCK_SHA256}" \
   --build-arg XGRAMMAR_REPO="${XGRAMMAR_REPO}" \
   --build-arg XGRAMMAR_REF="${XGRAMMAR_REF}" \
   --build-arg XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT}" \
@@ -556,6 +628,23 @@ image_lmcache_commit="$(docker image inspect "${IMAGE}" --format '{{index .Confi
   echo "Image LMCache source mismatch: got ${image_lmcache_commit}, expected ${LMCACHE_COMMIT}" >&2
   exit 1
 }
+if [[ "${REQUIRE_CLEAN_LMCACHE_COMPOSITION}" == "1" ]]; then
+  image_lmcache_tree="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.lmcache.integration.tree"}}')"
+  image_lmcache_prs="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.lmcache.integration.prs"}}')"
+  image_lmcache_lock_sha="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.lmcache.integration.lock_sha256"}}')"
+  [[ "${image_lmcache_tree}" == "${LMCACHE_INTEGRATION_TREE}" ]] || {
+    echo "Image LMCache integration tree mismatch: got ${image_lmcache_tree}, expected ${LMCACHE_INTEGRATION_TREE}" >&2
+    exit 1
+  }
+  [[ "${image_lmcache_prs}" == "${LMCACHE_INTEGRATION_PRS}" ]] || {
+    echo "Image LMCache integration PR list mismatch" >&2
+    exit 1
+  }
+  [[ "${image_lmcache_lock_sha}" == "${LMCACHE_INTEGRATION_LOCK_SHA256}" ]] || {
+    echo "Image LMCache integration lock mismatch" >&2
+    exit 1
+  }
+fi
 
 if [[ -n "${XGRAMMAR_REF}" ]]; then
   image_xgrammar_commit="$(docker image inspect "${IMAGE}" --format '{{index .Config.Labels "local-inference.xgrammar.commit"}}')"

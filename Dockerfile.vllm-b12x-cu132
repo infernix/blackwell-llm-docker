@@ -926,6 +926,7 @@ ARG LMCACHE_COMMIT
 ARG LMCACHE_PATCH_FILE
 ARG LMCACHE_PATCH_SHA256
 ARG LMCACHE_BUILD_VERSION
+ARG LMCACHE_INTEGRATION_TREE
 ARG MAX_JOBS
 
 COPY patches/ /tmp/build-patches/
@@ -951,6 +952,14 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
       git apply "${patch_path}"; \
     fi \
  && git diff --check \
+ && if [[ -n "${LMCACHE_INTEGRATION_TREE}" ]]; then \
+      git add -A; \
+      actual_tree="$(git write-tree)"; \
+      [[ "${actual_tree}" == "${LMCACHE_INTEGRATION_TREE}" ]] || { \
+        echo "ERROR: composed LMCache tree mismatch: ${actual_tree} != ${LMCACHE_INTEGRATION_TREE}" >&2; \
+        exit 1; \
+      }; \
+    fi \
  && python -m pip install \
       pytest==8.4.1 \
       sortedcontainers==2.4.0 \
@@ -969,11 +978,28 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
  && test "$(find /tmp/lmcache-wheels -maxdepth 1 -name 'lmcache-*.whl' | wc -l)" -eq 1 \
  && python -m pip install --no-deps --force-reinstall \
       /tmp/lmcache-wheels/lmcache-*.whl \
+ && mkdir -p /tmp/lmcache-test-support \
+ && ln -s /tmp/lmcache-src/tests /tmp/lmcache-test-support/tests \
  && cd /tmp \
- && python -m pytest --import-mode=importlib \
+ && PYTHONPATH=/tmp/lmcache-test-support \
+      python -m pytest --import-mode=importlib \
       --confcutdir=/tmp/lmcache-src/tests/v1 \
+      /tmp/lmcache-src/tests/v1/distributed/test_fs_native_startup_scan.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_l1_manager.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_l1_manager_partial_alloc.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_l1_write_back_eviction.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_native_connector_l2_adapter.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_native_connector_restart_accounting.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_native_fs_connector_results.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_native_fs_key_compatibility.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_native_fs_odirect.py \
+      /tmp/lmcache-src/tests/v1/distributed/test_prefetch_controller.py \
+      /tmp/lmcache-src/tests/v1/multiprocess/test_futures.py \
+      /tmp/lmcache-src/tests/v1/multiprocess/test_mq.py \
+      /tmp/lmcache-src/tests/v1/multiprocess/test_mq_handler_helpers.py \
       /tmp/lmcache-src/tests/v1/test_vllm_dcp_parallel_strategy.py \
-      /tmp/lmcache-src/tests/v1/test_vllm_mp_adapter.py -q
+      /tmp/lmcache-src/tests/v1/test_vllm_mp_adapter.py \
+      /tmp/lmcache-src/tests/v1/test_vllm_mp_connector_metadata.py -q
 
 # =============================================================================
 # Stage 4: clean final runtime
@@ -1313,6 +1339,10 @@ ARG LMCACHE_REF
 ARG LMCACHE_COMMIT
 ARG LMCACHE_PATCH_SHA256
 ARG LMCACHE_BUILD_VERSION
+ARG LMCACHE_INTEGRATION_BASE_COMMIT
+ARG LMCACHE_INTEGRATION_TREE
+ARG LMCACHE_INTEGRATION_PRS
+ARG LMCACHE_INTEGRATION_LOCK_SHA256
 ARG XGRAMMAR_REPO
 ARG XGRAMMAR_REF
 ARG XGRAMMAR_COMMIT
@@ -1376,6 +1406,10 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.lmcache.commit="${LMCACHE_COMMIT}" \
       local-inference.lmcache.patch_sha256="${LMCACHE_PATCH_SHA256}" \
       local-inference.lmcache.version="${LMCACHE_BUILD_VERSION}" \
+      local-inference.lmcache.integration.base_commit="${LMCACHE_INTEGRATION_BASE_COMMIT}" \
+      local-inference.lmcache.integration.tree="${LMCACHE_INTEGRATION_TREE}" \
+      local-inference.lmcache.integration.prs="${LMCACHE_INTEGRATION_PRS}" \
+      local-inference.lmcache.integration.lock_sha256="${LMCACHE_INTEGRATION_LOCK_SHA256}" \
       local-inference.xgrammar.repo="${XGRAMMAR_REPO}" \
       local-inference.xgrammar.ref="${XGRAMMAR_REF}" \
       local-inference.xgrammar.commit="${XGRAMMAR_COMMIT}" \

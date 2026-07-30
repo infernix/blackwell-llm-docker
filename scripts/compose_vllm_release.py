@@ -10,7 +10,6 @@ import os
 import re
 import subprocess
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -207,9 +206,7 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
     lock = {
         "schema_version": 1,
         "name": manifest["name"],
-        "generated_at": datetime.now(UTC).isoformat(),
         "manifest": {
-            "path": str(manifest_path),
             "sha256": _sha256(manifest_path),
         },
         "base": {

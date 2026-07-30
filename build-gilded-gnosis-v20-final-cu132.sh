@@ -13,14 +13,20 @@ configure_vllm_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
+  local vllm_repo vllm_ref vllm_commit vllm_patch_sha256 vllm_tree
 
-  export VLLM_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export VLLM_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export VLLM_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  vllm_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  vllm_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  vllm_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  vllm_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  vllm_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  export VLLM_REPO="${vllm_repo}"
+  export VLLM_REF="${vllm_ref}"
+  export VLLM_COMMIT="${vllm_commit}"
   export VLLM_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export VLLM_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export VLLM_PATCH_SHA256="${vllm_patch_sha256}"
   export VLLM_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export VLLM_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export VLLM_INTEGRATION_TREE="${vllm_tree}"
   export REQUIRE_CLEAN_VLLM_COMPOSITION=1
   export VERIFY_VLLM_BASE_HEAD="${verify_base_head}"
 }
@@ -29,16 +35,51 @@ configure_sparkinfer_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
+  local sparkinfer_repo sparkinfer_ref sparkinfer_commit
+  local sparkinfer_patch_sha256 sparkinfer_tree
 
-  export SPARKINFER_REPO="$(jq -er '.base.repository' "${composition_lock}")"
-  export SPARKINFER_REF="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  export SPARKINFER_COMMIT="$(jq -er '.base.commit' "${composition_lock}")"
+  sparkinfer_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  sparkinfer_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  sparkinfer_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  sparkinfer_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  sparkinfer_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  export SPARKINFER_REPO="${sparkinfer_repo}"
+  export SPARKINFER_REF="${sparkinfer_ref}"
+  export SPARKINFER_COMMIT="${sparkinfer_commit}"
   export SPARKINFER_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export SPARKINFER_PATCH_SHA256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  export SPARKINFER_PATCH_SHA256="${sparkinfer_patch_sha256}"
   export SPARKINFER_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export SPARKINFER_INTEGRATION_TREE="$(jq -er '.result.tree' "${composition_lock}")"
+  export SPARKINFER_INTEGRATION_TREE="${sparkinfer_tree}"
   export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
   export VERIFY_SPARKINFER_BASE_HEAD="${verify_base_head}"
+}
+
+configure_lmcache_composition() {
+  local composition_dir="$1"
+  local verify_base_head="$2"
+  local composition_lock="${composition_dir}/integration.lock.json"
+  local lmcache_repo lmcache_ref lmcache_commit lmcache_patch_sha256
+  local lmcache_tree lmcache_prs lmcache_lock_sha256
+
+  lmcache_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  lmcache_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  lmcache_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  lmcache_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  lmcache_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  lmcache_prs="$(jq -er '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${composition_lock}")"
+  lmcache_lock_sha256="$(sha256sum "${composition_lock}" | awk '{print $1}')"
+  export LMCACHE_REPO="${lmcache_repo}"
+  export LMCACHE_REF="${lmcache_ref}"
+  export LMCACHE_COMMIT="${lmcache_commit}"
+  export LMCACHE_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export LMCACHE_PATCH_SHA256="${lmcache_patch_sha256}"
+  export LMCACHE_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export LMCACHE_INTEGRATION_BASE_COMMIT="${lmcache_commit}"
+  export LMCACHE_INTEGRATION_TREE="${lmcache_tree}"
+  export LMCACHE_INTEGRATION_PRS="${lmcache_prs}"
+  export LMCACHE_INTEGRATION_LOCK_SHA256="${lmcache_lock_sha256}"
+  export REQUIRE_CLEAN_LMCACHE_COMPOSITION=1
+  export VERIFY_LMCACHE_BASE_HEAD="${verify_base_head}"
 }
 
 if [[ "${composition_mode}" == "clean" ]]; then
@@ -54,8 +95,24 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${sparkinfer_composition_dir}" >/dev/null
   configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r9}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r9}"
+  lmcache_composition_dir="patches/generated/gilded-gnosis-v20/lmcache"
+  python3 scripts/compose_vllm_release.py \
+    manifests/lmcache/gilded-gnosis-v20.json \
+    --output-dir "${lmcache_composition_dir}" >/dev/null
+  configure_lmcache_composition "${lmcache_composition_dir}" 1
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r11}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r11}"
+elif [[ "${composition_mode}" == "reproduce-r11" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r11/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r11/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r11/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm9502cc7-side7739a-fi801d57a-cu132-20260729-r11}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm9502cc7.side7739a.fi801d57a.cu132.20260729.r11}"
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
@@ -156,8 +213,8 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-export LAUNCHER_REF="${LAUNCHER_REF:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
-export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-a5791db0cf8daa4acab7d849e04fc036f1be00d5}"
+export LAUNCHER_REF="${LAUNCHER_REF:-62c94d42b36601007ecb8931bbf103fd502668fb}"
+export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-62c94d42b36601007ecb8931bbf103fd502668fb}"
 export VLLM_REQUIRED_LAUNCHERS="serve-gilded-gnosis.sh serve-fathomless-firmament.sh serve-glm52-v16.sh serve-glm52-v18.sh serve-glm52-v19.sh serve-glm52-hybrid-v17.sh serve-glm52-hybrid-v18.sh serve-glm52-hybrid-v19.sh glm52-dcp-prefill-policy.sh glm52-pcie-runtime-env.sh glm52-pcie-calibration.py glm52-lmcache-wrapper.sh"
 
 export CUTLASS_REF="${CUTLASS_REF:-e6233cbac5d7c7a865c19c91cd684ceece19513c}"
@@ -170,7 +227,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -187,7 +244,9 @@ fi
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-if [[ "${composition_mode}" == "reproduce-r6" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" ]]; then
+  export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
+elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
   export LMCACHE_REF="${LMCACHE_REF:-v0.5.2}"
   export LMCACHE_COMMIT="${LMCACHE_COMMIT:-cd2c0d6a6a982ec5e334bae7704e1029c06d3c97}"
@@ -204,9 +263,10 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
     "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
+    "${LMCACHE_INTEGRATION_TREE:-}" \
     "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
     "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}" \
     "${XGRAMMAR_REPO}" "${XGRAMMAR_REF}" "${XGRAMMAR_COMMIT}" \
@@ -224,6 +284,8 @@ runtime_source_paths=(
   tests/test-glm52-dcp-prefill-policy.sh
   tests/test-glm52-pcie-calibration-helper.sh
   tests/test-glm52-online-quant-policy.sh
+  tests/test-glm52-worker-multiproc-policy.sh
+  tests/test-release-manifest-fail-fast.sh
   tests/test-glm52-exl3-helper.sh
   tests/test-glm52-lmcache-helper.sh
   tests/test-glm52-pcie-calibration.py
@@ -238,6 +300,8 @@ fi
 ./tests/test-glm52-dcp-prefill-policy.sh
 ./tests/test-glm52-pcie-calibration-helper.sh
 ./tests/test-glm52-online-quant-policy.sh
+./tests/test-glm52-worker-multiproc-policy.sh
+./tests/test-release-manifest-fail-fast.sh
 ./tests/test-glm52-exl3-helper.sh
 ./tests/test-glm52-lmcache-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
@@ -253,6 +317,11 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" ]]; then
+  jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
+fi
 if [[ -n "${XGRAMMAR_REF}" ]]; then
   jq -e --arg value "${XGRAMMAR_COMMIT}" '."local-inference.xgrammar.commit" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${XGRAMMAR_VERSION}" '."local-inference.xgrammar.version" == $value' <<<"${labels}" >/dev/null

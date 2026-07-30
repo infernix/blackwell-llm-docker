@@ -102,6 +102,21 @@ def test_composition_uses_latest_clean_base_and_replays_patch(tmp_path: Path) ->
     assert (replay / "feature.py").read_text() == "feature\n"
 
 
+def test_composition_lock_is_reproducible(tmp_path: Path) -> None:
+    source, remote, _ = _repositories(tmp_path)
+    pr_head = _create_pr(source, remote, 1, "feature.py", "feature\n")
+    manifest = _manifest(tmp_path / "manifest.json", remote, [(1, pr_head)])
+
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    compose(manifest, first)
+    compose(manifest, second)
+
+    assert (first / "integration.lock.json").read_bytes() == (
+        second / "integration.lock.json"
+    ).read_bytes()
+
+
 def test_composition_rejects_moved_pr_head(tmp_path: Path) -> None:
     source, remote, _ = _repositories(tmp_path)
     pr_head = _create_pr(source, remote, 1, "feature.py", "feature\n")

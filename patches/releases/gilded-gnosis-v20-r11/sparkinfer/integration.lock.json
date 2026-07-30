@@ -1,0 +1,47 @@
+{
+  "base": {
+    "commit": "f9be2724953a5b412d19c20482aeb0a64fbd5d2a",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "de60cccab6079465033c2d86419654823fc0dd01419303f0ac82c601b2396bd8"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "f049ccdfeafd80b1424e09983bfb75ce629246f1",
+      "number": 81,
+      "ref": "refs/pull/81/head",
+      "title": "Add lossless PCIe serving calibration probe"
+    },
+    {
+      "disposition": "merged",
+      "head": "669a12ddc7cf3021e91a25f398b1a883b703fd12",
+      "number": 49,
+      "ref": "refs/pull/49/head",
+      "title": "Add planned EXL3 Trellis path for fused Blackwell MoE"
+    },
+    {
+      "disposition": "merged",
+      "head": "0ddd13b4fdbb6a287581aec55fcf9dbbb7e52fd3",
+      "number": 86,
+      "ref": "refs/pull/86/head",
+      "title": "Add inline per-token outer scales to 368-byte NVFP4 records"
+    },
+    {
+      "disposition": "merged",
+      "head": "c24a01441f87c0eccd1390aee2a170c535340894",
+      "number": 87,
+      "ref": "refs/pull/87/head",
+      "title": "Bound two-level fold workspace"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "2702537f6782952ff116551ceab6156b9dc830fd1ef335352ba90d67ea89b5f0",
+    "tree": "de7739aa7ebc8a52eb1f1997367eee1d0a6bab79"
+  },
+  "schema_version": 1
+}
