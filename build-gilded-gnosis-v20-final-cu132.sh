@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r15}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r15}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r16}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r16}"
+elif [[ "${composition_mode}" == "reproduce-r16" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r16/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r16/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r16/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmcd1177c-sieec30ff-fi801d57a-cu132-20260731-r16}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmcd1177c.sieec30ff.fi801d57a.cu132.20260731.r16}"
 elif [[ "${composition_mode}" == "reproduce-r15" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r15/vllm" 0
@@ -267,7 +277,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -284,7 +294,7 @@ fi
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -358,7 +368,7 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
@@ -434,6 +444,9 @@ from sparkinfer.moe._shared.kernels.w4a16 import kernel as w4a16_kernel
 from sparkinfer.moe._shared.kernels.w4a16 import mixed_trellis
 from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
+from vllm.distributed.kv_transfer.kv_connector.v1.offloading.scheduler import (
+    OffloadingConnectorScheduler,
+)
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla_cache_format import Nvfp4MlaCacheFormat
@@ -452,6 +465,8 @@ from vllm.v1.attention.backends.mla.b12x_mla_sparse import (
 )
 from vllm.v1.attention.ops.common import cp_lse_ag_out_rs
 from vllm.v1.worker.gpu_worker import Worker
+from vllm.v1.kv_offload.cpu.shared_offload_region import SharedOffloadRegion
+from vllm.v1.kv_offload.cpu.spec import CPUOffloadingSpec
 
 assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
@@ -541,6 +556,12 @@ assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_GATHER")
 assert hasattr(vllm_envs, "VLLM_DCP_TOPK_OWNER_MERGE")
 assert hasattr(vllm_envs, "VLLM_DCP_INDEXER_SHARDS")
 assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH")
+assert CPUOffloadingSpec.BLOCK_SIZE_ALIGNMENT == (
+    SharedOffloadRegion.BLOCK_SIZE_ALIGNMENT
+)
+offload_scheduler_source = inspect.getsource(OffloadingConnectorScheduler)
+assert "_reachable_tail_end_chunks" in offload_scheduler_source
+assert "shared_prefix_boundary" in offload_scheduler_source
 compressed_page = torch.empty((2, 64, 584), dtype=torch.uint8, device="cuda:0")
 compressed_view = _b12x_cache_page_view(compressed_page, 64, "cache")
 assert compressed_view.shape == (2, 64 * 584)
@@ -623,6 +644,15 @@ grep -Fq -- '--max-num-seqs 16' "${dspark_dry_run_file}"
 grep -Fq -- '--max-cudagraph-capture-size 128' "${dspark_dry_run_file}"
 grep -Fq -- '--max-model-len 131072' "${dspark_dry_run_file}"
 grep -Fq 'num_speculative_tokens\":7' "${dspark_dry_run_file}"
+
+dspark_offload_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark-offload.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+  -e DRY_RUN=1 \
+  -e KV_OFFLOADING_SIZE=5.5 \
+  "${IMAGE}" 2>&1 | tee "${dspark_offload_dry_run_file}"
+
+grep -Fq -- '--kv-offloading-size 5.5' "${dspark_offload_dry_run_file}"
+grep -Fq -- '--kv-offloading-backend native' "${dspark_offload_dry_run_file}"
 
 dspark_dynamic_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark-dynamic.txt"
 docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \

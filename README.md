@@ -238,6 +238,40 @@ for a no-speculation baseline on the same 0731 checkpoint. `MODE=mtp2|mtp3`
 selects the historical standard checkpoint because 0731 does not provide the
 standard MTP serving contract.
 
+The r16 release adds native CPU KV offload for DS4 without the pinned-host
+power-of-two allocation restriction and preserves SWA, MTP, and shared-prefix
+replay boundaries. It also changes the DS4 Compose profile to fixed K5, which
+was faster in sustained decode and more reliable than K7 in local validation.
+
+Build or reproduce the exact release with:
+
+```bash
+./build-gilded-gnosis-v20-final-cu132.sh
+
+VLLM_RELEASE_COMPOSITION=reproduce-r16 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r16 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmcd1177c-sieec30ff-fi801d57a-cu132-20260731-r16
+```
+
+Start DSpark K5 on two GPUs:
+
+```bash
+GPUS=0,1 docker compose -f examples/docker-compose-ds4-v20-r16.yml up -d
+```
+
+Native offload is opt-in. `KV_OFFLOADING_SIZE` is the total host capacity in
+GiB across all TP ranks; decimal, non-power-of-two values are supported:
+
+```bash
+KV_OFFLOADING_SIZE=48.5 GPUS=0,1 \
+  docker compose -f examples/docker-compose-ds4-v20-r16.yml up -d
+```
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

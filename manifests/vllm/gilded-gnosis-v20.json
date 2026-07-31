@@ -21,8 +21,18 @@
     },
     {
       "number": 214,
-      "head": "dfdf16efbef4a18e146405166713eabd12fe808d",
+      "head": "8bfd33b1e3d8bb499f39b2bde6f69da2b5ab2fb9",
       "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
+    },
+    {
+      "number": 217,
+      "head": "69a9076645c78b4cfd301ae841f91cf8550112ce",
+      "title": "Use shared regions for native CPU KV offload"
+    },
+    {
+      "number": 218,
+      "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
+      "title": "Align native SWA/MTP retention and shared-prefix tails"
     }
   ]
 }

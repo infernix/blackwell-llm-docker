@@ -1,0 +1,26 @@
+{
+  "base": {
+    "commit": "b0976b7fd46b5d34357a5f615822b86792676feb",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "142db6ca40a79678e18c37a35b3b5a3881825b936683ba7f051ba4329b9eeb25"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "35588fb570d23713bcb2a81749d0fdf3c4396ace",
+      "number": 106,
+      "ref": "refs/pull/106/head",
+      "title": "Honor compressed cache physical page stride"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "6038d5f17382832daebcbf13e3345a7b7371245e1e4d35b490a61978c3be7bd4",
+    "tree": "eec30ff294c1870b59a04686fff6608fddb62089"
+  },
+  "schema_version": 1
+}
