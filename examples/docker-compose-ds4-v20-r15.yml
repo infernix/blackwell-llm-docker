@@ -22,7 +22,17 @@ services:
       CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
       PORT: ${PORT:-8000}
       MODE: ${MODE:-dspark}
+      BACKEND: ${BACKEND:-b12x-a8}
+      TP_SIZE: ${TP_SIZE:-2}
+      DCP_SIZE: ${DCP_SIZE:-1}
       DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+      DSPARK_TOKENS: ${DSPARK_TOKENS:-7}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-131072}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
     volumes:
       - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
       - ${MODEL_ROOT:-/root/models}:/root/models:ro
