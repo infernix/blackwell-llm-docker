@@ -252,7 +252,7 @@ VLLM_RELEASE_COMPOSITION=reproduce-r16 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
-Published r16 image:
+r16 candidate image (publish only after the native-offload E2E gate passes):
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllmcd1177c-sieec30ff-fi801d57a-cu132-20260731-r16
