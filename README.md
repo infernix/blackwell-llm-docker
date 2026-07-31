@@ -252,7 +252,7 @@ VLLM_RELEASE_COMPOSITION=reproduce-r16 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
-r16 candidate image (publish only after the native-offload E2E gate passes):
+r16 release image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllm1e9c9c3-sieec30ff-fi801d57a-cu132-20260731-r16
@@ -271,6 +271,11 @@ GiB across all TP ranks; decimal, non-power-of-two values are supported:
 KV_OFFLOADING_SIZE=48.5 GPUS=0,1 \
   docker compose -f examples/docker-compose-ds4-v20-r16.yml up -d
 ```
+
+The exact r16 image passed TP2 K5 E2E with and without native offload. The
+no-offload baseline reached 220.6 tok/s; a repeated 5.5 GiB offload run reached
+222.9 tok/s. A 70k/80k/100k prefix sequence transferred 5.22 GB from GPU to
+CPU, then restored 635.5 MB and 69,888 prefix tokens from CPU on replay.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
