@@ -255,7 +255,7 @@ VLLM_RELEASE_COMPOSITION=reproduce-r16 \
 r16 candidate image (publish only after the native-offload E2E gate passes):
 
 ```text
-voipmonitor/vllm:gilded-gnosis-v20-vllmcd1177c-sieec30ff-fi801d57a-cu132-20260731-r16
+voipmonitor/vllm:gilded-gnosis-v20-vllm1e9c9c3-sieec30ff-fi801d57a-cu132-20260731-r16
 ```
 
 Start DSpark K5 on two GPUs:

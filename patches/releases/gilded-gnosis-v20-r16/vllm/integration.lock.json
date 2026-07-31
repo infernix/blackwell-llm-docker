@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "409e06406b17716b5e2624dd0c3cfc34e10037c644a6305adf8c15abd02b75f6"
+    "sha256": "1140a46adb878414470692f6e7554c28c4ad73f1fccffd87a4fb9f9b24fcc1d8"
   },
   "name": "gilded-gnosis-v20",
   "pull_requests": [
@@ -32,7 +32,7 @@
     },
     {
       "disposition": "merged",
-      "head": "8bfd33b1e3d8bb499f39b2bde6f69da2b5ab2fb9",
+      "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
       "number": 214,
       "ref": "refs/pull/214/head",
       "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
@@ -54,8 +54,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "5ea2e581b1a6f290986d8309dbcfff0ed46d249506a937781822c8f2a87844bc",
-    "tree": "cd1177c67b60ea70c2a1905c558854717066e377"
+    "patch_sha256": "b89d51089c830b1f315a909077c5db563ae84c3a91ed2ec2431ada6443e234b7",
+    "tree": "1e9c9c3475fa30ab48d5639f8882f1e93bb552bf"
   },
   "schema_version": 1
 }

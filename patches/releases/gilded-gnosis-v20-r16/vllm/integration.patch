@@ -239,7 +239,7 @@ index 0000000000000000000000000000000000000000..7ae9d9351c4e8de79f6387b5f64a5fa9
 +}
 \ No newline at end of file
 diff --git a/serve-ds4-flash.sh b/serve-ds4-flash.sh
-index f9a640bed07f8e82381274cc027f6723c9ed57d5..2d8b0d72e1a1752ef28988352542c87a62b58a33 100755
+index f9a640bed07f8e82381274cc027f6723c9ed57d5..ee0da27992a6ca220b6576c482c3970a966f65bc 100755
 --- a/serve-ds4-flash.sh
 +++ b/serve-ds4-flash.sh
 @@ -40,9 +40,10 @@ case "${mode}" in
@@ -390,7 +390,7 @@ index f9a640bed07f8e82381274cc027f6723c9ed57d5..2d8b0d72e1a1752ef28988352542c87a
      fi
    elif [[ "${backend}" == lucifer-* \
      && ( "${mode}" == "mtp2" || "${mode}" == "mtp3" ) ]]; then
-@@ -398,6 +434,17 @@ if [[ "${enable_flashinfer_autotune}" == "0" ]]; then
+@@ -398,6 +434,26 @@ if [[ "${enable_flashinfer_autotune}" == "0" ]]; then
    autotune_args=(--no-enable-flashinfer-autotune)
  fi
  
@@ -398,7 +398,16 @@ index f9a640bed07f8e82381274cc027f6723c9ed57d5..2d8b0d72e1a1752ef28988352542c87a
 +if [[ -n "${kv_offloading_size}" \
 +  && ! "${kv_offloading_size}" =~ ^0*([.]0*)?$ ]]; then
 +  # This is the total host-cache capacity across all TP ranks, matching the
-+  # vLLM CLI contract. LMCache remains a separate deployment mode.
++  # vLLM CLI contract. LMCache remains a separate deployment mode. Native KV
++  # offload pins/registers GPU cache allocations, so PyTorch's remappable VMM
++  # segments must be disabled while preserving any other allocator settings.
++  allocator_config=${PYTORCH_CUDA_ALLOC_CONF:-}
++  if [[ -z "${allocator_config}" ]]; then
++    allocator_config=expandable_segments:False
++  elif [[ "${allocator_config}" =~ (^|,)expandable_segments:True(,|$) ]]; then
++    allocator_config=${allocator_config//expandable_segments:True/expandable_segments:False}
++  fi
++  export PYTORCH_CUDA_ALLOC_CONF=${allocator_config}
 +  offloading_args=(
 +    --kv-offloading-size "${kv_offloading_size}"
 +    --kv-offloading-backend native
@@ -408,7 +417,7 @@ index f9a640bed07f8e82381274cc027f6723c9ed57d5..2d8b0d72e1a1752ef28988352542c87a
  capture_args=()
  capture_sizes=${CUDAGRAPH_CAPTURE_SIZES:-default}
  if [[ "${capture_sizes}" == "auto" ]]; then
-@@ -465,6 +512,7 @@ command=(
+@@ -465,6 +521,7 @@ command=(
    "${autotune_args[@]}"
    "${prefix_args[@]}"
    "${capture_args[@]}"
@@ -416,18 +425,22 @@ index f9a640bed07f8e82381274cc027f6723c9ed57d5..2d8b0d72e1a1752ef28988352542c87a
    "${spec_args[@]}"
    "${backend_args[@]}"
    "${allreduce_args[@]}"
-@@ -478,8 +526,9 @@ if [[ -n "${EXTRA_VLLM_ARGS:-}" ]]; then
+@@ -478,10 +535,12 @@ if [[ -n "${EXTRA_VLLM_ARGS:-}" ]]; then
  fi
  command+=("$@")
  
 -printf 'DS4 launch: mode=%s backend=%s allreduce=%s b12x_dma=%s indexer=%s tp=%s dcp=%s max_seqs=%s graph=%s load_format=%s instanttensor_backend=%s model=%s\n' \
 -  "${mode}" "${backend}" "${allreduce_mode}" "${b12x_pcie_dma}" \
-+printf 'DS4 launch: mode=%s depth=%s backend=%s allreduce=%s b12x_dma=%s indexer=%s tp=%s dcp=%s max_seqs=%s graph=%s load_format=%s instanttensor_backend=%s model=%s\n' \
++printf 'DS4 launch: mode=%s depth=%s backend=%s allreduce=%s b12x_dma=%s indexer=%s tp=%s dcp=%s max_seqs=%s graph=%s load_format=%s instanttensor_backend=%s allocator=%s model=%s\n' \
 +  "${mode}" "${dspark_depth_mode}" \
 +  "${backend}" "${allreduce_mode}" "${b12x_pcie_dma}" \
    "${indexer_backend}" "${tp_size}" "${dcp_size}" "${max_num_seqs}" \
-   "${graph_cap}" "${load_format}" "${INSTANTTENSOR_BACKEND}" "${model}" >&2
+-  "${graph_cap}" "${load_format}" "${INSTANTTENSOR_BACKEND}" "${model}" >&2
++  "${graph_cap}" "${load_format}" "${INSTANTTENSOR_BACKEND}" \
++  "${PYTORCH_CUDA_ALLOC_CONF:-<unset>}" "${model}" >&2
  printf 'Command:' >&2
+ printf ' %q' "${command[@]}" >&2
+ printf '\n' >&2
 diff --git a/serve-glm52.sh b/serve-glm52.sh
 index 68f7501b3d618dea5c4ae93047b281cd56efd85d..8933ad62d752aabbc9f2e6a80bc3b17945afef41 100755
 --- a/serve-glm52.sh
@@ -443,10 +456,10 @@ index 68f7501b3d618dea5c4ae93047b281cd56efd85d..8933ad62d752aabbc9f2e6a80bc3b179
  GLM52_DSPARK="${GLM52_DSPARK:-0}"
 diff --git a/tests/entrypoints/test_ds4_flash_launcher.py b/tests/entrypoints/test_ds4_flash_launcher.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..38ba166c3dca7e3007823abc02c58f63fbed3915
+index 0000000000000000000000000000000000000000..f19d90d42db5a6b85198567987690c3df4e230a5
 --- /dev/null
 +++ b/tests/entrypoints/test_ds4_flash_launcher.py
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,134 @@
 +# SPDX-License-Identifier: Apache-2.0
 +# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 +
@@ -530,6 +543,31 @@ index 0000000000000000000000000000000000000000..38ba166c3dca7e3007823abc02c58f63
 +
 +    assert "--kv-offloading-size 5.5" in output
 +    assert "--kv-offloading-backend native" in output
++    assert "allocator=expandable_segments:False" in output
++
++
++def test_ds4_launcher_native_offload_preserves_other_allocator_settings(
++    tmp_path: Path,
++) -> None:
++    output = _dry_run(
++        tmp_path,
++        KV_OFFLOADING_SIZE="5.5",
++        PYTORCH_CUDA_ALLOC_CONF=(
++            "max_split_size_mb:256,expandable_segments:True"
++        ),
++    )
++
++    assert (
++        "allocator=max_split_size_mb:256,expandable_segments:False" in output
++    )
++
++
++def test_ds4_launcher_without_offload_keeps_expandable_segments(
++    tmp_path: Path,
++) -> None:
++    output = _dry_run(tmp_path)
++
++    assert "allocator=expandable_segments:True" in output
 +
 +
 +def test_ds4_launcher_zero_kv_offload_stays_disabled(tmp_path: Path) -> None:
