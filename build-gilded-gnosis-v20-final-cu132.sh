@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r14}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r14}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r15}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r15}"
+elif [[ "${composition_mode}" == "reproduce-r15" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r15/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r15/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r15/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0bc48c5-sieec30ff-fi801d57a-cu132-20260731-r15}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm0bc48c5.sieec30ff.fi801d57a.cu132.20260731.r15}"
 elif [[ "${composition_mode}" == "reproduce-r14" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r14/vllm" 0
@@ -257,7 +267,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -274,7 +284,7 @@ fi
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -348,7 +358,7 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
@@ -399,6 +409,7 @@ docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
 import importlib.metadata as md
 import inspect
 import os
+from types import SimpleNamespace
 
 import torch
 import vllm._C_stable_libtorch  # noqa: F401
@@ -407,6 +418,7 @@ from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
 from sparkinfer.attention._shared.mla.kv_cache import (
     concat_and_cache_nvfp4_mla_fp8_rope,
 )
+from sparkinfer.attention._shared.mla.kernel import _cache_block_stride_bytes
 from sparkinfer.attention.nsa_indexer.paged import _plan_two_level_fold
 from sparkinfer.attention.sparse_mla._scratch import SPARKINFERSparseMLAScratchCaps
 from sparkinfer.attention.nsa_indexer import tiled_topk
@@ -425,6 +437,10 @@ from vllm.distributed.device_communicators.cuda_communicator import CudaCommunic
 from vllm.model_executor.layers.attention import mla_attention
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla_cache_format import Nvfp4MlaCacheFormat
+from vllm.model_executor.warmup.kernel_warmup import (
+    _flashinfer_autotune_dummy_run_kwargs,
+)
+from vllm.models.deepseek_v4.nvidia.b12x import _b12x_cache_page_view
 from vllm.model_executor.layers.quantization.exl3 import _load_exl3_ext
 from vllm.model_executor.layers.sparse_attn_indexer import (
     _merge_b12x_dcp_topk_by_owner,
@@ -525,6 +541,19 @@ assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_GATHER")
 assert hasattr(vllm_envs, "VLLM_DCP_TOPK_OWNER_MERGE")
 assert hasattr(vllm_envs, "VLLM_DCP_INDEXER_SHARDS")
 assert hasattr(vllm_envs, "VLLM_B12X_MLA_CKV_PREFETCH_DEPTH")
+compressed_page = torch.empty((2, 64, 584), dtype=torch.uint8, device="cuda:0")
+compressed_view = _b12x_cache_page_view(compressed_page, 64, "cache")
+assert compressed_view.shape == (2, 64 * 584)
+assert compressed_view.stride() == (64 * 584, 1)
+assert (
+    _cache_block_stride_bytes(compressed_view, page_size=64, model_type=0)
+    == 64 * 584
+)
+pre_kv_v2_runner = SimpleNamespace(
+    scheduler_config=SimpleNamespace(max_num_batched_tokens=8192),
+    vllm_config=SimpleNamespace(use_v2_model_runner=True),
+)
+assert _flashinfer_autotune_dummy_run_kwargs(pre_kv_v2_runner)["skip_attn"] is True
 caps = SPARKINFERSparseMLAScratchCaps(
     device="cuda:0",
     dtype=torch.bfloat16,
@@ -580,6 +609,44 @@ grep -Fxq 'VLLM_DCP_INDEXER_SHARDS=0' "${dry_run_file}"
 grep -Fxq 'VLLM_B12X_MLA_CKV_PREFETCH_DEPTH=0' "${dry_run_file}"
 grep -Fxq 'VLLM_PCIE_DMA_MIN_BYTES=6MB' "${dry_run_file}"
 grep -Fxq 'PCIE_CALIBRATION_STATUS=skipped:dry-run' "${dry_run_file}"
+
+dspark_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+  -e DRY_RUN=1 \
+  "${IMAGE}" 2>&1 | tee "${dspark_dry_run_file}"
+
+grep -Fq 'mode=dspark depth=fixed' "${dspark_dry_run_file}"
+grep -Fq 'model=deepseek-ai/DeepSeek-V4-Flash-0731' "${dspark_dry_run_file}"
+grep -Fq -- '--revision 9e165c30e2704aec5d9d593cce3eebd58bbef1cb' \
+  "${dspark_dry_run_file}"
+grep -Fq -- '--max-num-seqs 16' "${dspark_dry_run_file}"
+grep -Fq -- '--max-cudagraph-capture-size 128' "${dspark_dry_run_file}"
+grep -Fq -- '--max-model-len 131072' "${dspark_dry_run_file}"
+grep -Fq 'num_speculative_tokens\":7' "${dspark_dry_run_file}"
+
+dspark_dynamic_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark-dynamic.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+  -e DRY_RUN=1 \
+  -e DSPARK_DEPTH_MODE=dynamic \
+  "${IMAGE}" 2>&1 | tee "${dspark_dynamic_dry_run_file}"
+
+grep -Fq 'mode=dspark depth=dynamic' "${dspark_dynamic_dry_run_file}"
+grep -Fq 'dspark_capacity_verification_mode\":\"varlen' \
+  "${dspark_dynamic_dry_run_file}"
+
+ds4_mtp2_dry_run_file="/tmp/gilded-gnosis-v20-final-ds4-mtp2.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+  -e DRY_RUN=1 \
+  -e MODE=mtp2 \
+  "${IMAGE}" 2>&1 | tee "${ds4_mtp2_dry_run_file}"
+
+grep -Fq 'mode=mtp2 depth=disabled' "${ds4_mtp2_dry_run_file}"
+grep -Fq 'model=deepseek-ai/DeepSeek-V4-Flash' "${ds4_mtp2_dry_run_file}"
+grep -Fq 'num_speculative_tokens\":2' "${ds4_mtp2_dry_run_file}"
+if grep -Fq 'DeepSeek-V4-Flash-0731' "${ds4_mtp2_dry_run_file}"; then
+  printf 'Standard MTP2 helper unexpectedly selected the 0731 checkpoint\n' >&2
+  exit 1
+fi
 
 exl3_dry_run_file="/tmp/gilded-gnosis-v20-final-exl3.txt"
 docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \

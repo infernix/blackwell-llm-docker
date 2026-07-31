@@ -206,6 +206,38 @@ Published r9 image:
 voipmonitor/vllm:gilded-gnosis-v20-vllm34f26c2-side7739a-fi801d57a-cu132-20260728-r9
 ```
 
+The r15 release adds the `DeepSeek-V4-Flash-0731` DSpark serving profile and
+keeps the standard-checkpoint MTP modes separate. It composes vLLM #212, #213,
+#214 and SparkInfer #106 over current clean GG/master sources. The paired cache
+changes accept exact and padded compressed-MLA pages without copying, while the
+V2 warmup change keeps FlashInfer autotune enabled before KV initialization.
+
+Build or reproduce the exact release with:
+
+```bash
+./build-gilded-gnosis-v20-final-cu132.sh
+
+VLLM_RELEASE_COMPOSITION=reproduce-r15 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r15 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm0bc48c5-sieec30ff-fi801d57a-cu132-20260731-r15
+```
+
+Start the pinned 0731 checkpoint in the measured fixed-K7 mode:
+
+```bash
+GPUS=0,1 docker compose -f examples/docker-compose-ds4-v20-r15.yml up -d
+```
+
+Set `DSPARK_DEPTH_MODE=dynamic` for load-aware draft depth, or `MODE=dspark-mtp0`
+for a no-speculation baseline on the same 0731 checkpoint. `MODE=mtp2|mtp3`
+selects the historical standard checkpoint because 0731 does not provide the
+standard MTP serving contract.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

@@ -5,14 +5,9 @@
   "base_ref": "refs/heads/master",
   "pull_requests": [
     {
-      "number": 92,
-      "head": "06032ce74afba49a683d01339ed2c971568cec3f",
-      "title": "Stabilize Trellis arena memory profiling"
-    },
-    {
-      "number": 104,
-      "head": "241718d427e0a0a098267710ee4a87d4e9337dd3",
-      "title": "Add one-grid mixed K3/K4 Trellis execution"
+      "number": 106,
+      "head": "35588fb570d23713bcb2a81749d0fdf3c4396ace",
+      "title": "Honor compressed cache physical page stride"
     }
   ]
 }

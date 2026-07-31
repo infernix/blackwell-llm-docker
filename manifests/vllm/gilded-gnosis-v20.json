@@ -10,19 +10,19 @@
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
-      "number": 175,
-      "head": "2c14a58a21c724f08d01d988b9972d10c77ed4c0",
-      "title": "Shard sparse prefill queries and halve result traffic"
+      "number": 212,
+      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
+      "title": "Preserve compressed MLA page stride"
     },
     {
-      "number": 190,
-      "head": "46c36c0f89a44fade81947c1bf84faede14755ad",
-      "title": "Add EXL3 Trellis backend for rank-sliced MoE checkpoints"
+      "number": 213,
+      "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "title": "Skip pre-KV V2 attention during FlashInfer autotune"
     },
     {
-      "number": 198,
-      "head": "703af3ffd6ae60e4b99abbd5fa8a5a03d629c7e7",
-      "title": "Measure repeatable activation peak after kernel warmup"
+      "number": 214,
+      "head": "dfdf16efbef4a18e146405166713eabd12fe808d",
+      "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
     }
   ]
 }

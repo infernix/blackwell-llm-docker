@@ -1,0 +1,30 @@
+services:
+  ds4:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm0bc48c5-sieec30ff-fi801d57a-cu132-20260731-r15}
+    container_name: ${NAME:-ds4-0731-r15}
+    entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 32gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
+      PORT: ${PORT:-8000}
+      MODE: ${MODE:-dspark}
+      DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${MODEL_ROOT:-/root/models}:/root/models:ro
+      - ${JIT_CACHE:-./cache/ds4-v20-r15}:/cache
+      - ${CONTAINER_TMP:-./cache/ds4-v20-r15/tmp}:/container-tmp

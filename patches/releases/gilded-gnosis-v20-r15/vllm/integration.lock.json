@@ -1,0 +1,47 @@
+{
+  "base": {
+    "commit": "30038602b71395f481ef4a6edfe4fcf8551d9c15",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "86a15dcced59c2bdc4fa1c11119691063c4c962b31bd37dd2d2152d1104cafcd"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
+      "number": 212,
+      "ref": "refs/pull/212/head",
+      "title": "Preserve compressed MLA page stride"
+    },
+    {
+      "disposition": "merged",
+      "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "number": 213,
+      "ref": "refs/pull/213/head",
+      "title": "Skip pre-KV V2 attention during FlashInfer autotune"
+    },
+    {
+      "disposition": "merged",
+      "head": "dfdf16efbef4a18e146405166713eabd12fe808d",
+      "number": 214,
+      "ref": "refs/pull/214/head",
+      "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "40d75db4c819cb76ded71104a7b0b0e591014b6fa6db48d25eec32bafc625940",
+    "tree": "0bc48c5943561c56353ce1f8047f81d5e0517237"
+  },
+  "schema_version": 1
+}
