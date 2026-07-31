@@ -256,6 +256,7 @@ r16 release image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllm1e9c9c3-sieec30ff-fi801d57a-cu132-20260731-r16
+sha256:48518e91cf87dd0c0483c76ff86e81dfc0f46de7e364b46f7a82c481ce08188f
 ```
 
 Start DSpark K5 on two GPUs:
