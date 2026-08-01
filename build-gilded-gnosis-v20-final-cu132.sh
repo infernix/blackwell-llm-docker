@@ -101,8 +101,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r18}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r18}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r19}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r19}"
 elif [[ "${composition_mode}" == "reproduce-r18" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r18/vllm" 0
