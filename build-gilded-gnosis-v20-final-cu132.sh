@@ -274,8 +274,8 @@ export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r17" ]]; then
-  export LAUNCHER_REF="${LAUNCHER_REF:-16482e1d3195f9880dc888da47b73ea28499575b}"
-  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-16482e1d3195f9880dc888da47b73ea28499575b}"
+  export LAUNCHER_REF="${LAUNCHER_REF:-ec0279f1c2ccf06656df21d65c7a18984c45fcd8}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-ec0279f1c2ccf06656df21d65c7a18984c45fcd8}"
 else
   export LAUNCHER_REF="${LAUNCHER_REF:-513bd84a1d8f4b834ca343abb4189e82acb1df52}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-513bd84a1d8f4b834ca343abb4189e82acb1df52}"
