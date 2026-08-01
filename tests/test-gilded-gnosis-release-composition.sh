@@ -322,10 +322,10 @@ grep -Fxq \
   'sparkinfer_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
   <<<"${output_r18}"
 grep -Fxq \
-  'launcher_ref=3ce8fc75c1bef3f6c1204ddb9bb133bc1c31245f' \
+  'launcher_ref=8f07269878d4bd7c3f541f42fa8a6c6a80927329' \
   <<<"${output_r18}"
 grep -Fxq \
-  'launcher_commit=3ce8fc75c1bef3f6c1204ddb9bb133bc1c31245f' \
+  'launcher_commit=8f07269878d4bd7c3f541f42fa8a6c6a80927329' \
   <<<"${output_r18}"
 grep -Fxq \
   'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
