@@ -34,6 +34,15 @@ if grep -Fq 'shared_experts' <<<"${exl3_output}"; then
   exit 1
 fi
 
+exl3_native_output="$(env "${common_env[@]}" QUANTIZATION=exl3 \
+  ONLINE_QUANT=none "${launcher}")"
+grep -Fxq 'ONLINE_QUANT=none' <<<"${exl3_native_output}"
+grep -Fxq "QUANTIZATION_CONFIG_JSON=''" <<<"${exl3_native_output}"
+if grep -Fq 'q_a_proj' <<<"${exl3_native_output}"; then
+  echo "Native EXL3 policy unexpectedly enabled the MXFP8 overlay" >&2
+  exit 1
+fi
+
 exl3_explicit_config='{"linear":{"weight":"mxfp8"},"shared_experts":{"weight":"mxfp8"}}'
 exl3_explicit_output="$(env "${common_env[@]}" QUANTIZATION=exl3 \
   QUANTIZATION_CONFIG_JSON="${exl3_explicit_config}" "${launcher}")"
