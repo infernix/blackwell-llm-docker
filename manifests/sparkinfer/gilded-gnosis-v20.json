@@ -8,6 +8,16 @@
       "number": 106,
       "head": "35588fb570d23713bcb2a81749d0fdf3c4396ace",
       "title": "Honor compressed cache physical page stride"
+    },
+    {
+      "number": 105,
+      "head": "45033eebcf5bb184587a35c528a62721a46acdf5",
+      "title": "Harden replay and CUDA IPC lifecycle"
+    },
+    {
+      "number": 110,
+      "head": "01917253eb3925a01c8123ed859d49880e27f961",
+      "title": "Harden W4A16 planning, tails, and capture resolution"
     }
   ]
 }

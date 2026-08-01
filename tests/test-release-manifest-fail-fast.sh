@@ -27,17 +27,33 @@ fi
 
 bash -n "${build_script}"
 
-launcher_ref="$(sed -n 's/^export LAUNCHER_REF="${LAUNCHER_REF:-\([^}]*\)}"$/\1/p' \
-  "${build_script}")"
-launcher_commit="$(sed -n 's/^export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-\([^}]*\)}"$/\1/p' \
-  "${build_script}")"
-[[ "${launcher_ref}" =~ ^[0-9a-f]{40}$ ]] || {
-  echo "default LAUNCHER_REF is not an immutable commit" >&2
+mapfile -t launcher_refs < <(
+  sed -n 's/^  export LAUNCHER_REF="${LAUNCHER_REF:-\([^}]*\)}"$/\1/p' \
+    "${build_script}"
+)
+mapfile -t launcher_commits < <(
+  sed -n 's/^  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-\([^}]*\)}"$/\1/p' \
+    "${build_script}"
+)
+
+[[ "${#launcher_refs[@]}" -gt 0 ]] || {
+  echo "no default LAUNCHER_REF values found" >&2
   exit 1
 }
-[[ "${launcher_ref}" == "${launcher_commit}" ]] || {
-  echo "default LAUNCHER_REF and LAUNCHER_COMMIT differ" >&2
+[[ "${#launcher_refs[@]}" -eq "${#launcher_commits[@]}" ]] || {
+  echo "default LAUNCHER_REF and LAUNCHER_COMMIT counts differ" >&2
   exit 1
 }
+
+for index in "${!launcher_refs[@]}"; do
+  [[ "${launcher_refs[index]}" =~ ^[0-9a-f]{40}$ ]] || {
+    echo "default LAUNCHER_REF is not an immutable commit" >&2
+    exit 1
+  }
+  [[ "${launcher_refs[index]}" == "${launcher_commits[index]}" ]] || {
+    echo "default LAUNCHER_REF and LAUNCHER_COMMIT differ" >&2
+    exit 1
+  }
+done
 
 echo "release manifest fail-fast contract: PASS"
