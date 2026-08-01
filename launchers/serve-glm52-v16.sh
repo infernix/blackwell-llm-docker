@@ -164,11 +164,17 @@ case "${ONLINE_QUANT}" in
     ONLINE_QUANT=none
     ;;
   mxfp8)
-    # Quantize every eligible linear. Accuracy testing found no meaningful KLD
-    # benefit from the historical kv_b_proj exclusion; callers can still pass
-    # an explicit ignore list through QUANTIZATION_CONFIG_JSON.
     if [[ -z "${QUANTIZATION_CONFIG_JSON}" ]]; then
-      QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"}}'
+      if [[ "${QUANTIZATION}" == "exl3" ]]; then
+        # EXL3 tensor-backed modules remain EXL3. Quantize only eligible BF16
+        # dense linears, preserving the sensitive MLA input projections.
+        QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"},"ignore":["re:.*\\.q_a_proj$","re:.*kv_a_proj_with_mqa","lm_head"]}'
+      else
+        # Quantize every eligible linear. Accuracy testing found no meaningful
+        # KLD benefit from the historical kv_b_proj exclusion; callers can
+        # still pass an explicit ignore list through QUANTIZATION_CONFIG_JSON.
+        QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"}}'
+      fi
     fi
     ;;
   nf3-mxfp8)
@@ -193,6 +199,10 @@ case "${ONLINE_QUANT}" in
     die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, fp8, or custom"
     ;;
 esac
+
+if [[ "${QUANTIZATION}" == "exl3" && "${ONLINE_QUANT}" == "fp8" ]]; then
+  die "EXL3 online overlays support MXFP8 weights, not fp8_per_block_static"
+fi
 
 if [[ -z "${VLLM_B12X_ABSORB_BMM+x}" ]]; then
   case "${ONLINE_QUANT}" in

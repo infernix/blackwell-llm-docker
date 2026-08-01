@@ -25,6 +25,31 @@ if grep -q 'kv_b_proj' <<<"${default_output}"; then
 fi
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=1' <<<"${default_output}"
 
+exl3_output="$(env "${common_env[@]}" QUANTIZATION=exl3 "${launcher}")"
+grep -Fq 'q_a_proj' <<<"${exl3_output}"
+grep -Fq 'kv_a_proj_with_mqa' <<<"${exl3_output}"
+grep -Fq 'lm_head' <<<"${exl3_output}"
+if grep -Fq 'shared_experts' <<<"${exl3_output}"; then
+  echo "Default EXL3 MXFP8 policy unexpectedly quantizes shared experts" >&2
+  exit 1
+fi
+
+exl3_explicit_config='{"linear":{"weight":"mxfp8"},"shared_experts":{"weight":"mxfp8"}}'
+exl3_explicit_output="$(env "${common_env[@]}" QUANTIZATION=exl3 \
+  QUANTIZATION_CONFIG_JSON="${exl3_explicit_config}" "${launcher}")"
+grep -Fq 'shared_experts' <<<"${exl3_explicit_output}"
+if grep -Fq 'q_a_proj' <<<"${exl3_explicit_output}"; then
+  echo "Explicit EXL3 MXFP8 policy was unexpectedly replaced" >&2
+  exit 1
+fi
+
+if exl3_fp8_output="$(env "${common_env[@]}" QUANTIZATION=exl3 \
+  ONLINE_QUANT=fp8 "${launcher}" 2>&1)"; then
+  echo "EXL3 unexpectedly accepted the static block-FP8 online overlay" >&2
+  exit 1
+fi
+grep -Fq 'EXL3 online overlays support MXFP8 weights' <<<"${exl3_fp8_output}"
+
 native_output="$(env "${common_env[@]}" ONLINE_QUANT=none "${launcher}")"
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=0' <<<"${native_output}"
 
