@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r17}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r17}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r18}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r18}"
+elif [[ "${composition_mode}" == "reproduce-r18" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r18/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r18/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r18/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmab358b1-sib2bff71-fi801d57a-cu132-20260801-r18}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmab358b1.sib2bff71.fi801d57a.cu132.20260801.r18}"
 elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r17/vllm" 0
@@ -273,7 +283,7 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r18" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-3ce8fc75c1bef3f6c1204ddb9bb133bc1c31245f}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-3ce8fc75c1bef3f6c1204ddb9bb133bc1c31245f}"
 elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
@@ -295,7 +305,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -312,7 +322,7 @@ fi
 export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
 export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -386,7 +396,7 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null

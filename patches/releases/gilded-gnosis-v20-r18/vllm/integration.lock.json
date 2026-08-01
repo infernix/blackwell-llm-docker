@@ -1,0 +1,82 @@
+{
+  "base": {
+    "commit": "30038602b71395f481ef4a6edfe4fcf8551d9c15",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "d665af9d509ed62413ee175f69e92ca41570edc20469ff9a7de694dfc2031973"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
+      "number": 212,
+      "ref": "refs/pull/212/head",
+      "title": "Preserve compressed MLA page stride"
+    },
+    {
+      "disposition": "merged",
+      "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "number": 213,
+      "ref": "refs/pull/213/head",
+      "title": "Skip pre-KV V2 attention during FlashInfer autotune"
+    },
+    {
+      "disposition": "merged",
+      "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
+      "number": 214,
+      "ref": "refs/pull/214/head",
+      "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
+    },
+    {
+      "disposition": "merged",
+      "head": "69a9076645c78b4cfd301ae841f91cf8550112ce",
+      "number": 217,
+      "ref": "refs/pull/217/head",
+      "title": "Use shared regions for native CPU KV offload"
+    },
+    {
+      "disposition": "merged",
+      "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
+      "number": 218,
+      "ref": "refs/pull/218/head",
+      "title": "Align native SWA/MTP retention and shared-prefix tails"
+    },
+    {
+      "disposition": "merged",
+      "head": "52201611719edf67f18bc0cbec17802880a4afb7",
+      "number": 216,
+      "ref": "refs/pull/216/head",
+      "title": "Isolate semantic PCIe graph channels"
+    },
+    {
+      "disposition": "merged",
+      "head": "6206ac40fbd75be0ed18817bde64a63b6b838d2f",
+      "number": 222,
+      "ref": "refs/pull/222/head",
+      "title": "Shape-aware mixed EXL3 decode and bounded serial prefill"
+    },
+    {
+      "disposition": "merged",
+      "head": "091411557a815d25dc5aec617e723c0aea9f7fa4",
+      "number": 223,
+      "ref": "refs/pull/223/head",
+      "title": "Add EXL3 BF16 MXFP8 online overlay"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "6b2c196c1eea02b0a7e0b14b33b1fad0c60e0a008861684f1b2fc37dc5f02c3e",
+    "tree": "ab358b11844ab626ca227be455165e336d5f855a"
+  },
+  "schema_version": 1
+}
