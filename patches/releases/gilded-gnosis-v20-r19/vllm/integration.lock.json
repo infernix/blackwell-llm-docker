@@ -1,0 +1,75 @@
+{
+  "base": {
+    "commit": "30038602b71395f481ef4a6edfe4fcf8551d9c15",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "0d15bbe826ad114f2f0f89ec58f4e1755065bd63e004a1d7143567914140d2df"
+  },
+  "name": "gilded-gnosis-v20",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
+      "number": 212,
+      "ref": "refs/pull/212/head",
+      "title": "Preserve compressed MLA page stride"
+    },
+    {
+      "disposition": "merged",
+      "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "number": 213,
+      "ref": "refs/pull/213/head",
+      "title": "Skip pre-KV V2 attention during FlashInfer autotune"
+    },
+    {
+      "disposition": "merged",
+      "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
+      "number": 214,
+      "ref": "refs/pull/214/head",
+      "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
+    },
+    {
+      "disposition": "merged",
+      "head": "69a9076645c78b4cfd301ae841f91cf8550112ce",
+      "number": 217,
+      "ref": "refs/pull/217/head",
+      "title": "Use shared regions for native CPU KV offload"
+    },
+    {
+      "disposition": "merged",
+      "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
+      "number": 218,
+      "ref": "refs/pull/218/head",
+      "title": "Align native SWA/MTP retention and shared-prefix tails"
+    },
+    {
+      "disposition": "merged",
+      "head": "52201611719edf67f18bc0cbec17802880a4afb7",
+      "number": 216,
+      "ref": "refs/pull/216/head",
+      "title": "Isolate semantic PCIe graph channels"
+    },
+    {
+      "disposition": "merged",
+      "head": "02c854e3a2f98dea8b246fa12e9742d085a9bb79",
+      "number": 225,
+      "ref": "refs/pull/225/head",
+      "title": "Consolidate EXL3 mixed execution, MXFP8 overlay, and shared rotations"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "1621170f1e6466ceb43380f0ac7b899d51a1453267e7bd40e1b2fe29e20a12cb",
+    "tree": "6634ec930a746753441d2244bc8c0c7003f0143d"
+  },
+  "schema_version": 1
+}
