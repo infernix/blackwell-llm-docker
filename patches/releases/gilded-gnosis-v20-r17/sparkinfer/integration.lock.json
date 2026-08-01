@@ -1,0 +1,40 @@
+{
+  "base": {
+    "commit": "b0976b7fd46b5d34357a5f615822b86792676feb",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "38d44effeb4d2c14a81fd7f0717a47469e00f34e798e66f9753a85d3861eea58"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "35588fb570d23713bcb2a81749d0fdf3c4396ace",
+      "number": 106,
+      "ref": "refs/pull/106/head",
+      "title": "Honor compressed cache physical page stride"
+    },
+    {
+      "disposition": "merged",
+      "head": "caa643c8546121214493d052221f16c62f69f719",
+      "number": 105,
+      "ref": "refs/pull/105/head",
+      "title": "Harden replay and CUDA IPC lifecycle"
+    },
+    {
+      "disposition": "merged",
+      "head": "01917253eb3925a01c8123ed859d49880e27f961",
+      "number": 110,
+      "ref": "refs/pull/110/head",
+      "title": "Harden W4A16 planning, tails, and capture resolution"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "a244c1c788f9c5b8a2f679ce0bf15c0d990812d765a7c929cb97a7df44fdeabb",
+    "tree": "cfde4787facf7e32248beb8011a1aa0048b4c33c"
+  },
+  "schema_version": 1
+}

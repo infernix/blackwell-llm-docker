@@ -33,6 +33,16 @@
       "number": 218,
       "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
       "title": "Align native SWA/MTP retention and shared-prefix tails"
+    },
+    {
+      "number": 216,
+      "head": "52201611719edf67f18bc0cbec17802880a4afb7",
+      "title": "Isolate semantic PCIe graph channels"
+    },
+    {
+      "number": 222,
+      "head": "6206ac40fbd75be0ed18817bde64a63b6b838d2f",
+      "title": "Shape-aware mixed EXL3 decode and bounded serial prefill"
     }
   ]
 }
