@@ -2002,6 +2002,19 @@ index 0000000000000000000000000000000000000000..42e9a4c7d7e79c7f448caa793dd59238
 +
 +if __name__ == "__main__":
 +    main()
+diff --git a/pyproject.toml b/pyproject.toml
+index ddf85f611aec805c627b376093ab23e8875048bb..6ee2c0abd43cd2bacfff67078f2b4c11c6f53574 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -39,7 +39,7 @@ where = ["."]
+ include = ["sparkinfer*"]
+ 
+ [tool.setuptools.package-data]
+-"sparkinfer.comm.pcie" = ["*.cu"]
++"sparkinfer.comm.pcie" = ["*.cu", "*.h"]
+ 
+ [tool.ruff.lint]
+ select = ["E", "F", "B", "SIM"]
 diff --git a/sparkinfer/_lib/compiler.py b/sparkinfer/_lib/compiler.py
 index 3357d377d044a3450d87f2e384aa831c7a3b8256..9bba8af21c6a6cc27e164aadee9a1d1f3275292b 100644
 --- a/sparkinfer/_lib/compiler.py
@@ -15661,3 +15674,53 @@ index 529c37c4f21b369e550f6b8100be47fb4efc8878..27f0451539b1337a667ccfba0902e184
 +    assert torch.equal(
 +        payload[expected_ids[payload] == 4].sort().values, torch.tensor([2, 5])
 +    )
+diff --git a/tests/test_packaging.py b/tests/test_packaging.py
+index ce1cb089ec80b18a487a9fbfc4eb0b9880617df8..3671d431e483d8ffbffcfb896178aa48db942f2f 100644
+--- a/tests/test_packaging.py
++++ b/tests/test_packaging.py
+@@ -1,5 +1,6 @@
+ from __future__ import annotations
+ 
++import re
+ from pathlib import Path
+ 
+ try:
+@@ -10,6 +11,8 @@ except ModuleNotFoundError:  # Python 3.10
+ 
+ ROOT = Path(__file__).parents[1]
+ PCIE_PACKAGE = "sparkinfer.comm.pcie"
++PCIE_SOURCE_DIR = ROOT / "sparkinfer" / "comm" / "pcie"
++PCIE_PACKAGE_PATTERNS = {"*.cu", "*.h"}
+ RUNTIME_CUDA_SOURCES = {
+     "pcie_dcp_a2a.cu",
+     "pcie_dcp_topk.cu",
+@@ -17,13 +20,27 @@ RUNTIME_CUDA_SOURCES = {
+     "pcie_oneshot.cu",
+     "pcie_twoshot.cu",
+ }
++LOCAL_INCLUDE_RE = re.compile(r'^\s*#include\s+"([^"]+)"', re.MULTILINE)
+ 
+ 
+ def test_runtime_cuda_sources_are_in_package_data() -> None:
+     config = tomllib.loads((ROOT / "pyproject.toml").read_text())
+     package_data = config["tool"]["setuptools"]["package-data"]
+ 
+-    assert package_data[PCIE_PACKAGE] == ["*.cu"]
++    assert set(package_data[PCIE_PACKAGE]) == PCIE_PACKAGE_PATTERNS
+     assert {
+-        path.name for path in (ROOT / "sparkinfer" / "comm" / "pcie").glob("*.cu")
++        path.name for path in PCIE_SOURCE_DIR.glob("*.cu")
+     } == RUNTIME_CUDA_SOURCES
++
++
++def test_runtime_cuda_local_includes_are_packaged() -> None:
++    config = tomllib.loads((ROOT / "pyproject.toml").read_text())
++    package_patterns = config["tool"]["setuptools"]["package-data"][PCIE_PACKAGE]
++
++    for source in PCIE_SOURCE_DIR.glob("*.cu"):
++        for include in LOCAL_INCLUDE_RE.findall(source.read_text(encoding="utf-8")):
++            dependency = source.parent / include
++            assert dependency.is_file(), f"{source.name} includes missing {include}"
++            assert any(dependency.match(pattern) for pattern in package_patterns), (
++                f"{source.name} includes {include}, but {include} is not package data"
++            )

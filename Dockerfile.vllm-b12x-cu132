@@ -554,6 +554,26 @@ RUN git clone --filter=blob:none "${B12X_REPO}" /tmp/b12x-src \
  && python -m pip install --no-deps --force-reinstall . \
  && rm -rf /tmp/b12x-src
 
+# Runtime CUDA sources are JIT-compiled from the installed package. Fail the
+# image build if a quoted local include was omitted from the wheel.
+RUN python - <<'PY'
+import re
+import site
+from pathlib import Path
+
+roots = [
+    Path(entry) / "sparkinfer" / "comm" / "pcie"
+    for entry in site.getsitepackages()
+    if (Path(entry) / "sparkinfer" / "comm" / "pcie").is_dir()
+]
+assert len(roots) == 1, roots
+include_re = re.compile(r'^\s*#include\s+"([^"]+)"', re.MULTILINE)
+for source in roots[0].glob("*.cu"):
+    for include in include_re.findall(source.read_text(encoding="utf-8")):
+        dependency = source.parent / include
+        assert dependency.is_file(), f"{source.name} includes missing {include}"
+PY
+
 # =============================================================================
 # Stage 2d: build vLLM on top of cached FlashInfer/DeepGEMM/B12X.
 # =============================================================================

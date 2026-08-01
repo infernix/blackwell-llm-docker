@@ -310,16 +310,16 @@ output_r17="$(
 
 grep -Fxq 'composition=reproduce-r17' <<<"${output_r17}"
 grep -Fxq \
-  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmdb29328-sicfde478-fi801d57a-cu132-20260801-r17' \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmdb29328-sib2bff71-fi801d57a-cu132-20260801-r17' \
   <<<"${output_r17}"
 grep -Fxq \
-  'version=0.11.2.dev280+gilded.gnosis.v20.vllmdb29328.sicfde478.fi801d57a.cu132.20260801.r17' \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmdb29328.sib2bff71.fi801d57a.cu132.20260801.r17' \
   <<<"${output_r17}"
 grep -Fxq \
   'vllm_tree=db293280d021d32db0552f3f6e4b95abbd9c69a1' \
   <<<"${output_r17}"
 grep -Fxq \
-  'sparkinfer_tree=cfde4787facf7e32248beb8011a1aa0048b4c33c' \
+  'sparkinfer_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
   <<<"${output_r17}"
 grep -Fxq \
   'launcher_ref=ec0279f1c2ccf06656df21d65c7a18984c45fcd8' \

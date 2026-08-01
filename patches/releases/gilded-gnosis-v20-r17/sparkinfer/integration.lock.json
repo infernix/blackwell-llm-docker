@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/sparkinfer.git"
   },
   "manifest": {
-    "sha256": "38d44effeb4d2c14a81fd7f0717a47469e00f34e798e66f9753a85d3861eea58"
+    "sha256": "f4b0bab203898fc1cb8e74975c5de4fb68ad504ec4018cb24ab03eb746a26d3b"
   },
   "name": "gilded-gnosis-v20-sparkinfer",
   "pull_requests": [
@@ -18,7 +18,7 @@
     },
     {
       "disposition": "merged",
-      "head": "caa643c8546121214493d052221f16c62f69f719",
+      "head": "45033eebcf5bb184587a35c528a62721a46acdf5",
       "number": 105,
       "ref": "refs/pull/105/head",
       "title": "Harden replay and CUDA IPC lifecycle"
@@ -33,8 +33,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "a244c1c788f9c5b8a2f679ce0bf15c0d990812d765a7c929cb97a7df44fdeabb",
-    "tree": "cfde4787facf7e32248beb8011a1aa0048b4c33c"
+    "patch_sha256": "e89b1d2bde073dffc7f4de910ac3f7d75d4a00f8e48b55ee09b42e8126ce6e55",
+    "tree": "b2bff719ba1be0a5d30cb39cba795f0812db0f3d"
   },
   "schema_version": 1
 }

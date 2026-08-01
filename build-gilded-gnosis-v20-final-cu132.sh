@@ -111,8 +111,8 @@ elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r17/lmcache" 0
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmdb29328-sicfde478-fi801d57a-cu132-20260801-r17}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmdb29328.sicfde478.fi801d57a.cu132.20260801.r17}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmdb29328-sib2bff71-fi801d57a-cu132-20260801-r17}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmdb29328.sib2bff71.fi801d57a.cu132.20260801.r17}"
 elif [[ "${composition_mode}" == "reproduce-r16" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r16/vllm" 0
