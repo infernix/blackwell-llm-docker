@@ -371,6 +371,12 @@ grep -Fxq \
 grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r20}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r20}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r20}"
+grep -Fxq \
+  'instanttensor_repo=https://github.com/scitix/InstantTensor.git' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'instanttensor_commit=85e7c5f5539d9c006ee0c26bc1b5233c65251b6b' \
+  <<<"${output_r20}"
 
 output_r19="$(
   cd "${repo_root}"

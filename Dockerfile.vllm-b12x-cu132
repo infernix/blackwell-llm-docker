@@ -1351,6 +1351,7 @@ ARG DEEPGEMM_REF
 ARG DEEPGEMM_COMMIT
 ARG TRITON_KERNELS_REF
 ARG TRITON_KERNELS_COMMIT
+ARG INSTANTTENSOR_REPO
 ARG INSTANTTENSOR_REF
 ARG INSTANTTENSOR_COMMIT
 ARG LAUNCHER_REF
@@ -1427,6 +1428,7 @@ LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer im
       local-inference.deepgemm.commit="${DEEPGEMM_COMMIT}" \
       local-inference.triton_kernels.branch="${TRITON_KERNELS_REF}" \
       local-inference.triton_kernels.commit="${TRITON_KERNELS_COMMIT}" \
+      local-inference.instanttensor.repo="${INSTANTTENSOR_REPO}" \
       local-inference.instanttensor.branch="${INSTANTTENSOR_REF}" \
       local-inference.instanttensor.commit="${INSTANTTENSOR_COMMIT}" \
       local-inference.exllamav3.repo="${EXLLAMAV3_REPO}" \

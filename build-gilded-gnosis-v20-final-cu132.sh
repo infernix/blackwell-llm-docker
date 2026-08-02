@@ -101,8 +101,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r20}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r20}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r21}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r21}"
 elif [[ "${composition_mode}" == "reproduce-r20" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r20/vllm" 0
@@ -342,9 +342,15 @@ else
   export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-0}"
 fi
 
-export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
-export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
-export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
+if [[ "${composition_mode}" == "clean" ]]; then
+  export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}"
+  export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-25b3f268ea95b76bd03c825a1681872c9b615428}"
+  export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-25b3f268ea95b76bd03c825a1681872c9b615428}"
+else
+  export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/scitix/InstantTensor.git}"
+  export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
+  export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
+fi
 if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
@@ -364,7 +370,7 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
     "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
     "${LAUNCHER_REPO}" "${LAUNCHER_REF}" "${LAUNCHER_COMMIT}" \
@@ -372,7 +378,8 @@ if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
     "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
     "${LMCACHE_PATCH_FILE}" "${LMCACHE_BUILD_VERSION}" \
     "${XGRAMMAR_REPO}" "${XGRAMMAR_REF}" "${XGRAMMAR_COMMIT}" \
-    "${XGRAMMAR_VERSION}" "${XGRAMMAR_TRANSFORMERS5_COMPAT}"
+    "${XGRAMMAR_VERSION}" "${XGRAMMAR_TRANSFORMERS5_COMPAT}" \
+    "${INSTANTTENSOR_REPO}" "${INSTANTTENSOR_REF}" "${INSTANTTENSOR_COMMIT}"
   exit 0
 fi
 export HUMMING_KERNELS_SPEC="${HUMMING_KERNELS_SPEC:-humming-kernels[cu13]==0.1.10}"
@@ -428,6 +435,8 @@ jq -e --arg value "${EXLLAMAV3_COMMIT}" '."local-inference.exllamav3.commit" == 
 jq -e --arg value "${LMCACHE_COMMIT}" '."local-inference.lmcache.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha256" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${INSTANTTENSOR_REPO}" '."local-inference.instanttensor.repo" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${INSTANTTENSOR_COMMIT}" '."local-inference.instanttensor.commit" == $value' <<<"${labels}" >/dev/null
 if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null

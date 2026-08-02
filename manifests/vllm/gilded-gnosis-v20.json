@@ -10,9 +10,9 @@
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
-      "number": 212,
-      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
-      "title": "Preserve compressed MLA page stride"
+      "number": 229,
+      "head": "672aec40dc664de014bd1e92d9a2885d7658c37f",
+      "title": "Harden compressed MLA cache and workspace contracts"
     },
     {
       "number": 213,
@@ -26,7 +26,7 @@
     },
     {
       "number": 217,
-      "head": "69a9076645c78b4cfd301ae841f91cf8550112ce",
+      "head": "222512b9fe02b30e917188baa89e4b11ddde8cc6",
       "title": "Use shared regions for native CPU KV offload"
     },
     {
