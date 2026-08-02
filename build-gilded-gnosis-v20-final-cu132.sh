@@ -101,8 +101,8 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r19}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r19}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r20}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r20}"
 elif [[ "${composition_mode}" == "reproduce-r19" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r19/vllm" 0
@@ -293,7 +293,10 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r18" ]]; then
+if [[ "${composition_mode}" == "clean" ]]; then
+  export LAUNCHER_REF="${LAUNCHER_REF:-76b1cf0350709910208e61285adc955e34655136}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-76b1cf0350709910208e61285adc955e34655136}"
+elif [[ "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r18" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-8f07269878d4bd7c3f541f42fa8a6c6a80927329}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-8f07269878d4bd7c3f541f42fa8a6c6a80927329}"
 elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
@@ -446,6 +449,10 @@ image_env="$(docker image inspect "${IMAGE}" --format '{{range .Config.Env}}{{pr
 grep -Fxq "XDG_CACHE_HOME=/cache/jit/${cache_fingerprint}" <<<"${image_env}"
 grep -Fxq "VLLM_CACHE_ROOT=/cache/jit/${cache_fingerprint}/vllm" <<<"${image_env}"
 grep -Fxq "SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${cache_fingerprint}/sparkinfer/compile" <<<"${image_env}"
+grep -Fxq "VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3" <<<"${image_env}"
+grep -Fxq "VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT}" <<<"${image_env}"
+grep -Fxq "VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online" <<<"${image_env}"
+grep -Fxq "VLLM_EXL3_ONLINE_CACHE_MODE=readwrite" <<<"${image_env}"
 
 docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
   -e EXPECTED_SPARKINFER_VERSION="${SPARKINFER_VERSION}" \
@@ -453,6 +460,7 @@ docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
   -e EXPECTED_TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX}" \
   -e EXPECTED_LMCACHE_VERSION="${LMCACHE_BUILD_VERSION}" \
   -e EXPECTED_XGRAMMAR_VERSION="${XGRAMMAR_VERSION}" \
+  -e EXPECTED_EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT}" \
   --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
 import importlib.metadata as md
 import inspect
@@ -476,6 +484,7 @@ from sparkinfer.comm.pcie.pcie_dma import (
     _normalize_fp8_mode,
 )
 from sparkinfer.gemm import bmm, can_implement_bmm, prewarm_bmm
+from sparkinfer.gemm.trellis_linear import _small_m as trellis_k6_small
 from sparkinfer.moe import fused_moe
 from sparkinfer.moe.fused_moe import _impl as fused_moe_impl
 from sparkinfer.moe._shared.kernels.w4a16 import kernel as w4a16_kernel
@@ -493,6 +502,10 @@ from vllm.model_executor.warmup.kernel_warmup import (
 )
 from vllm.models.deepseek_v4.nvidia.b12x import _b12x_cache_page_view
 from vllm.model_executor.layers.quantization.exl3 import _load_exl3_ext
+from vllm.model_executor.layers.quantization.exl3_online_cache import (
+    Exl3OnlineCacheKey,
+    cache_root as exl3_online_cache_root,
+)
 from vllm.model_executor.layers.sparse_attn_indexer import (
     _merge_b12x_dcp_topk_by_owner,
 )
@@ -509,12 +522,34 @@ from vllm.v1.kv_offload.cpu.spec import CPUOffloadingSpec
 assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
 assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
 assert md.version("pytest") == "8.4.1"
+assert md.version("tblib") == "3.2.2"
 if os.environ.get("EXPECTED_XGRAMMAR_VERSION"):
     assert md.version("xgrammar") == os.environ["EXPECTED_XGRAMMAR_VERSION"]
 assert md.version("nvidia-cutlass-dsl") == os.environ["EXPECTED_CUTLASS_DSL_VERSION"]
 assert torch.__version__.startswith(os.environ["EXPECTED_TORCH_VERSION_PREFIX"])
 assert torch.version.cuda == "13.2"
 assert "VLLM_EXL3_ABI_SHIM" not in os.environ
+assert os.environ["VLLM_EXL3_ENCODER_SOURCE"] == "/opt/exllamav3-python/exllamav3"
+assert os.environ["VLLM_EXL3_ENCODER_REVISION"] == os.environ[
+    "EXPECTED_EXLLAMAV3_COMMIT"
+]
+assert os.environ["VLLM_EXL3_ONLINE_CACHE_MODE"] == "readwrite"
+assert exl3_online_cache_root() == __import__("pathlib").Path("/cache/exl3-online")
+assert __import__("pathlib").Path(
+    "/opt/exllamav3-python/exllamav3/modules/quant/exl3_lib/quantize.py"
+).is_file()
+assert trellis_k6_small._SOURCE.is_file()
+assert Exl3OnlineCacheKey(
+    model_identity="m",
+    encoder_identity="e",
+    prefix="p",
+    bits=6,
+    seed=0,
+    tp_world_size=4,
+    tp_rank=0,
+    input_size=2048,
+    output_size=4096,
+).digest()
 exl3_ext = _load_exl3_ext()
 for exl3_export in (
     "exl3_gemm",
@@ -734,6 +769,25 @@ if grep -q -- '--quantization-config' "${exl3_dry_run_file}"; then
   printf 'EXL3 helper unexpectedly enabled online quantization\n' >&2
   exit 1
 fi
+
+exl3_b6_dry_run_file="/tmp/gilded-gnosis-v20-final-exl3-b6.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+  -e DRY_RUN=1 \
+  -e MODEL_FAMILY=glm52-exl3 \
+  -e ONLINE_QUANT=exl3-b6 \
+  "${IMAGE}" | tee "${exl3_b6_dry_run_file}"
+
+grep -Fxq 'ONLINE_QUANT=exl3-b6' "${exl3_b6_dry_run_file}"
+grep -Fxq 'VLLM_EXL3_ONLINE_TRELLIS_BITS=6' "${exl3_b6_dry_run_file}"
+grep -Fxq \
+  'VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3' \
+  "${exl3_b6_dry_run_file}"
+grep -Fxq 'VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online' \
+  "${exl3_b6_dry_run_file}"
+grep -Fxq 'VLLM_EXL3_ONLINE_CACHE_MODE=readwrite' \
+  "${exl3_b6_dry_run_file}"
+grep -Fq 'shared_experts' "${exl3_b6_dry_run_file}"
+grep -Fq -- '--quantization-config' "${exl3_b6_dry_run_file}"
 
 assert_dcp_policy() {
   local name="$1"
