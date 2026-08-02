@@ -370,6 +370,15 @@ export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 
 
 requested_push="${PUSH_IMAGE:-0}"
 export PUSH_IMAGE=0
+local_gpu_validation="${LOCAL_GPU_VALIDATION:-1}"
+if [[ "${local_gpu_validation}" != "0" && "${local_gpu_validation}" != "1" ]]; then
+  printf 'LOCAL_GPU_VALIDATION must be 0 or 1\n' >&2
+  exit 1
+fi
+if [[ "${requested_push}" == "1" && "${local_gpu_validation}" != "1" ]]; then
+  printf 'Refusing PUSH_IMAGE=1 without local GPU image validation\n' >&2
+  exit 1
+fi
 
 runtime_source_paths=(
   launchers
@@ -454,6 +463,7 @@ grep -Fxq "VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT}" <<<"${image_env}"
 grep -Fxq "VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online" <<<"${image_env}"
 grep -Fxq "VLLM_EXL3_ONLINE_CACHE_MODE=readwrite" <<<"${image_env}"
 
+if [[ "${local_gpu_validation}" == "1" ]]; then
 docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
   -e EXPECTED_SPARKINFER_VERSION="${SPARKINFER_VERSION}" \
   -e EXPECTED_CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
@@ -677,6 +687,9 @@ assert __import__("pathlib").Path(
 ).is_file()
 print("v20 final runtime contracts: PASS")
 PY
+else
+  printf 'Local GPU image validation skipped; remote validation is required before release\n'
+fi
 
 dry_run_file="/tmp/gilded-gnosis-v20-final-dcp1.txt"
 docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
@@ -901,23 +914,25 @@ docker run --rm --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
 
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=0' "${absorb_disabled_dry_run_file}"
 
-lmcache_dry_run_file="/tmp/gilded-gnosis-v20-final-lmcache.txt"
-docker run --rm --gpus "device=${VALIDATION_GPU}" --shm-size=2g \
-  --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
-  -e DRY_RUN=1 \
-  -e MODEL_FAMILY=glm52 \
-  -e MODEL=/model \
-  -e TP=8 \
-  -e DCP=4 \
-  -e MTP=0 \
-  -e LMCACHE_MODE=ram \
-  -e LMCACHE_L1_GB=1 \
-  -e LMCACHE_L1_INIT_GB=1 \
-  "${IMAGE}" | tee "${lmcache_dry_run_file}"
+if [[ "${local_gpu_validation}" == "1" ]]; then
+  lmcache_dry_run_file="/tmp/gilded-gnosis-v20-final-lmcache.txt"
+  docker run --rm --gpus "device=${VALIDATION_GPU}" --shm-size=2g \
+    --entrypoint /usr/local/bin/serve-gilded-gnosis.sh \
+    -e DRY_RUN=1 \
+    -e MODEL_FAMILY=glm52 \
+    -e MODEL=/model \
+    -e TP=8 \
+    -e DCP=4 \
+    -e MTP=0 \
+    -e LMCACHE_MODE=ram \
+    -e LMCACHE_L1_GB=1 \
+    -e LMCACHE_L1_INIT_GB=1 \
+    "${IMAGE}" | tee "${lmcache_dry_run_file}"
 
-grep -Fq 'LMCache ready: mode=ram' "${lmcache_dry_run_file}"
-grep -Fq -- '--kv-transfer-config' "${lmcache_dry_run_file}"
-grep -Fq 'LMCacheMPConnector' "${lmcache_dry_run_file}"
+  grep -Fq 'LMCache ready: mode=ram' "${lmcache_dry_run_file}"
+  grep -Fq -- '--kv-transfer-config' "${lmcache_dry_run_file}"
+  grep -Fq 'LMCacheMPConnector' "${lmcache_dry_run_file}"
+fi
 
 if [[ "${requested_push}" == "1" ]]; then
   docker push "${IMAGE}"
