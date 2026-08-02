@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "695c816512e07ab5079529ec06866f2767c240ff2501d52f122c5e2ed1284f95"
+    "sha256": "96c5446b32ce715855b0ce347aff297c8da9ca0228736f4b328ca46e4ed82537"
   },
   "name": "gilded-gnosis-v20",
   "pull_requests": [
@@ -60,7 +60,7 @@
     },
     {
       "disposition": "merged",
-      "head": "eeba9973ed96c34390b79001e022fdb2136768db",
+      "head": "1702ed2d28342d84551539f8d7e2de637f7ca04e",
       "number": 228,
       "ref": "refs/pull/228/head",
       "title": "Consolidate r20 EXL3 prefill and online K6 cache"
@@ -68,8 +68,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "442f4245066213294a98e8784c38ff105892eb21dbc40e5a1582369fc911cc75",
-    "tree": "30f270747c3896b20b867843fbb3c36acce2cc28"
+    "patch_sha256": "127de67f1d5977ca92daa803c8760918f63da9b3334d2b9912aab5796eda8ce6",
+    "tree": "72c35f14b65857110a7434e9243ca18b8cabd032"
   },
   "schema_version": 1
 }

@@ -294,7 +294,7 @@ VLLM_RELEASE_COMPOSITION=reproduce-r20 \
 Published r20 image:
 
 ```text
-voipmonitor/vllm:gilded-gnosis-v20-vllm30f2707-sic80c071-fi801d57a-cu132-20260802-r20
+voipmonitor/vllm:gilded-gnosis-v20-vllm72c35f1-si2b9bf2a-fi801d57a-cu132-20260802-r20
 ```
 
 Enable online K6 only with an EXL3 checkpoint and backend:
@@ -306,11 +306,12 @@ ONLINE_QUANT=exl3-b6 \
   docker compose up -d
 ```
 
-On the TP4 release validation host, cold creation produced 1,644 files
-(11.90 GB) and reached `/health` in 748 seconds. Restarting the identical
-container with the same cache mount produced 1,645 cache hits, no encodes, and
-reached `/health` in 115 seconds. MTP0 CC1 decode was 53.49/53.22 tok/s;
-uncached prefill was 3,636 tok/s at 8k and 3,511 tok/s at 64k.
+On the TP4 release validation host, a fully empty EXL3 and JIT cache produced
+1,644 EXL3 files (11.90 GB) and reached `/health` in 827 seconds. Restarting
+the identical container with the same cache mount produced 1,644 cache hits,
+no encodes, an identical EXL3 cache manifest, and reached `/health` in 113.94
+seconds. MTP0 CC1 decode was 53.23/53.08 tok/s; uncached prefill was 3,635.67
+tok/s at 8k and 3,512.62 tok/s at 64k.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
