@@ -278,6 +278,40 @@ no-offload baseline reached 220.6 tok/s; a repeated 5.5 GiB offload run reached
 222.9 tok/s. A 70k/80k/100k prefix sequence transferred 5.22 GB from GPU to
 CPU, then restored 635.5 MB and 69,888 prefix tokens from CPU on replay.
 
+The r20 release is a strict r19 superset. It adds the qualified block-32
+SparkInfer prefill path for mixed Trellis B3/B4 experts and an opt-in online
+EXL3 K6 path for eligible dense matrices. Online K6 artifacts are written as
+per-rank safetensors under `/cache/exl3-online`; the cache key includes the
+checkpoint, encoder, TP geometry, tensor shape, and quantization parameters.
+Mount `/cache` persistently so later starts load the artifacts instead of
+encoding them again.
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r20 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r20 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm30f2707-sic80c071-fi801d57a-cu132-20260802-r20
+```
+
+Enable online K6 only with an EXL3 checkpoint and backend:
+
+```bash
+MODEL_FAMILY=glm52-exl3 \
+QUANTIZATION=exl3 \
+ONLINE_QUANT=exl3-b6 \
+  docker compose up -d
+```
+
+On the TP4 release validation host, cold creation produced 1,644 files
+(11.90 GB) and reached `/health` in 748 seconds. Restarting the identical
+container with the same cache mount produced 1,645 cache hits, no encodes, and
+reached `/health` in 115 seconds. MTP0 CC1 decode was 53.49/53.22 tok/s;
+uncached prefill was 3,636 tok/s at 8k and 3,511 tok/s at 64k.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

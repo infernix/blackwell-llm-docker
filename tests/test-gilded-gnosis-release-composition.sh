@@ -337,6 +337,41 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r20="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r20 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r20' <<<"${output_r20}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm30f2707-sic80c071-fi801d57a-cu132-20260802-r20' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllm30f2707.sic80c071.fi801d57a.cu132.20260802.r20' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'vllm_tree=30f270747c3896b20b867843fbb3c36acce2cc28' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'sparkinfer_tree=c80c071115784fbfda755634f36f1d43ed1ec4c7' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'launcher_ref=76b1cf0350709910208e61285adc955e34655136' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'launcher_commit=76b1cf0350709910208e61285adc955e34655136' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
+  <<<"${output_r20}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r20/lmcache/integration.patch' \
+  <<<"${output_r20}"
+grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r20}"
+grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r20}"
+grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r20}"
+
 output_r19="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r19 \

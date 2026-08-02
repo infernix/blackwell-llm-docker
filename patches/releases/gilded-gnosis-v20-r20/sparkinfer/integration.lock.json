@@ -1,0 +1,40 @@
+{
+  "base": {
+    "commit": "59216fa25f3d5fc9d4df2d052e02d05f763906e9",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/sparkinfer.git"
+  },
+  "manifest": {
+    "sha256": "27f806250507dac96ed242b1ed36eadd5b5cb07d5ec83edc4786e7ac3a7c4be6"
+  },
+  "name": "gilded-gnosis-v20-sparkinfer",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "35588fb570d23713bcb2a81749d0fdf3c4396ace",
+      "number": 106,
+      "ref": "refs/pull/106/head",
+      "title": "Honor compressed cache physical page stride"
+    },
+    {
+      "disposition": "merged",
+      "head": "6c3f05207475bf37420a1aa50544d593f62cbcc6",
+      "number": 113,
+      "ref": "refs/pull/113/head",
+      "title": "Rebase replay and CUDA IPC lifecycle hardening"
+    },
+    {
+      "disposition": "merged",
+      "head": "9ec686752f339044bedaa2c1e91d6771f5c40980",
+      "number": 112,
+      "ref": "refs/pull/112/head",
+      "title": "Consolidate mixed prefill and dense K6 runtime"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "cb5a26e002e44a7366b772fb1d79a70f8cd66eb02704f8aa03e8548bc8789118",
+    "tree": "c80c071115784fbfda755634f36f1d43ed1ec4c7"
+  },
+  "schema_version": 1
+}
