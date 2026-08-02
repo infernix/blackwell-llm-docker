@@ -186,6 +186,25 @@ case "${ONLINE_QUANT}" in
       QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"},"shared_experts":{"weight":"mxfp8"},"ignore":["re:^model\\.layers\\.0\\.","re:.*\\.self_attn\\.indexer\\.","re:.*\\.mlp\\.gate$","model.layers.78.eh_proj","lm_head"]}'
     fi
     ;;
+  exl3-b6)
+    [[ "${QUANTIZATION}" == "exl3" ]] || \
+      die "ONLINE_QUANT=exl3-b6 requires QUANTIZATION=exl3"
+    if [[ -n "${VLLM_EXL3_ONLINE_TRELLIS_BITS:-}" && \
+          "${VLLM_EXL3_ONLINE_TRELLIS_BITS}" != "6" ]]; then
+      die "ONLINE_QUANT=exl3-b6 requires VLLM_EXL3_ONLINE_TRELLIS_BITS=6"
+    fi
+    export VLLM_EXL3_ONLINE_TRELLIS_BITS=6
+    export VLLM_EXL3_ENCODER_SOURCE="${VLLM_EXL3_ENCODER_SOURCE:-/opt/exllamav3-python/exllamav3}"
+    export VLLM_EXL3_ONLINE_CACHE_DIR="${VLLM_EXL3_ONLINE_CACHE_DIR:-/cache/exl3-online}"
+    export VLLM_EXL3_ONLINE_CACHE_MODE="${VLLM_EXL3_ONLINE_CACHE_MODE:-readwrite}"
+    if [[ -z "${QUANTIZATION_CONFIG_JSON}" ]]; then
+      # Convert eligible BF16 dense/shared-expert weights to Trellis K6. The
+      # remaining explicitly excluded sensitive or unsupported projections
+      # stay in their checkpoint dtype; 128-unaligned eligible shapes retain
+      # the MXFP8 fallback selected by this policy.
+      QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"},"shared_experts":{"weight":"mxfp8"},"ignore":["re:.*\\.fused_qkv_a_proj$","re:.*\\.q_a_proj$","re:.*kv_a_proj_with_mqa","re:.*\\.mlp\\.gate$","model.layers.78.eh_proj","lm_head"]}'
+    fi
+    ;;
   fp8|fp8_block|fp8-block|fp8-mxfp4)
     ONLINE_QUANT=fp8
     if [[ -z "${QUANTIZATION_CONFIG_JSON}" ]]; then
@@ -196,7 +215,7 @@ case "${ONLINE_QUANT}" in
     [[ -n "${QUANTIZATION_CONFIG_JSON}" ]] || die "ONLINE_QUANT=custom requires QUANTIZATION_CONFIG_JSON"
     ;;
   *)
-    die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, fp8, or custom"
+    die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, exl3-b6, fp8, or custom"
     ;;
 esac
 
@@ -425,6 +444,12 @@ if [[ "${DRY_RUN:-0}" == "1" ]]; then
   printf 'QUANTIZATION=%q\n' "${QUANTIZATION}"
   printf 'ONLINE_QUANT=%q\n' "${ONLINE_QUANT}"
   printf 'QUANTIZATION_CONFIG_JSON=%q\n' "${QUANTIZATION_CONFIG_JSON}"
+  printf 'VLLM_EXL3_ONLINE_TRELLIS_BITS=%q\n' "${VLLM_EXL3_ONLINE_TRELLIS_BITS:-}"
+  printf 'VLLM_EXL3_ENCODER_SOURCE=%q\n' "${VLLM_EXL3_ENCODER_SOURCE:-}"
+  printf 'VLLM_EXL3_ENCODER_REVISION=%q\n' "${VLLM_EXL3_ENCODER_REVISION:-}"
+  printf 'VLLM_EXL3_ONLINE_CACHE_DIR=%q\n' "${VLLM_EXL3_ONLINE_CACHE_DIR:-}"
+  printf 'VLLM_EXL3_ONLINE_CACHE_MODE=%q\n' "${VLLM_EXL3_ONLINE_CACHE_MODE:-}"
+  printf 'VLLM_EXL3_PREFILL_BLOCK_M=%q\n' "${VLLM_EXL3_PREFILL_BLOCK_M:-}"
   printf 'COMPILATION_CONFIG_JSON=%q\n' "${COMPILATION_CONFIG_JSON}"
   printf 'ASYNC_SCHEDULING=%q\n' "${ASYNC_SCHEDULING}"
   printf 'MTP_MOE_BACKEND=%q\n' "${MTP_MOE_BACKEND}"

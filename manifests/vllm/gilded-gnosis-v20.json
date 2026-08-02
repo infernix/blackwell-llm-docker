@@ -40,9 +40,9 @@
       "title": "Isolate semantic PCIe graph channels"
     },
     {
-      "number": 225,
-      "head": "02c854e3a2f98dea8b246fa12e9742d085a9bb79",
-      "title": "Consolidate EXL3 mixed execution, MXFP8 overlay, and shared rotations"
+      "number": 228,
+      "head": "eeba9973ed96c34390b79001e022fdb2136768db",
+      "title": "Consolidate r20 EXL3 prefill and online K6 cache"
     }
   ]
 }

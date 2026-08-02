@@ -366,7 +366,10 @@ RUN git clone "${EXLLAMAV3_REPO}" exllamav3 \
  && mapfile -t extensions < <(find . -maxdepth 1 -type f -name 'exllamav3_ext*.so' -print) \
  && [[ "${#extensions[@]}" == 1 ]] \
  && install -d /opt/exllamav3 \
- && install -m 0755 "${extensions[0]}" /opt/exllamav3/
+ && install -m 0755 "${extensions[0]}" /opt/exllamav3/ \
+ && test -f exllamav3/modules/quant/exl3_lib/quantize.py \
+ && install -d /opt/exllamav3-python \
+ && cp -a exllamav3 /opt/exllamav3-python/
 
 RUN VLLM_EXL3_EXT_PATH=/opt/exllamav3 python - <<'PY'
 import importlib
@@ -1037,6 +1040,7 @@ COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
 COPY --from=exllamav3-build /opt/exllamav3 /opt/exllamav3
+COPY --from=exllamav3-build /opt/exllamav3-python /opt/exllamav3-python
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
 ARG VLLM_RUNTIME_EXTRA_PACKAGES=""
 ARG INSTANTTENSOR_REPO
@@ -1082,6 +1086,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       "apache-tvm-ffi==${TVM_FFI_VERSION}" \
       "fastsafetensors>=0.3.2" \
       "pytest==8.4.1" \
+      "tblib==3.2.2" \
  && if [[ -n "${VLLM_RUNTIME_EXTRA_PACKAGES}" ]]; then \
       /opt/venv/bin/python -m pip install --upgrade \
         --index-url https://download.pytorch.org/whl/cu132 \
@@ -1227,6 +1232,7 @@ RUN cublas="$(readlink -f /usr/lib/x86_64-linux-gnu/libcublas/13/libcublas.so.13
  && ldconfig
 
 ARG CACHE_FINGERPRINT=unversioned
+ARG EXLLAMAV3_COMMIT
 
 ENV VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:${PATH}" \
@@ -1262,6 +1268,10 @@ ENV VIRTUAL_ENV=/opt/venv \
     NCCL_PR2127_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     VLLM_EXL3_EXT_PATH=/opt/exllamav3 \
+    VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3 \
+    VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT} \
+    VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online \
+    VLLM_EXL3_ONLINE_CACHE_MODE=readwrite \
     LD_PRELOAD=/opt/libnccl-local-inference.so.2.30.4 \
     NCCL_IB_DISABLE=1 \
     NCCL_P2P_LEVEL=SYS \
@@ -1298,6 +1308,7 @@ RUN mkdir -p \
       "${CUDA_CACHE_PATH}" \
       "${CUPY_CACHE_DIR}" \
       "${NUMBA_CACHE_DIR}" \
+      "${VLLM_EXL3_ONLINE_CACHE_DIR}" \
  && strings /opt/libnccl-local-inference.so.2.30.4 | grep -F "NCCL version 2.30.4 compiled with CUDA 13.2" \
  && /usr/local/bin/verify-vllm-b12x-cu132 /opt/vllm \
  && python - <<'PY'
