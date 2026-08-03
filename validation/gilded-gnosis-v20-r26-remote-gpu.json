@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-20260803-r26",
+  "image_id": "sha256:30a752f0b490a3841610dfbea8f5758eab66924537feaeb1cd06b8e6ac92cce4",
+  "vllm_tree": "f5981f14b4d39979bc0d799c020d42002b707257",
+  "sparkinfer_tree": "bbbdccc338a2691d780ed160db54ef121c3a61c9",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [4, 5, 6, 7],
+  "validated_at": "2026-08-03T16:46:21Z",
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass"
+  },
+  "evidence": {
+    "model": "willfalco/GLM-5.2-EXL3-TR3-3.36bpw@8d9aa923a17502675ca23737349b67f2e66bb69d",
+    "profile": "TP4/DCP4/MTP3, greedy draft sampling, Triton draft MoE, graph 32, max sequences 8, scheduler chunk 2048, lossless transport",
+    "automatic_dcp_policy": {
+      "query_split": 1,
+      "query_split_min_context_tokens": 8192,
+      "ckv_gather": 1,
+      "owner_merge": 0,
+      "indexer_shards": 2,
+      "ckv_prefetch_depth": 1,
+      "lossless_dma_min_bytes": 25165824
+    },
+    "kv_cache_tokens": 498176,
+    "prefill_8192_tps_median": 3124.504938315188,
+    "prefill_65536_tps_median": 2988.421130213537,
+    "decode_completion_tokens": 256,
+    "decode_coherent": true,
+    "mtp_draft_tokens": 276,
+    "mtp_accepted_tokens": 164,
+    "mtp_acceptance_rate": 0.5942028985507246
+  }
+}

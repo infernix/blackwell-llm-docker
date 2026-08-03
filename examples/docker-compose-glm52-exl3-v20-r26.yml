@@ -1,0 +1,60 @@
+# GLM-5.2 mixed EXL3 3.36 bpw, validated Gilded Gnosis r26 profile.
+#
+# r26 fixes the TP4/DCP4 automatic prefill policy. On the validation host the
+# helper selected query split, full CKV gather, two indexer shards, no owner
+# exchange, and one-layer CKV prefetch. Keep /cache persistent: the first start
+# creates online K6 and JIT artifacts; later starts reuse them.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-20260803-r26}
+    container_name: ${NAME:-glm52-exl3-r26}
+    entrypoint: ["/usr/local/bin/serve-gilded-gnosis.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 64gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52-exl3
+      GPUS: ${GPUS:-0,1,2,3}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-willfalco/GLM-5.2-EXL3-TR3-3.36bpw}
+      MODEL_REVISION: ${MODEL_REVISION:-8d9aa923a17502675ca23737349b67f2e66bb69d}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-EXL3-TR3-3.36bpw}
+      TP: 4
+      DCP: 4
+      MTP: 3
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
+      GRAPH: ${GRAPH:-32}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-524288}
+      MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-2048}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.96}
+      MOE_MODE: a16
+      ONLINE_QUANT: ${ONLINE_QUANT:-exl3-b6}
+      KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-nvfp4_ds_mla}
+      LOAD_FORMAT: safetensors
+      MTP_MOE_BACKEND: ${MTP_MOE_BACKEND:-triton}
+      MTP_DRAFT_SAMPLE_METHOD: ${MTP_DRAFT_SAMPLE_METHOD:-greedy}
+      PCIE_CALIBRATION: ${PCIE_CALIBRATION:-auto}
+      DCP_QUERY_SPLIT: ${DCP_QUERY_SPLIT:-auto}
+      DCP_CKV_GATHER: ${DCP_CKV_GATHER:-auto}
+      DCP_TOPK_OWNER_MERGE: ${DCP_TOPK_OWNER_MERGE:-auto}
+      DCP_INDEXER_SHARDS: ${DCP_INDEXER_SHARDS:-auto}
+      DCP_CKV_PREFETCH_DEPTH: ${DCP_CKV_PREFETCH_DEPTH:-auto}
+      VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE: ${VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE:-auto}
+      # Optional capacity-first setting. Leave blank for the fastest prefill.
+      VLLM_EXL3_PREFILL_CAPACITY: ${VLLM_EXL3_PREFILL_CAPACITY:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-exl3-r26}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-exl3-r26/tmp}:/container-tmp

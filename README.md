@@ -380,6 +380,35 @@ tok/s at 8k and 2,018 tok/s at 64k; KV capacity was 770,048 tokens. The exact
 remote validation receipt is
 `validation/gilded-gnosis-v20-r25-remote-gpu.json`.
 
+The r26 GLM release fixes the TP4/DCP4 prefill policy. TP4/DCP4 has one query
+partition, so the exact owner-exchange path only adds row routing and an output
+all-gather; it cannot remove duplicate query work. The helper now selects query
+split, full CKV gather, two indexer shards, and depth-1 CKV prefetch, while
+leaving owner merge disabled for this topology. Explicit environment overrides
+remain available for diagnosis.
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r26 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r26 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-20260803-r26
+Docker manifest: sha256:c7a202cf3ccd155973a151235acb9677aa98f61765372f839bb0c193ff594ec4
+```
+
+The exact image passed TP4/DCP4/MTP3 startup, automatic lossless PCIe
+calibration, CUDA graph capture, coherent 256-token decode, and uncached
+8k/64k prefill on physical GPUs 4-7 of the root-port validation host. The
+3.36 bpw checkpoint reached 3,125 tok/s at 8k and 2,988 tok/s at 64k, up
+29.8% and 48.1% over the matched r25 release gate. The calibrated policy was
+`query-split=1`, `CKV-gather=1`, `owner-merge=0`, `indexer-shards=2`, and
+`prefetch-depth=1`; no lossy transport was enabled. Use
+`examples/docker-compose-glm52-exl3-v20-r26.yml`. The exact receipt is
+`validation/gilded-gnosis-v20-r26-remote-gpu.json`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
