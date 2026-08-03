@@ -373,6 +373,23 @@ grep -Fxq \
   'instanttensor_commit=25b3f268ea95b76bd03c825a1681872c9b615428' \
   <<<"${output_r24}"
 
+output_clean="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=clean \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=clean' <<<"${output_clean}"
+grep -Fxq \
+  'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
+  <<<"${output_clean}"
+grep -Fxq \
+  'instanttensor_ref=25b3f268ea95b76bd03c825a1681872c9b615428' \
+  <<<"${output_clean}"
+grep -Fxq \
+  'instanttensor_commit=25b3f268ea95b76bd03c825a1681872c9b615428' \
+  <<<"${output_clean}"
+
 output_r20="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r20 \
