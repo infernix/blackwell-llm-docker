@@ -21,7 +21,8 @@ assert_policy "1 0 0 0 0" 4 1 auto auto auto auto auto
 assert_policy "1 0 0 0 0" 8 1 auto auto auto auto auto
 assert_policy "0 0 0 0 0" 6 1 auto auto auto auto auto
 assert_policy "1 1 1 0 1" 4 2 auto auto auto auto auto
-assert_policy "1 1 1 0 1" 4 4 auto auto auto auto auto
+assert_policy "1 1 0 2 1" 4 4 auto auto auto auto auto
+assert_policy "1 1 0 2 0" 4 4 auto auto auto auto auto 0
 assert_policy "1 1 1 0 1" 8 2 auto auto auto auto auto
 assert_policy "1 1 1 2 1" 8 4 auto auto auto auto auto
 assert_policy "1 1 1 4 1" 8 8 auto auto auto auto auto

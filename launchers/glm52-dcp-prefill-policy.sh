@@ -146,6 +146,10 @@ resolve_glm52_dcp_prefill_policy() {
   if [[ "${owner_merge}" == "auto" ]]; then
     if [[ "${dcp}" == "1" ]]; then
       owner_merge=0
+    elif [[ "${tp}:${dcp}" == "4:4" ]]; then
+      # With one query partition, owner merge adds an all-to-all plus an
+      # output all-gather where the exact local merge needs one collective.
+      owner_merge=0
     elif [[ "${tp}:${dcp}" == "8:8" && \
             "${owner_merge_topology_safe}" != "1" ]]; then
       # The exact owner exchange wins on a local PCIe fabric but loses its
@@ -158,7 +162,7 @@ resolve_glm52_dcp_prefill_policy() {
 
   if [[ "${indexer_shards}" == "auto" ]]; then
     case "${tp}:${dcp}" in
-      8:4) indexer_shards=2 ;;
+      4:4|8:4) indexer_shards=2 ;;
       8:8) indexer_shards=4 ;;
       *) indexer_shards=0 ;;
     esac

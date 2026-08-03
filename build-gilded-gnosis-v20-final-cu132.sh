@@ -912,6 +912,9 @@ assert_dcp_policy() {
 
 assert_dcp_policy tp8-dcp4 8 4 1 1 1 2 1 skipped:dry-run \
   -e DCP_CKV_PREFETCH_TOPOLOGY=safe
+assert_dcp_policy tp4-dcp4 4 4 1 1 0 2 1 skipped:dry-run \
+  -e GPUS=0,1,2,3 \
+  -e DCP_CKV_PREFETCH_TOPOLOGY=safe
 assert_dcp_policy tp8-dcp8 8 8 1 1 1 4 1 skipped:dry-run \
   -e DCP_CKV_PREFETCH_TOPOLOGY=safe
 assert_dcp_policy tp8-dcp4-slow-topology 8 4 1 1 1 2 0 skipped:dry-run \
