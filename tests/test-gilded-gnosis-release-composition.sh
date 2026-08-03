@@ -337,6 +337,49 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r27="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r27 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r27' <<<"${output_r27}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm966d57c-sibbbdccc-fi801d57a-cu132-20260803-r27' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllm966d57c.sibbbdccc.fi801d57a.cu132.20260803.r27' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'vllm_tree=966d57c8c1d9f643eaac8aa231c6e1027936ef2a' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'launcher_ref=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'launcher_commit=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r27/lmcache/integration.patch' \
+  <<<"${output_r27}"
+grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r27}"
+grep -Fxq \
+  'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
+  <<<"${output_r27}"
+grep -Fxq \
+  'instanttensor_commit=49b4010afc1cae0441e71fe0b0bffc24fa05e932' \
+  <<<"${output_r27}"
+
+r27_compose="${repo_root}/examples/docker-compose-ds4-v20-r27.yml"
+grep -Fq 'shm_size: ${SHM_SIZE:-32gb}' "${r27_compose}"
+grep -Fq 'EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}' "${r27_compose}"
+
 output_r26="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r26 \
@@ -464,13 +507,13 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-[0-9]{8}-r26$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm966d57c-sibbbdccc-fi801d57a-cu132-[0-9]{8}-r27$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmf5981f1[.]sibbbdccc[.]fi801d57a[.]cu132[.][0-9]{8}[.]r26$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm966d57c[.]sibbbdccc[.]fi801d57a[.]cu132[.][0-9]{8}[.]r27$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
+  'vllm_tree=966d57c8c1d9f643eaac8aa231c6e1027936ef2a' \
   <<<"${output_clean}"
 grep -Fxq \
   'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
@@ -482,10 +525,10 @@ grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
   <<<"${output_clean}"
 grep -Fxq \
-  'instanttensor_ref=25b3f268ea95b76bd03c825a1681872c9b615428' \
+  'instanttensor_ref=49b4010afc1cae0441e71fe0b0bffc24fa05e932' \
   <<<"${output_clean}"
 grep -Fxq \
-  'instanttensor_commit=25b3f268ea95b76bd03c825a1681872c9b615428' \
+  'instanttensor_commit=49b4010afc1cae0441e71fe0b0bffc24fa05e932' \
   <<<"${output_clean}"
 
 output_r20="$(

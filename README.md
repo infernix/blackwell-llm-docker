@@ -337,6 +337,37 @@ has mapped it, so it is reclaimed automatically when the final worker exits.
 LMCache's disk-capacity fix is included, but LMCache remains experimental for
 DS4 because long-context output correctness is not yet closed.
 
+The r27 DS4 release fixes a deterministic native L2-offload corruption found
+after r24. Tiering workers and the delayed scheduler now map the same named L1
+backing, while the scheduler skips a redundant full-region prefault. It also
+aligns the 0731 low/high/max reasoning contract and tool placement with the
+official template and adds an InstantTensor runtime-pinned fallback for hosts
+where segmented host registration is unavailable.
+
+Reproduce the exact source trees with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r27 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r27 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm966d57c-sibbbdccc-fi801d57a-cu132-20260803-r27
+```
+
+Use `examples/docker-compose-ds4-v20-r27.yml`. Native L2 offload remains
+opt-in, and host `/dev/shm` must fit the configured L1 region plus runtime
+headroom. Fixed K5 remains the release default. Batch-wide BOS output under
+deep concurrent DSpark workloads is still tracked in rtx6kpro issue #53;
+LMCache long-context correctness is also not yet a qualified DS4 path.
+
+The r27 Compose exposes `SHM_SIZE` and the helper's `EXTRA_VLLM_ARGS` so a
+tiered native L1/L2 configuration can be supplied without editing the file.
+Keep the transfer-config JSON compact because the helper treats this variable
+as an argument list.
+
 The r25 GLM release adds the runtime-dynamic mixed-Trellis partition from
 [SparkInfer #117](https://github.com/local-inference-lab/sparkinfer/pull/117).
 The 3.36 bpw checkpoint uses 206 K3 + 50 K4 experts in layer 3 and 160 K3 +
