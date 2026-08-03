@@ -313,6 +313,29 @@ no encodes, an identical EXL3 cache manifest, and reached `/health` in 113.94
 seconds. MTP0 CC1 decode was 53.23/53.08 tok/s; uncached prefill was 3,635.67
 tok/s at 8k and 3,512.62 tok/s at 64k.
 
+The r24 DS4 release hardens compressed MLA workspace sizing, InstantTensor
+host registration, native KV-offload shared-region lifetime, replay/IPC graph
+state, and the MHC compile boundary. It also includes capacity-bounded LMCache
+storage. Reproduce the exact source trees with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r24 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r24 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si2b9bf2a-fi801d57a-cu132-20260803-r24
+```
+
+The DS4 deployment recipe is
+`examples/docker-compose-ds4-v20-r24.yml`. Native KV offload is disabled by
+default. When enabled, its shared host region is unlinked after every worker
+has mapped it, so it is reclaimed automatically when the final worker exits.
+LMCache's disk-capacity fix is included, but LMCache remains experimental for
+DS4 because long-context output correctness is not yet closed.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

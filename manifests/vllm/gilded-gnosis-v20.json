@@ -26,8 +26,8 @@
     },
     {
       "number": 217,
-      "head": "222512b9fe02b30e917188baa89e4b11ddde8cc6",
-      "title": "Use shared regions for native CPU KV offload"
+      "head": "c7ac22d5bfe923803cc923f2293085faac7d1dd0",
+      "title": "Harden shared regions for native CPU KV offload"
     },
     {
       "number": 218,
@@ -43,6 +43,11 @@
       "number": 228,
       "head": "1702ed2d28342d84551539f8d7e2de637f7ca04e",
       "title": "Consolidate r20 EXL3 prefill and online K6 cache"
+    },
+    {
+      "number": 230,
+      "head": "9401f9d8916f3bdf34123d2d493a918b748c8132",
+      "title": "Keep broadcast MHC pre behind the compile boundary"
     }
   ]
 }
