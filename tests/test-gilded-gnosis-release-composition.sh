@@ -379,6 +379,7 @@ grep -Fxq \
 r27_compose="${repo_root}/examples/docker-compose-ds4-v20-r27.yml"
 grep -Fq 'shm_size: ${SHM_SIZE:-32gb}' "${r27_compose}"
 grep -Fq 'EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}' "${r27_compose}"
+grep -Fq 'PYTHONHASHSEED: ${PYTHONHASHSEED:-0}' "${r27_compose}"
 
 output_r26="$(
   cd "${repo_root}"

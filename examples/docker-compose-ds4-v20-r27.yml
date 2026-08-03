@@ -49,6 +49,8 @@ services:
       GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
       LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
       INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
+      # Keep persistent native-L2 keys stable across complete process restarts.
+      PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
       # Total native host KV capacity across all TP ranks; 0 disables it.
       KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-0}
       # Existing helper escape hatch; use compact, whitespace-free JSON.
