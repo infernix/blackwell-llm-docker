@@ -337,6 +337,45 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r26="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r26 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r26' <<<"${output_r26}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-20260803-r26' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmf5981f1.sibbbdccc.fi801d57a.cu132.20260803.r26' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'launcher_ref=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'launcher_commit=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r26/lmcache/integration.patch' \
+  <<<"${output_r26}"
+grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r26}"
+grep -Fxq \
+  'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
+  <<<"${output_r26}"
+grep -Fxq \
+  'instanttensor_commit=25b3f268ea95b76bd03c825a1681872c9b615428' \
+  <<<"${output_r26}"
+
 output_r25="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r25 \
@@ -425,16 +464,19 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si978cdb3-fi801d57a-cu132-[0-9]{8}-r25$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-sibbbdccc-fi801d57a-cu132-[0-9]{8}-r26$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmf5981f1[.]si978cdb3[.]fi801d57a[.]cu132[.][0-9]{8}[.]r25$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmf5981f1[.]sibbbdccc[.]fi801d57a[.]cu132[.][0-9]{8}[.]r26$' \
   <<<"${output_clean}"
 grep -Fxq \
   'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
   <<<"${output_clean}"
 grep -Fxq \
-  'sparkinfer_tree=978cdb3593367469abd16bc8bdbc4ed0ea2787da' \
+  'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
+  <<<"${output_clean}"
+grep -Fxq \
+  'launcher_commit=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
