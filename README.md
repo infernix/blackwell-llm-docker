@@ -327,6 +327,7 @@ Published r24 image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si2b9bf2a-fi801d57a-cu132-20260803-r24
+manifest: sha256:64b94299abdd3bcf5bb5050ca91b378f9ee4e0b0eff4748375b95352371d7cb2
 ```
 
 The DS4 deployment recipe is
