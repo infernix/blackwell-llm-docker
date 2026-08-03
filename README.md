@@ -355,6 +355,7 @@ Published r27 image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllm966d57c-sibbbdccc-fi801d57a-cu132-20260803-r27
+Docker manifest: sha256:2605fda01797f33239af4c95ec7449505fe57d9b9de9687792f5b8273d3201a7
 ```
 
 Use `examples/docker-compose-ds4-v20-r27.yml`. Native L2 offload remains
