@@ -10,14 +10,9 @@
       "title": "Honor compressed cache physical page stride"
     },
     {
-      "number": 113,
-      "head": "f3308fbdb6a5613dd3ba18bf6d482458c10684d2",
-      "title": "Rebase replay and CUDA IPC lifecycle hardening"
-    },
-    {
-      "number": 112,
-      "head": "fee1d784a798439de4e3462b0f0fc831491b5c7f",
-      "title": "Consolidate mixed prefill and dense K6 runtime"
+      "number": 117,
+      "head": "cfeee9b42d21c19a74d85ed5576f8387168df53c",
+      "title": "Make mixed Trellis expert counts runtime-dynamic"
     }
   ]
 }

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si978cdb3-fi801d57a-cu132-20260803-r25",
+  "image_id": "sha256:7b2cdb7cb0e4298a5c0907d53c5bca25287ba10ca6707cb21ede1fb65076dea0",
+  "vllm_tree": "f5981f14b4d39979bc0d799c020d42002b707257",
+  "sparkinfer_tree": "978cdb3593367469abd16bc8bdbc4ed0ea2787da",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [4, 5, 6, 7],
+  "validated_at": "2026-08-03T11:58:40Z",
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass"
+  },
+  "evidence": {
+    "model": "willfalco/GLM-5.2-EXL3-TR3-3.36bpw@8d9aa923a17502675ca23737349b67f2e66bb69d",
+    "profile": "TP4/DCP4/MTP3, greedy draft sampling, Triton draft MoE, graph 32, max sequences 8, scheduler chunk 2048",
+    "kv_cache_tokens": 770048,
+    "cc1_raw_tps_median": 91.81620297679504,
+    "cc1_acceptance_rate": 0.5747566137566138,
+    "cc1_verifier_steps_per_second": 33.703050111217145,
+    "cc1_reference_steps_per_second": 34.05665910081803,
+    "cc8_raw_tps": 314.869054279869,
+    "cc8_acceptance_rate": 0.6056396262300504,
+    "cc8_verifier_steps_per_second": 111.77782103057261,
+    "cc8_reference_steps_per_second": 111.99658479094461,
+    "prefill_8192_tps": 2407,
+    "prefill_65536_tps": 2018
+  }
+}

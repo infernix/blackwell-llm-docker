@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r24}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r24}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r25}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r25}"
+elif [[ "${composition_mode}" == "reproduce-r25" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r25/vllm" 0
+  configure_sparkinfer_composition \
+    "patches/releases/gilded-gnosis-v20-r25/sparkinfer" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r25/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si978cdb3-fi801d57a-cu132-20260803-r25}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmf5981f1.si978cdb3.fi801d57a.cu132.20260803.r25}"
 elif [[ "${composition_mode}" == "reproduce-r24" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r24/vllm" 0
@@ -313,7 +323,7 @@ export VLLM_PATCH_URL=
 export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r20" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r20" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-76b1cf0350709910208e61285adc955e34655136}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-76b1cf0350709910208e61285adc955e34655136}"
 elif [[ "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r18" ]]; then
@@ -338,7 +348,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -352,7 +362,7 @@ else
   export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-0}"
 fi
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r24" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r24" ]]; then
   export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}"
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-25b3f268ea95b76bd03c825a1681872c9b615428}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-25b3f268ea95b76bd03c825a1681872c9b615428}"
@@ -361,7 +371,7 @@ else
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 fi
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -398,12 +408,25 @@ export VLLM_RUNTIME_EXTRA_PACKAGES="${VLLM_RUNTIME_EXTRA_PACKAGES:-nvtx==0.2.15 
 requested_push="${PUSH_IMAGE:-0}"
 export PUSH_IMAGE=0
 local_gpu_validation="${LOCAL_GPU_VALIDATION:-1}"
+remote_gpu_validation_receipt="${REMOTE_GPU_VALIDATION_RECEIPT:-}"
+use_existing_validated_image="${USE_EXISTING_VALIDATED_IMAGE:-0}"
 if [[ "${local_gpu_validation}" != "0" && "${local_gpu_validation}" != "1" ]]; then
   printf 'LOCAL_GPU_VALIDATION must be 0 or 1\n' >&2
   exit 1
 fi
-if [[ "${requested_push}" == "1" && "${local_gpu_validation}" != "1" ]]; then
-  printf 'Refusing PUSH_IMAGE=1 without local GPU image validation\n' >&2
+if [[ "${use_existing_validated_image}" != "0" && \
+      "${use_existing_validated_image}" != "1" ]]; then
+  printf 'USE_EXISTING_VALIDATED_IMAGE must be 0 or 1\n' >&2
+  exit 1
+fi
+if [[ "${use_existing_validated_image}" == "1" && \
+      -z "${remote_gpu_validation_receipt}" ]]; then
+  printf 'USE_EXISTING_VALIDATED_IMAGE=1 requires REMOTE_GPU_VALIDATION_RECEIPT\n' >&2
+  exit 1
+fi
+if [[ "${requested_push}" == "1" && "${local_gpu_validation}" != "1" && \
+      -z "${remote_gpu_validation_receipt}" ]]; then
+  printf 'Refusing PUSH_IMAGE=1 without local validation or a remote GPU validation receipt\n' >&2
   exit 1
 fi
 
@@ -433,7 +456,15 @@ fi
 ./tests/test-glm52-exl3-helper.sh
 ./tests/test-glm52-lmcache-helper.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
-./build-vllm-sparkinfer-cu132.sh "$@"
+python3 -m pytest -q tests/test_verify_remote_gpu_validation.py
+if [[ "${use_existing_validated_image}" == "1" ]]; then
+  # Wheel archives are not bit-reproducible. Preserve the exact remotely
+  # validated image while still checking it against the current composition.
+  docker image inspect "${IMAGE}" >/dev/null
+  printf 'Using existing remotely validated image: %s\n' "${IMAGE}"
+else
+  ./build-vllm-sparkinfer-cu132.sh "$@"
+fi
 
 labels="$(docker image inspect "${IMAGE}" --format '{{json .Config.Labels}}')"
 jq -e --arg value "${VLLM_COMMIT}" '."local-inference.vllm.commit" == $value' <<<"${labels}" >/dev/null
@@ -447,7 +478,7 @@ jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_REPO}" '."local-inference.instanttensor.repo" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_COMMIT}" '."local-inference.instanttensor.commit" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
@@ -718,6 +749,16 @@ print("v20 final runtime contracts: PASS")
 PY
 else
   printf 'Local GPU image validation skipped; remote validation is required before release\n'
+fi
+
+if [[ -n "${remote_gpu_validation_receipt}" ]]; then
+  image_id="$(docker image inspect "${IMAGE}" --format '{{.Id}}')"
+  python3 scripts/verify_remote_gpu_validation.py \
+    --receipt "${remote_gpu_validation_receipt}" \
+    --image "${IMAGE}" \
+    --image-id "${image_id}" \
+    --vllm-tree "${VLLM_INTEGRATION_TREE}" \
+    --sparkinfer-tree "${SPARKINFER_INTEGRATION_TREE}"
 fi
 
 dry_run_file="/tmp/gilded-gnosis-v20-final-dcp1.txt"

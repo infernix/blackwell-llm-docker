@@ -337,6 +337,49 @@ has mapped it, so it is reclaimed automatically when the final worker exits.
 LMCache's disk-capacity fix is included, but LMCache remains experimental for
 DS4 because long-context output correctness is not yet closed.
 
+The r25 GLM release adds the runtime-dynamic mixed-Trellis partition from
+[SparkInfer #117](https://github.com/local-inference-lab/sparkinfer/pull/117).
+The 3.36 bpw checkpoint uses 206 K3 + 50 K4 experts in layer 3 and 160 K3 +
+96 K4 afterward; those counts are now launch arguments instead of stale
+compiled-kernel state. The change preserves one compiled kernel across both
+partitions and keeps Michel Belleau's original #114 authorship.
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r25 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r25 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmf5981f1-si978cdb3-fi801d57a-cu132-20260803-r25
+Docker manifest: sha256:042936fd8d9e4c2aa579ab9b736dd0a2faf2678c6ba36bf4dfce7db566c6fd11
+```
+
+Remote validation pins the actual image ID, not only its source trees. Python
+wheel archives are not bit-reproducible, so rebuilding after validation can
+produce a different image ID. Publish an already validated local image without
+rebuilding it by using the checked receipt path:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r25 \
+  LOCAL_GPU_VALIDATION=0 \
+  USE_EXISTING_VALIDATED_IMAGE=1 \
+  REMOTE_GPU_VALIDATION_RECEIPT=validation/gilded-gnosis-v20-r25-remote-gpu.json \
+  PUSH_IMAGE=1 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+The measured TP4/DCP4/MTP3 recipe is
+`examples/docker-compose-glm52-exl3-v20-r25.yml`. The exact image passed
+source/runtime contracts, cold model startup, coherent output, CUDA graphs,
+CC1/CC8 decode, and 8k/64k prefill on GPUs 4-7 of the root-port validation
+host. Verifier throughput was 33.70 steps/s at CC1 and 111.78 steps/s at CC8,
+within 1.04% and 0.20% of the source-overlay reference. Prefill reached 2,407
+tok/s at 8k and 2,018 tok/s at 64k; KV capacity was 770,048 tokens. The exact
+remote validation receipt is
+`validation/gilded-gnosis-v20-r25-remote-gpu.json`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
