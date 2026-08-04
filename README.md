@@ -456,6 +456,7 @@ Published r28 image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllme1e9426-si200c1db-fi801d57a-cu132-20260804-r28
+Docker manifest: sha256:501e10e79b4bc854237804d215e454c531ac9c2d354a8fa1a93e450fe7ba6ce0
 ```
 
 The checkpoint's physical shared-H layout saves 672.36 MiB/GPU at MTP0 and
