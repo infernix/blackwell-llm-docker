@@ -1,0 +1,60 @@
+# GLM-5.2 shared-H EXL3 3.42 bpw, validated Gilded Gnosis r28 profile.
+#
+# The checkpoint stores one H rotation row per tier. r28 consumes that layout
+# directly instead of expanding it to all experts. Keep /cache persistent for
+# online K6 and JIT reuse. The first four GPUs are only an example.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllme1e9426-si200c1db-fi801d57a-cu132-20260804-r28}
+    container_name: ${NAME:-glm52-exl3-r28}
+    entrypoint: ["/usr/local/bin/serve-gilded-gnosis.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 64gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52-exl3
+      GPUS: ${GPUS:-0,1,2,3}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-willfalco/GLM-5.2-EXL3-TR3-3.42bpw}
+      MODEL_REVISION: ${MODEL_REVISION:-ae68c65947efa90bea37308e15421872f124c46d}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-EXL3-TR3-3.42bpw}
+      TP: 4
+      DCP: ${DCP:-4}
+      MTP: ${MTP:-3}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      GRAPH: ${GRAPH:-16}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-262144}
+      MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-4096}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.95}
+      MOE_MODE: a16
+      ONLINE_QUANT: ${ONLINE_QUANT:-exl3-b6}
+      KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-nvfp4_ds_mla}
+      LOAD_FORMAT: safetensors
+      MTP_MOE_BACKEND: ${MTP_MOE_BACKEND:-triton}
+      MTP_DRAFT_SAMPLE_METHOD: ${MTP_DRAFT_SAMPLE_METHOD:-greedy}
+      PCIE_CALIBRATION: ${PCIE_CALIBRATION:-auto}
+      DCP_QUERY_SPLIT: ${DCP_QUERY_SPLIT:-auto}
+      DCP_CKV_GATHER: ${DCP_CKV_GATHER:-auto}
+      DCP_TOPK_OWNER_MERGE: ${DCP_TOPK_OWNER_MERGE:-auto}
+      DCP_INDEXER_SHARDS: ${DCP_INDEXER_SHARDS:-auto}
+      DCP_CKV_PREFETCH_DEPTH: ${DCP_CKV_PREFETCH_DEPTH:-auto}
+      DCP_PREFILL_WORKSPACE: ${DCP_PREFILL_WORKSPACE:-auto}
+      VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE: ${VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE:-auto}
+      # Capacity-first mode is opt-in; blank keeps the fastest qualified path.
+      VLLM_EXL3_PREFILL_CAPACITY: ${VLLM_EXL3_PREFILL_CAPACITY:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-exl3-r28}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-exl3-r28/tmp}:/container-tmp

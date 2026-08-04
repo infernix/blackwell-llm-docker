@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllme1e9426-si200c1db-fi801d57a-cu132-20260804-r28",
+  "image_id": "sha256:c874a39ea1283b090aa9cafd3668d2bb197a227812dd4b238660aca2b937837a",
+  "vllm_tree": "e1e94267f014eeace6d40337611046d567f6cd83",
+  "sparkinfer_tree": "200c1db7ef98ff8bbfd4f621555326e20f42282e",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "validated_at": "2026-08-04T13:58:00Z",
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "checkpoint_integrity": "pass",
+    "model_startup": "pass",
+    "cuda_graphs": "pass",
+    "legacy_checkpoint": "pass",
+    "correctness": "pass",
+    "batch_correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass",
+    "kld": "pass"
+  },
+  "evidence": {
+    "model": "willfalco/GLM-5.2-EXL3-TR3-3.42bpw@ae68c65947efa90bea37308e15421872f124c46d",
+    "checkpoint_shards_verified": 79,
+    "shared_h_saving_mib_per_gpu_mtp0": 672.36328125,
+    "shared_h_saving_mib_per_gpu_mtp3": 681.328125,
+    "dcp1_mtp0": {
+      "profile": "TP4/DCP1/MTP0, online K6, NVFP4 MLA KV, max sequences 1, graph 6, GMU 0.95",
+      "model_load_gib_per_gpu": 79.25,
+      "kv_cache_tokens": 241216,
+      "decode_ctx0_tps_runs": [
+        53.25384808238185,
+        53.32757967308032
+      ],
+      "prefill_8192_tps": 3586.8149098824797,
+      "prefill_65536_tps": 3386.1110421324756
+    },
+    "dcp1_mtp3": {
+      "profile": "TP4/DCP1/MTP3, online K6, NVFP4 MLA KV, max sequences 1, graph 6, GMU 0.95",
+      "model_load_gib_per_gpu": 80.5,
+      "kv_cache_tokens": 158720,
+      "decode_ctx0_tps": 113.39702527115529,
+      "draft_acceptance_rate": 0.4523809523809524
+    },
+    "dcp4_mtp3": {
+      "profile": "TP4/DCP4/MTP3, online K6, NVFP4 MLA KV, max sequences 16, graph 16, GMU 0.95",
+      "model_load_gib_per_gpu": 81.7,
+      "kv_cache_tokens": 372992,
+      "decode_ctx0_aggregate_tps": {
+        "cc1": 93.76304006514796,
+        "cc4": 240.171402124217,
+        "cc8": 336.352275890348
+      },
+      "prefill_8192_tps": 3488.7623673368425,
+      "prefill_65532_tps": 3337.0499986782024,
+      "batch_correctness": {
+        "cc8": "24/24",
+        "cc16": "32/32"
+      }
+    },
+    "kld": {
+      "reference": "festr2/GLM-5.2-BF16-KLD-Reference-Logits-20260708@a8fbe8a277394e838c75190a0ab376625dfb1393",
+      "direction": "KL(BF16 reference || candidate)",
+      "positions": 2047,
+      "runs_per_profile": 3,
+      "checkpoint_only_fp8_kv_mean": 0.07414597272872925,
+      "runtime_k6_nvfp4_kv_mean": 0.10882828384637833,
+      "run_standard_deviation": 0.0
+    }
+  }
+}

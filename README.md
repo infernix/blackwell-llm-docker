@@ -441,6 +441,45 @@ calibration, CUDA graph capture, coherent 256-token decode, and uncached
 `examples/docker-compose-glm52-exl3-v20-r26.yml`. The exact receipt is
 `validation/gilded-gnosis-v20-r26-remote-gpu.json`.
 
+The r28 GLM release adds the shared-H EXL3 checkpoint contract and completes
+runtime-dynamic mixed K3/K4 execution. The 3.42 bpw checkpoint uses 206/50 in
+layer 3 and 148/108 in layers 4-77. SparkInfer receives those counts and the
+per-tier broadcast-H flags as runtime metadata, so one compiled kernel remains
+valid across layers without expanding a shared rotation row per expert.
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r28 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Published r28 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllme1e9426-si200c1db-fi801d57a-cu132-20260804-r28
+```
+
+The checkpoint's physical shared-H layout saves 672.36 MiB/GPU at MTP0 and
+681.33 MiB/GPU at MTP3. The default online K6 profile loaded at 79.47 GiB/GPU
+in the KLD run, 4.61 GiB below the no-online profile. On the TP4 root-port
+validation host, DCP1/MTP0 reached 53.29 tok/s decode and 3,587/3,386 tok/s
+uncached prefill at 8k/64k. DCP1/MTP3 reached 113.40 tok/s. DCP4/MTP3 reached
+93.76 tok/s at CC1, 240.17 aggregate tok/s at CC4, 336.35 at CC8, and
+3,489/3,337 tok/s prefill at 8k/64k. DCP4 batch checks passed 24/24 at c8 and
+32/32 at c16.
+
+Teacher-forced KLD uses the same 2,047 positions and BF16 reference logits for
+both profiles. Lower is better:
+
+| Profile | KV format | Mean KLD |
+|---|---|---:|
+| Checkpoint only, no online quantization | FP8, matched to reference | 0.074145973 |
+| Release default, online K6 | NVFP4 MLA | 0.108828284 |
+
+Most of the headline delta is the runtime KV format, not online K6: with the
+same NVFP4 KV format, K6 adds only 0.000856839 mean KLD over the no-online
+run. Use `examples/docker-compose-glm52-exl3-v20-r28.yml`; the exact receipt
+is `validation/gilded-gnosis-v20-r28-remote-gpu.json`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
