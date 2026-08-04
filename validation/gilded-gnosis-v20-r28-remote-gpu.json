@@ -11,7 +11,7 @@
     6,
     7
   ],
-  "validated_at": "2026-08-04T13:58:00Z",
+  "validated_at": "2026-08-04T14:56:00Z",
   "tests": {
     "source_contracts": "pass",
     "runtime_contracts": "pass",
@@ -51,7 +51,8 @@
     "dcp4_mtp3": {
       "profile": "TP4/DCP4/MTP3, online K6, NVFP4 MLA KV, max sequences 16, graph 16, GMU 0.95",
       "model_load_gib_per_gpu": 81.7,
-      "kv_cache_tokens": 372992,
+      "kv_cache_tokens": 163840,
+      "kv_cache_tokens_local_per_cp_rank": 40960,
       "decode_ctx0_aggregate_tps": {
         "cc1": 93.76304006514796,
         "cc4": 240.171402124217,
@@ -70,8 +71,33 @@
       "positions": 2047,
       "runs_per_profile": 3,
       "checkpoint_only_fp8_kv_mean": 0.07414597272872925,
+      "runtime_k6_fp8_kv_mean": 0.077949158847332,
+      "checkpoint_only_nvfp4_kv_control_mean": 0.1079714447259903,
       "runtime_k6_nvfp4_kv_mean": 0.10882828384637833,
       "run_standard_deviation": 0.0
+    },
+    "mtp0_kv_capacity": {
+      "profile": "TP4/DCP1/MTP0, max sequences 1, graph 6, GMU 0.95",
+      "checkpoint_only_fp8": {
+        "model_load_gib_per_gpu": 83.85,
+        "kv_budget_gib_per_gpu": 3.64,
+        "kv_cache_tokens": 72448
+      },
+      "runtime_k6_fp8": {
+        "model_load_gib_per_gpu": 79.25,
+        "kv_budget_gib_per_gpu": 8.19,
+        "kv_cache_tokens": 163072
+      },
+      "checkpoint_only_nvfp4": {
+        "model_load_gib_per_gpu": 83.85,
+        "kv_budget_gib_per_gpu": 3.64,
+        "kv_cache_tokens": 107136
+      },
+      "runtime_k6_nvfp4": {
+        "model_load_gib_per_gpu": 79.25,
+        "kv_budget_gib_per_gpu": 8.19,
+        "kv_cache_tokens": 241216
+      }
     }
   }
 }
