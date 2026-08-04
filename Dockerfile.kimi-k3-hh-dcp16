@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-hh-dense-mla-dcp8-it-20260803@sha256:499c405bb849f9e8fad920ddd90053af60090b592906f34a64bca8a6481a5ce0
+FROM ${BASE_IMAGE}
+
+ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
+ARG VLLM_REF=codex/hh-kimi-k3-dspark-dcp16-20260804
+ARG VLLM_COMMIT=a2433b38e98800ebc5e90efc11495779325f27bd
+ARG SPARKINFER_REPO=https://github.com/local-inference-lab/sparkinfer.git
+ARG SPARKINFER_REF=codex/hh-kimi-k3-dcp16-20260804
+ARG SPARKINFER_COMMIT=94c0cf0a08e93a2cef1616d5451d241c86049d2f
+
+ENV TORCH_CUDA_ARCH_LIST=12.0a \
+    NVCC_THREADS=4 \
+    PYTHONPATH=/opt/kimi-k3-hh/vllm:/opt/kimi-k3-hh/sparkinfer \
+    SPARKINFER_DIR=/opt/kimi-k3-hh/sparkinfer \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+RUN set -eux; \
+    mkdir -p /opt/kimi-k3-hh; \
+    git clone --filter=blob:none --single-branch --branch "${VLLM_REF}" \
+      "${VLLM_REPO}" /opt/kimi-k3-hh/vllm; \
+    git -C /opt/kimi-k3-hh/vllm checkout --detach "${VLLM_COMMIT}"; \
+    test "$(git -C /opt/kimi-k3-hh/vllm rev-parse HEAD)" = "${VLLM_COMMIT}"; \
+    git clone --filter=blob:none --single-branch --branch "${SPARKINFER_REF}" \
+      "${SPARKINFER_REPO}" /opt/kimi-k3-hh/sparkinfer; \
+    git -C /opt/kimi-k3-hh/sparkinfer checkout --detach "${SPARKINFER_COMMIT}"; \
+    test "$(git -C /opt/kimi-k3-hh/sparkinfer rev-parse HEAD)" = "${SPARKINFER_COMMIT}"
+
+# The preserved CUDA image contains the full vLLM ABI-compatible extensions.
+# Build only the three small HH Kimi-K3 compatibility modules from PR #238.
+RUN set -eux; \
+    cd /opt/kimi-k3-hh/vllm; \
+    for spec in cache:CACHE kda:KDA activation:ACTIVATION; do \
+      name="${spec%%:*}"; \
+      flag="${spec##*:}"; \
+      build="/tmp/kimi-k3-${name}-ops"; \
+      /opt/venv/bin/cmake -S . -B "${build}" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CUDA_ARCHITECTURES=75 \
+        -DVLLM_TARGET_DEVICE=cuda \
+        -DVLLM_PYTHON_EXECUTABLE=/opt/venv/bin/python \
+        -DNVCC_THREADS=4 \
+        "-DVLLM_KIMI_K3_${flag}_OPS_ONLY=ON"; \
+      /opt/venv/bin/cmake --build "${build}" --parallel 16; \
+      cp "${build}/_kimi_k3_${name}_ops.abi3.so" \
+        "/opt/kimi-k3-hh/vllm/vllm/_kimi_k3_${name}_ops.abi3.so"; \
+      rm -rf "${build}"; \
+    done; \
+    site=/opt/venv/lib/python3.12/site-packages/vllm; \
+    find "${site}" -type f -name '*.so' -exec sh -c '\
+      site="$1"; shift; \
+      for src do \
+        rel="${src#${site}/}"; \
+        dst="/opt/kimi-k3-hh/vllm/vllm/${rel}"; \
+        if [ ! -e "${dst}" ]; then \
+          mkdir -p "$(dirname "${dst}")"; \
+          ln -s "${src}" "${dst}"; \
+        fi; \
+      done \
+    ' sh "${site}" {} +; \
+    test -L /opt/kimi-k3-hh/vllm/vllm/_C_stable_libtorch.abi3.so; \
+    test -L /opt/kimi-k3-hh/vllm/vllm/_moe_C_stable_libtorch.abi3.so; \
+    test -L /opt/kimi-k3-hh/vllm/vllm/_qutlass_C.abi3.so; \
+    /opt/venv/bin/python -c \
+      'import vllm._kimi_k3_cache_ops, vllm._kimi_k3_kda_ops, vllm._kimi_k3_activation_ops; from sparkinfer.comm.pcie.pcie_dcp_a2a import SUPPORTED_WORLD_SIZES; assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)'
+
+WORKDIR /opt/kimi-k3-hh/vllm
+
+LABEL org.opencontainers.image.title="Kimi-K3 HH DSpark DCP16 1M" \
+      org.opencontainers.image.description="Immutable HH vLLM PR 238 plus SparkInfer PR 118 over the validated CUDA 13.2/InstantTensor base" \
+      local-inference-lab.runtime.base-digest="sha256:499c405bb849f9e8fad920ddd90053af60090b592906f34a64bca8a6481a5ce0" \
+      local-inference-lab.vllm.ref="codex/hh-kimi-k3-dspark-dcp16-20260804" \
+      local-inference-lab.vllm.commit="a2433b38e98800ebc5e90efc11495779325f27bd" \
+      local-inference-lab.vllm.pr="238" \
+      local-inference-lab.sparkinfer.ref="codex/hh-kimi-k3-dcp16-20260804" \
+      local-inference-lab.sparkinfer.commit="94c0cf0a08e93a2cef1616d5451d241c86049d2f" \
+      local-inference-lab.sparkinfer.pr="118"
