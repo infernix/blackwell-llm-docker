@@ -1,15 +1,21 @@
 # Kimi K3 HH runtime image
 
 This branch builds one CUDA 13.2/InstantTensor image from vLLM PR #238 at
-`b7e203d0bb6e1456b858277a388726f93f0d1ff6` and SparkInfer PR #118 at
+`91a81414c72d0633e5d7292702c1f4611d5b7e4d` and SparkInfer PR #118 at
 `34bb490b28fd0742006a611c83c6b9883ed3d453`. It contains TP16 launchers for
 DCP8 and DCP16, with and without the Inferact DSpark draft.
 
 Published image:
 
 ```text
-voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-20260805@sha256:e029cab81df9ef35cf55bf3caed6e62acaeabe87ad72a62722d10b5e07d3e66d
+voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-r2-20260805@sha256:5b52837eac512b0500e547bd5e99940e1243678eca1c7f59e6261ba4a5a4c923
 ```
+
+The r2 image enables the same lossless TP16 projection transport for DCP8
+that DCP16 already used. Its measured DCP8 CC1 median is 45.660 tok/s with
+1,054,602 physical FP8 KV tokens. The previous immutable image remains a
+rollback at
+`voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-20260805@sha256:e029cab81df9ef35cf55bf3caed6e62acaeabe87ad72a62722d10b5e07d3e66d`.
 
 Build:
 
