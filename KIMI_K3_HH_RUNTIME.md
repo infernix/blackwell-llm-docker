@@ -2,7 +2,7 @@
 
 This branch builds one CUDA 13.2/InstantTensor image from vLLM PR #238 at
 `b7e203d0bb6e1456b858277a388726f93f0d1ff6` and SparkInfer PR #118 at
-`024a7607ee7e025921b02e140f83f01687165bcf`. It contains TP16 launchers for
+`34bb490b28fd0742006a611c83c6b9883ed3d453`. It contains TP16 launchers for
 DCP8 and DCP16, with and without the Inferact DSpark draft.
 
 Published image:
