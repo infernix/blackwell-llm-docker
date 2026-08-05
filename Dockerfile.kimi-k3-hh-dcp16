@@ -9,6 +9,7 @@ ARG VLLM_COMMIT=b7e203d0bb6e1456b858277a388726f93f0d1ff6
 ARG SPARKINFER_REPO=https://github.com/local-inference-lab/sparkinfer.git
 ARG SPARKINFER_REF=codex/hh-kimi-k3-dcp16-20260804
 ARG SPARKINFER_COMMIT=024a7607ee7e025921b02e140f83f01687165bcf
+ARG DOCKER_COMMIT=unknown
 
 ENV TORCH_CUDA_ARCH_LIST=12.0a \
     NVCC_THREADS=4 \
@@ -78,6 +79,11 @@ WORKDIR /opt/kimi-k3-hh/vllm
 
 LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 DCP8/DCP16 runtime" \
       org.opencontainers.image.description="Immutable HH vLLM PR 238 plus SparkInfer PR 118 with DSpark and optimized no-DSpark launch profiles" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker/tree/build/kimi-k3-hh-runtime-20260805" \
+      org.opencontainers.image.created="2026-08-05T00:00:00Z" \
+      org.opencontainers.image.version="2026-08-05" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference-lab.docker.commit="${DOCKER_COMMIT}" \
       local-inference-lab.runtime.base-digest="sha256:499c405bb849f9e8fad920ddd90053af60090b592906f34a64bca8a6481a5ce0" \
       local-inference-lab.vllm.ref="codex/hh-kimi-k3-dspark-dcp16-20260804" \
       local-inference-lab.vllm.commit="b7e203d0bb6e1456b858277a388726f93f0d1ff6" \
