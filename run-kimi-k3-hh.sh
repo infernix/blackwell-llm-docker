@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROFILE="${1:-dcp16-dspark}"
-IMAGE="${IMAGE:-voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-r2-20260805@sha256:5b52837eac512b0500e547bd5e99940e1243678eca1c7f59e6261ba4a5a4c923}"
+IMAGE="${IMAGE:-voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-r3-20260805@sha256:b9c780a20346caf05c1ad449e5ff319c432e117532cb0bef356aede20222b803}"
 HF_CACHE="${HF_CACHE:-/root/.cache/huggingface}"
 PORT="${PORT:-8000}"
 NAME="${NAME:-kimi-k3-hh-${PROFILE}}"
