@@ -19,12 +19,21 @@ ENV TORCH_CUDA_ARCH_LIST=12.0a \
 
 RUN set -eux; \
     mkdir -p /opt/kimi-k3-hh; \
-    git clone --filter=blob:none --single-branch --branch "${VLLM_REF}" \
-      "${VLLM_REPO}" /opt/kimi-k3-hh/vllm; \
+    if [ -d /opt/kimi-k3-hh/vllm/.git ]; then \
+      git -C /opt/kimi-k3-hh/vllm fetch --filter=blob:none origin "${VLLM_REF}"; \
+    else \
+      git clone --filter=blob:none --single-branch --branch "${VLLM_REF}" \
+        "${VLLM_REPO}" /opt/kimi-k3-hh/vllm; \
+    fi; \
     git -C /opt/kimi-k3-hh/vllm checkout --detach "${VLLM_COMMIT}"; \
     test "$(git -C /opt/kimi-k3-hh/vllm rev-parse HEAD)" = "${VLLM_COMMIT}"; \
-    git clone --filter=blob:none --single-branch --branch "${SPARKINFER_REF}" \
-      "${SPARKINFER_REPO}" /opt/kimi-k3-hh/sparkinfer; \
+    if [ -d /opt/kimi-k3-hh/sparkinfer/.git ]; then \
+      git -C /opt/kimi-k3-hh/sparkinfer fetch --filter=blob:none origin \
+        "${SPARKINFER_REF}"; \
+    else \
+      git clone --filter=blob:none --single-branch --branch "${SPARKINFER_REF}" \
+        "${SPARKINFER_REPO}" /opt/kimi-k3-hh/sparkinfer; \
+    fi; \
     git -C /opt/kimi-k3-hh/sparkinfer checkout --detach "${SPARKINFER_COMMIT}"; \
     test "$(git -C /opt/kimi-k3-hh/sparkinfer rev-parse HEAD)" = "${SPARKINFER_COMMIT}"
 
