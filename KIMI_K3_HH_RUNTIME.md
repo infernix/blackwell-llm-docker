@@ -8,7 +8,7 @@ DCP8 and DCP16, with and without the Inferact DSpark draft.
 Published image:
 
 ```text
-voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-20260805@sha256:2407e74fba03d5074acc3d2a7b1a1340bb21905fcacc560186bb3322c4e8f125
+voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-20260805@sha256:e029cab81df9ef35cf55bf3caed6e62acaeabe87ad72a62722d10b5e07d3e66d
 ```
 
 Build:
