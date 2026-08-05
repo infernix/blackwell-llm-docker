@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${IMAGE:-voipmonitor/vllm:kimi-k3-hh-dspark-dcp16-pr238-pr118-20260804}"
+IMAGE="${IMAGE:-voipmonitor/vllm:kimi-k3-hh-runtime-pr238-pr118-20260805}"
 
 DOCKER_BUILDKIT=1 docker build \
   --pull=false \
