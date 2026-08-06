@@ -4,11 +4,11 @@ ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-hh-native-topk-base-20260804@sha256:3ce9
 FROM ${BASE_IMAGE}
 
 ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
-ARG VLLM_REF=codex/hh-kimi-k3-dspark-dcp16-20260804
-ARG VLLM_COMMIT=3846d740fcfe566e821c574892574f7797b85008
+ARG VLLM_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
+ARG VLLM_COMMIT=eeb5a23d69656967aed6b8a8cb45fc6393164452
 ARG SPARKINFER_REPO=https://github.com/local-inference-lab/sparkinfer.git
-ARG SPARKINFER_REF=codex/hh-kimi-k3-dcp16-20260804
-ARG SPARKINFER_COMMIT=5a46e5b5a8a87012a5b8261b81130ee057591d5d
+ARG SPARKINFER_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
+ARG SPARKINFER_COMMIT=fc1aee0190f2f4806482dc0b1c8481c70afe67be
 ARG DOCKER_COMMIT=unknown
 
 ENV TORCH_CUDA_ARCH_LIST=12.0a \
@@ -96,8 +96,8 @@ LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 DCP8/DCP16 runtime" \
       local-inference-lab.runtime.base-digest="sha256:3ce9dfad1f684a76687095d80e49c96de42b008f7141587e7620c068f8073155" \
       local-inference-lab.kimi-k3.moe-native-sha256="33717a2c4b346ba02470db6a4b2ba1998804d1cf1b1527004ce375f1e3de429b" \
       local-inference-lab.vllm.ref="codex/hh-kimi-k3-dspark-dcp16-20260804" \
-      local-inference-lab.vllm.commit="3846d740fcfe566e821c574892574f7797b85008" \
+      local-inference-lab.vllm.commit="eeb5a23d69656967aed6b8a8cb45fc6393164452" \
       local-inference-lab.vllm.pr="238" \
       local-inference-lab.sparkinfer.ref="codex/hh-kimi-k3-dcp16-20260804" \
-      local-inference-lab.sparkinfer.commit="5a46e5b5a8a87012a5b8261b81130ee057591d5d" \
+      local-inference-lab.sparkinfer.commit="fc1aee0190f2f4806482dc0b1c8481c70afe67be" \
       local-inference-lab.sparkinfer.pr="118"
