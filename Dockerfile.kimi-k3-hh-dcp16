@@ -6,7 +6,7 @@ FROM ${BASE_IMAGE}
 ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
 ARG VLLM_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
 ARG VLLM_COMMIT=eeb5a23d69656967aed6b8a8cb45fc6393164452
-ARG SPARKINFER_REPO=https://github.com/local-inference-lab/sparkinfer.git
+ARG SPARKINFER_REPO=https://github.com/local-inference-lab/b12x.git
 ARG SPARKINFER_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
 ARG SPARKINFER_COMMIT=fc1aee0190f2f4806482dc0b1c8481c70afe67be
 ARG DOCKER_COMMIT=unknown
