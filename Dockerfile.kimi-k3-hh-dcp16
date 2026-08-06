@@ -73,7 +73,7 @@ RUN set -eux; \
     test -L /opt/kimi-k3-hh/vllm/vllm/_moe_C_stable_libtorch.abi3.so; \
     test -L /opt/kimi-k3-hh/vllm/vllm/_qutlass_C.abi3.so; \
     /opt/venv/bin/python -c \
-      'import torch, vllm._moe_C_stable_libtorch, vllm._kimi_k3_cache_ops, vllm._kimi_k3_kda_ops, vllm._kimi_k3_activation_ops; from sparkinfer.comm.pcie.pcie_dcp_a2a import SUPPORTED_WORLD_SIZES; assert "is_padding" in str(torch.ops._moe_C.topk_sigmoid.default._schema); assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)'; \
+      'import torch, vllm._moe_C_stable_libtorch, vllm._kimi_k3_cache_ops, vllm._kimi_k3_kda_ops, vllm._kimi_k3_activation_ops; import b12x; assert b12x.__file__.startswith("/opt/kimi-k3-hh/sparkinfer/"), b12x.__file__; from b12x.comm.pcie.pcie_dcp_a2a import SUPPORTED_WORLD_SIZES; assert "is_padding" in str(torch.ops._moe_C.topk_sigmoid.default._schema); assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)'; \
     for launcher in \
       serve-kimi-k3-full-mxfp4-dcp16-1m-no-dspark.sh \
       serve-kimi-k3-full-mxfp4-dcp16-1m-no-dspark-batch8.sh \
@@ -95,9 +95,9 @@ LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 DCP8/DCP16 runtime" \
       local-inference-lab.docker.commit="${DOCKER_COMMIT}" \
       local-inference-lab.runtime.base-digest="sha256:3ce9dfad1f684a76687095d80e49c96de42b008f7141587e7620c068f8073155" \
       local-inference-lab.kimi-k3.moe-native-sha256="33717a2c4b346ba02470db6a4b2ba1998804d1cf1b1527004ce375f1e3de429b" \
-      local-inference-lab.vllm.ref="codex/hh-kimi-k3-dspark-dcp16-20260804" \
+      local-inference-lab.vllm.ref="pr/kimi-k3-dspark-dcp16-perf-20260806" \
       local-inference-lab.vllm.commit="cbb24fee28cdea65c98b6c02579554865ead77f2" \
       local-inference-lab.vllm.pr="238" \
-      local-inference-lab.sparkinfer.ref="codex/hh-kimi-k3-dcp16-20260804" \
+      local-inference-lab.sparkinfer.ref="pr/kimi-k3-dspark-dcp16-perf-20260806" \
       local-inference-lab.sparkinfer.commit="a569f6e1b06fa0423252cad94734fe424d200072" \
       local-inference-lab.sparkinfer.pr="118"
