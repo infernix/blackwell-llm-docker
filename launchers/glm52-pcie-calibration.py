@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cache a lossless SparkInfer PCIe calibration before vLLM starts.
+"""Cache a lossless B12X PCIe calibration before vLLM starts.
 
 r10 changes (from the venice.kpchosting field failure, 2026-07-29):
 - Preflight: every selected GPU must have MIN_FREE_MIB free before the
@@ -37,7 +37,6 @@ EXIT_SKIPPED_PREFLIGHT = 3
 EXIT_PROBE_FAILED = 4
 COLLECTIVE_ENV_PREFIXES = (
     "NCCL_",
-    "SPARKINFER_PCIE_",
     "B12X_PCIE_",
     "VLLM_PCIE_",
 )
@@ -93,7 +92,7 @@ def _file_identity(path: str | None) -> dict[str, Any]:
 
 def _probe_source_digest() -> str:
     try:
-        spec = importlib.util.find_spec("sparkinfer.comm.pcie.overlap_probe")
+        spec = importlib.util.find_spec("b12x.comm.pcie.overlap_probe")
     except ImportError:
         # find_spec raises (rather than returning None) when the parent
         # package itself is absent; treat both cases as unavailable.
@@ -267,7 +266,7 @@ def build_fingerprint_payload(args: argparse.Namespace) -> dict[str, Any]:
             "python": sys.version,
             "torch": _package_version("torch"),
             "vllm": _package_version("vllm"),
-            "sparkinfer": _package_version("sparkinfer"),
+            "b12x": _package_version("b12x"),
             "probe_sha256": _probe_source_digest(),
             "nccl": _file_identity(
                 os.getenv("VLLM_NCCL_SO_PATH")
@@ -364,7 +363,7 @@ def _run_probe(args: argparse.Namespace, output: Path) -> dict[str, Any]:
         "--standalone",
         f"--nproc-per-node={args.tp_size}",
         "-m",
-        "sparkinfer.comm.pcie.overlap_probe",
+        "b12x.comm.pcie.overlap_probe",
         "--tp-size",
         str(args.tp_size),
         "--dcp-size",

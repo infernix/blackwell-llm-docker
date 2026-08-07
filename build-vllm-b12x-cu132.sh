@@ -21,8 +21,8 @@ DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.git}"
 DEEPGEMM_REF="${DEEPGEMM_REF:-refs/pull/324/head}"
 EXLLAMAV3_REPO="${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}"
 EXLLAMAV3_REF="${EXLLAMAV3_REF:-a1-retile-sm120}"
-B12X_REPO="${B12X_REPO:-https://github.com/lukealonso/b12x.git}"
-B12X_REF="${B12X_REF:-refs/pull/11/head}"
+B12X_REPO="${B12X_REPO:-https://github.com/local-inference-lab/b12x.git}"
+B12X_REF="${B12X_REF:-master}"
 B12X_PATCH_SHA256="${B12X_PATCH_SHA256:-}"
 B12X_PATCH_FILE="${B12X_PATCH_FILE:-}"
 REQUIRE_CLEAN_B12X_COMPOSITION="${REQUIRE_CLEAN_B12X_COMPOSITION:-0}"
@@ -208,15 +208,15 @@ fi
 
 if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
   command -v jq >/dev/null || {
-    echo "jq is required for clean B12X/SparkInfer release composition" >&2
+    echo "jq is required for clean B12X release composition" >&2
     exit 1
   }
   [[ -n "${B12X_COMMIT}" && -n "${B12X_PATCH_FILE}" && -n "${B12X_INTEGRATION_LOCK_FILE}" ]] || {
-    echo "Clean B12X/SparkInfer composition requires a base commit, generated patch, and lockfile" >&2
+    echo "Clean B12X composition requires a base commit, generated patch, and lockfile" >&2
     exit 1
   }
   [[ -f "${B12X_INTEGRATION_LOCK_FILE}" ]] || {
-    echo "B12X/SparkInfer integration lockfile does not exist: ${B12X_INTEGRATION_LOCK_FILE}" >&2
+    echo "B12X integration lockfile does not exist: ${B12X_INTEGRATION_LOCK_FILE}" >&2
     exit 1
   }
 
@@ -230,15 +230,15 @@ if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
   B12X_INTEGRATION_BASE_COMMIT="${b12x_lock_commit}"
 
   [[ "${b12x_lock_repo}" == "${B12X_REPO}" ]] || {
-    echo "B12X/SparkInfer integration lock repository mismatch: ${b12x_lock_repo} != ${B12X_REPO}" >&2
+    echo "B12X integration lock repository mismatch: ${b12x_lock_repo} != ${B12X_REPO}" >&2
     exit 1
   }
   [[ "${b12x_lock_ref}" == "refs/heads/${B12X_REF}" ]] || {
-    echo "B12X/SparkInfer integration lock base ref mismatch: ${b12x_lock_ref} != refs/heads/${B12X_REF}" >&2
+    echo "B12X integration lock base ref mismatch: ${b12x_lock_ref} != refs/heads/${B12X_REF}" >&2
     exit 1
   }
   [[ "${b12x_lock_commit}" == "${B12X_COMMIT}" ]] || {
-    echo "B12X/SparkInfer integration lock base commit mismatch: ${b12x_lock_commit} != ${B12X_COMMIT}" >&2
+    echo "B12X integration lock base commit mismatch: ${b12x_lock_commit} != ${B12X_COMMIT}" >&2
     exit 1
   }
   [[ "${VERIFY_B12X_BASE_HEAD}" =~ ^[01]$ ]] || {
@@ -248,12 +248,12 @@ if [[ "${REQUIRE_CLEAN_B12X_COMPOSITION}" == "1" ]]; then
   if [[ "${VERIFY_B12X_BASE_HEAD}" == "1" ]]; then
     current_b12x_base_commit="$(resolve_ref "${B12X_REPO}" "${B12X_REF}")"
     [[ "${current_b12x_base_commit}" == "${B12X_COMMIT}" ]] || {
-      echo "B12X/SparkInfer base advanced from ${B12X_COMMIT} to ${current_b12x_base_commit}; rerun the release composer" >&2
+      echo "B12X base advanced from ${B12X_COMMIT} to ${current_b12x_base_commit}; rerun the release composer" >&2
       exit 1
     }
   fi
   if [[ -n "${B12X_PATCH_SHA256}" && "${B12X_PATCH_SHA256}" != "${b12x_lock_patch_sha}" ]]; then
-    echo "B12X/SparkInfer integration lock patch SHA mismatch: ${b12x_lock_patch_sha} != ${B12X_PATCH_SHA256}" >&2
+    echo "B12X integration lock patch SHA mismatch: ${b12x_lock_patch_sha} != ${B12X_PATCH_SHA256}" >&2
     exit 1
   fi
   B12X_PATCH_SHA256="${b12x_lock_patch_sha}"

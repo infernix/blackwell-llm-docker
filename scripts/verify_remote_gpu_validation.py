@@ -26,15 +26,18 @@ def verify_receipt(
     image: str,
     image_id: str,
     vllm_tree: str,
-    sparkinfer_tree: str,
+    b12x_tree: str,
 ) -> None:
     """Validate identity and required test results in a release receipt."""
+    backend_tree_key = (
+        "b12x_tree" if "b12x_tree" in receipt else "sparkinfer_tree"
+    )
     expected = {
         "schema_version": 1,
         "image": image,
         "image_id": image_id,
         "vllm_tree": vllm_tree,
-        "sparkinfer_tree": sparkinfer_tree,
+        backend_tree_key: b12x_tree,
     }
     for key, value in expected.items():
         if receipt.get(key) != value:
@@ -81,7 +84,9 @@ def main() -> int:
     parser.add_argument("--image", required=True)
     parser.add_argument("--image-id", required=True)
     parser.add_argument("--vllm-tree", required=True)
-    parser.add_argument("--sparkinfer-tree", required=True)
+    backend = parser.add_mutually_exclusive_group(required=True)
+    backend.add_argument("--b12x-tree")
+    backend.add_argument("--sparkinfer-tree")
     args = parser.parse_args()
 
     receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
@@ -90,7 +95,7 @@ def main() -> int:
         image=args.image,
         image_id=args.image_id,
         vllm_tree=args.vllm_tree,
-        sparkinfer_tree=args.sparkinfer_tree,
+        b12x_tree=args.b12x_tree or args.sparkinfer_tree,
     )
     print(f"Remote GPU validation receipt: PASS ({args.receipt})")
     return 0

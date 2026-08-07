@@ -16,7 +16,6 @@ configure_glm52_pcie_runtime_env() {
   export VLLM_USE_B12X_PCIE_DMA="${pcie_dma_enabled}"
   export VLLM_PCIE_DMA_FP8="${dma_wire_mode}"
   export B12X_PCIE_DMA_FP8="${dma_wire_mode}"
-  export SPARKINFER_PCIE_DMA_FP8="${dma_wire_mode}"
 
   export NCCL_PROTO="${NCCL_PROTO:-LL,LL128,Simple}"
   export NCCL_P2P_LEVEL="${NCCL_P2P_LEVEL:-SYS}"

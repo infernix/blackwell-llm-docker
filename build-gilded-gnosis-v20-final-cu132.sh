@@ -31,27 +31,27 @@ configure_vllm_composition() {
   export VERIFY_VLLM_BASE_HEAD="${verify_base_head}"
 }
 
-configure_sparkinfer_composition() {
+configure_b12x_composition() {
   local composition_dir="$1"
   local verify_base_head="$2"
   local composition_lock="${composition_dir}/integration.lock.json"
-  local sparkinfer_repo sparkinfer_ref sparkinfer_commit
-  local sparkinfer_patch_sha256 sparkinfer_tree
+  local b12x_repo b12x_ref b12x_commit
+  local b12x_patch_sha256 b12x_tree
 
-  sparkinfer_repo="$(jq -er '.base.repository' "${composition_lock}")"
-  sparkinfer_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
-  sparkinfer_commit="$(jq -er '.base.commit' "${composition_lock}")"
-  sparkinfer_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
-  sparkinfer_tree="$(jq -er '.result.tree' "${composition_lock}")"
-  export SPARKINFER_REPO="${sparkinfer_repo}"
-  export SPARKINFER_REF="${sparkinfer_ref}"
-  export SPARKINFER_COMMIT="${sparkinfer_commit}"
-  export SPARKINFER_PATCH_FILE="${composition_dir#patches/}/integration.patch"
-  export SPARKINFER_PATCH_SHA256="${sparkinfer_patch_sha256}"
-  export SPARKINFER_INTEGRATION_LOCK_FILE="${composition_lock}"
-  export SPARKINFER_INTEGRATION_TREE="${sparkinfer_tree}"
-  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=1
-  export VERIFY_SPARKINFER_BASE_HEAD="${verify_base_head}"
+  b12x_repo="$(jq -er '.base.repository' "${composition_lock}")"
+  b12x_ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${composition_lock}")"
+  b12x_commit="$(jq -er '.base.commit' "${composition_lock}")"
+  b12x_patch_sha256="$(jq -er '.result.patch_sha256' "${composition_lock}")"
+  b12x_tree="$(jq -er '.result.tree' "${composition_lock}")"
+  export B12X_REPO="${b12x_repo}"
+  export B12X_REF="${b12x_ref}"
+  export B12X_COMMIT="${b12x_commit}"
+  export B12X_PATCH_FILE="${composition_dir#patches/}/integration.patch"
+  export B12X_PATCH_SHA256="${b12x_patch_sha256}"
+  export B12X_INTEGRATION_LOCK_FILE="${composition_lock}"
+  export B12X_INTEGRATION_TREE="${b12x_tree}"
+  export REQUIRE_CLEAN_B12X_COMPOSITION=1
+  export VERIFY_B12X_BASE_HEAD="${verify_base_head}"
 }
 
 configure_lmcache_composition() {
@@ -89,11 +89,11 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${composition_dir}" >/dev/null
   configure_vllm_composition "${composition_dir}" 1
 
-  sparkinfer_composition_dir="patches/generated/gilded-gnosis-v20/sparkinfer"
+  b12x_composition_dir="patches/generated/gilded-gnosis-v20/b12x"
   python3 scripts/compose_vllm_release.py \
-    manifests/sparkinfer/gilded-gnosis-v20.json \
-    --output-dir "${sparkinfer_composition_dir}" >/dev/null
-  configure_sparkinfer_composition "${sparkinfer_composition_dir}" 1
+    manifests/b12x/gilded-gnosis-v20.json \
+    --output-dir "${b12x_composition_dir}" >/dev/null
+  configure_b12x_composition "${b12x_composition_dir}" 1
 
   lmcache_composition_dir="patches/generated/gilded-gnosis-v20/lmcache"
   python3 scripts/compose_vllm_release.py \
@@ -101,12 +101,12 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-si${SPARKINFER_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r28}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.si${SPARKINFER_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r28}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r29}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r29}"
 elif [[ "${composition_mode}" == "reproduce-r28" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r28/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r28/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r28/lmcache" 0
@@ -116,7 +116,7 @@ elif [[ "${composition_mode}" == "reproduce-r28" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r27" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r27/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r27/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r27/lmcache" 0
@@ -126,7 +126,7 @@ elif [[ "${composition_mode}" == "reproduce-r27" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r26" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r26/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r26/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r26/lmcache" 0
@@ -136,7 +136,7 @@ elif [[ "${composition_mode}" == "reproduce-r26" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r25" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r25/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r25/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r25/lmcache" 0
@@ -146,7 +146,7 @@ elif [[ "${composition_mode}" == "reproduce-r25" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r24" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r24/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r24/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r24/lmcache" 0
@@ -156,7 +156,7 @@ elif [[ "${composition_mode}" == "reproduce-r24" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r20" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r20/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r20/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r20/lmcache" 0
@@ -166,7 +166,7 @@ elif [[ "${composition_mode}" == "reproduce-r20" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r19" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r19/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r19/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r19/lmcache" 0
@@ -176,7 +176,7 @@ elif [[ "${composition_mode}" == "reproduce-r19" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r18" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r18/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r18/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r18/lmcache" 0
@@ -186,7 +186,7 @@ elif [[ "${composition_mode}" == "reproduce-r18" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r17/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r17/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r17/lmcache" 0
@@ -196,7 +196,7 @@ elif [[ "${composition_mode}" == "reproduce-r17" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r16" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r16/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r16/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r16/lmcache" 0
@@ -206,7 +206,7 @@ elif [[ "${composition_mode}" == "reproduce-r16" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r15" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r15/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r15/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r15/lmcache" 0
@@ -216,7 +216,7 @@ elif [[ "${composition_mode}" == "reproduce-r15" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r14" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r14/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r14/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r14/lmcache" 0
@@ -226,7 +226,7 @@ elif [[ "${composition_mode}" == "reproduce-r14" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r13" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r13/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r13/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r13/lmcache" 0
@@ -236,7 +236,7 @@ elif [[ "${composition_mode}" == "reproduce-r13" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r12" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r12/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r12/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r12/lmcache" 0
@@ -246,7 +246,7 @@ elif [[ "${composition_mode}" == "reproduce-r12" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r11" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r11/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r11/sparkinfer" 0
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r11/lmcache" 0
@@ -256,7 +256,7 @@ elif [[ "${composition_mode}" == "reproduce-r11" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r5" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r5}"
@@ -266,7 +266,7 @@ elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   # vLLM and SparkInfer source archives instead of consulting moving branches.
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r6}"
@@ -276,7 +276,7 @@ elif [[ "${composition_mode}" == "reproduce-r7" ]]; then
   # a release patch to its merged, immutable source commit.
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r7}"
@@ -286,7 +286,7 @@ elif [[ "${composition_mode}" == "reproduce-r8" ]]; then
   # XGrammar with the pinned source build configured below.
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r5/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r5/sparkinfer" 0
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm936ed48-sif532ec9-fi801d57a-cu132-20260728-r8}"
@@ -294,7 +294,7 @@ elif [[ "${composition_mode}" == "reproduce-r8" ]]; then
 elif [[ "${composition_mode}" == "reproduce-r9" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r9/vllm" 0
-  configure_sparkinfer_composition \
+  configure_b12x_composition \
     "patches/releases/gilded-gnosis-v20-r9/sparkinfer" 0
 
   export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm34f26c2-side7739a-fi801d57a-cu132-20260728-r9}"
@@ -309,12 +309,12 @@ elif [[ "${composition_mode}" == "reproduce-r4" ]]; then
   export VLLM_PATCH_SHA256=
   export VLLM_PATCH_FILE=
   export REQUIRE_CLEAN_VLLM_COMPOSITION=0
-  export SPARKINFER_REPO="https://github.com/local-inference-lab/sparkinfer.git"
-  export SPARKINFER_REF="build/sparkinfer-v20-runtime-stride-20260727"
-  export SPARKINFER_COMMIT="c3828fd7f807ce237a9ac36ef033659e6f6b6dd3"
-  export SPARKINFER_PATCH_FILE=
-  export SPARKINFER_PATCH_SHA256=
-  export REQUIRE_CLEAN_SPARKINFER_COMPOSITION=0
+  export B12X_REPO="https://github.com/local-inference-lab/sparkinfer.git"
+  export B12X_REF="build/sparkinfer-v20-runtime-stride-20260727"
+  export B12X_COMMIT="c3828fd7f807ce237a9ac36ef033659e6f6b6dd3"
+  export B12X_PATCH_FILE=
+  export B12X_PATCH_SHA256=
+  export REQUIRE_CLEAN_B12X_COMPOSITION=0
 else
   printf 'Unknown VLLM_RELEASE_COMPOSITION=%s\n' "${composition_mode}" >&2
   exit 1
@@ -350,7 +350,13 @@ export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b96
 
 export VLLM_PATCH_URL=
 
-export SPARKINFER_VERSION="${SPARKINFER_VERSION:-1.0.1}"
+if [[ "${composition_mode}" == "clean" ]]; then
+  export B12X_VERSION="${B12X_VERSION:-1.1.0}"
+  export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-b12x}"
+else
+  export B12X_VERSION="${B12X_VERSION:-1.0.1}"
+  export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-sparkinfer}"
+fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r26" ]]; then
@@ -427,9 +433,9 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nsparkinfer_tree=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nb12x_tree=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
-    "${VLLM_INTEGRATION_TREE:-}" "${SPARKINFER_INTEGRATION_TREE:-}" \
+    "${VLLM_INTEGRATION_TREE:-}" "${B12X_INTEGRATION_TREE:-}" \
     "${LAUNCHER_REPO}" "${LAUNCHER_REF}" "${LAUNCHER_COMMIT}" \
     "${LMCACHE_INTEGRATION_TREE:-}" \
     "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
@@ -500,12 +506,12 @@ if [[ "${use_existing_validated_image}" == "1" ]]; then
   docker image inspect "${IMAGE}" >/dev/null
   printf 'Using existing remotely validated image: %s\n' "${IMAGE}"
 else
-  ./build-vllm-sparkinfer-cu132.sh "$@"
+  ./build-vllm-b12x-cu132.sh "$@"
 fi
 
 labels="$(docker image inspect "${IMAGE}" --format '{{json .Config.Labels}}')"
 jq -e --arg value "${VLLM_COMMIT}" '."local-inference.vllm.commit" == $value' <<<"${labels}" >/dev/null
-jq -e --arg value "${SPARKINFER_COMMIT}" '."local-inference.sparkinfer.commit" == $value' <<<"${labels}" >/dev/null
+jq -e --arg value "${B12X_COMMIT}" '."local-inference.b12x.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${FLASHINFER_COMMIT}" '."local-inference.flashinfer.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${LAUNCHER_COMMIT}" '."local-inference.launcher.commit" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${CUTLASS_DSL_VERSION}" '."local-inference.cutlass_dsl.version" == $value' <<<"${labels}" >/dev/null
@@ -529,12 +535,12 @@ if [[ "${composition_mode}" != "reproduce-r4" ]]; then
   jq -e --arg value "${VLLM_INTEGRATION_TREE}" '."local-inference.vllm.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${VLLM_PATCH_SHA256}" '."local-inference.vllm.patch_sha256" == $value' <<<"${labels}" >/dev/null
   jq -e '."local-inference.vllm.patch_file" != "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
-  jq -e --arg value "${SPARKINFER_INTEGRATION_TREE}" '."local-inference.sparkinfer.integration.tree" == $value' <<<"${labels}" >/dev/null
-  jq -e --arg value "${SPARKINFER_PATCH_SHA256}" '."local-inference.sparkinfer.patch_sha256" == $value' <<<"${labels}" >/dev/null
-  jq -e '."local-inference.sparkinfer.patch_file" != ""' <<<"${labels}" >/dev/null
+  jq -e --arg value "${B12X_INTEGRATION_TREE}" '."local-inference.b12x.integration.tree" == $value' <<<"${labels}" >/dev/null
+  jq -e --arg value "${B12X_PATCH_SHA256}" '."local-inference.b12x.patch_sha256" == $value' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.b12x.patch_file" != ""' <<<"${labels}" >/dev/null
 else
   jq -e '."local-inference.vllm.patch_file" == "" and ."local-inference.vllm.patch_url" == ""' <<<"${labels}" >/dev/null
-  jq -e '."local-inference.sparkinfer.patch_file" == ""' <<<"${labels}" >/dev/null
+  jq -e '."local-inference.b12x.patch_file" == ""' <<<"${labels}" >/dev/null
 fi
 
 for launcher in ${VLLM_REQUIRED_LAUNCHERS}; do
@@ -548,13 +554,13 @@ done
 
 cache_fingerprint="$(jq -r '."local-inference.cache.fingerprint"' <<<"${labels}")"
 vllm_cache_prefix="${VLLM_COMMIT:0:10}"
-sparkinfer_cache_prefix="${SPARKINFER_COMMIT:0:10}"
-[[ "${cache_fingerprint}" =~ ^vllm${vllm_cache_prefix}-b12x${sparkinfer_cache_prefix}-[0-9a-f]{16}$ ]]
+b12x_cache_prefix="${B12X_COMMIT:0:10}"
+[[ "${cache_fingerprint}" =~ ^vllm${vllm_cache_prefix}-b12x${b12x_cache_prefix}-[0-9a-f]{16}$ ]]
 
 image_env="$(docker image inspect "${IMAGE}" --format '{{range .Config.Env}}{{println .}}{{end}}')"
 grep -Fxq "XDG_CACHE_HOME=/cache/jit/${cache_fingerprint}" <<<"${image_env}"
 grep -Fxq "VLLM_CACHE_ROOT=/cache/jit/${cache_fingerprint}/vllm" <<<"${image_env}"
-grep -Fxq "SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${cache_fingerprint}/sparkinfer/compile" <<<"${image_env}"
+grep -Fxq "B12X_COMPILE_CACHE_DIR=/cache/jit/${cache_fingerprint}/b12x/compile" <<<"${image_env}"
 grep -Fxq "VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3" <<<"${image_env}"
 grep -Fxq "VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT}" <<<"${image_env}"
 grep -Fxq "VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online" <<<"${image_env}"
@@ -562,13 +568,15 @@ grep -Fxq "VLLM_EXL3_ONLINE_CACHE_MODE=readwrite" <<<"${image_env}"
 
 if [[ "${local_gpu_validation}" == "1" ]]; then
 docker run --rm --gpus "device=${VALIDATION_GPU}" -i \
-  -e EXPECTED_SPARKINFER_VERSION="${SPARKINFER_VERSION}" \
+  -e EXPECTED_B12X_VERSION="${B12X_VERSION}" \
+  -e EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE}" \
   -e EXPECTED_CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
   -e EXPECTED_TORCH_VERSION_PREFIX="${TORCH_VERSION_PREFIX}" \
   -e EXPECTED_LMCACHE_VERSION="${LMCACHE_BUILD_VERSION}" \
   -e EXPECTED_XGRAMMAR_VERSION="${XGRAMMAR_VERSION}" \
   -e EXPECTED_EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT}" \
   --entrypoint /opt/venv/bin/python "${IMAGE}" - <<'PY'
+import importlib
 import importlib.metadata as md
 import inspect
 import os
@@ -578,24 +586,6 @@ import torch
 import vllm._C_stable_libtorch  # noqa: F401
 import lmcache.c_ops  # noqa: F401
 from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
-from sparkinfer.attention._shared.mla.kv_cache import (
-    concat_and_cache_nvfp4_mla_fp8_rope,
-)
-from sparkinfer.attention._shared.mla.kernel import _cache_block_stride_bytes
-from sparkinfer.attention.nsa_indexer.paged import _plan_two_level_fold
-from sparkinfer.attention.sparse_mla._scratch import SPARKINFERSparseMLAScratchCaps
-from sparkinfer.attention.nsa_indexer import tiled_topk
-from sparkinfer.comm.pcie import DcpAllToAllPool, DcpTopKOwnerExchange
-from sparkinfer.comm.pcie.pcie_dma import (
-    PCIeDmaAllReduce,
-    _normalize_fp8_mode,
-)
-from sparkinfer.gemm import bmm, can_implement_bmm, prewarm_bmm
-from sparkinfer.gemm.trellis_linear import _small_m as trellis_k6_small
-from sparkinfer.moe import fused_moe
-from sparkinfer.moe.fused_moe import _impl as fused_moe_impl
-from sparkinfer.moe._shared.kernels.w4a16 import kernel as w4a16_kernel
-from sparkinfer.moe._shared.kernels.w4a16 import mixed_trellis
 from vllm import envs as vllm_envs
 from vllm.distributed.device_communicators.cuda_communicator import CudaCommunicator
 from vllm.distributed.kv_transfer.kv_connector.v1.offloading.scheduler import (
@@ -626,7 +616,57 @@ from vllm.v1.worker.gpu_worker import Worker
 from vllm.v1.kv_offload.cpu.shared_offload_region import SharedOffloadRegion
 from vllm.v1.kv_offload.cpu.spec import CPUOffloadingSpec
 
-assert md.version("sparkinfer") == os.environ["EXPECTED_SPARKINFER_VERSION"]
+kernel_package = os.environ["EXPECTED_B12X_PACKAGE"]
+kv_cache = importlib.import_module(
+    f"{kernel_package}.attention._shared.mla.kv_cache"
+)
+mla_kernel = importlib.import_module(
+    f"{kernel_package}.attention._shared.mla.kernel"
+)
+indexer_paged = importlib.import_module(
+    f"{kernel_package}.attention.nsa_indexer.paged"
+)
+scratch_module = importlib.import_module(
+    f"{kernel_package}.attention.sparse_mla._scratch"
+)
+tiled_topk = importlib.import_module(
+    f"{kernel_package}.attention.nsa_indexer.tiled_topk"
+)
+pcie = importlib.import_module(f"{kernel_package}.comm.pcie")
+pcie_dma = importlib.import_module(f"{kernel_package}.comm.pcie.pcie_dma")
+gemm = importlib.import_module(f"{kernel_package}.gemm")
+trellis_k6_small = importlib.import_module(
+    f"{kernel_package}.gemm.trellis_linear._small_m"
+)
+fused_moe = importlib.import_module(f"{kernel_package}.moe.fused_moe")
+fused_moe_impl = importlib.import_module(f"{kernel_package}.moe.fused_moe._impl")
+w4a16_kernel = importlib.import_module(
+    f"{kernel_package}.moe._shared.kernels.w4a16.kernel"
+)
+mixed_trellis = importlib.import_module(
+    f"{kernel_package}.moe._shared.kernels.w4a16.mixed_trellis"
+)
+
+concat_and_cache_nvfp4_mla_fp8_rope = (
+    kv_cache.concat_and_cache_nvfp4_mla_fp8_rope
+)
+_cache_block_stride_bytes = mla_kernel._cache_block_stride_bytes
+_plan_two_level_fold = indexer_paged._plan_two_level_fold
+SparseMLAScratchCaps = getattr(
+    scratch_module,
+    "B12XSparseMLAScratchCaps",
+    getattr(scratch_module, "SPARKINFERSparseMLAScratchCaps", None),
+)
+assert SparseMLAScratchCaps is not None
+DcpAllToAllPool = pcie.DcpAllToAllPool
+DcpTopKOwnerExchange = pcie.DcpTopKOwnerExchange
+PCIeDmaAllReduce = pcie_dma.PCIeDmaAllReduce
+_normalize_fp8_mode = pcie_dma._normalize_fp8_mode
+bmm = gemm.bmm
+can_implement_bmm = gemm.can_implement_bmm
+prewarm_bmm = gemm.prewarm_bmm
+
+assert md.version(kernel_package) == os.environ["EXPECTED_B12X_VERSION"]
 assert md.version("lmcache") == os.environ["EXPECTED_LMCACHE_VERSION"]
 assert md.version("pytest") == "8.4.1"
 assert md.version("tblib") == "3.2.2"
@@ -755,7 +795,7 @@ pre_kv_v2_runner = SimpleNamespace(
     vllm_config=SimpleNamespace(use_v2_model_runner=True),
 )
 assert _flashinfer_autotune_dummy_run_kwargs(pre_kv_v2_runner)["skip_attn"] is True
-caps = SPARKINFERSparseMLAScratchCaps(
+caps = SparseMLAScratchCaps(
     device="cuda:0",
     dtype=torch.bfloat16,
     num_q_heads=8,
@@ -795,7 +835,7 @@ if [[ -n "${remote_gpu_validation_receipt}" ]]; then
     --image "${IMAGE}" \
     --image-id "${image_id}" \
     --vllm-tree "${VLLM_INTEGRATION_TREE}" \
-    --sparkinfer-tree "${SPARKINFER_INTEGRATION_TREE}"
+    --b12x-tree "${B12X_INTEGRATION_TREE}"
 fi
 
 dry_run_file="/tmp/gilded-gnosis-v20-final-dcp1.txt"
@@ -1008,7 +1048,7 @@ for dma_mode in i8_ring mx_ring; do
     -e F8_DMA="${dma_mode}" \
     "${IMAGE}" | tee "${dma_dry_run_file}"
   grep -Fxq "VLLM_PCIE_DMA_FP8=${dma_mode}" "${dma_dry_run_file}"
-  grep -Fxq "SPARKINFER_PCIE_DMA_FP8=${dma_mode}" "${dma_dry_run_file}"
+  grep -Fxq "B12X_PCIE_DMA_FP8=${dma_mode}" "${dma_dry_run_file}"
 done
 
 grep -Fxq 'VLLM_B12X_ABSORB_BMM=1' "${mxfp8_dry_run_file}"

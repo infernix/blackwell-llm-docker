@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # =============================================================================
-# Clean vLLM+SparkInfer (formerly B12X) image for Blackwell on CUDA 13.2.
+# Clean vLLM+B12X image for Blackwell on CUDA 13.2.
 #
 # Source stack:
 #   NVIDIA CUDA 13.2.1 cuDNN devel base
@@ -8,7 +8,7 @@
 #   PyTorch 2.12.0+cu132 from the official PyTorch wheel index
 #   Patched NCCL 2.30.4 from local-inference-lab/nccl-canonical
 #   FlashInfer from pinned upstream git
-#   SparkInfer from pinned git
+#   B12X from pinned git
 #   vLLM from pinned git
 #
 # Build:
@@ -43,9 +43,9 @@ ARG EXLLAMAV3_REPO=https://github.com/brandonmmusic-max/exllamav3.git
 ARG EXLLAMAV3_REF=a1-retile-sm120
 ARG EXLLAMAV3_COMMIT=704aefd743b390af4bd0fb429d1906f9b964c7d8
 
-ARG B12X_REPO=https://github.com/lukealonso/b12x.git
-ARG B12X_REF=refs/pull/11/head
-ARG B12X_COMMIT=c929144c7689668b07ca65af10ceadf1c745165d
+ARG B12X_REPO=https://github.com/local-inference-lab/b12x.git
+ARG B12X_REF=master
+ARG B12X_COMMIT=
 
 ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
 ARG VLLM_REF=dev/black-benediction
@@ -550,7 +550,7 @@ RUN git clone --filter=blob:none "${B12X_REPO}" /tmp/b12x-src \
       git add -A; \
       actual_tree="$(git write-tree)"; \
       [[ "${actual_tree}" == "${B12X_INTEGRATION_TREE}" ]] || { \
-        echo "ERROR: composed B12X/SparkInfer tree mismatch: ${actual_tree} != ${B12X_INTEGRATION_TREE}" >&2; \
+        echo "ERROR: composed B12X tree mismatch: ${actual_tree} != ${B12X_INTEGRATION_TREE}" >&2; \
         exit 1; \
       }; \
     fi \
@@ -565,9 +565,9 @@ import site
 from pathlib import Path
 
 roots = [
-    Path(entry) / "sparkinfer" / "comm" / "pcie"
+    Path(entry) / "b12x" / "comm" / "pcie"
     for entry in site.getsitepackages()
-    if (Path(entry) / "sparkinfer" / "comm" / "pcie").is_dir()
+    if (Path(entry) / "b12x" / "comm" / "pcie").is_dir()
 ]
 assert len(roots) == 1, roots
 include_re = re.compile(r'^\s*#include\s+"([^"]+)"', re.MULTILINE)
@@ -683,6 +683,26 @@ if count != 1:
 open(path, "w", encoding="utf-8").write(text)
 print("vLLM FlashInfer requirements:", versions)
 print("vLLM CUTLASS DSL requirement:", cutlass_dsl_version)
+PY
+
+# The GG source and its tests must use the current B12X package name. Keeping
+# this at image composition time catches later PRs that reintroduce a legacy
+# import after the standalone package-port PR has already been applied.
+RUN python - <<'PY'
+from pathlib import Path
+
+root = Path("/opt/vllm")
+excluded = root / "tests" / "test_b12x_package_contract.py"
+markers = ("sparkinfer.", "SPARKINFER_")
+offenders: list[str] = []
+for source_root in (root / "vllm", root / "tests"):
+    for path in source_root.rglob("*.py"):
+        if path == excluded:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if any(marker in text for marker in markers):
+            offenders.append(str(path.relative_to(root)))
+assert not offenders, f"legacy SparkInfer package references: {offenders}"
 PY
 
 RUN cd /opt/vllm \
@@ -908,7 +928,7 @@ xgrammar_version_file = Path("/opt/venv/.xgrammar-version")
 if xgrammar_version_file.is_file():
     expected_xgrammar = xgrammar_version_file.read_text().strip()
     assert md.version("xgrammar") == expected_xgrammar
-kernel_package = "sparkinfer" if importlib.util.find_spec("sparkinfer") else "b12x"
+kernel_package = "b12x" if importlib.util.find_spec("b12x") else "sparkinfer"
 print(kernel_package, md.version(kernel_package))
 spec = importlib.util.find_spec("vllm._rust_tool_parser")
 assert spec is not None, "vllm._rust_tool_parser missing"
@@ -1257,7 +1277,8 @@ ENV VIRTUAL_ENV=/opt/venv \
     TILELANG_TMP_DIR=/cache/jit/${CACHE_FINGERPRINT}/tilelang/tmp \
     CUTE_DSL_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cute-dsl \
     B12X_CUTE_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x-cute \
-    SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/sparkinfer/compile \
+    B12X_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x/compile \
+    SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x/compile \
     DG_JIT_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/deep-gemm \
     MM_SPARSE_ATTN_AOT_CACHE=/cache/jit/${CACHE_FINGERPRINT}/minfer/mm_sparse_attn \
     MINFER_FMHA_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/minfer/fmha_sm100 \
@@ -1301,6 +1322,7 @@ RUN mkdir -p \
       "${TILELANG_TMP_DIR}" \
       "${CUTE_DSL_CACHE_DIR}" \
       "${B12X_CUTE_COMPILE_CACHE_DIR}" \
+      "${B12X_COMPILE_CACHE_DIR}" \
       "${SPARKINFER_COMPILE_CACHE_DIR}" \
       "${DG_JIT_CACHE_DIR}" \
       "${MM_SPARSE_ATTN_AOT_CACHE}" \
@@ -1381,7 +1403,7 @@ ARG XGRAMMAR_COMMIT
 ARG XGRAMMAR_VERSION
 ARG XGRAMMAR_TRANSFORMERS5_COMPAT
 
-LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+SparkInfer image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, SparkInfer and selected vLLM branch" \
+LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, B12X and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
       local-inference.cuda.compat.version="${CUDA_COMPAT_13_2_VERSION}" \
       local-inference.cublas.version="${CUBLAS_CUDA13_VERSION}" \

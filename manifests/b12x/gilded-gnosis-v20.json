@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "gilded-gnosis-v20-b12x",
+  "repository": "https://github.com/local-inference-lab/b12x.git",
+  "base_ref": "refs/heads/master",
+  "pull_requests": [
+    {
+      "number": 125,
+      "head": "282d61a483c908eaa440a19ba0d70a557c73197f",
+      "title": "Declare compressed MLA decode row capacity"
+    }
+  ]
+}

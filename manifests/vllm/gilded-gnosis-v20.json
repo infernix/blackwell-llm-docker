@@ -5,14 +5,19 @@
   "base_ref": "refs/heads/dev/gilded-gnosis",
   "pull_requests": [
     {
+      "number": 246,
+      "head": "4ffbeffd86c75f98ab246a0cf7136475788b8637",
+      "title": "Port GG integration to the renamed B12X package"
+    },
+    {
       "number": 145,
       "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
       "number": 229,
-      "head": "672aec40dc664de014bd1e92d9a2885d7658c37f",
-      "title": "Harden compressed MLA cache and workspace contracts"
+      "head": "1a2b01f43fbc151239c437e918dfdc27681ce4e7",
+      "title": "Harden compressed MLA cache, workspace, and verifier capacity contracts"
     },
     {
       "number": 213,
@@ -35,13 +40,13 @@
       "title": "Align native SWA/MTP retention and shared-prefix tails"
     },
     {
-      "number": 216,
-      "head": "52201611719edf67f18bc0cbec17802880a4afb7",
+      "number": 247,
+      "head": "f5662c0760e09aef0e66a0d05793c8b611878f93",
       "title": "Isolate semantic PCIe graph channels"
     },
     {
       "number": 228,
-      "head": "524c9208f26da85f6330988295d1755515c5f120",
+      "head": "25ddfa55fdbbb7b697585713e1e475cf9d33d893",
       "title": "Consolidate r20 EXL3 prefill and online K6 cache"
     },
     {
@@ -53,6 +58,11 @@
       "number": 235,
       "head": "54349f9ce6d32a68c7c736f2ac3ac597afd6e208",
       "title": "Align DeepSeek-V4-0731 reasoning and tool prompt contract"
+    },
+    {
+      "number": 245,
+      "head": "9dbd6d00b0340da173b61affb961954090632dec",
+      "title": "Build one-shard indexer query-split topology"
     }
   ]
 }

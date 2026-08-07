@@ -19,7 +19,7 @@ grep -Fxq \
   'vllm_tree=936ed4829ed6b6a34b9052a7a2614333ee3b2623' \
   <<<"${output_r6}"
 grep -Fxq \
-  'sparkinfer_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
+  'b12x_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
   <<<"${output_r6}"
 grep -Fxq 'lmcache_repo=https://github.com/LMCache/LMCache.git' <<<"${output_r6}"
 grep -Fxq 'lmcache_ref=v0.5.2' <<<"${output_r6}"
@@ -46,7 +46,7 @@ grep -Fxq \
   'vllm_tree=936ed4829ed6b6a34b9052a7a2614333ee3b2623' \
   <<<"${output_r7}"
 grep -Fxq \
-  'sparkinfer_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
+  'b12x_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
   <<<"${output_r7}"
 grep -Fxq \
   'lmcache_repo=https://github.com/local-inference-lab/LMCache.git' \
@@ -79,7 +79,7 @@ grep -Fxq \
   'vllm_tree=936ed4829ed6b6a34b9052a7a2614333ee3b2623' \
   <<<"${output_r8}"
 grep -Fxq \
-  'sparkinfer_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
+  'b12x_tree=f532ec965a70b710ba45e6f751fe5d7135001108' \
   <<<"${output_r8}"
 grep -Fxq \
   'lmcache_commit=9cebd405d0caf4bebe01d694b5a8bf4e3e354314' \
@@ -108,7 +108,7 @@ grep -Fxq \
   'vllm_tree=9502cc7ee9dbc060899a2b1d30fac6916d3a4a95' \
   <<<"${output_r11}"
 grep -Fxq \
-  'sparkinfer_tree=de7739aa7ebc8a52eb1f1997367eee1d0a6bab79' \
+  'b12x_tree=de7739aa7ebc8a52eb1f1997367eee1d0a6bab79' \
   <<<"${output_r11}"
 grep -Fxq \
   'lmcache_tree=175e59294436a02861e9e3ebedf7358edea4ed36' \
@@ -140,7 +140,7 @@ grep -Fxq \
   'vllm_tree=b46c3aac9421ec6c03b9dfcb5aacc8c1eb11f09b' \
   <<<"${output_r12}"
 grep -Fxq \
-  'sparkinfer_tree=35aebc6d46a0d3d4f7275b81251211864f410269' \
+  'b12x_tree=35aebc6d46a0d3d4f7275b81251211864f410269' \
   <<<"${output_r12}"
 grep -Fxq \
   'launcher_ref=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
@@ -186,7 +186,7 @@ grep -Fxq \
   'vllm_tree=69ba80b9e49b5ad6740f8b3d5d0e592213b25959' \
   <<<"${output_r13}"
 grep -Fxq \
-  'sparkinfer_tree=a2ea6083713c15dcf7e2d2bcc74fbece837ff84d' \
+  'b12x_tree=a2ea6083713c15dcf7e2d2bcc74fbece837ff84d' \
   <<<"${output_r13}"
 grep -Fxq \
   'launcher_ref=513bd84a1d8f4b834ca343abb4189e82acb1df52' \
@@ -232,7 +232,7 @@ grep -Fxq \
   'vllm_tree=749050edab1b6664937c52fa1b0be360be632c1e' \
   <<<"${output_r14}"
 grep -Fxq \
-  'sparkinfer_tree=8110e3ea417794bfb08aff1fba20135102e5536b' \
+  'b12x_tree=8110e3ea417794bfb08aff1fba20135102e5536b' \
   <<<"${output_r14}"
 grep -Fxq \
   'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
@@ -261,7 +261,7 @@ grep -Fxq \
   'vllm_tree=0bc48c5943561c56353ce1f8047f81d5e0517237' \
   <<<"${output_r15}"
 grep -Fxq \
-  'sparkinfer_tree=eec30ff294c1870b59a04686fff6608fddb62089' \
+  'b12x_tree=eec30ff294c1870b59a04686fff6608fddb62089' \
   <<<"${output_r15}"
 grep -Fxq \
   'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
@@ -290,7 +290,7 @@ grep -Fxq \
   'vllm_tree=1e9c9c3475fa30ab48d5639f8882f1e93bb552bf' \
   <<<"${output_r16}"
 grep -Fxq \
-  'sparkinfer_tree=eec30ff294c1870b59a04686fff6608fddb62089' \
+  'b12x_tree=eec30ff294c1870b59a04686fff6608fddb62089' \
   <<<"${output_r16}"
 grep -Fxq \
   'lmcache_tree=a5aa59cc8edca462a3f4c198d17fd2b9c1a7ffaa' \
@@ -319,7 +319,7 @@ grep -Fxq \
   'vllm_tree=ab358b11844ab626ca227be455165e336d5f855a' \
   <<<"${output_r18}"
 grep -Fxq \
-  'sparkinfer_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
+  'b12x_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
   <<<"${output_r18}"
 grep -Fxq \
   'launcher_ref=8f07269878d4bd7c3f541f42fa8a6c6a80927329' \
@@ -354,7 +354,7 @@ grep -Fxq \
   'vllm_tree=e1e94267f014eeace6d40337611046d567f6cd83' \
   <<<"${output_r28}"
 grep -Fxq \
-  'sparkinfer_tree=200c1db7ef98ff8bbfd4f621555326e20f42282e' \
+  'b12x_tree=200c1db7ef98ff8bbfd4f621555326e20f42282e' \
   <<<"${output_r28}"
 grep -Fxq \
   'launcher_ref=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
@@ -393,7 +393,7 @@ grep -Fxq \
   'vllm_tree=966d57c8c1d9f643eaac8aa231c6e1027936ef2a' \
   <<<"${output_r27}"
 grep -Fxq \
-  'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
+  'b12x_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
   <<<"${output_r27}"
 grep -Fxq \
   'launcher_ref=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
@@ -437,7 +437,7 @@ grep -Fxq \
   'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
   <<<"${output_r26}"
 grep -Fxq \
-  'sparkinfer_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
+  'b12x_tree=bbbdccc338a2691d780ed160db54ef121c3a61c9' \
   <<<"${output_r26}"
 grep -Fxq \
   'launcher_ref=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
@@ -476,7 +476,7 @@ grep -Fxq \
   'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
   <<<"${output_r25}"
 grep -Fxq \
-  'sparkinfer_tree=978cdb3593367469abd16bc8bdbc4ed0ea2787da' \
+  'b12x_tree=978cdb3593367469abd16bc8bdbc4ed0ea2787da' \
   <<<"${output_r25}"
 grep -Fxq \
   'launcher_ref=76b1cf0350709910208e61285adc955e34655136' \
@@ -520,7 +520,7 @@ grep -Fxq \
   'vllm_tree=f5981f14b4d39979bc0d799c020d42002b707257' \
   <<<"${output_r24}"
 grep -Fxq \
-  'sparkinfer_tree=2b9bf2a4d15770c0c23e19cc13a75843f2f0a995' \
+  'b12x_tree=2b9bf2a4d15770c0c23e19cc13a75843f2f0a995' \
   <<<"${output_r24}"
 grep -Fxq \
   'launcher_ref=76b1cf0350709910208e61285adc955e34655136' \
@@ -547,16 +547,16 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllme1e9426-si200c1db-fi801d57a-cu132-[0-9]{8}-r28$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm26b7515-b12x851df7c-fi801d57a-cu132-[0-9]{8}-r29$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllme1e9426[.]si200c1db[.]fi801d57a[.]cu132[.][0-9]{8}[.]r28$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm26b7515[.]b12x851df7c[.]fi801d57a[.]cu132[.][0-9]{8}[.]r29$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=e1e94267f014eeace6d40337611046d567f6cd83' \
+  'vllm_tree=26b75156a7dfa255ecdfa6bf02bfbbf7da7394cb' \
   <<<"${output_clean}"
 grep -Fxq \
-  'sparkinfer_tree=200c1db7ef98ff8bbfd4f621555326e20f42282e' \
+  'b12x_tree=851df7cad900279e063b0e0a92b812e2caa925cd' \
   <<<"${output_clean}"
 grep -Fxq \
   'launcher_commit=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
@@ -588,7 +588,7 @@ grep -Fxq \
   'vllm_tree=72c35f14b65857110a7434e9243ca18b8cabd032' \
   <<<"${output_r20}"
 grep -Fxq \
-  'sparkinfer_tree=2b9bf2a4d15770c0c23e19cc13a75843f2f0a995' \
+  'b12x_tree=2b9bf2a4d15770c0c23e19cc13a75843f2f0a995' \
   <<<"${output_r20}"
 grep -Fxq \
   'launcher_ref=76b1cf0350709910208e61285adc955e34655136' \
@@ -629,7 +629,7 @@ grep -Fxq \
   'vllm_tree=6634ec930a746753441d2244bc8c0c7003f0143d' \
   <<<"${output_r19}"
 grep -Fxq \
-  'sparkinfer_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
+  'b12x_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
   <<<"${output_r19}"
 grep -Fxq \
   'launcher_ref=8f07269878d4bd7c3f541f42fa8a6c6a80927329' \
@@ -664,7 +664,7 @@ grep -Fxq \
   'vllm_tree=db293280d021d32db0552f3f6e4b95abbd9c69a1' \
   <<<"${output_r17}"
 grep -Fxq \
-  'sparkinfer_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
+  'b12x_tree=b2bff719ba1be0a5d30cb39cba795f0812db0f3d' \
   <<<"${output_r17}"
 grep -Fxq \
   'launcher_ref=ec0279f1c2ccf06656df21d65c7a18984c45fcd8' \

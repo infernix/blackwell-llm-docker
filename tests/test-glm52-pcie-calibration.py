@@ -228,13 +228,13 @@ def test_collective_environment_tracks_only_relevant_knobs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("NCCL_MIN_NCHANNELS", "8")
-    monkeypatch.setenv("SPARKINFER_PCIE_DMA_PIECES", "2")
+    monkeypatch.setenv("B12X_PCIE_DMA_PIECES", "2")
     monkeypatch.setenv("UNRELATED_VALUE", "ignored")
 
     environment = calibration._collective_environment()
 
     assert environment["NCCL_MIN_NCHANNELS"] == "8"
-    assert environment["SPARKINFER_PCIE_DMA_PIECES"] == "2"
+    assert environment["B12X_PCIE_DMA_PIECES"] == "2"
     assert "UNRELATED_VALUE" not in environment
 
 
