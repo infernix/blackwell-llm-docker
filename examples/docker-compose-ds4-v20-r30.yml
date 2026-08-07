@@ -1,0 +1,64 @@
+# DeepSeek-V4-Flash-0731 DSpark r30 release profile.
+#
+# Default: TP2/DCP1, B12X W4A8, fixed K5. r30 preserves the qualified r29
+# performance paths, updates them to the current GG graph-manager API, and
+# fixes final-store ordering for native tiered KV offload. A finished request
+# keeps its scheduler state until its deferred final store has been built and
+# all transfers have completed.
+#
+# Target, DSpark proposal, and DFlash context-KV execution use their own FULL
+# CUDA graph families. Prefill remains PIECEWISE, and unsupported shapes keep
+# the existing eager fallback.
+#
+# K7 is available with DSPARK_TOKENS=7. It can win on predictable code, but
+# K5 remains the qualified mixed-workload default.
+#
+# Native KV offload is opt-in with KV_OFFLOADING_SIZE=<total GiB>. For a
+# tiered L1+L2 setup, pass compact --kv-transfer-config JSON through
+# EXTRA_VLLM_ARGS. SHM_SIZE must fit the L1 capacity plus runtime headroom.
+# The helper automatically disables expandable CUDA allocator segments while
+# native offload is enabled because its shared host region requires stable
+# registrations.
+services:
+  ds4:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm20ed7f9-b12x6bc35fd-fi801d57a-cu132-20260807-r30}
+    container_name: ${NAME:-ds4-0731-r30}
+    entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
+    network_mode: host
+    ipc: host
+    init: true
+    shm_size: ${SHM_SIZE:-32gb}
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
+      PORT: ${PORT:-8000}
+      MODE: ${MODE:-dspark}
+      BACKEND: ${BACKEND:-b12x-a8}
+      TP_SIZE: ${TP_SIZE:-2}
+      DCP_SIZE: ${DCP_SIZE:-1}
+      DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+      DSPARK_TOKENS: ${DSPARK_TOKENS:-5}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      GRAPH: ${GRAPH:-auto}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-131072}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
+      PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
+      KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-0}
+      EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${MODEL_ROOT:-/root/models}:/root/models:ro
+      - ${JIT_CACHE:-./cache/ds4-v20-r30}:/cache
+      - ${CONTAINER_TMP:-./cache/ds4-v20-r30/tmp}:/container-tmp

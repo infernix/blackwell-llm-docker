@@ -1,73 +1,110 @@
 {
-  "schema_version": 1,
+  "base": {
+    "commit": "e2666d9a65f41fc376607531453cbd57c4c71016",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "a11b5951f7ca815befe370a882c327ea9209d5f2d34072be6c05af2b76147e10"
+  },
   "name": "gilded-gnosis-v20",
-  "repository": "https://github.com/local-inference-lab/vllm.git",
-  "base_ref": "refs/heads/dev/gilded-gnosis",
   "pull_requests": [
     {
-      "number": 145,
+      "disposition": "merged",
       "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
-      "number": 229,
+      "disposition": "merged",
       "head": "1a2b01f43fbc151239c437e918dfdc27681ce4e7",
+      "number": 229,
+      "ref": "refs/pull/229/head",
       "title": "Harden compressed MLA cache, workspace, and verifier capacity contracts"
     },
     {
-      "number": 213,
+      "disposition": "merged",
       "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "number": 213,
+      "ref": "refs/pull/213/head",
       "title": "Skip pre-KV V2 attention during FlashInfer autotune"
     },
     {
-      "number": 214,
+      "disposition": "merged",
       "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
+      "number": 214,
+      "ref": "refs/pull/214/head",
       "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
     },
     {
-      "number": 217,
+      "disposition": "merged",
       "head": "bde9a133774e38a54511696cef1ac10b16ef700b",
+      "number": 217,
+      "ref": "refs/pull/217/head",
       "title": "Harden shared regions for native CPU KV offload"
     },
     {
-      "number": 218,
+      "disposition": "merged",
       "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
+      "number": 218,
+      "ref": "refs/pull/218/head",
       "title": "Align native SWA/MTP retention and shared-prefix tails"
     },
     {
-      "number": 228,
+      "disposition": "merged",
       "head": "d3b2d6950ca439656d0fd445aeb7eddcff320b3d",
+      "number": 228,
+      "ref": "refs/pull/228/head",
       "title": "Consolidate r20 EXL3 prefill and online K6 cache"
     },
     {
-      "number": 230,
+      "disposition": "merged",
       "head": "9401f9d8916f3bdf34123d2d493a918b748c8132",
+      "number": 230,
+      "ref": "refs/pull/230/head",
       "title": "Keep broadcast MHC pre behind the compile boundary"
     },
     {
-      "number": 235,
+      "disposition": "merged",
       "head": "54349f9ce6d32a68c7c736f2ac3ac597afd6e208",
+      "number": 235,
+      "ref": "refs/pull/235/head",
       "title": "Align DeepSeek-V4-0731 reasoning and tool prompt contract"
     },
     {
-      "number": 245,
+      "disposition": "merged",
       "head": "9dbd6d00b0340da173b61affb961954090632dec",
+      "number": 245,
+      "ref": "refs/pull/245/head",
       "title": "Build one-shard indexer query-split topology"
     },
     {
-      "number": 248,
+      "disposition": "merged",
       "head": "85bc9770c94394fb070f3f9311d68bcaca6a354d",
+      "number": 248,
+      "ref": "refs/pull/248/head",
       "title": "Prewarm CuTe PCIe one-shot all-reduce before graph capture"
     },
     {
-      "number": 251,
+      "disposition": "merged",
       "head": "c66ce7327ee586e5b600b9d7e12db30e93e8ec96",
+      "number": 251,
+      "ref": "refs/pull/251/head",
       "title": "Isolate B12X graph channels and capture DSpark context KV"
     },
     {
-      "number": 252,
+      "disposition": "merged",
       "head": "e3317de2336fc84396d7541950542c79b62102ae",
+      "number": 252,
+      "ref": "refs/pull/252/head",
       "title": "Defer native KV-offload finalization until the final store is built"
     }
-  ]
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "13f871f196acaf6ee7dafd3da9e3384ca21dce9b70e386cecffb0dc789568a7b",
+    "tree": "20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f"
+  },
+  "schema_version": 1
 }
