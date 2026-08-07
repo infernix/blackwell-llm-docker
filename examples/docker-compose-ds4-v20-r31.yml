@@ -25,7 +25,7 @@
 # registrations.
 services:
   ds4:
-    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31}
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31}
     container_name: ${NAME:-ds4-0731-r31}
     entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
     network_mode: host

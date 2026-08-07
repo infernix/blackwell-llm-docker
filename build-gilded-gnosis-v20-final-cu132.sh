@@ -83,6 +83,8 @@ configure_lmcache_composition() {
 }
 
 if [[ "${composition_mode}" == "clean" ]]; then
+  python3 scripts/audit_release_prs.py \
+    manifests/vllm/gilded-gnosis-v20.json
   composition_dir="patches/generated/gilded-gnosis-v20/vllm"
   python3 scripts/compose_vllm_release.py \
     manifests/vllm/gilded-gnosis-v20.json \
@@ -111,8 +113,8 @@ elif [[ "${composition_mode}" == "reproduce-r31" ]]; then
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r31/lmcache" 0
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm77a5b39.b12xacee6e5.fi1ac6942.cu132.20260807.r31}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12xacee6e5.fi1ac6942.cu132.20260807.r31}"
 elif [[ "${composition_mode}" == "reproduce-r30" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r30/vllm" 0

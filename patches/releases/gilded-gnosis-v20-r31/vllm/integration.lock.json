@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "15f13a65bce3e195ba642eed368ba63e826648e591a4a72f26d6344b5c21f923"
+    "sha256": "db8cd4c2eb18170e82eea73ec0379512769f2d0609c248238159cebcd89ea482"
   },
   "name": "gilded-gnosis-v20",
   "pull_requests": [
@@ -15,6 +15,20 @@
       "number": 145,
       "ref": "refs/pull/145/head",
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
+    },
+    {
+      "disposition": "merged",
+      "head": "48e9d0f75d96db61429cbe7fe4fccb96739c58d6",
+      "number": 256,
+      "ref": "refs/pull/256/head",
+      "title": "Preserve activation dtype for int32-packed MLA weights"
+    },
+    {
+      "disposition": "merged",
+      "head": "aa75b01c476ffb5fc728232546fe5c215e3728ec",
+      "number": 188,
+      "ref": "refs/pull/188/head",
+      "title": "Emit packed UE8M0 scales from compiled QuantFP8"
     },
     {
       "disposition": "merged",
@@ -32,7 +46,7 @@
     },
     {
       "disposition": "merged",
-      "head": "d11ee9ff03bfadd47351de59a53048619f2fac22",
+      "head": "8d989f18c2845e514313e80f65b07087b09d6a67",
       "number": 214,
       "ref": "refs/pull/214/head",
       "title": "Add DeepSeek-V4-Flash-0731 profile and native L1/L2 offload"
@@ -64,6 +78,13 @@
       "number": 230,
       "ref": "refs/pull/230/head",
       "title": "Keep broadcast MHC pre behind the compile boundary"
+    },
+    {
+      "disposition": "merged",
+      "head": "eaf24cc15f313c4b15afabb3f902cfe17f19f28f",
+      "number": 234,
+      "ref": "refs/pull/234/head",
+      "title": "Guard persistent FlashInfer decode wrappers by planned query length"
     },
     {
       "disposition": "merged",
@@ -109,16 +130,23 @@
     },
     {
       "disposition": "merged",
-      "head": "46c262993373043e1030a9c6090337f1b2fd8749",
+      "head": "5d961ad9d2efaba40531e8e4542a6c193412898d",
       "number": 254,
       "ref": "refs/pull/254/head",
-      "title": "Bound native filesystem KV offload and recover stale loads"
+      "title": "Harden native offload cleanup and bound filesystem storage"
+    },
+    {
+      "disposition": "merged",
+      "head": "d1b7bbeb78da068ab0a505bd09505f6637cddcd9",
+      "number": 255,
+      "ref": "refs/pull/255/head",
+      "title": "Register GG runtime controls consumed directly by backends"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ff30580b27ad115b3c99121b01cd85bf40f3301525b075de84e563f0ebc2ec78",
-    "tree": "77a5b395ca5399ed482db434894dcc3f5d51731c"
+    "patch_sha256": "c03a83a6cf81c213caa435ec6190f61b6b10c02ab8cc3d5b24fe6d291a121b39",
+    "tree": "fa13d334a2962756f9f7e9b562deb85387359f42"
   },
   "schema_version": 1
 }

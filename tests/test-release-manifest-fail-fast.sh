@@ -73,7 +73,7 @@ assert_pr_set() {
 # omitting a reviewed release dependency. Updating the set is a release action.
 assert_pr_set \
   manifests/vllm/gilded-gnosis-v20.json \
-  '145 213 214 217 218 228 229 230 235 245 248 251 252 253 254'
+  '145 188 213 214 217 218 228 229 230 234 235 245 248 251 252 253 254 255 256'
 assert_pr_set \
   manifests/b12x/gilded-gnosis-v20.json \
   '125 126'

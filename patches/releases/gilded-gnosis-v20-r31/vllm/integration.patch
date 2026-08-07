@@ -450,7 +450,7 @@ index 73380cef260ed6e498698f0208986587e2ba4e5c..46d625588ba3a1517cf86ca9b5327528
  fn reasoning_effort_none_disables_thinking() {
      let mut request = ChatRequest {
 diff --git a/serve-ds4-flash.sh b/serve-ds4-flash.sh
-index f9a640bed07f8e82381274cc027f6723c9ed57d5..bf6cbd3fca0d427d455f3e5004da5aae183483d5 100755
+index f9a640bed07f8e82381274cc027f6723c9ed57d5..ea2e218e3f84d63e0a1098e22a98e4217fd52118 100755
 --- a/serve-ds4-flash.sh
 +++ b/serve-ds4-flash.sh
 @@ -40,9 +40,10 @@ case "${mode}" in
@@ -602,9 +602,12 @@ index f9a640bed07f8e82381274cc027f6723c9ed57d5..bf6cbd3fca0d427d455f3e5004da5aae
    require_positive_int DSPARK_TOKENS "${spec_tokens}"
    # Target verification schedules at most one sampled token plus K drafts per
    # request. Capturing beyond that physical row count only consumes graph
-@@ -280,7 +333,25 @@ elif [[ "${mode}" == "dspark" ]]; then
+@@ -278,9 +331,27 @@ elif [[ "${mode}" == "dspark" ]]; then
+         ;;
+     esac
      draft_attention_json=$(printf \
-       ',"draft_attention_backend":"%s"' "${draft_attention_backend}")
+-      ',"draft_attention_backend":"%s"' "${draft_attention_backend}")
++      ',"attention_backend":"%s"' "${draft_attention_backend}")
    fi
 -  dspark_capacity=$(bool_value DSPARK_CAPACITY "${DSPARK_CAPACITY:-0}")
 +  dspark_depth_mode=${DSPARK_DEPTH_MODE:-fixed}
@@ -1909,10 +1912,10 @@ index 0000000000000000000000000000000000000000..73ec7f630a58f78f07caadfb60e6f9d4
 +    assert "allreduce=b12x" in output
 diff --git a/tests/entrypoints/test_ds4_flash_launcher.py b/tests/entrypoints/test_ds4_flash_launcher.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..328ada7295147f0c8418fe9f034bc8921e1426a8
+index 0000000000000000000000000000000000000000..47bcf54a2fbd4a07aeb4c7abe28f5810b14d639a
 --- /dev/null
 +++ b/tests/entrypoints/test_ds4_flash_launcher.py
-@@ -0,0 +1,262 @@
+@@ -0,0 +1,279 @@
 +# SPDX-License-Identifier: Apache-2.0
 +# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 +
@@ -1979,6 +1982,23 @@ index 0000000000000000000000000000000000000000..328ada7295147f0c8418fe9f034bc892
 +    assert "mode=dspark depth=dynamic" in output
 +    assert 'dspark_capacity_verification_mode\\":\\"varlen' in output
 +    assert 'dspark_sps_curve\\":\\"auto' in output
++
++
++def test_ds4_launcher_uses_speculative_attention_backend_field(
++    tmp_path: Path,
++) -> None:
++    """Verify the draft backend uses SpeculativeConfig's canonical field.
++
++    Args:
++        tmp_path: Temporary home and cache root.
++    """
++    output = _dry_run(
++        tmp_path,
++        DSPARK_DRAFT_ATTENTION_BACKEND="FLASHINFER_MLA_SPARSE_DSV4",
++    )
++
++    assert 'attention_backend\\":\\"FLASHINFER_MLA_SPARSE_DSV4' in output
++    assert 'draft_attention_backend\\"' not in output
 +
 +
 +def test_ds4_launcher_accepts_cluster_style_aliases(tmp_path: Path) -> None:
@@ -2210,6 +2230,128 @@ index 82b262321d6c12f06296a2d36b593622fd456a86..a923256daf3a63aced57f6c0ba6ea715
  @pytest.mark.asyncio
  async def test_parse_chat_messages_single_image_async(
      phi3v_model_config,
+diff --git a/tests/kernels/attention/test_mla_kv_b_dtype_guard.py b/tests/kernels/attention/test_mla_kv_b_dtype_guard.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6497e1f6d0277ae05366ab28319b8c58abda64e6
+--- /dev/null
++++ b/tests/kernels/attention/test_mla_kv_b_dtype_guard.py
+@@ -0,0 +1,29 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Packed-quantized kv_b_proj weights must not drive a kv_c_normed upcast.
++
++NVFP4 packs into uint8 and compressed-tensors int4/int8 packs into int32.
++Both are containers, not real activation dtypes -- casting kv_c_normed to
++either corrupts chunked prefill past ~4K prompts.
++"""
++
++import pytest
++import torch
++
++from vllm.model_executor.layers.attention.mla_attention import (
++    is_packed_quantized_dtype,
++)
++
++
++@pytest.mark.parametrize(
++    "dtype,expected",
++    [
++        (torch.uint8, True),  # NVFP4
++        (torch.int32, True),  # compressed-tensors int4/int8
++        (torch.bfloat16, False),
++        (torch.float16, False),
++        (torch.float8_e4m3fn, False),
++    ],
++)
++def test_is_packed_quantized_dtype(dtype: torch.dtype, expected: bool):
++    assert is_packed_quantized_dtype(dtype) is expected
+diff --git a/tests/kernels/quantization/test_fp8_quant_group.py b/tests/kernels/quantization/test_fp8_quant_group.py
+index 113afb3c102e666be53e50fc1c0c56f88d8fe2ce..39ddea5269269482a0d0e2b013b28b65a7dcf48b 100644
+--- a/tests/kernels/quantization/test_fp8_quant_group.py
++++ b/tests/kernels/quantization/test_fp8_quant_group.py
+@@ -7,6 +7,11 @@ import torch
+ 
+ from vllm.model_executor.layers.quantization.input_quant_fp8 import QuantFP8
+ from vllm.model_executor.layers.quantization.utils.quant_utils import GroupShape
++from vllm.utils.deep_gemm import (
++    DeepGemmQuantScaleFMT,
++    get_tma_aligned_size,
++    is_deep_gemm_supported,
++)
+ from vllm.utils.torch_utils import set_random_seed
+ 
+ 
+@@ -140,6 +145,70 @@ def test_quantfp8_group_multidimensional(
+     assert scales_4d_col.shape == (batch1, batch2, hidden_dim // group_size, batch3)
+ 
+ 
++@pytest.mark.parametrize("batch_size", [16, 17])
++@pytest.mark.parametrize("seed", [42])
++@torch.inference_mode()
++def test_quantfp8_group_packed_ue8m0_native_matches_cuda(
++    default_vllm_config, batch_size: int, seed: int
++) -> None:
++    """forward_native must emit the same scale FORMAT as forward_cuda.
++
++    When the DeepGEMM oracle selects packed UE8M0, scales are four biased e8m0
++    exponent bytes per int32 in a TMA-aligned buffer -- not float32. Since
++    CustomOp.default_on() is False under inductor, forward_native is what a
++    compiled run executes, so a float32 fallback there hands DeepGEMM the wrong
++    format with no error raised.
++
++    batch_size 17 is deliberate: it is not TMA-aligned, so it catches a layout
++    that only holds when mn happens to be a multiple of four.
++    """
++    if not is_deep_gemm_supported():
++        pytest.skip("DeepGEMM not supported on this platform")
++    try:
++        wants_packed = (
++            DeepGemmQuantScaleFMT.from_oracle() == DeepGemmQuantScaleFMT.UE8M0
++        )
++    except AssertionError:
++        pytest.skip("DeepGEMM scale-format oracle not initialized")
++    if not wants_packed:
++        pytest.skip("Oracle does not select packed UE8M0 on this platform")
++
++    set_random_seed(seed)
++
++    hidden_dim, group_size = 1024, 128
++    x = torch.randn((batch_size, hidden_dim), dtype=torch.bfloat16, device="cuda") * 8
++
++    quant_op = QuantFP8(
++        static=False,
++        group_shape=GroupShape(1, group_size),
++        column_major_scales=False,
++        use_ue8m0=True,
++    )
++
++    x_q_native, scales_native = quant_op.forward_native(x.clone())
++    x_q_cuda, scales_cuda = quant_op.forward_cuda(x.clone())
++
++    # Format, not just values: a float32 fallback fails on dtype alone.
++    assert scales_native.dtype == torch.int32
++    assert scales_native.dtype == scales_cuda.dtype
++    assert scales_native.shape == scales_cuda.shape
++    assert scales_native.stride() == scales_cuda.stride()
++
++    # DeepGEMM's layout contract, asserted directly so a refactor that keeps the
++    # values but loses the strides still fails here.
++    assert scales_native.size(-2) == batch_size
++    assert scales_native.stride(-2) == 1
++    assert scales_native.stride(-1) == get_tma_aligned_size(
++        batch_size, scales_native.element_size()
++    )
++
++    # Packed exponent bytes are integers, so they must match exactly.
++    torch.testing.assert_close(scales_native, scales_cuda, rtol=0, atol=0)
++
++    diff_ratio = (x_q_cuda != x_q_native).sum().item() / x_q_cuda.numel()
++    assert diff_ratio < 0.002, f"Too many differences: {diff_ratio:.4%}"
++
++
+ @pytest.mark.parametrize("seed", [42])
+ @torch.inference_mode()
+ def test_quantfp8_group_edge_cases(default_vllm_config, seed: int) -> None:
 diff --git a/tests/kernels/test_compressor_kv_cache.py b/tests/kernels/test_compressor_kv_cache.py
 index b8f1cb8bfa7311ce4de851088d2fbc5534488630..63607455371401445ce46697474b9315e4ee2f1b 100644
 --- a/tests/kernels/test_compressor_kv_cache.py
@@ -4458,6 +4600,64 @@ index 2ec8761fc75de25e7c156375ec67041cb74fcd66..d881f82cbe82a40d587128095cb0ed38
  def test_resolve_rejects_quantization_config_with_non_shorthand_quant():
      # If --quantization names something other than an online shorthand,
      # quantization_config is not allowed via this path (checkpoint quant
+diff --git a/tests/test_envs.py b/tests/test_envs.py
+index 56c04dd6f2e2d1005b0f2d4f925099aa88e7e7ca..e864ae549aab703ae3269c4992c1ef8eb756c821 100644
+--- a/tests/test_envs.py
++++ b/tests/test_envs.py
+@@ -48,6 +48,53 @@ def test_p2p_side_channel_defaults_and_override(monkeypatch: pytest.MonkeyPatch)
+     assert envs.VLLM_P2P_SIDE_CHANNEL_PORT == 5799
+ 
+ 
++def _clear_unknown_vllm_envs(monkeypatch: pytest.MonkeyPatch) -> None:
++    """Remove inherited VLLM variables not known by this source tree."""
++    for name in list(os.environ):
++        if name.startswith("VLLM_") and name not in environment_variables:
++            monkeypatch.delenv(name)
++
++
++@pytest.mark.parametrize(
++    ("name", "value", "expected"),
++    [
++        ("VLLM_B12X_MLA_SPEC_DECODE_MAX_Q", "12", 12),
++        ("VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE", "1", "1"),
++        ("VLLM_PCIE_DMA_FP8", "ring", "ring"),
++        ("VLLM_CPP_AR_1STAGE_NCCL_CUTOFF", "56KB", "56KB"),
++        ("VLLM_CPP_AR_IGNORE_CUTOFF_MAX_ROWS", "4", 4),
++        ("VLLM_USE_B12X_PCIE_DMA", "1", True),
++        ("VLLM_CACHE_DIR", "/cache/vllm", "/cache/vllm"),
++    ],
++)
++def test_gilded_gnosis_runtime_envs_are_registered(
++    monkeypatch: pytest.MonkeyPatch,
++    name: str,
++    value: str,
++    expected: str | int,
++) -> None:
++    """Accept every GG runtime variable consumed outside the env registry."""
++    _clear_unknown_vllm_envs(monkeypatch)
++    monkeypatch.setenv(name, value)
++
++    envs.validate_environ(hard_fail=True)
++    assert environment_variables[name]() == expected
++
++
++def test_gilded_gnosis_env_registration_keeps_unknown_detection(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Continue rejecting misspelled VLLM variables after registration."""
++    _clear_unknown_vllm_envs(monkeypatch)
++    monkeypatch.setenv("VLLM_GILDED_GNOSIS_TYPO", "1")
++
++    with pytest.raises(
++        ValueError,
++        match="Unknown vLLM environment variable detected: VLLM_GILDED_GNOSIS_TYPO",
++    ):
++        envs.validate_environ(hard_fail=True)
++
++
+ def test_getattr_with_cache(monkeypatch: pytest.MonkeyPatch):
+     monkeypatch.setenv("VLLM_HOST_IP", "1.1.1.1")
+     monkeypatch.setenv("VLLM_PORT", "1234")
 diff --git a/tests/tokenizers_/fixtures/deepseek_v4/test_output_1.txt b/tests/tokenizers_/fixtures/deepseek_v4/test_output_1.txt
 index dbd823476c1c34156b5bff79bf493d3074098576..7e3c9bd5a394617f02d76384d613d991e60d48bd 100644
 --- a/tests/tokenizers_/fixtures/deepseek_v4/test_output_1.txt
@@ -4759,6 +4959,151 @@ index 358732eabf40ebafc14c032c10da74dd2149a111..ea82c69c4eb793552a4ee57109ec82ab
  
  
  @pytest.mark.parametrize(
+diff --git a/tests/v1/attention/test_flashinfer_decode_qlen_guard.py b/tests/v1/attention/test_flashinfer_decode_qlen_guard.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..0f3b7eb681b4075601534cfc8227c2fb3d7f0928
+--- /dev/null
++++ b/tests/v1/attention/test_flashinfer_decode_qlen_guard.py
+@@ -0,0 +1,139 @@
++"""Persistent FlashInfer decode wrappers may only be reused when the runtime
++q_len_per_req equals the value frozen during wrapper planning (1 + K).
++
++The decode-classification ceiling (reorder_batch_threshold = 1 + 2K under
++parallel drafting) deliberately admits reduced-depth lone steps as decodes —
++spec truncation near max_tokens, short chunked-prefill tails fused with the
++spec step. Those steps must take the dynamic wrapper; routing them to a
++captured wrapper raises inside flashinfer's fast_decode_plan ("q_len_per_req
++is part of the frozen cudagraph shape: this wrapper was planned with 6,
++got 8|5") and kills the engine.
++
++These tests pin the invariant and, deliberately, the distinction between the
++classification ceiling (1 + 2K) and the planned shape (1 + K): substituting
++reorder_batch_threshold for the planned length reintroduces the crash.
++"""
++
++from types import SimpleNamespace
++
++import pytest
++import torch
++
++from vllm.v1.attention.backend import AttentionMetadataBuilder
++from vllm.v1.attention.backends.flashinfer import (
++    decode_q_len_from_indptr,
++    persistent_decode_wrapper_eligible,
++)
++from vllm.v1.attention.backends.utils import split_decodes_and_prefills
++
++K = 5
++PLANNED = 1 + K
++CEILING = 1 + 2 * K
++MAX_BS = 96
++
++
++def _threshold_for(parallel_drafting: bool) -> int:
++    stub = SimpleNamespace(
++        vllm_config=SimpleNamespace(
++            speculative_config=SimpleNamespace(
++                num_speculative_tokens=K,
++                parallel_drafting=parallel_drafting,
++            ),
++            parallel_config=SimpleNamespace(decode_context_parallel_size=1),
++        )
++    )
++    AttentionMetadataBuilder._init_reorder_batch_threshold(
++        stub, 1, supports_spec_as_decode=True
++    )
++    return stub.reorder_batch_threshold
++
++
++def _eligible(q_len, *, num_reqs=1, pure_decode=True, max_bs=MAX_BS,
++              planned=PLANNED):
++    return persistent_decode_wrapper_eligible(
++        pure_decode=pure_decode,
++        num_decode_tokens=q_len * num_reqs,
++        decode_cudagraph_max_bs=max_bs,
++        decode_q_len=q_len,
++        planned_decode_q_len=planned,
++    )
++
++
++def test_classification_ceiling_is_not_planned_shape():
++    assert _threshold_for(parallel_drafting=True) == CEILING
++    assert _threshold_for(parallel_drafting=False) == PLANNED
++    assert CEILING != PLANNED
++
++
++def test_planned_shape_selects_persistent_wrapper():
++    assert _eligible(PLANNED)
++    assert _eligible(PLANNED, num_reqs=8)
++
++
++@pytest.mark.parametrize(
++    "q_len", [q for q in range(1, CEILING + 1) if q != PLANNED]
++)
++def test_reduced_or_extended_depth_falls_back_to_dynamic(q_len):
++    # Covers both observed crash signatures: q_len=5 (spec truncation near
++    # max_tokens) and q_len=8 (chunked-prefill tail fused with spec step).
++    assert not _eligible(q_len)
++
++
++def test_above_ceiling_classifies_as_prefill():
++    meta = SimpleNamespace(
++        max_query_len=CEILING + 1,
++        num_reqs=1,
++        num_actual_tokens=CEILING + 1,
++        query_start_loc_cpu=torch.tensor([0, CEILING + 1], dtype=torch.int32),
++    )
++    nd, npf, ndt, npt = split_decodes_and_prefills(
++        meta, decode_threshold=CEILING, require_uniform=True
++    )
++    assert (nd, npf, ndt, npt) == (0, 1, 0, CEILING + 1)
++
++
++def test_other_predicate_terms_still_gate():
++    assert not _eligible(PLANNED, pure_decode=False)
++    assert not _eligible(PLANNED, num_reqs=32)  # over capacity
++
++
++def test_no_spec_planned_length_is_one():
++    assert _eligible(1, planned=1)
++    assert not _eligible(2, planned=1)
++
++
++def _indptr(*lens):
++    out = [0]
++    for n in lens:
++        out.append(out[-1] + n)
++    return torch.tensor(out, dtype=torch.int32)
++
++
++@pytest.mark.parametrize(
++    ("lens", "expected"),
++    [
++        ((PLANNED,), PLANNED),
++        ((PLANNED, 0), PLANNED),          # one active + one padding row
++        ((PLANNED, PLANNED, 0), PLANNED),
++        ((PLANNED,) * 3 + (0,), PLANNED), # total not divisible by num rows
++        ((0, 0), 0),                      # all-padding
++        ((5,), 5),                        # reduced-depth lone step
++    ],
++)
++def test_decode_q_len_ignores_zero_padding(lens, expected):
++    assert decode_q_len_from_indptr(_indptr(*lens), len(lens)) == expected
++
++
++def test_zero_padded_planned_batch_keeps_persistent_wrapper():
++    # Regression: uniform CUDA-graph batches may carry zero-length padding
++    # rows; averaging tokens over rows understated the active q_len and
++    # demoted a planned-shape batch to the dynamic wrapper.
++    lens = (PLANNED, 0)
++    q_len = decode_q_len_from_indptr(_indptr(*lens), len(lens))
++    assert persistent_decode_wrapper_eligible(
++        pure_decode=True,
++        num_decode_tokens=sum(lens),
++        decode_cudagraph_max_bs=MAX_BS,
++        decode_q_len=q_len,
++        planned_decode_q_len=PLANNED,
++    )
 diff --git a/tests/v1/cudagraph/test_breakable_cudagraph.py b/tests/v1/cudagraph/test_breakable_cudagraph.py
 index 72a9a11d3cb81cf388b7a42fc7ba7af68ae9a288..aedc99a1787da628151a439d96f7d175cce94649 100644
 --- a/tests/v1/cudagraph/test_breakable_cudagraph.py
@@ -4876,7 +5221,7 @@ index 72a9a11d3cb81cf388b7a42fc7ba7af68ae9a288..aedc99a1787da628151a439d96f7d175
      assert [warmup for warmup, _ in create_calls] == [True, False]
      assert [mode for _, mode, _ in forward_calls] == [
 diff --git a/tests/v1/kv_connector/unit/offloading_connector/test_scheduler.py b/tests/v1/kv_connector/unit/offloading_connector/test_scheduler.py
-index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452def22590 100644
+index c783957de6717a633d46e78f210735fc6dfacd45..e1a1b4d8288e71bbb545962383a814e6b802296b 100644
 --- a/tests/v1/kv_connector/unit/offloading_connector/test_scheduler.py
 +++ b/tests/v1/kv_connector/unit/offloading_connector/test_scheduler.py
 @@ -37,6 +37,10 @@ from vllm.v1.kv_offload.base import (
@@ -4890,7 +5235,27 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  from vllm.v1.request import RequestStatus
  
  
-@@ -65,7 +69,8 @@ def test_scheduler_reports_allocation_failure(request_runner):
+@@ -53,6 +57,19 @@ def _reduce_kv_connector_stats(runner):
+     return reduced
+ 
+ 
++def test_remove_pending_job_deduplicates_lockstep_mla_block_ids() -> None:
++    """Clean one shared physical block once per transfer job."""
++    scheduler = object.__new__(OffloadingConnectorScheduler)
++    scheduler._block_id_to_pending_jobs = {
++        7: {42, 43},
++        9: {42},
++    }
++
++    scheduler._remove_pending_job(42, [7, 7, 9, 9])
++
++    assert scheduler._block_id_to_pending_jobs == {7: {43}}
++
++
+ def test_scheduler_reports_allocation_failure(request_runner):
+     runner = request_runner(
+         block_size=4,
+@@ -65,7 +82,8 @@ def test_scheduler_reports_allocation_failure(request_runner):
      runner.run(decoded_tokens=[EOS_TOKEN_ID])
  
      reduced = _reduce_kv_connector_stats(runner)
@@ -4900,7 +5265,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  
  
  @pytest.mark.parametrize("missing_metadata", ["block_ids", "offload_keys"])
-@@ -166,7 +171,7 @@ def test_abort_queued_request_does_not_build_store_job(
+@@ -166,7 +184,7 @@ def test_abort_queued_request_does_not_build_store_job(
  def test_last_block_offloaded_at_request_finish(
      request_runner, async_scheduling: bool, prompt_offset: int
  ):
@@ -4909,7 +5274,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  
      prompt = block_size + prompt_offset tokens → not a full block at schedule time,
      so _build_store_jobs creates no store job. After EOS, request_finished
-@@ -188,19 +193,50 @@ def test_last_block_offloaded_at_request_finish(
+@@ -188,19 +206,50 @@ def test_last_block_offloaded_at_request_finish(
          generate_store_output(list(keys))
      )
  
@@ -4969,7 +5334,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  
  def test_scheduler_reports_lookup_sync_delay(request_runner):
      runner = request_runner(
-@@ -423,10 +459,10 @@ def test_request_preemption(request_runner, async_scheduling: bool):
+@@ -423,10 +472,10 @@ def test_request_preemption(request_runner, async_scheduling: bool):
  
  
  @pytest.mark.parametrize("async_scheduling", [True, False])
@@ -4982,7 +5347,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  
      A request can finish while its GPU->primary store is still in flight. The
      manager-level hook should not wait for that completion; complete_store may
-@@ -467,8 +503,8 @@ def test_on_request_finished_is_not_deferred_until_store_completion(
+@@ -467,8 +516,8 @@ def test_on_request_finished_is_not_deferred_until_store_completion(
          complete_transfers=False,
      )
  
@@ -4993,7 +5358,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
      runner.run(
          decoded_tokens=[EOS_TOKEN_ID],
          complete_transfers=False,
-@@ -685,7 +721,7 @@ def test_two_groups_full_and_sliding_window(request_runner, async_scheduling: bo
+@@ -685,7 +734,7 @@ def test_two_groups_full_and_sliding_window(request_runner, async_scheduling: bo
      touch_calls = runner.manager.touch.call_args_list
      assert len(touch_calls) == 6
  
@@ -5002,7 +5367,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
  
      runner.scheduler.reset_prefix_cache()
  
-@@ -698,19 +734,11 @@ def test_two_groups_full_and_sliding_window(request_runner, async_scheduling: bo
+@@ -698,19 +747,11 @@ def test_two_groups_full_and_sliding_window(request_runner, async_scheduling: bo
          # Group 1 (sliding window, window=2): only the last 2 blocks
          #   are within the window → loads blocks 1,2
          expected_loaded=((0, 0), (0, 1), (0, 2), (1, 1), (1, 2)),
@@ -5024,7 +5389,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
      # full attention group touched all 3 blocks
      assert len(touch_calls[0].args[0]) == 3
      # sliding window group touched just the last 2 blocks
-@@ -1553,16 +1581,13 @@ def test_reset_cache_finalizes_finished_request_with_pending_store(
+@@ -1553,16 +1594,13 @@ def test_reset_cache_finalizes_finished_request_with_pending_store(
      assert req_status.transfer_jobs, "expected an in-flight store before finish"
      assert any(job.is_store for job in cs._jobs.values())
  
@@ -5044,7 +5409,7 @@ index c783957de6717a633d46e78f210735fc6dfacd45..ce6ba6984a56b4c4ff149a51693bb452
      cs.reset_cache()
      assert finalized == [req_id]
      assert req_id not in cs._req_status
-@@ -1783,6 +1808,288 @@ def test_swa_alignment_skip(request_runner, async_scheduling: bool):
+@@ -1783,6 +1821,288 @@ def test_swa_alignment_skip(request_runner, async_scheduling: bool):
      )
  
  
@@ -7985,7 +8350,7 @@ index 0000000000000000000000000000000000000000..1d3b43082c028a21f45c57b88e6a2183
 +        self._workspaces.clear()
 +        self._closed = True
 diff --git a/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py b/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py
-index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a88305521 100644
+index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..15ce871a1598eb1e81fc4f23f93067a6e7caef3a 100644
 --- a/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py
 +++ b/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py
 @@ -6,6 +6,7 @@ from dataclasses import dataclass, field
@@ -8114,7 +8479,19 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
          self._req_status: dict[ReqId, RequestOffloadState] = {}
          self._current_batch_load_jobs: dict[int, TransferJob] = {}
          self._current_batch_jobs_to_flush: set[int] = set()
-@@ -475,13 +521,6 @@ class OffloadingConnectorScheduler:
+@@ -458,7 +504,10 @@ class OffloadingConnectorScheduler:
+         return job_id
+ 
+     def _remove_pending_job(self, job_id: int, block_ids: list[int] | None) -> None:
+-        for bid in block_ids or ():
++        # Lockstep MLA groups share physical block IDs, so a transfer job may
++        # contain the same ID once per logical group. The pending-job index is
++        # set-backed and therefore registers each (block, job) pair only once.
++        for bid in set(block_ids or ()):
+             pending = self._block_id_to_pending_jobs[bid]
+             pending.remove(job_id)
+             if not pending:
+@@ -475,13 +524,6 @@ class OffloadingConnectorScheduler:
              num = min(num, req_status.req.num_prompt_tokens)
          return num
  
@@ -8128,7 +8505,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
      def _maximal_prefix_lookup(
          self, keys: Iterable[OffloadKey], req_context: ReqContext
      ) -> int | None:
-@@ -943,6 +982,37 @@ class OffloadingConnectorScheduler:
+@@ -943,6 +985,37 @@ class OffloadingConnectorScheduler:
                          ):
                              group_state.block_ids[j] = 0
  
@@ -8166,7 +8543,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
      def _build_store_jobs(
          self,
          scheduler_output: SchedulerOutput,
-@@ -995,28 +1065,50 @@ class OffloadingConnectorScheduler:
+@@ -995,28 +1068,50 @@ class OffloadingConnectorScheduler:
  
                  alignment_chunk_count = group_config.alignment_chunk_count
                  tail = group_config.sliding_window_size_in_chunks
@@ -8224,7 +8601,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
                  continue
  
              store_output = self.manager.prepare_store(
-@@ -1027,12 +1119,10 @@ class OffloadingConnectorScheduler:
+@@ -1027,12 +1122,10 @@ class OffloadingConnectorScheduler:
                      _ConnectorMetricName.ALLOCATION_FAILURE
                  )
                  logger.warning("Request %s: cannot store chunks", req_id)
@@ -8237,7 +8614,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
                  continue
  
              self._touch(req_status)
-@@ -1176,6 +1266,17 @@ class OffloadingConnectorScheduler:
+@@ -1176,6 +1269,17 @@ class OffloadingConnectorScheduler:
              store_jobs=self._build_store_jobs(scheduler_output),
              jobs_to_flush=self._current_batch_jobs_to_flush,
          )
@@ -8255,7 +8632,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
          self._current_batch_load_jobs = {}
          self._current_batch_jobs_to_flush = set()
          self._current_batch_allocated_block_ids = set()
-@@ -1266,7 +1367,7 @@ class OffloadingConnectorScheduler:
+@@ -1266,7 +1370,7 @@ class OffloadingConnectorScheduler:
  
              del self._jobs[job_id]
              req_status.transfer_jobs.remove(job_id)
@@ -8264,7 +8641,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
                  del self._req_status[job_status.req_id]
  
      def get_stats(self) -> OffloadingConnectorStats | None:
-@@ -1308,7 +1409,6 @@ class OffloadingConnectorScheduler:
+@@ -1308,7 +1412,6 @@ class OffloadingConnectorScheduler:
              self.manager.on_request_finished(req_context)
              return False, None
  
@@ -8272,7 +8649,7 @@ index 0d15ec22fdf9fd5cb41245495b073b0b6388f9d2..ca686c9743419e53ef6693e7d44a363a
          self._maybe_observe_lookup_async_delay(req_status)
  
          # Update offload keys with final block hash so _build_store_jobs can
-@@ -1352,6 +1452,8 @@ class OffloadingConnectorScheduler:
+@@ -1352,6 +1455,8 @@ class OffloadingConnectorScheduler:
  
          for req_id, status in list(self._req_status.items()):
              if status.req.is_finished():
@@ -8414,10 +8791,19 @@ index 61244a3e164b6fb34ff2f6f6e68f84cbdd550a88..5e8f909ce5e18dd330dde886398066e0
  
  
 diff --git a/vllm/envs.py b/vllm/envs.py
-index 96226926fc5532b41a05eff5526aac922acccd83..3dedbea35adb2fea9f188fdbbc913ab18cb02fbc 100755
+index 96226926fc5532b41a05eff5526aac922acccd83..e31ada8006c924295e43d1683290f19808abfb3a 100755
 --- a/vllm/envs.py
 +++ b/vllm/envs.py
-@@ -234,7 +234,7 @@ if TYPE_CHECKING:
+@@ -87,6 +87,8 @@ if TYPE_CHECKING:
+     VLLM_B12X_MLA_CKV_GATHER_MAX_TOKENS: int = 524288
+     VLLM_B12X_MLA_CKV_PREFETCH_DEPTH: int = 1
+     VLLM_B12X_MLA_CKV_PREFETCH_WORKSPACE_MIB: int = 1024
++    VLLM_B12X_MLA_SPEC_DECODE_MAX_Q: int = 8
++    VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE: str = "auto"
+     VLLM_MINIMAX_M3_ENABLE_TORCH_COMPILE: bool = False
+     VLLM_B12X_CUDAGRAPH_PIECEWISE_PREWARM: bool = False
+     VLLM_B12X_MOE_FORCE_MODELOPT_PREP: bool = False
+@@ -234,12 +236,17 @@ if TYPE_CHECKING:
      VLLM_FLASHINFER_AUTOTUNE_SKIP_OPS: list[str] | None = None
      VLLM_FLASHINFER_ALLREDUCE_BACKEND: Literal["auto", "trtllm", "mnnvl"] = "auto"
      VLLM_ENABLE_PCIE_ALLREDUCE: bool = False
@@ -8426,7 +8812,33 @@ index 96226926fc5532b41a05eff5526aac922acccd83..3dedbea35adb2fea9f188fdbbc913ab1
      VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE: str = "84KB"
      VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE: str = "84KB"
      VLLM_PCIE_DMA_MIN_BYTES: str = "6MB"
-@@ -1852,7 +1852,7 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     VLLM_PCIE_ONESHOT_ALLOW_CROSS_NUMA: bool = True
+     VLLM_PCIE_ONESHOT_SINGLE_CHANNEL: bool = False
++    VLLM_PCIE_DMA_FP8: str | None = None
++    VLLM_CPP_AR_1STAGE_NCCL_CUTOFF: str | None = None
++    VLLM_CPP_AR_IGNORE_CUTOFF_MAX_ROWS: int | None = None
++    VLLM_USE_B12X_PCIE_DMA: bool = False
++    VLLM_CACHE_DIR: str | None = None
+     VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE: int = 394 * 1024 * 1024
+     VLLM_XGRAMMAR_CACHE_MB: int = 0
+     VLLM_REGEX_COMPILATION_TIMEOUT_S: int = 5
+@@ -1225,6 +1232,15 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     "VLLM_B12X_MLA_CKV_PREFETCH_WORKSPACE_MIB": lambda: int(
+         os.getenv("VLLM_B12X_MLA_CKV_PREFETCH_WORKSPACE_MIB", "1024")
+     ),
++    # Short speculative extends may use the B12X sparse-MLA decode kernel.
++    # Backend validation remains authoritative because eligibility also
++    # depends on the active speculative configuration.
++    "VLLM_B12X_MLA_SPEC_DECODE_MAX_Q": lambda: int(
++        os.getenv("VLLM_B12X_MLA_SPEC_DECODE_MAX_Q", "8")
++    ),
++    "VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE": lambda: os.getenv(
++        "VLLM_B12X_MLA_SPEC_EXTEND_AS_DECODE", "auto"
++    ),
+     # Diagnostic flag retained for local experiments. MiniMax M3 compile is
+     # fail-closed in the model until the no-break path is validated.
+     "VLLM_MINIMAX_M3_ENABLE_TORCH_COMPILE": lambda: bool(
+@@ -1852,7 +1868,7 @@ environment_variables: dict[str, Callable[[], Any]] = {
      "VLLM_PCIE_ALLREDUCE_BACKEND": env_with_choices(
          "VLLM_PCIE_ALLREDUCE_BACKEND",
          "cpp",
@@ -8435,7 +8847,31 @@ index 96226926fc5532b41a05eff5526aac922acccd83..3dedbea35adb2fea9f188fdbbc913ab1
      ),
      # Max input size for the b12x PCIe oneshot allreduce dispatch.
      # Accepts raw bytes or a KB/MB suffix (e.g. "84KB").
-@@ -2287,12 +2287,18 @@ environment_variables: dict[str, Callable[[], Any]] = {
+@@ -1878,6 +1894,23 @@ environment_variables: dict[str, Callable[[], Any]] = {
+         os.getenv("VLLM_PCIE_ONESHOT_SINGLE_CHANNEL", "0").strip().lower()
+         not in ("", "0", "false", "no", "off")
+     ),
++    # Optional wire format and crossover tuning read by the custom-allreduce
++    # integration. Unset values delegate to backend-owned defaults.
++    "VLLM_PCIE_DMA_FP8": lambda: os.getenv("VLLM_PCIE_DMA_FP8"),
++    "VLLM_CPP_AR_1STAGE_NCCL_CUTOFF": lambda: os.getenv(
++        "VLLM_CPP_AR_1STAGE_NCCL_CUTOFF"
++    ),
++    "VLLM_CPP_AR_IGNORE_CUTOFF_MAX_ROWS": lambda: (
++        int(value)
++        if (value := os.getenv("VLLM_CPP_AR_IGNORE_CUTOFF_MAX_ROWS")) is not None
++        else None
++    ),
++    # The DS4 launcher exports these for B12X and compiler-cache consumers.
++    # Register them so vLLM validation does not reject a supported launch.
++    "VLLM_USE_B12X_PCIE_DMA": lambda: bool(
++        int(os.getenv("VLLM_USE_B12X_PCIE_DMA", "0"))
++    ),
++    "VLLM_CACHE_DIR": lambda: os.getenv("VLLM_CACHE_DIR"),
+     # Control the workspace buffer size for the FlashInfer backend.
+     "VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE": lambda: int(
+         os.getenv("VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE", str(394 * 1024 * 1024))
+@@ -2287,12 +2320,18 @@ environment_variables: dict[str, Callable[[], Any]] = {
      "VLLM_EXL3_TRELLIS_MAX_M": lambda: os.getenv("VLLM_EXL3_TRELLIS_MAX_M"),
      "VLLM_EXL3_TRELLIS_BLOCK_M": lambda: os.getenv("VLLM_EXL3_TRELLIS_BLOCK_M"),
      "VLLM_EXL3_PREFILL_CHUNK": lambda: os.getenv("VLLM_EXL3_PREFILL_CHUNK"),
@@ -8574,6 +9010,64 @@ index 885ec74f91e3957f32efda5b083257d735d498a8..639f6e059766f943b98615796b8ad824
  direct_register_custom_op(
      op_name="hc_head_fused_kernel_tilelang",
      op_func=_hc_head_fused_kernel_tilelang,
+diff --git a/vllm/model_executor/layers/attention/mla_attention.py b/vllm/model_executor/layers/attention/mla_attention.py
+index 9fefa3dd4f194f25c788630795e2835a869247a3..1931df061abaa20779c4bf73d4acc8d104c2d7ec 100644
+--- a/vllm/model_executor/layers/attention/mla_attention.py
++++ b/vllm/model_executor/layers/attention/mla_attention.py
+@@ -333,6 +333,22 @@ def _run_mla_query_bmm(
+     torch.bmm(query.contiguous() if use_safe_op else query, weight, out=output)
+ 
+ 
++def is_packed_quantized_dtype(dtype: torch.dtype) -> bool:
++    """Return whether ``dtype`` is a packed quantized-weight container.
++
++    NVFP4 packs into ``uint8``; compressed-tensors int4/int8 packs into
++    ``int32``. Neither is a real activation dtype, so ``kv_c_normed`` must not
++    be cast to them -- the linear layer unpacks and quantizes internally.
++
++    Args:
++        dtype: Data type to classify.
++
++    Returns:
++        Whether the data type stores packed quantized weights.
++    """
++    return dtype in (torch.uint8, torch.int32)
++
++
+ @functools.cache
+ def _b12x_absorb_bmm_enabled() -> bool:
+     return envs.VLLM_B12X_ABSORB_BMM
+@@ -3178,12 +3194,13 @@ class MLACommonBaseImpl(MLAAttentionImpl[A], Generic[A]):
+                 if hasattr(self.kv_b_proj, "weight")
+                 else self.kv_b_proj.params_dtype
+             )
+-            # For NVFP4, weights are packed uint8 — keep input in model dtype
+-            # since the NVFP4 linear layer quantizes internally.
++            # Packed quantized weights (NVFP4 → uint8, compressed-tensors
++            # int4/int8 → int32) are containers, not activation dtypes — keep
++            # the input in model dtype; the linear layer quantizes internally.
+             if (
+                 use_fp8_prefill or _kv_b_proj_w_dtype != current_platform.fp8_dtype()
+-            ) and _kv_b_proj_w_dtype != torch.uint8:
+-                kv_c_normed = kv_c_normed.to(self.kv_b_proj.weight.dtype)
++            ) and not is_packed_quantized_dtype(_kv_b_proj_w_dtype):
++                kv_c_normed = kv_c_normed.to(_kv_b_proj_w_dtype)
+ 
+             k_pe = workspace[:toks][..., self.kv_lora_rank :].unsqueeze(1)
+             kv_nope = self.kv_b_proj(kv_c_normed)[0].view(
+@@ -3334,9 +3351,11 @@ class MLACommonBaseImpl(MLAAttentionImpl[A], Generic[A]):
+                 if hasattr(self.kv_b_proj, "weight")
+                 else self.kv_b_proj.params_dtype
+             )
++            # Same packed-container rule as _compute_prefill_context above; this
++            # is the branch forward_mha takes when dcp_world_size > 1.
+             if (
+                 use_fp8_prefill or kv_b_proj_w_dtype != current_platform.fp8_dtype()
+-            ) and kv_b_proj_w_dtype != torch.uint8:
++            ) and not is_packed_quantized_dtype(kv_b_proj_w_dtype):
+                 kv_c_normed = kv_c_normed.to(kv_b_proj_w_dtype)
+ 
+             kv_nope = self.kv_b_proj(kv_c_normed)[0].view(
 diff --git a/vllm/model_executor/layers/quantization/exl3.py b/vllm/model_executor/layers/quantization/exl3.py
 index 39932667b1da2017e9500f37b7587479b04acb41..36bd8c525b3bdada590480628856801f56a6e2a2 100644
 --- a/vllm/model_executor/layers/quantization/exl3.py
@@ -10656,6 +11150,117 @@ index 0000000000000000000000000000000000000000..2855f2b1a43fb6b6d7eeed5a933e042c
 +            exc,
 +        )
 +        return _quantize(key, quantize, path=None)
+diff --git a/vllm/model_executor/layers/quantization/input_quant_fp8.py b/vllm/model_executor/layers/quantization/input_quant_fp8.py
+index e8810919c2046ffe672e9eea675a80f62c28375a..60d348687e0534fe3b3ee413420ed4cd7cf1d4c4 100644
+--- a/vllm/model_executor/layers/quantization/input_quant_fp8.py
++++ b/vllm/model_executor/layers/quantization/input_quant_fp8.py
+@@ -16,6 +16,7 @@ from vllm.model_executor.layers.quantization.utils.quant_utils import (
+ from vllm.platforms import current_platform
+ from vllm.utils.deep_gemm import (
+     DeepGemmQuantScaleFMT,
++    get_tma_aligned_size,
+     is_deep_gemm_e8m0_used,
+     is_deep_gemm_supported,
+ )
+@@ -90,12 +91,7 @@ class QuantFP8(CustomOp):
+     ) -> tuple[torch.Tensor, torch.Tensor]:
+         from vllm.model_executor.layers.quantization.utils import fp8_utils
+ 
+-        if (
+-            self.is_group_quant
+-            and self.use_ue8m0
+-            and self.use_deep_gemm_supported
+-            and (DeepGemmQuantScaleFMT.from_oracle() == DeepGemmQuantScaleFMT.UE8M0)
+-        ):
++        if self.is_group_quant and self._deepgemm_wants_packed_scales():
+             return fp8_utils.per_token_group_quant_fp8_packed_for_deepgemm(
+                 x,
+                 group_size=self.group_size,
+@@ -190,6 +186,13 @@ class QuantFP8(CustomOp):
+     ):
+         if self.is_group_quant and not self.static:
+             assert scale is None, "Dynamic group quantization does not use scale"
++            # Must mirror forward_cuda's choice exactly. When DeepGEMM wants
++            # packed UE8M0, plain float32 scales are the wrong *format*, not
++            # merely a different layout, and CustomOp.default_on() is False
++            # under inductor -- so this is the path a compiled run takes and
++            # DeepGEMM silently receives unpacked scales.
++            if self._deepgemm_wants_packed_scales():
++                return self._quantize_group_native_packed(x)
+             return self._quantize_group_native(x)
+ 
+         assert (scale is not None) == self.static
+@@ -230,6 +233,70 @@ class QuantFP8(CustomOp):
+ 
+         return out, scale
+ 
++    def _deepgemm_wants_packed_scales(self) -> bool:
++        """Whether the consumer expects DeepGEMM's packed UE8M0 scale format.
++
++        Shared by forward_cuda and forward_native so the two cannot disagree
++        about the scale format they emit. The oracle only answers UE8M0 on the
++        SM120 family; elsewhere it answers FLOAT32_CEIL_UE8M0 and both paths
++        return plain float32 scales.
++        """
++        return (
++            self.use_ue8m0
++            and self.use_deep_gemm_supported
++            and DeepGemmQuantScaleFMT.from_oracle() == DeepGemmQuantScaleFMT.UE8M0
++        )
++
++    def _quantize_group_native_packed(
++        self, x: torch.Tensor
++    ) -> tuple[torch.Tensor, torch.Tensor]:
++        """Native equivalent of per_token_group_quant_fp8_packed_for_deepgemm.
++
++        Verified bit-identical to the C++ op (values, shape and TMA-aligned
++        stride) across square, wide and ragged-row shapes. Expressed in plain
++        torch ops so inductor can fuse it with neighbouring work, which a custom
++        op cannot be.
++        """
++        hidden_dim = x.shape[-1]
++        assert hidden_dim % self.group_size == 0, (
++            f"hidden dim {hidden_dim} must be divisible by group {self.group_size}"
++        )
++        mn = x.numel() // hidden_dim
++        num_groups = hidden_dim // self.group_size
++        k_packed = (num_groups + 3) // 4
++
++        xg = x.reshape(mn, num_groups, self.group_size).float()
++        absmax = xg.abs().amax(dim=-1).clamp(min=_FP8_MIN_SCALING_FACTOR)
++
++        # UE8M0 keeps only a power-of-two scale, so the exponent is the payload.
++        exponent = torch.ceil(torch.log2(absmax / _FP8_MAX))
++        quantized = (xg / torch.exp2(exponent).unsqueeze(-1)).clamp(_FP8_MIN, _FP8_MAX)
++        x_q = quantized.to(_FP8_DTYPE).reshape(x.shape)
++
++        # e8m0 byte is the biased exponent; four bytes pack into one int32.
++        byte = (exponent + 127.0).clamp(0, 255).to(torch.int32)
++        pad = k_packed * 4 - num_groups
++        if pad:
++            byte = F.pad(byte, (0, pad))
++        b = byte.reshape(mn, k_packed, 4)
++        packed = b[..., 0] | (b[..., 1] << 8) | (b[..., 2] << 16) | (b[..., 3] << 24)
++
++        # DeepGEMM requires size(-2) == mn, stride(-2) == 1 and
++        # stride(-1) == get_tma_aligned_size(mn): the mn dim must be the fast
++        # one, with the slow stride padded out to the TMA-aligned size.
++        #
++        # Build it by padding the transposed buffer, materializing, transposing
++        # back and slicing -- NOT via empty_strided + copy_. Inductor is free to
++        # ignore an empty_strided layout request and materialize row-major,
++        # which trips the assertion, but it does preserve a transpose-derived
++        # view, and slicing the leading dim afterwards keeps the strides intact.
++        #
++        # A bare transpose-of-contiguous is correct only when mn is already
++        # TMA-aligned and silently yields stride(-1) == mn otherwise.
++        tma_aligned_mn = get_tma_aligned_size(mn, packed.element_size())
++        packed_t = F.pad(packed.transpose(0, 1), (0, tma_aligned_mn - mn))
++        return x_q, packed_t.contiguous().transpose(0, 1)[:mn]
++
+     def _quantize_group_native(
+         self, x: torch.Tensor
+     ) -> tuple[torch.Tensor, torch.Tensor]:
 diff --git a/vllm/model_executor/warmup/kernel_warmup.py b/vllm/model_executor/warmup/kernel_warmup.py
 index 36a17fa8aa263009adc60acc5bf8ca172fa49645..87e1f5be2b93ce125fd479b39712c1252b16db86 100644
 --- a/vllm/model_executor/warmup/kernel_warmup.py
@@ -11262,6 +11867,128 @@ index 16bfa1a99a1bdd52104f6440af12b6c197ca3741..e69c530317fcb7be0fe2989c8b04c452
  
      Returns:
          The encoded prompt string.
+diff --git a/vllm/v1/attention/backends/flashinfer.py b/vllm/v1/attention/backends/flashinfer.py
+index 816a8a7aa117689b2d9a064a41dc35f4ff36138b..1724f3db7819e65ad7c43266e6d934b8927f9f7c 100755
+--- a/vllm/v1/attention/backends/flashinfer.py
++++ b/vllm/v1/attention/backends/flashinfer.py
+@@ -617,6 +617,77 @@ class FlashInferMetadata:
+     cascade_wrapper: MultiLevelCascadeAttentionWrapper | None
+ 
+ 
++def persistent_decode_wrapper_eligible(
++    *,
++    pure_decode: bool,
++    num_decode_tokens: int,
++    decode_cudagraph_max_bs: int,
++    decode_q_len: int,
++    planned_decode_q_len: int,
++) -> bool:
++    """Whether a decode-classified batch may reuse a persistent (CUDA-graph)
++    FlashInfer decode wrapper.
++
++    Persistent wrappers are planned once, during graph capture, with a frozen
++    ``q_len_per_req`` of exactly ``planned_decode_q_len`` (1 + num_spec_tokens;
++    1 without speculative decoding). Reuse is only sound when the runtime
++    per-request query length matches that frozen shape — FlashInfer's
++    ``fast_decode_plan`` hard-errors otherwise ("q_len_per_req is part of the
++    frozen cudagraph shape").
++
++    WARNING: ``planned_decode_q_len`` is NOT ``reorder_batch_threshold``. With
++    parallel drafting the decode-classification ceiling is
++    ``1 + 2 * num_spec_tokens``, which deliberately admits reduced-depth steps
++    (spec truncation near ``max_tokens``, short chunked-prefill tails fused
++    with the spec step). Those are valid decode batches, but they must take
++    the dynamic wrapper, which replans for the current shape on every call.
++
++    Args:
++        pure_decode: True when the batch contains no prefill requests.
++        num_decode_tokens: Total scheduled tokens across the decode requests.
++        decode_cudagraph_max_bs: Token capacity the persistent wrappers were
++            sized for ((1 + num_spec_tokens) * max_num_reqs, capped by
++            ``max_cudagraph_capture_size``).
++        decode_q_len: Runtime per-request query length of the active
++            (non-padding) decode requests.
++        planned_decode_q_len: Frozen per-request query length the persistent
++            wrappers were planned with (1 + num_spec_tokens).
++
++    Returns:
++        True when the batch may be routed to the persistent (CUDA-graph)
++        decode wrapper; False when it must use the dynamic wrapper.
++    """
++    return (
++        pure_decode
++        and num_decode_tokens <= decode_cudagraph_max_bs
++        and decode_q_len == planned_decode_q_len
++    )
++
++
++def decode_q_len_from_indptr(qo_indptr_cpu: torch.Tensor, num_decodes: int) -> int:
++    """Per-request query length of the active decode requests in a batch.
++
++    Uniform CUDA-graph decode batches may carry zero-length padding rows
++    (``split_decodes_and_prefills`` classifies ``q_len == 0`` padding as
++    decode so ``num_decodes`` matches the captured size). Averaging
++    ``num_decode_tokens`` over ``num_decodes`` would understate the active
++    query length for such batches and wrongly demote them to the dynamic
++    wrapper, so the length is taken as the maximum per-request span instead
++    (decode rows are uniform-or-zero by construction).
++
++    Args:
++        qo_indptr_cpu: CPU query-start-loc tensor for the batch.
++        num_decodes: Number of decode-classified requests, including any
++            zero-length padding rows.
++
++    Returns:
++        The uniform query length of the active decode requests, or 0 when
++        every row is padding.
++    """
++    lens = qo_indptr_cpu[1 : num_decodes + 1] - qo_indptr_cpu[:num_decodes]
++    return int(lens.max().item()) if num_decodes > 0 else 0
++
++
+ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
+     reorder_batch_threshold: int = 1
+ 
+@@ -664,6 +735,10 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
+             if speculative_config is not None
+             else 0
+         )
++        # The frozen per-request query length persistent decode wrappers are
++        # planned with during capture. See persistent_decode_wrapper_eligible
++        # for why this must never be conflated with reorder_batch_threshold.
++        self._planned_decode_q_len = 1 + num_spec_tokens
+         self.enable_cuda_graph = (
+             self.compilation_config.cudagraph_mode.decode_mode() == CUDAGraphMode.FULL
+         )
+@@ -1507,16 +1582,21 @@ class FlashInferMetadataBuilder(AttentionMetadataBuilder[FlashInferMetadata]):
+             else:
+                 assert seq_lens_cpu is not None
+                 pure_decode = num_prefills == 0
++                # Spec-as-decode verify batches carry a uniform per-request
++                # query length; uniform CUDA-graph batches may additionally
++                # carry zero-length padding rows, so the active length comes
++                # from the per-request spans, not an average.
++                decode_q_len = decode_q_len_from_indptr(qo_indptr_cpu, num_decodes)
+                 use_cudagraph = (
+                     self.enable_cuda_graph
+-                    and pure_decode
+-                    and num_decode_tokens <= self._decode_cudagraph_max_bs
++                    and persistent_decode_wrapper_eligible(
++                        pure_decode=pure_decode,
++                        num_decode_tokens=num_decode_tokens,
++                        decode_cudagraph_max_bs=self._decode_cudagraph_max_bs,
++                        decode_q_len=decode_q_len,
++                        planned_decode_q_len=self._planned_decode_q_len,
++                    )
+                 )
+-                # Spec-as-decode verify batches carry a uniform
+-                # num_decode_tokens // num_decodes tokens per request; the
+-                # wrapper's batch size and kv metadata are per request.
+-                assert num_decode_tokens % num_decodes == 0
+-                decode_q_len = num_decode_tokens // num_decodes
+ 
+                 decode_wrapper = self._get_decode_wrapper(num_decodes, use_cudagraph)
+                 # Use the persistent buffer with padding length,
 diff --git a/vllm/v1/attention/backends/mla/compressor_utils.py b/vllm/v1/attention/backends/mla/compressor_utils.py
 index 9ec2085e8d180b0d40dd06f692db7d29916cbb54..cfa5f62d0748f10e62be38c17253bd0fb71adf4a 100644
 --- a/vllm/v1/attention/backends/mla/compressor_utils.py

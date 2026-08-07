@@ -345,13 +345,13 @@ output_r31="$(
 
 grep -Fxq 'composition=reproduce-r31' <<<"${output_r31}"
 grep -Fxq \
-  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
   <<<"${output_r31}"
 grep -Fxq \
-  'version=0.11.2.dev280+gilded.gnosis.v20.vllm77a5b39.b12xacee6e5.fi1ac6942.cu132.20260807.r31' \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12xacee6e5.fi1ac6942.cu132.20260807.r31' \
   <<<"${output_r31}"
 grep -Fxq \
-  'vllm_tree=77a5b395ca5399ed482db434894dcc3f5d51731c' \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_r31}"
 grep -Fxq \
   'b12x_tree=acee6e504209068bd0cbb01cb2b98966bddcf042' \
@@ -377,7 +377,7 @@ grep -Fxq \
 
 r31_compose="${repo_root}/examples/docker-compose-ds4-v20-r31.yml"
 grep -Fq \
-  'gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
+  'gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
   "${r31_compose}"
 grep -Fq 'ALLREDUCE_MODE: ${ALLREDUCE_MODE:-auto}' "${r31_compose}"
 grep -Fq 'NATIVE_L2_PATH: ${NATIVE_L2_PATH:-}' "${r31_compose}"
@@ -678,13 +678,13 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-[0-9]{8}-r31$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-[0-9]{8}-r31$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm77a5b39[.]b12xacee6e5[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r31$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12xacee6e5[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r31$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=77a5b395ca5399ed482db434894dcc3f5d51731c' \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_clean}"
 grep -Fxq \
   'b12x_tree=acee6e504209068bd0cbb01cb2b98966bddcf042' \

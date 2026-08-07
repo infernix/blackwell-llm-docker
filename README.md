@@ -584,20 +584,26 @@ qualification receipt is
 are `20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f` and
 `6bc35fdb76b6f9d11601009fe413720b461fb444`.
 
-The r31 release retains every qualified r30 path and adds three release-facing
-changes. It builds FlashInfer from the exact qualified `main` + PR #4393 source
-commit and adds its PCIe IPC all-reduce as the automatic TP2 backend. TP4 and
-larger keep B12X because the matched kernel and end-to-end tests favored B12X there. It
-also prewarms mixed-Trellis target and native-MTP route packing before KV
-sizing, preventing first-request scratch allocations from reducing the usable
-KV pool.
+The r31 release retains every qualified r30 path. It builds FlashInfer from the
+exact qualified `main` + PR #4393 source commit and adds its PCIe IPC all-reduce
+as the automatic TP2 backend. TP4 and larger keep B12X because matched kernel
+and end-to-end tests favored B12X there. It also prewarms mixed-Trellis target
+and native-MTP route packing before KV sizing, preventing first-request scratch
+allocations from reducing the usable KV pool.
 
-The clean release manifest contains all required unmerged changes: vLLM
-#145, #213, #214, #217, #218, #228, #229, #230, #235, #245, #248, #251,
-#252, #253 and #254; B12X #125 and #126; and LMCache #7 through #17. The required
-part of superseded vLLM #250 is preserved in #228. Every PR is pinned by its
-full head SHA, replayed over current clean GG/B12X/LMCache bases, and recorded
-in the archived lock files. The composer refuses moved heads or conflicts.
+The final candidate additionally guards dynamic DSpark query lengths in the
+FlashInfer persistent wrapper, fixes compiled packed-UE8M0 scale emission and
+int32-packed MLA activation dtypes, registers the launcher/backend runtime
+controls, serializes the DSpark draft backend under vLLM's canonical field, and
+deduplicates lockstep MLA block cleanup in native KV offload.
+
+The clean release manifest contains all required unmerged changes: vLLM #145,
+#188, #213, #214, #217, #218, #228, #229, #230, #234, #235, #245, #248,
+#251 through #256; B12X #125 and #126; and LMCache #7 through #17. The required
+parts of superseded vLLM #197 and #250 are preserved in #254 and #228. Every
+open GG PR is classified as included or reviewed-excluded and pinned by its
+full head SHA. The build fails if a head moves, a new PR is unclassified, or
+the clean replay over GG/B12X/LMCache conflicts.
 
 Native L2 offload is also environment-only in r31. `KV_OFFLOADING_SIZE` sets
 the host-memory L1 size, while `NATIVE_L2_PATH` and `NATIVE_L2_GB` enable a
@@ -619,7 +625,7 @@ VLLM_RELEASE_COMPOSITION=reproduce-r31 \
 Release candidate image:
 
 ```text
-voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31
+voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31
 ```
 
 Use `examples/docker-compose-ds4-v20-r31.yml`. `ALLREDUCE_MODE=auto` selects
