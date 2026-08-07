@@ -83,6 +83,8 @@ configure_lmcache_composition() {
 }
 
 if [[ "${composition_mode}" == "clean" ]]; then
+  python3 scripts/audit_release_prs.py \
+    manifests/vllm/gilded-gnosis-v20.json
   composition_dir="patches/generated/gilded-gnosis-v20/vllm"
   python3 scripts/compose_vllm_release.py \
     manifests/vllm/gilded-gnosis-v20.json \
@@ -101,8 +103,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r30}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r30}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi1ac6942-cu132-${release_date}-r31}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}.fi1ac6942.cu132.${release_date}.r31}"
+elif [[ "${composition_mode}" == "reproduce-r31" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r31/vllm" 0
+  configure_b12x_composition \
+    "patches/releases/gilded-gnosis-v20-r31/b12x" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r31/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12xacee6e5.fi1ac6942.cu132.20260807.r31}"
 elif [[ "${composition_mode}" == "reproduce-r30" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r30/vllm" 0
@@ -356,8 +368,8 @@ export NCCL_REF="${NCCL_REF:-canonical/cu132-nccl2304-amd-noxml}"
 export NCCL_COMMIT="${NCCL_COMMIT:-dfab7c1ace32da250ba97757879429c341b7bcf9}"
 
 export FLASHINFER_REPO="${FLASHINFER_REPO:-https://github.com/voipmonitor/flashinfer.git}"
-export FLASHINFER_REF="${FLASHINFER_REF:-codex/sm120-dspark-stack-20260711}"
-export FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-801d57a08958c13d375ddbb6be3be4808f48a708}"
+export FLASHINFER_REF="${FLASHINFER_REF:-integration/main-pr4393-pcie-ipc-qualified-20260807}"
+export FLASHINFER_COMMIT="${FLASHINFER_COMMIT:-1ac6942776b383c6b03c7a5805a22e72a3e3349f}"
 export FLASHINFER_BUILD_CUBIN="${FLASHINFER_BUILD_CUBIN:-0}"
 
 export DEEPGEMM_REPO="${DEEPGEMM_REPO:-https://github.com/deepseek-ai/DeepGEMM.git}"
@@ -370,7 +382,7 @@ export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b96
 
 export VLLM_PATCH_URL=
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r31" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
   export B12X_VERSION="${B12X_VERSION:-1.1.0}"
   export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-b12x}"
 else
@@ -379,7 +391,10 @@ else
 fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r31" ]]; then
+  export LAUNCHER_REF="${LAUNCHER_REF:-3d3b94a7f2493c50aa677fdf6d799cc224db5785}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-3d3b94a7f2493c50aa677fdf6d799cc224db5785}"
+elif [[ "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-7f01a6202a3b3136fa7a4c54523127d8af42413e}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-7f01a6202a3b3136fa7a4c54523127d8af42413e}"
 elif [[ "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r26" ]]; then
@@ -410,7 +425,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r31" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -424,7 +439,7 @@ else
   export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-0}"
 fi
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r31" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" ]]; then
   export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}"
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}"
@@ -437,7 +452,7 @@ else
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 fi
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r31" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -456,9 +471,10 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nb12x_tree=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nb12x_tree=%s\nflashinfer_repo=%s\nflashinfer_ref=%s\nflashinfer_commit=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
     "${VLLM_INTEGRATION_TREE:-}" "${B12X_INTEGRATION_TREE:-}" \
+    "${FLASHINFER_REPO}" "${FLASHINFER_REF}" "${FLASHINFER_COMMIT}" \
     "${LAUNCHER_REPO}" "${LAUNCHER_REF}" "${LAUNCHER_COMMIT}" \
     "${LMCACHE_INTEGRATION_TREE:-}" \
     "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
@@ -521,6 +537,7 @@ fi
 ./tests/test-release-manifest-fail-fast.sh
 ./tests/test-glm52-exl3-helper.sh
 ./tests/test-glm52-lmcache-helper.sh
+./tests/test-flashinfer-source-install-policy.sh
 python3 -m pytest -q tests/test-glm52-pcie-calibration.py
 python3 -m pytest -q tests/test_verify_remote_gpu_validation.py
 if [[ "${use_existing_validated_image}" == "1" ]]; then
@@ -544,7 +561,7 @@ jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_REPO}" '."local-inference.instanttensor.repo" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_COMMIT}" '."local-inference.instanttensor.commit" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r31" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
@@ -909,6 +926,19 @@ docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
 
 grep -Fq -- '--kv-offloading-size 5.5' "${dspark_offload_dry_run_file}"
 grep -Fq -- '--kv-offloading-backend native' "${dspark_offload_dry_run_file}"
+
+dspark_l2_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark-l2.txt"
+docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+  -e DRY_RUN=1 \
+  -e KV_OFFLOADING_SIZE=5.5 \
+  -e NATIVE_L2_PATH=/native-l2 \
+  -e NATIVE_L2_GB=24 \
+  "${IMAGE}" 2>&1 | tee "${dspark_l2_dry_run_file}"
+
+grep -Fq 'native_l2=1' "${dspark_l2_dry_run_file}"
+grep -Fq -- '--kv-transfer-config' "${dspark_l2_dry_run_file}"
+grep -Fq 'OffloadingConnector' "${dspark_l2_dry_run_file}"
+grep -Fq 'gc_max_size_gb\":24.0' "${dspark_l2_dry_run_file}"
 
 dspark_dynamic_dry_run_file="/tmp/gilded-gnosis-v20-final-dspark-dynamic.txt"
 docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \

@@ -10,6 +10,16 @@
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
+      "number": 256,
+      "head": "48e9d0f75d96db61429cbe7fe4fccb96739c58d6",
+      "title": "Preserve activation dtype for int32-packed MLA weights"
+    },
+    {
+      "number": 188,
+      "head": "aa75b01c476ffb5fc728232546fe5c215e3728ec",
+      "title": "Emit packed UE8M0 scales from compiled QuantFP8"
+    },
+    {
       "number": 229,
       "head": "1a2b01f43fbc151239c437e918dfdc27681ce4e7",
       "title": "Harden compressed MLA cache, workspace, and verifier capacity contracts"
@@ -21,8 +31,8 @@
     },
     {
       "number": 214,
-      "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
-      "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
+      "head": "8d989f18c2845e514313e80f65b07087b09d6a67",
+      "title": "Add DeepSeek-V4-Flash-0731 profile and native L1/L2 offload"
     },
     {
       "number": 217,
@@ -36,13 +46,18 @@
     },
     {
       "number": 228,
-      "head": "d3b2d6950ca439656d0fd445aeb7eddcff320b3d",
-      "title": "Consolidate r20 EXL3 prefill and online K6 cache"
+      "head": "5ec935796f0afa19e3d8e41888ecc51a6a637528",
+      "title": "Consolidate EXL3 runtime and prewarm mixed-Trellis route packing"
     },
     {
       "number": 230,
       "head": "9401f9d8916f3bdf34123d2d493a918b748c8132",
       "title": "Keep broadcast MHC pre behind the compile boundary"
+    },
+    {
+      "number": 234,
+      "head": "eaf24cc15f313c4b15afabb3f902cfe17f19f28f",
+      "title": "Guard persistent FlashInfer decode wrappers by planned query length"
     },
     {
       "number": 235,
@@ -65,9 +80,98 @@
       "title": "Isolate B12X graph channels and capture DSpark context KV"
     },
     {
+      "number": 253,
+      "head": "1772842af39788286634e168ef766e15add83869",
+      "title": "Add FlashInfer PCIe IPC all-reduce backend"
+    },
+    {
       "number": 252,
       "head": "e3317de2336fc84396d7541950542c79b62102ae",
       "title": "Defer native KV-offload finalization until the final store is built"
+    },
+    {
+      "number": 254,
+      "head": "5d961ad9d2efaba40531e8e4542a6c193412898d",
+      "title": "Harden native offload cleanup and bound filesystem storage"
+    },
+    {
+      "number": 255,
+      "head": "d1b7bbeb78da068ab0a505bd09505f6637cddcd9",
+      "title": "Register GG runtime controls consumed directly by backends"
+    }
+  ],
+  "reviewed_exclusions": [
+    {
+      "number": 154,
+      "head": "7724c6520fd21f98fced6f0b955fe809608e4dba",
+      "disposition": "alternative",
+      "reason": "Releases the MXFP8 kv_b_proj pack required by the qualified direct B12X absorbed-QBMM path."
+    },
+    {
+      "number": 160,
+      "head": "24c79277e79d6e6c0a14281db0c75ed90e51ffa3",
+      "disposition": "experimental",
+      "reason": "Depth-N CKV prefetch research did not establish a production E2E gain."
+    },
+    {
+      "number": 161,
+      "head": "3f7b34ccbf0be12f0f3c9bae7cc9760b83455d31",
+      "disposition": "experimental",
+      "reason": "Selected-record sparse CKV decode remains an unqualified research path."
+    },
+    {
+      "number": 165,
+      "head": "8cee971bef4f483904d86d196a39da1aa9f7c106",
+      "disposition": "superseded",
+      "reason": "Superseded by current-GG PR #254, which also handles stale secondary-tier hits."
+    },
+    {
+      "number": 171,
+      "head": "dc7705900d9420922f5fc150dc63963213014e05",
+      "disposition": "superseded",
+      "reason": "Unqualified compact-NVFP4 route experiment; merged PR #189 and B12X #86 provide the validated dynamic-scale quality path."
+    },
+    {
+      "number": 186,
+      "head": "6a3b950ce17b4a5dabbee442e0654fb08ffeab0e",
+      "disposition": "superseded",
+      "reason": "Superseded by PR #255, which preserves the current NVFP4 scale-file contract."
+    },
+    {
+      "number": 187,
+      "head": "647a3a6f3ba96db53b25aba18899d00481fd47f5",
+      "disposition": "superseded",
+      "reason": "Superseded by current-GG PR #256 with the unresolved review feedback addressed."
+    },
+    {
+      "number": 197,
+      "head": "74309be6e9cd5547c468769660224fe9bb45640a",
+      "disposition": "superseded",
+      "reason": "Included with original authorship and a focused regression test in PR #254."
+    },
+    {
+      "number": 212,
+      "head": "fbc022664df3ad39a3acb1b6404d1b17683ada4c",
+      "disposition": "superseded",
+      "reason": "Compressed MLA page-stride fix is consolidated in PR #229."
+    },
+    {
+      "number": 227,
+      "head": "baa820ad29bade90612eb0c5f4038693a76f2d10",
+      "disposition": "superseded",
+      "reason": "Compressed MLA workspace envelope is consolidated in PR #229."
+    },
+    {
+      "number": 240,
+      "head": "e5a4251c54c84f507b6283a8f25040d433c491b8",
+      "disposition": "out_of_scope",
+      "reason": "Qwen3.5-only rank-sliced EXL3 loader; the unified GG helper supports GLM-5.2 and DeepSeek-V4 families."
+    },
+    {
+      "number": 249,
+      "head": "e15f0fedcd7baa8df2764df374aff66bb43e2558",
+      "disposition": "out_of_scope",
+      "reason": "Heterogeneous expert-width checkpoints are not in the qualified GLM-5.2/DS4 release matrix."
     }
   ]
 }

@@ -441,6 +441,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY .tmp-flashinfer-wheels/ /tmp/prebuilt-flashinfer-wheels/
 
 RUN --mount=type=cache,target=/root/.ccache \
+    nccl_version_before="$(python -m pip show nvidia-nccl-cu13 | awk '/^Version:/{print $2}')"; \
+    test -n "${nccl_version_before}"; \
     if compgen -G "/tmp/prebuilt-flashinfer-wheels/flashinfer_python-*.whl" >/dev/null; then \
       ls -lh /tmp/prebuilt-flashinfer-wheels; \
       (python -m pip uninstall -y flashinfer-python flashinfer-cubin flashinfer-jit-cache || true); \
@@ -466,6 +468,9 @@ RUN --mount=type=cache,target=/root/.ccache \
       (python -m pip uninstall -y flashinfer-python flashinfer-cubin flashinfer-jit-cache || true); \
       FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST}" \
         FLASHINFER_ENABLE_SM90=0 \
+        BUILD_NVEP=0 \
+        BUILD_NCCL_EP=0 \
+        BUILD_NIXL_EP=0 \
         MAX_JOBS="${MAX_JOBS}" \
         python -m pip install --no-build-isolation --no-deps -v .; \
       if [[ "${FLASHINFER_BUILD_CUBIN}" == "1" ]] && FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST}" \
@@ -479,7 +484,9 @@ RUN --mount=type=cache,target=/root/.ccache \
         MAX_JOBS="${MAX_JOBS}" \
         python -m pip wheel --no-build-isolation --no-deps -w /tmp/flashinfer-wheels ./flashinfer-jit-cache; \
       python -m pip install --no-deps --force-reinstall /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl; \
-    fi \
+    fi; \
+    nccl_version_after="$(python -m pip show nvidia-nccl-cu13 | awk '/^Version:/{print $2}')"; \
+    test "${nccl_version_after}" = "${nccl_version_before}" \
  && python -c 'import flashinfer; print("flashinfer", getattr(flashinfer, "__version__", "unknown"))'
 
 # =============================================================================

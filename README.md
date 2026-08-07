@@ -105,8 +105,8 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 
 New Gilded Gnosis images must not use an earlier `build/*` integration branch
 as their source. `build-gilded-gnosis-v20-final-cu132.sh` reads the manifests
-under `manifests/vllm/` and `manifests/sparkinfer/`, resolves the current
-`dev/gilded-gnosis` and SparkInfer `master` heads, verifies every pinned PR
+under `manifests/vllm/` and `manifests/b12x/`, resolves the current
+`dev/gilded-gnosis` and B12X `master` heads, verifies every pinned PR
 head, and creates fresh integration patches and lockfiles. The build stops if
 either base advances, a PR changes, or a PR conflicts. The Dockerfile
 independently verifies that applying each patch produces its locked Git tree
@@ -583,6 +583,83 @@ qualification receipt is
 `validation/gilded-gnosis-v20-r30-remote-gpu.json`; its vLLM and B12X trees
 are `20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f` and
 `6bc35fdb76b6f9d11601009fe413720b461fb444`.
+
+The r31 release retains every qualified r30 path. It builds FlashInfer from the
+exact qualified `main` + PR #4393 source commit and adds its PCIe IPC all-reduce
+as the automatic TP2 backend. TP4 and larger keep B12X because matched kernel
+and end-to-end tests favored B12X there. It also prewarms mixed-Trellis target
+and native-MTP route packing before KV sizing, preventing first-request scratch
+allocations from reducing the usable KV pool.
+
+The final candidate additionally guards dynamic DSpark query lengths in the
+FlashInfer persistent wrapper, fixes compiled packed-UE8M0 scale emission and
+int32-packed MLA activation dtypes, registers the launcher/backend runtime
+controls, serializes the DSpark draft backend under vLLM's canonical field, and
+deduplicates lockstep MLA block cleanup in native KV offload.
+
+The clean release manifest contains all required unmerged changes: vLLM #145,
+#188, #213, #214, #217, #218, #228, #229, #230, #234, #235, #245, #248,
+#251 through #256; B12X #125 and #126; and LMCache #7 through #17. The required
+parts of superseded vLLM #197 and #250 are preserved in #254 and #228. Every
+open GG PR is classified as included or reviewed-excluded and pinned by its
+full head SHA. The build fails if a head moves, a new PR is unclassified, or
+the clean replay over GG/B12X/LMCache conflicts.
+
+Native L2 offload is also environment-only in r31. `KV_OFFLOADING_SIZE` sets
+the host-memory L1 size, while `NATIVE_L2_PATH` and `NATIVE_L2_GB` enable a
+bounded filesystem L2. The helper constructs the connector JSON and defaults
+`PYTHONHASHSEED=0`; no `EXTRA_VLLM_ARGS` JSON is needed:
+
+```bash
+KV_OFFLOADING_SIZE=32 NATIVE_L2_PATH=/native-l2 NATIVE_L2_GB=1024 \
+  docker compose -f examples/docker-compose-ds4-v20-r31.yml up -d
+```
+
+Reproduce the exact source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r31 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Validated r31 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31
+Local validated image ID: sha256:b162476b0b3432096e9dd1d0b0d8c825ba71bf33635423c511d9bac533b12a9f
+Registry digest: sha256:3230c25ff95f8678a8eeb52a463f0d3b9f96f6ad550418cc51ea12177a55b41c
+```
+
+Use `examples/docker-compose-ds4-v20-r31.yml`. `ALLREDUCE_MODE=auto` selects
+`flashinfer-ipc` at TP2 and `b12x` at TP4 or larger; either backend can be
+forced explicitly for diagnostics.
+
+The release was validated on physical GPUs 4-7 of `192.168.0.69`, where the
+GPUs are attached through CPU root ports rather than the PCIe switches in the
+local 16-GPU server. All performance comparisons below use earlier artifacts
+from that same remote host and GPU set; results from the switched server are
+not used as a reference.
+
+| Target-only profile | C1 tok/s | C32 tok/s | Prefill 8k tok/s | Prefill 64k tok/s |
+|---|---:|---:|---:|---:|
+| r31 TP2, FlashInfer PCIe IPC | 126.8 | 1,139.5 | 13,366 | 12,669 |
+| r31 TP2, B12X | 129.9 | 1,135.7 | 14,197 | 13,421 |
+| r31 TP4, B12X | 148.4 | 1,511.0 | 16,360 | 15,511 |
+| Previous TP4 B12X, same host | 144.5 | 1,499.2 | 15,406 | 14,721 |
+
+The TP4/K5 row-contract gate captured FULL target, DSpark proposal, and DFlash
+context-KV graphs through the required 384-row envelope. Sustained C64 decode
+was 2,540.5 tok/s. The long-context Estonia gate passed 64/64 requests with no
+output-cap hits, and its 134,217-token prefill scout reached 13,352 tok/s.
+Compiled packed-UE8M0 scales matched eager output bitwise at both aligned and
+unaligned batch sizes. Native L2 was verified across a full engine restart: an
+identical 32k prompt restored 303,586,560 bytes from filesystem storage in
+0.415 seconds after process-local GPU/L1 state had been discarded.
+
+The immutable source and live qualification receipt is
+`validation/gilded-gnosis-v20-r31-remote-gpu.json`; its vLLM and B12X trees are
+`fa13d334a2962756f9f7e9b562deb85387359f42` and
+`acee6e504209068bd0cbb01cb2b98966bddcf042`.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or

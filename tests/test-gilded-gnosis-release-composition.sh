@@ -337,6 +337,58 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r31="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r31 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r31' <<<"${output_r31}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12xacee6e5.fi1ac6942.cu132.20260807.r31' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'b12x_tree=acee6e504209068bd0cbb01cb2b98966bddcf042' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'flashinfer_ref=integration/main-pr4393-pcie-ipc-qualified-20260807' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'launcher_ref=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'launcher_commit=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r31}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r31/lmcache/integration.patch' \
+  <<<"${output_r31}"
+
+r31_compose="${repo_root}/examples/docker-compose-ds4-v20-r31.yml"
+grep -Fq \
+  'gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31' \
+  "${r31_compose}"
+grep -Fq 'ALLREDUCE_MODE: ${ALLREDUCE_MODE:-auto}' "${r31_compose}"
+grep -Fq 'NATIVE_L2_PATH: ${NATIVE_L2_PATH:-}' "${r31_compose}"
+grep -Fq 'NATIVE_L2_GB: ${NATIVE_L2_GB:-}' "${r31_compose}"
+grep -Fq 'NATIVE_L2_HOST_PATH:-./cache/ds4-v20-r31/native-l2' \
+  "${r31_compose}"
+if grep -Eq '^    privileged:' "${r31_compose}"; then
+  echo 'r31 compose must not require privileged container access' >&2
+  exit 1
+fi
+
 output_r30="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r30 \
@@ -626,19 +678,22 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm20ed7f9-b12x6bc35fd-fi801d57a-cu132-[0-9]{8}-r30$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-[0-9]{8}-r31$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm20ed7f9[.]b12x6bc35fd[.]fi801d57a[.]cu132[.][0-9]{8}[.]r30$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12xacee6e5[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r31$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f' \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_clean}"
 grep -Fxq \
-  'b12x_tree=6bc35fdb76b6f9d11601009fe413720b461fb444' \
+  'b12x_tree=acee6e504209068bd0cbb01cb2b98966bddcf042' \
   <<<"${output_clean}"
 grep -Fxq \
-  'launcher_commit=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
+  'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
+  <<<"${output_clean}"
+grep -Fxq \
+  'launcher_commit=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \

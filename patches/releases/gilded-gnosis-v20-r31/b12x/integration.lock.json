@@ -1,0 +1,33 @@
+{
+  "base": {
+    "commit": "680d8195b80420296d7fed2688b75406be15eb38",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "5b785743a916c9119435e54b5f52c85777e5418cd88ba5d1c5ea1d0257dcfe82"
+  },
+  "name": "gilded-gnosis-v20-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "282d61a483c908eaa440a19ba0d70a557c73197f",
+      "number": 125,
+      "ref": "refs/pull/125/head",
+      "title": "Declare compressed MLA decode row capacity"
+    },
+    {
+      "disposition": "merged",
+      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
+      "number": 126,
+      "ref": "refs/pull/126/head",
+      "title": "Prewarm target and native-MTP route packing"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "7dba561f41699418a8f267fe1167de22d05559be04e058dd240a14b2d7c7443f",
+    "tree": "acee6e504209068bd0cbb01cb2b98966bddcf042"
+  },
+  "schema_version": 1
+}

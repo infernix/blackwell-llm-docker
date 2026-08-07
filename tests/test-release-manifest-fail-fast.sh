@@ -56,4 +56,29 @@ for index in "${!launcher_refs[@]}"; do
   }
 done
 
+assert_pr_set() {
+  local manifest="$1"
+  local expected="$2"
+  local actual
+
+  actual="$(jq -r '[.pull_requests[].number] | sort | map(tostring) | join(" ")' \
+    "${repo_root}/${manifest}")"
+  [[ "${actual}" == "${expected}" ]] || {
+    echo "required PR set mismatch in ${manifest}: ${actual}" >&2
+    exit 1
+  }
+}
+
+# This explicit gate prevents a syntactically valid manifest from silently
+# omitting a reviewed release dependency. Updating the set is a release action.
+assert_pr_set \
+  manifests/vllm/gilded-gnosis-v20.json \
+  '145 188 213 214 217 218 228 229 230 234 235 245 248 251 252 253 254 255 256'
+assert_pr_set \
+  manifests/b12x/gilded-gnosis-v20.json \
+  '125 126'
+assert_pr_set \
+  manifests/lmcache/gilded-gnosis-v20.json \
+  '7 8 9 10 11 12 13 14 15 16 17'
+
 echo "release manifest fail-fast contract: PASS"

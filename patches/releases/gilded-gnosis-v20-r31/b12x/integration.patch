@@ -1,0 +1,713 @@
+diff --git a/b12x/attention/_shared/mla/compressed_config.py b/b12x/attention/_shared/mla/compressed_config.py
+index 3d333ba382f7a762d812018a4adf636c4aeb0a20..ac1fb708058a5667a64767b8096b31df1a3508e9 100644
+--- a/b12x/attention/_shared/mla/compressed_config.py
++++ b/b12x/attention/_shared/mla/compressed_config.py
+@@ -22,9 +22,18 @@ def compressed_mla_split_config_for_contract(
+     rows: int,
+     width: int,
+     max_chunks: int | None = None,
++    decode_row_capacity: int | None = None,
+ ) -> SparseMLASplitDecodeConfig:
+     rows = max(int(rows), 1)
+     width = max(int(width), 1)
++    decode_split_max_rows = _COMPRESSED_MLA_DECODE_SPLIT_MAX_ROWS
++    if decode_row_capacity is not None:
++        decode_row_capacity = int(decode_row_capacity)
++        if decode_row_capacity <= 0:
++            raise ValueError(
++                f"decode_row_capacity must be positive, got {decode_row_capacity}"
++            )
++        decode_split_max_rows = max(decode_split_max_rows, decode_row_capacity)
+     chunk_limit = _COMPRESSED_MLA_SPLIT_MAX_CHUNKS
+     if max_chunks is not None:
+         chunk_limit = max(1, min(int(max_chunks), chunk_limit))
+@@ -32,7 +41,7 @@ def compressed_mla_split_config_for_contract(
+     decode_chunks = (
+         width + _COMPRESSED_MLA_DECODE_SPLIT_CHUNK_SIZE - 1
+     ) // _COMPRESSED_MLA_DECODE_SPLIT_CHUNK_SIZE
+-    if rows <= _COMPRESSED_MLA_DECODE_SPLIT_MAX_ROWS and decode_chunks <= chunk_limit:
++    if rows <= decode_split_max_rows and decode_chunks <= chunk_limit:
+         return SparseMLASplitDecodeConfig(
+             chunk_size=_COMPRESSED_MLA_DECODE_SPLIT_CHUNK_SIZE,
+             num_chunks=decode_chunks,
+@@ -41,10 +50,7 @@ def compressed_mla_split_config_for_contract(
+     wide_decode_chunks = (
+         width + _COMPRESSED_MLA_DECODE_WIDE_CHUNK_SIZE - 1
+     ) // _COMPRESSED_MLA_DECODE_WIDE_CHUNK_SIZE
+-    if (
+-        rows <= _COMPRESSED_MLA_DECODE_SPLIT_MAX_ROWS
+-        and wide_decode_chunks <= chunk_limit
+-    ):
++    if rows <= decode_split_max_rows and wide_decode_chunks <= chunk_limit:
+         return SparseMLASplitDecodeConfig(
+             chunk_size=_COMPRESSED_MLA_DECODE_WIDE_CHUNK_SIZE,
+             num_chunks=wide_decode_chunks,
+@@ -68,11 +74,13 @@ def compressed_mla_split_chunks_for_contract(
+     rows: int,
+     width: int,
+     max_chunks: int | None = None,
++    decode_row_capacity: int | None = None,
+ ) -> int:
+     return compressed_mla_split_config_for_contract(
+         rows=rows,
+         width=width,
+         max_chunks=max_chunks,
++        decode_row_capacity=decode_row_capacity,
+     ).num_chunks
+ 
+ 
+diff --git a/b12x/attention/compressed_mla/_scratch.py b/b12x/attention/compressed_mla/_scratch.py
+index b462b0ec0ddb7c456a6cec54cc00dc585a8e771f..ec9244ebc6fa4f94c8778f79117cf33f1db4e0c5 100644
+--- a/b12x/attention/compressed_mla/_scratch.py
++++ b/b12x/attention/compressed_mla/_scratch.py
+@@ -46,6 +46,7 @@ class B12XCompressedMLAScratchCaps:
+     max_kv_rows: int = 0
+     max_chunks_per_row: int = 64
+     max_q_chunks: int | None = None
++    decode_row_capacity: int | None = None
+     page_size: int = 64
+ 
+     def __post_init__(self) -> None:
+@@ -74,6 +75,13 @@ class B12XCompressedMLAScratchCaps:
+         )
+         if self.max_q_chunks is not None:
+             object.__setattr__(self, "max_q_chunks", max(int(self.max_q_chunks), 1))
++        if self.decode_row_capacity is not None:
++            decode_row_capacity = int(self.decode_row_capacity)
++            if decode_row_capacity <= 0:
++                raise ValueError(
++                    f"decode_row_capacity must be positive, got {decode_row_capacity}"
++                )
++            object.__setattr__(self, "decode_row_capacity", decode_row_capacity)
+         object.__setattr__(self, "page_size", max(int(self.page_size), 1))
+ 
+ 
+@@ -376,6 +384,7 @@ def _materialize_compressed_mla_scratch(
+         rows=caps.max_q_rows,
+         width=caps.max_width,
+         max_chunks=caps.max_chunks_per_row,
++        decode_row_capacity=caps.decode_row_capacity,
+     )
+     scratch.set_split_chunk_config(
+         kv_chunk_size=split_cfg.chunk_size,
+diff --git a/b12x/moe/_shared/kernels/w4a16/host.py b/b12x/moe/_shared/kernels/w4a16/host.py
+index 59d87ae5e579f13f3b2c291d09854eb017973cf9..f15d89372320b6457a53e42452fcd3156257108f 100644
+--- a/b12x/moe/_shared/kernels/w4a16/host.py
++++ b/b12x/moe/_shared/kernels/w4a16/host.py
+@@ -254,6 +254,32 @@ def route_pack_token_capacity(tokens: int, topk: int) -> int:
+     return 1 << (max(int(tokens), 1) - 1).bit_length()
+ 
+ 
++def route_pack_warmup_token_counts(capacity: int) -> tuple[int, ...]:
++    """Return live row counts covering capacity and scalar specializations.
++
++    Triton specializes the runtime ``live_numel`` scalar on alignment as well
++    as the constexpr route-capacity bucket. For a power-of-two bucket, the
++    bucket maximum and its first live member cover both alignment classes
++    reached by the GLM top-k route counts (for example 8 and 5 rows in the
++    8-row bucket). Warming only bucket maxima leaves the less-aligned variant
++    to compile on the first odd-sized request.
++    """
++    capacity = int(capacity)
++    if capacity < 1:
++        raise ValueError(f"route-pack warmup capacity must be positive, got {capacity}")
++    counts: list[int] = []
++    bucket = 1
++    while True:
++        first_in_bucket = 1 if bucket == 1 else bucket // 2 + 1
++        if first_in_bucket > capacity:
++            break
++        for count in (first_in_bucket, min(bucket, capacity)):
++            if not counts or counts[-1] != count:
++                counts.append(count)
++        bucket *= 2
++    return tuple(counts)
++
++
+ def route_pack_capacity(
+     numel: int,
+     block_size: int,
+@@ -469,6 +495,7 @@ __all__ = [
+     "route_pack_numel_capacity",
+     "route_pack_capacity",
+     "route_pack_token_capacity",
++    "route_pack_warmup_token_counts",
+     "select_route_block_size_m",
+     "unswizzle_block_scale",
+     "unswizzle_expert_scales",
+diff --git a/b12x/moe/_shared/kernels/w4a16/mixed_trellis.py b/b12x/moe/_shared/kernels/w4a16/mixed_trellis.py
+index 3fe7aef651bb77aa17d22bc59390c1268347773b..a0e52af56479afec791651beb0c8d08f8e5edadf 100644
+--- a/b12x/moe/_shared/kernels/w4a16/mixed_trellis.py
++++ b/b12x/moe/_shared/kernels/w4a16/mixed_trellis.py
+@@ -27,7 +27,11 @@ from b12x._lib.intrinsics import shared_ptr_to_u32
+ from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
+ from b12x._lib.utils import current_cuda_stream, make_ptr
+ 
+-from .host import max_packed_route_slots, packed_gemm_scratch_elements
++from .host import (
++    max_packed_route_slots,
++    packed_gemm_scratch_elements,
++    route_pack_warmup_token_counts,
++)
+ from .kernel import (
+     W4A16FusedMoeKernel,
+     _cutlass_element_dtype,
+@@ -774,6 +778,67 @@ class W4A16MixedTrellisKernel:
+ 
+ 
+ _CACHE: dict[tuple[object, ...], MixedTrellisCompileResult] = {}
++_ROUTE_PACK_WARMED: set[tuple[object, ...]] = set()
++
++
++def warmup_mixed_trellis_route_pack(
++    launch: MixedTrellisCompileResult,
++    buffers: MixedTrellisBuffers,
++    *,
++    expert_map: torch.Tensor,
++) -> int:
++    """Materialize every route-pack specialization reachable by ``launch``.
++
++    Route packing buckets token capacity to powers of two. A profile pass at
++    the maximum batch therefore does not cover smaller decode, speculative,
++    or final-prefill-chunk buckets. Load those CUDA modules eagerly while the
++    serving framework is still profiling persistent memory, so KV sizing sees
++    their real driver footprint instead of discovering it under live traffic.
++    """
++    device = buffers.packed_route_indices.device
++    if device.type != "cuda":
++        raise RuntimeError("mixed Trellis route-pack warmup requires CUDA buffers")
++    if torch.cuda.is_current_stream_capturing():
++        raise RuntimeError("mixed Trellis route-pack warmup cannot run during capture")
++
++    total_experts = int(launch.tier0_num_experts) + int(launch.tier1_num_experts)
++    warmed = 0
++    pending_keys: list[tuple[object, ...]] = []
++    with torch.cuda.device(device):
++        device_index = int(torch.cuda.current_device())
++        for token_count in route_pack_warmup_token_counts(launch.size_m):
++            key = (
++                device_index,
++                str(launch.route_ids_dtype),
++                int(token_count),
++                int(launch.top_k),
++                total_experts,
++                int(launch.moe_block_size),
++                True,
++            )
++            if key in _ROUTE_PACK_WARMED:
++                continue
++            dummy_topk_ids = torch.zeros(
++                (token_count, launch.top_k),
++                dtype=launch.route_ids_dtype,
++                device=device,
++            )
++            pack_topk_routes_by_expert(
++                dummy_topk_ids,
++                launch.moe_block_size,
++                total_experts,
++                expert_map=expert_map,
++                packed_route_indices=buffers.packed_route_indices,
++                block_expert_ids=buffers.block_expert_ids,
++                packed_route_count=buffers.packed_route_count,
++                expert_offsets=buffers.expert_offsets,
++                expert_counts=buffers.expert_counts,
++            )
++            pending_keys.append(key)
++            warmed += 1
++        torch.cuda.current_stream(device).synchronize()
++        _ROUTE_PACK_WARMED.update(pending_keys)
++    return warmed
+ 
+ 
+ def compile_mixed_trellis(
+@@ -1521,4 +1586,5 @@ __all__ = [
+     "compile_mixed_trellis",
+     "make_mixed_trellis_buffers",
+     "run_mixed_trellis",
++    "warmup_mixed_trellis_route_pack",
+ ]
+diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
+index c27b9d337d188c67af049d08d1ab55c44acf0ebf..939fe80ec1bcfa59d9122f8127262c10312f020f 100644
+--- a/b12x/moe/fused_moe/_impl.py
++++ b/b12x/moe/fused_moe/_impl.py
+@@ -6280,7 +6280,10 @@ def _plan_full_rotation_w4a16_launches(
+     if torch.cuda.is_current_stream_capturing():
+         raise RuntimeError("Trellis launch planning cannot run during capture")
+ 
+-    from b12x.moe._shared.kernels.w4a16.host import route_pack_capacity
++    from b12x.moe._shared.kernels.w4a16.host import (
++        route_pack_capacity,
++        route_pack_warmup_token_counts,
++    )
+     from b12x.moe._shared.kernels.w4a16.kernel import (
+         _DEFAULT_MAX_SHARED_MEM,
+         compile_w4a16_fused_moe,
+@@ -6390,68 +6393,80 @@ def _plan_full_rotation_w4a16_launches(
+             for ids_dtype in (torch.int32, torch.int64)
+             for mapped in (False, True)
+         )
+-        for mapped in (False, True):
+-            route_pack_key = (
+-                core_plan.device.type,
+-                int(torch.cuda.current_device()),
+-                capacity_tokens * core_plan.num_topk,
+-                int(block_size_m),
+-                int(core_plan.route_E),
+-                mapped,
+-            )
+-            if route_pack_key in _W4A16_ROUTE_PACK_PREWARMED:
+-                continue
++        packed_route_indices = torch.empty(
++            capacity_route_slots,
++            dtype=torch.int32,
++            device=core_plan.device,
++        )
++        block_expert_ids = torch.empty(
++            capacity_m_blocks,
++            dtype=torch.int32,
++            device=core_plan.device,
++        )
++        packed_route_count = torch.empty(
++            1,
++            dtype=torch.int32,
++            device=core_plan.device,
++        )
++        expert_offsets = torch.empty(
++            core_plan.route_E + 1,
++            dtype=torch.int32,
++            device=core_plan.device,
++        )
++        expert_counts = torch.empty(
++            core_plan.route_E,
++            dtype=torch.int32,
++            device=core_plan.device,
++        )
++        pending_route_pack_keys: list[tuple[object, ...]] = []
++        for route_ids_dtype in (torch.int32, torch.int64):
+             dummy_topk_ids = torch.zeros(
+                 capacity_tokens,
+                 core_plan.num_topk,
+-                dtype=torch.int32,
+-                device=core_plan.device,
+-            )
+-            packed_route_indices = torch.empty(
+-                capacity_route_slots,
+-                dtype=torch.int32,
+-                device=core_plan.device,
+-            )
+-            block_expert_ids = torch.empty(
+-                capacity_m_blocks,
+-                dtype=torch.int32,
+-                device=core_plan.device,
+-            )
+-            packed_route_count = torch.empty(
+-                1,
+-                dtype=torch.int32,
+-                device=core_plan.device,
+-            )
+-            expert_offsets = torch.empty(
+-                core_plan.route_E + 1,
+-                dtype=torch.int32,
+-                device=core_plan.device,
+-            )
+-            expert_counts = torch.empty(
+-                core_plan.route_E,
+-                dtype=torch.int32,
++                dtype=route_ids_dtype,
+                 device=core_plan.device,
+             )
+-            expert_map = None
+-            if mapped:
+-                expert_map = torch.arange(
+-                    core_plan.route_E,
+-                    dtype=torch.int32,
+-                    device=core_plan.device,
+-                )
+-            pack_topk_routes_by_expert(
+-                dummy_topk_ids,
+-                block_size_m,
+-                core_plan.route_E,
+-                expert_map=expert_map,
+-                packed_route_indices=packed_route_indices,
+-                block_expert_ids=block_expert_ids,
+-                packed_route_count=packed_route_count,
+-                expert_offsets=expert_offsets,
+-                expert_counts=expert_counts,
++            for mapped in (False, True):
++                expert_map = None
++                if mapped:
++                    expert_map = torch.arange(
++                        core_plan.route_E,
++                        dtype=torch.int32,
++                        device=core_plan.device,
++                    )
++                for token_count in route_pack_warmup_token_counts(capacity_tokens):
++                    route_pack_key = (
++                        core_plan.device.type,
++                        int(torch.cuda.current_device()),
++                        str(route_ids_dtype),
++                        token_count * core_plan.num_topk,
++                        int(block_size_m),
++                        int(core_plan.route_E),
++                        mapped,
++                    )
++                    if route_pack_key in _W4A16_ROUTE_PACK_PREWARMED:
++                        continue
++                    pack_topk_routes_by_expert(
++                        dummy_topk_ids[:token_count],
++                        block_size_m,
++                        core_plan.route_E,
++                        expert_map=expert_map,
++                        packed_route_indices=packed_route_indices,
++                        block_expert_ids=block_expert_ids,
++                        packed_route_count=packed_route_count,
++                        expert_offsets=expert_offsets,
++                        expert_counts=expert_counts,
++                    )
++                    pending_route_pack_keys.append(route_pack_key)
++        torch.cuda.current_stream(core_plan.device).synchronize()
++        _W4A16_ROUTE_PACK_PREWARMED.update(pending_route_pack_keys)
++        if pending_route_pack_keys:
++            logger.info(
++                "Prewarmed %d full-rotation W4A16 route-pack variant(s) "
++                "for token capacity %d.",
++                len(pending_route_pack_keys),
++                capacity_tokens,
+             )
+-            torch.cuda.current_stream(core_plan.device).synchronize()
+-            _W4A16_ROUTE_PACK_PREWARMED.add(route_pack_key)
+     return fused_launches, topk_sum_launches
+ 
+ 
+@@ -6777,6 +6792,7 @@ def _prewarm_w4a16_planned_launches(
+             route_pack_key = (
+                 workspace.device.type,
+                 int(torch.cuda.current_device()),
++                str(torch.int32),
+                 int(token_count) * int(workspace.num_topk),
+                 int(block_size_m),
+                 int(workspace.route_E),
+diff --git a/tests/attention/test_attention_mla_compressed.py b/tests/attention/test_attention_mla_compressed.py
+index d16f936d42d32bfa33114fd73fb9b3016fc51aa4..bdb70f9cac99e551bb1c5a8b97903055bb9151ba 100644
+--- a/tests/attention/test_attention_mla_compressed.py
++++ b/tests/attention/test_attention_mla_compressed.py
+@@ -23,17 +23,20 @@ from b12x.attention._shared.mla.compressed_reference import (
+     gather_compressed_mla_kv_cache_reference,
+     pack_compressed_mla_kv_cache_reference,
+ )
++from b12x.attention._shared.mla.api import clear_mla_caches
+ from b12x.attention._shared.mla.compressed_api import (
+     _should_use_sm121_single_pass_decode,
++    compressed_mla_decode_forward,
+ )
+-from b12x.attention._shared.mla.kernel import _dsv4_h16_auto
+ from b12x.attention._shared.mla.compressed_config import (
++    compressed_mla_split_chunks_for_contract,
+     compressed_mla_split_config_for_contract,
+ )
+-from b12x.attention._shared.mla.api import clear_mla_caches
+-from b12x.attention._shared.mla.compressed_api import compressed_mla_decode_forward
+-from b12x.attention._shared.mla.compressed_config import compressed_mla_split_chunks_for_contract
+-from b12x.attention.compressed_mla._scratch import B12XCompressedMLAScratchCaps, plan_compressed_mla_scratch
++from b12x.attention._shared.mla.kernel import _dsv4_h16_auto
++from b12x.attention.compressed_mla._scratch import (
++    B12XCompressedMLAScratchCaps,
++    plan_compressed_mla_scratch,
++)
+ from b12x._lib.compiler import clear_compile_cache, compile_cache_info
+ 
+ from tests._reference.helpers import require_b12x
+@@ -218,6 +221,7 @@ def _make_compressed_binding(
+     v_head_dim: int = _COMPRESSED_HEAD_DIM,
+     max_chunks_per_row: int = 64,
+     max_page_table_width: int | None = None,
++    decode_row_capacity: int | None = None,
+ ):
+     plan = plan_compressed_mla_scratch(
+         B12XCompressedMLAScratchCaps(
+@@ -233,6 +237,7 @@ def _make_compressed_binding(
+             max_batch=rows,
+             max_kv_rows=max_kv_rows,
+             max_chunks_per_row=max_chunks_per_row,
++            decode_row_capacity=decode_row_capacity,
+         )
+     )
+     (spec,) = plan.scratch_specs()
+@@ -324,6 +329,160 @@ def test_compressed_mla_mtp_graph_rows_keep_decode_split_contract() -> None:
+     assert larger_prefill_cfg.num_chunks == 1
+ 
+ 
++@pytest.mark.parametrize(
++    ("decode_row_capacity", "last_decode_row"),
++    [
++        pytest.param(144, 256, id="legacy-floor"),
++        pytest.param(384, 384, id="mns64-k5"),
++        pytest.param(512, 512, id="mns64-k7"),
++        pytest.param(768, 768, id="mns128-k5"),
++    ],
++)
++def test_compressed_mla_declared_decode_row_capacity_extends_contract(
++    decode_row_capacity: int,
++    last_decode_row: int,
++) -> None:
++    decode_cfg = compressed_mla_split_config_for_contract(
++        rows=last_decode_row,
++        width=384,
++        max_chunks=6,
++        decode_row_capacity=decode_row_capacity,
++    )
++    next_cfg = compressed_mla_split_config_for_contract(
++        rows=last_decode_row + 1,
++        width=384,
++        max_chunks=6,
++        decode_row_capacity=decode_row_capacity,
++    )
++
++    assert decode_cfg.chunk_size == 64
++    assert decode_cfg.num_chunks == 6
++    assert next_cfg.chunk_size == 1024
++    assert next_cfg.num_chunks == 1
++
++
++def test_compressed_mla_declared_decode_row_capacity_rejects_nonpositive() -> None:
++    with pytest.raises(ValueError, match="decode_row_capacity must be positive"):
++        compressed_mla_split_config_for_contract(
++            rows=1,
++            width=384,
++            max_chunks=6,
++            decode_row_capacity=0,
++        )
++
++
++@pytest.mark.parametrize("rows", [1, 24, 65, 144, 192, 256])
++@pytest.mark.parametrize("width", [128, 384, 2176, 4608])
++@pytest.mark.parametrize("decode_row_capacity", [144, 384, 768])
++def test_declared_capacity_preserves_legacy_plans_through_256_rows(
++    rows: int,
++    width: int,
++    decode_row_capacity: int,
++) -> None:
++    legacy = compressed_mla_split_config_for_contract(
++        rows=rows,
++        width=width,
++    )
++    declared = compressed_mla_split_config_for_contract(
++        rows=rows,
++        width=width,
++        decode_row_capacity=decode_row_capacity,
++    )
++
++    assert declared == legacy
++
++
++@pytest.mark.parametrize("rows", [384, 512, 768])
++@torch.inference_mode()
++def test_declared_decode_capacity_matches_reference_under_graph_replay(
++    rows: int,
++) -> None:
++    device = require_b12x()
++    clear_mla_caches()
++    width = 384
++    live_width = 32
++    q = _make_q(rows=rows, seed=6130 + rows, device=device)
++    swa_cache_bytes = _make_cache(
++        tokens=64,
++        page_size=COMPRESSED_MLA_DSV4_PAGE_SIZE,
++        seed=6131 + rows,
++        device=device,
++    )
++    swa_cache = swa_cache_bytes.view(torch.float8_e4m3fn)
++    base_indices = torch.arange(live_width, dtype=torch.int32, device=device)
++    swa_indices = torch.full(
++        (rows, width),
++        -1,
++        dtype=torch.int32,
++        device=device,
++    )
++    swa_indices[:, :live_width] = base_indices
++    swa_lengths = torch.full(
++        (rows,),
++        live_width,
++        dtype=torch.int32,
++        device=device,
++    )
++    attn_sink = torch.linspace(
++        -0.1,
++        0.1,
++        _LOCAL_Q_HEADS,
++        dtype=torch.float32,
++        device=device,
++    )
++    split_cap = math.ceil(width / 64)
++    binding = _make_compressed_binding(
++        device=device,
++        rows=rows,
++        topk=width,
++        max_kv_rows=rows * width,
++        q=q,
++        swa_indices=swa_indices,
++        swa_lengths=swa_lengths,
++        use_cuda_graph=True,
++        max_chunks_per_row=split_cap,
++        decode_row_capacity=rows,
++    )
++
++    captured_out: torch.Tensor | None = None
++
++    def run() -> torch.Tensor:
++        nonlocal captured_out
++        captured_out = compressed_mla_decode_forward(
++            swa_k_cache=swa_cache,
++            binding=binding,
++            attn_sink=attn_sink,
++            sm_scale=_SM_SCALE,
++        )
++        return captured_out
++
++    run()
++    torch.cuda.synchronize(device)
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        run()
++    graph.replay()
++    torch.cuda.synchronize(device)
++    assert captured_out is not None
++
++    expected = compressed_sparse_mla_reference(
++        q,
++        swa_cache_bytes,
++        swa_indices,
++        swa_lengths,
++        attn_sink=attn_sink,
++        sm_scale=_SM_SCALE,
++    )
++    max_abs = (captured_out.float() - expected.float()).abs().max().item()
++    cosine = torch.nn.functional.cosine_similarity(
++        captured_out.float().reshape(-1),
++        expected.float().reshape(-1),
++        dim=0,
++    )
++    assert max_abs <= 0.10
++    assert cosine.item() >= 0.9995
++
++
+ def test_compressed_mla_arena_scratch_uses_contract_q_chunks() -> None:
+     device = require_b12x()
+     selected_widths = (128, 640, 2880)
+@@ -397,6 +556,7 @@ def test_compressed_mla_arena_scratch_uses_contract_q_chunks() -> None:
+     assert legacy_ragged > capped * 3
+     assert capped < int(2.25 * (1 << 30))
+ 
++
+ def test_compressed_mla_reference_pack_gathers_across_padded_pages() -> None:
+     device = require_b12x()
+     gen = torch.Generator(device=device)
+@@ -490,15 +650,18 @@ def test_compressed_mla_fixed_workspace_split_plan_uses_contract_not_live_shape(
+         max_page_table_width=page_table_width,
+     )
+ 
+-    with torch.inference_mode(), torch.no_grad():
+-        with pytest.raises(ValueError, match="mapped indexed_page_table"):
+-            compressed_api_impl.compressed_mla_decode_forward(
+-                swa_k_cache=swa_cache.view(torch.float8_e4m3fn),
+-                binding=binding,
+-                indexed_k_cache=indexed_cache,
+-                indexed_page_size=COMPRESSED_MLA_C4_PAGE_SIZE,
+-                sm_scale=_SM_SCALE,
+-            )
++    with (
++        torch.inference_mode(),
++        torch.no_grad(),
++        pytest.raises(ValueError, match="mapped indexed_page_table"),
++    ):
++        compressed_api_impl.compressed_mla_decode_forward(
++            swa_k_cache=swa_cache.view(torch.float8_e4m3fn),
++            binding=binding,
++            indexed_k_cache=indexed_cache,
++            indexed_page_size=COMPRESSED_MLA_C4_PAGE_SIZE,
++            sm_scale=_SM_SCALE,
++        )
+ 
+ 
+ @torch.inference_mode()
+@@ -910,7 +1073,9 @@ def test_compressed_mla_mapped_page_table_is_rejected() -> None:
+         swa_lengths=swa_lengths,
+         indexed_indices=torch.arange(8, dtype=torch.int32, device=device).unsqueeze(0),
+         indexed_lengths=indexed_lengths,
+-        indexed_page_table=torch.arange(2, dtype=torch.int32, device=device).unsqueeze(0),
++        indexed_page_table=torch.arange(2, dtype=torch.int32, device=device).unsqueeze(
++            0
++        ),
+         use_cuda_graph=True,
+     )
+ 
+@@ -1164,8 +1329,7 @@ def test_compressed_mla_prefill_is_run_to_run_deterministic() -> None:
+     for row in range(rows):
+         length = min(width, row + 1)
+         swa_indices[row, :length] = (
+-            torch.arange(row, row - length, -1, dtype=torch.int32, device=device)
+-            % 64
++            torch.arange(row, row - length, -1, dtype=torch.int32, device=device) % 64
+         )
+         swa_lengths[row] = length
+     attn_sink = torch.linspace(
+diff --git a/tests/moe/test_w4a16_route_pack_warmup.py b/tests/moe/test_w4a16_route_pack_warmup.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c7288b314ebc2785418085ce323881960fe192e
+--- /dev/null
++++ b/tests/moe/test_w4a16_route_pack_warmup.py
+@@ -0,0 +1,54 @@
++import pytest
++
++from b12x.moe._shared.kernels.w4a16.host import (
++    route_pack_warmup_token_counts,
++)
++
++
++@pytest.mark.parametrize(
++    ("capacity", "expected"),
++    [
++        (1, (1,)),
++        (5, (1, 2, 3, 4, 5)),
++        (6, (1, 2, 3, 4, 5, 6)),
++        (32, (1, 2, 3, 4, 5, 8, 9, 16, 17, 32)),
++        (
++            3072,
++            (
++                1,
++                2,
++                3,
++                4,
++                5,
++                8,
++                9,
++                16,
++                17,
++                32,
++                33,
++                64,
++                65,
++                128,
++                129,
++                256,
++                257,
++                512,
++                513,
++                1024,
++                1025,
++                2048,
++                2049,
++                3072,
++            ),
++        ),
++    ],
++)
++def test_route_pack_warmup_covers_capacity_buckets(
++    capacity: int, expected: tuple[int, ...]
++) -> None:
++    assert route_pack_warmup_token_counts(capacity) == expected
++
++
++def test_route_pack_warmup_rejects_empty_capacity() -> None:
++    with pytest.raises(ValueError, match="capacity must be positive"):
++        route_pack_warmup_token_counts(0)
