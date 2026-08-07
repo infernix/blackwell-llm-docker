@@ -5,7 +5,7 @@ FROM ${BASE_IMAGE}
 
 ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
 ARG VLLM_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
-ARG VLLM_COMMIT=d25418ab359f184202e0463a6bb2f2b566ef6f30
+ARG VLLM_COMMIT=7a5634964efbb83496df07d8c1ff97591fc04a1a
 ARG SPARKINFER_REPO=https://github.com/local-inference-lab/b12x.git
 ARG SPARKINFER_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
 ARG SPARKINFER_COMMIT=b18919369c934ad7324602f03a60017326081e46
@@ -104,7 +104,7 @@ LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 DCP8/DCP16 runtime" \
       local-inference-lab.runtime.base-digest="sha256:3ce9dfad1f684a76687095d80e49c96de42b008f7141587e7620c068f8073155" \
       local-inference-lab.kimi-k3.moe-native-sha256="33717a2c4b346ba02470db6a4b2ba1998804d1cf1b1527004ce375f1e3de429b" \
       local-inference-lab.vllm.ref="pr/kimi-k3-dspark-dcp16-perf-20260806" \
-      local-inference-lab.vllm.commit="d25418ab359f184202e0463a6bb2f2b566ef6f30" \
+      local-inference-lab.vllm.commit="7a5634964efbb83496df07d8c1ff97591fc04a1a" \
       local-inference-lab.vllm.pr="238" \
       local-inference-lab.sparkinfer.ref="pr/kimi-k3-dspark-dcp16-perf-20260806" \
       local-inference-lab.sparkinfer.commit="b18919369c934ad7324602f03a60017326081e46" \
