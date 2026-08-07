@@ -105,8 +105,8 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 
 New Gilded Gnosis images must not use an earlier `build/*` integration branch
 as their source. `build-gilded-gnosis-v20-final-cu132.sh` reads the manifests
-under `manifests/vllm/` and `manifests/sparkinfer/`, resolves the current
-`dev/gilded-gnosis` and SparkInfer `master` heads, verifies every pinned PR
+under `manifests/vllm/` and `manifests/b12x/`, resolves the current
+`dev/gilded-gnosis` and B12X `master` heads, verifies every pinned PR
 head, and creates fresh integration patches and lockfiles. The build stops if
 either base advances, a PR changes, or a PR conflicts. The Dockerfile
 independently verifies that applying each patch produces its locked Git tree
@@ -583,6 +583,48 @@ qualification receipt is
 `validation/gilded-gnosis-v20-r30-remote-gpu.json`; its vLLM and B12X trees
 are `20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f` and
 `6bc35fdb76b6f9d11601009fe413720b461fb444`.
+
+The r31 release retains every qualified r30 path and adds three release-facing
+changes. It builds FlashInfer from the exact qualified `main` + PR #4393 source
+commit and adds its PCIe IPC all-reduce as the automatic TP2 backend. TP4 and
+larger keep B12X because the matched kernel and end-to-end tests favored B12X there. It
+also prewarms mixed-Trellis target and native-MTP route packing before KV
+sizing, preventing first-request scratch allocations from reducing the usable
+KV pool.
+
+The clean release manifest contains all required unmerged changes: vLLM
+#145, #213, #214, #217, #218, #228, #229, #230, #235, #245, #248, #251,
+#252, #253 and #254; B12X #125 and #126; and LMCache #7 through #17. The required
+part of superseded vLLM #250 is preserved in #228. Every PR is pinned by its
+full head SHA, replayed over current clean GG/B12X/LMCache bases, and recorded
+in the archived lock files. The composer refuses moved heads or conflicts.
+
+Native L2 offload is also environment-only in r31. `KV_OFFLOADING_SIZE` sets
+the host-memory L1 size, while `NATIVE_L2_PATH` and `NATIVE_L2_GB` enable a
+bounded filesystem L2. The helper constructs the connector JSON and defaults
+`PYTHONHASHSEED=0`; no `EXTRA_VLLM_ARGS` JSON is needed:
+
+```bash
+KV_OFFLOADING_SIZE=32 NATIVE_L2_PATH=/native-l2 NATIVE_L2_GB=1024 \
+  docker compose -f examples/docker-compose-ds4-v20-r31.yml up -d
+```
+
+Reproduce the exact source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r31 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Release candidate image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm77a5b39-b12xacee6e5-fi1ac6942-cu132-20260807-r31
+```
+
+Use `examples/docker-compose-ds4-v20-r31.yml`. `ALLREDUCE_MODE=auto` selects
+`flashinfer-ipc` at TP2 and `b12x` at TP4 or larger; either backend can be
+forced explicitly for diagnostics.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
