@@ -559,7 +559,7 @@ grep -Fxq \
   'b12x_tree=851df7cad900279e063b0e0a92b812e2caa925cd' \
   <<<"${output_clean}"
 grep -Fxq \
-  'launcher_commit=6a61804c378cc8d5d666ab381c3d56b4f812b52f' \
+  'launcher_commit=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
