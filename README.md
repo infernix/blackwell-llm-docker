@@ -559,7 +559,9 @@ All 1,792 concurrent stress requests completed successfully. The strongest
 wave held 218 requests in deferred lookup, completed 1,184 store operations
 (38.93 GB), and the replay loaded 408 batches (18.46 GB). The final queues
 were zero, EngineCore remained healthy, and a post-stress request returned
-exactly `42`.
+exactly `42`. The release Compose was then requalified without privileged
+container access: another 192/192 requests passed, including 128 filesystem
+loads (5.79 GB), and the final response remained exactly `42`.
 
 Reproduce the exact source composition with:
 

@@ -360,6 +360,9 @@ grep -Fxq \
   'launcher_ref=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
   <<<"${output_r30}"
 grep -Fxq \
+  'launcher_commit=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
+  <<<"${output_r30}"
+grep -Fxq \
   'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
   <<<"${output_r30}"
 grep -Fxq \

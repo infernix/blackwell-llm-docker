@@ -13,7 +13,7 @@
     4,
     5
   ],
-  "validated_at": "2026-08-07T17:32:14Z",
+  "validated_at": "2026-08-07T17:50:35Z",
   "profile": {
     "model": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
     "parallelism": "TP2/DCP1",
@@ -28,7 +28,8 @@
     "kv_cache": "FP8 DS-MLA",
     "native_offload_gib": 16,
     "secondary_tier": "filesystem",
-    "allocator": "expandable_segments:False"
+    "allocator": "expandable_segments:False",
+    "container_privileged": false
   },
   "tests": {
     "release_composition": "pass",
@@ -38,6 +39,7 @@
     "model_startup": "pass",
     "cuda_graphs": "pass: target, DSpark proposal, and DFlash context-KV FULL graphs",
     "tiered_offload_startup": "pass",
+    "unprivileged_runtime": "pass: model startup, shared mmap registration, filesystem replay, and inference",
     "concurrent_final_store": "pass",
     "filesystem_replay": "pass",
     "post_stress_correctness": "pass: exact response 42",
@@ -61,7 +63,12 @@
     "http_request_errors": 0,
     "engine_fatal_errors": 0,
     "l2_files_observed": 17563,
-    "l2_disk_usage": "36G"
+    "l2_disk_usage": "36G",
+    "unprivileged_stress_requests": 192,
+    "unprivileged_stress_passed": 192,
+    "unprivileged_stress_failed": 0,
+    "unprivileged_load_operations": 128,
+    "unprivileged_load_bytes": 5790597120
   },
   "pull_requests": {
     "graph_channels_and_context_kv": "https://github.com/local-inference-lab/vllm/pull/251",

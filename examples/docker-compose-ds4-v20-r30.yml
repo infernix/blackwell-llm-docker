@@ -26,7 +26,6 @@ services:
     entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
     network_mode: host
     ipc: host
-    privileged: true
     init: true
     shm_size: ${SHM_SIZE:-32gb}
     gpus: all
