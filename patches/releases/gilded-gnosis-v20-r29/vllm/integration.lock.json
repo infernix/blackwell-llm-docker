@@ -1,78 +1,117 @@
 {
-  "schema_version": 1,
+  "base": {
+    "commit": "30038602b71395f481ef4a6edfe4fcf8551d9c15",
+    "ref": "refs/heads/dev/gilded-gnosis",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "9668c5b3b52c1953f099bb7106484f5c8a77d51158170a754a751bf3d219aa29"
+  },
   "name": "gilded-gnosis-v20",
-  "repository": "https://github.com/local-inference-lab/vllm.git",
-  "base_ref": "refs/heads/dev/gilded-gnosis",
   "pull_requests": [
     {
-      "number": 246,
+      "disposition": "merged",
       "head": "4ffbeffd86c75f98ab246a0cf7136475788b8637",
+      "number": 246,
+      "ref": "refs/pull/246/head",
       "title": "Port GG integration to the renamed B12X package"
     },
     {
-      "number": 145,
+      "disposition": "merged",
       "head": "99bf3f13f13012b72d6d67e49572d686b45b2833",
+      "number": 145,
+      "ref": "refs/pull/145/head",
       "title": "GLM-5.2 calibrated NVFP4 MLA KV outer scales"
     },
     {
-      "number": 229,
+      "disposition": "merged",
       "head": "1a2b01f43fbc151239c437e918dfdc27681ce4e7",
+      "number": 229,
+      "ref": "refs/pull/229/head",
       "title": "Harden compressed MLA cache, workspace, and verifier capacity contracts"
     },
     {
-      "number": 213,
+      "disposition": "merged",
       "head": "5f144274d6e092237f4f4f437b7e9d3aaa427157",
+      "number": 213,
+      "ref": "refs/pull/213/head",
       "title": "Skip pre-KV V2 attention during FlashInfer autotune"
     },
     {
-      "number": 214,
+      "disposition": "merged",
       "head": "e63a190ee1b48d051ccebce485de343dbe2b3505",
+      "number": 214,
+      "ref": "refs/pull/214/head",
       "title": "Add DeepSeek-V4-Flash-0731 DSpark profile"
     },
     {
-      "number": 217,
+      "disposition": "merged",
       "head": "bde9a133774e38a54511696cef1ac10b16ef700b",
+      "number": 217,
+      "ref": "refs/pull/217/head",
       "title": "Harden shared regions for native CPU KV offload"
     },
     {
-      "number": 218,
+      "disposition": "merged",
       "head": "3b89c7a113f92522aa07cc3271422c04e458d771",
+      "number": 218,
+      "ref": "refs/pull/218/head",
       "title": "Align native SWA/MTP retention and shared-prefix tails"
     },
     {
-      "number": 247,
+      "disposition": "merged",
       "head": "f5662c0760e09aef0e66a0d05793c8b611878f93",
+      "number": 247,
+      "ref": "refs/pull/247/head",
       "title": "Isolate semantic PCIe graph channels"
     },
     {
-      "number": 228,
+      "disposition": "merged",
       "head": "25ddfa55fdbbb7b697585713e1e475cf9d33d893",
+      "number": 228,
+      "ref": "refs/pull/228/head",
       "title": "Consolidate r20 EXL3 prefill and online K6 cache"
     },
     {
-      "number": 230,
+      "disposition": "merged",
       "head": "9401f9d8916f3bdf34123d2d493a918b748c8132",
+      "number": 230,
+      "ref": "refs/pull/230/head",
       "title": "Keep broadcast MHC pre behind the compile boundary"
     },
     {
-      "number": 235,
+      "disposition": "merged",
       "head": "54349f9ce6d32a68c7c736f2ac3ac597afd6e208",
+      "number": 235,
+      "ref": "refs/pull/235/head",
       "title": "Align DeepSeek-V4-0731 reasoning and tool prompt contract"
     },
     {
-      "number": 245,
+      "disposition": "merged",
       "head": "9dbd6d00b0340da173b61affb961954090632dec",
+      "number": 245,
+      "ref": "refs/pull/245/head",
       "title": "Build one-shard indexer query-split topology"
     },
     {
-      "number": 248,
+      "disposition": "merged",
       "head": "85bc9770c94394fb070f3f9311d68bcaca6a354d",
+      "number": 248,
+      "ref": "refs/pull/248/head",
       "title": "Prewarm CuTe PCIe one-shot all-reduce before graph capture"
     },
     {
-      "number": 251,
+      "disposition": "merged",
       "head": "45849684bea6266acec672a968db7e33b79daf0c",
+      "number": 251,
+      "ref": "refs/pull/251/head",
       "title": "Capture DSpark context KV in FULL CUDA graphs"
     }
-  ]
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "68a247e162645a8fa5bfb9a9771d5764f22b48c40725eda4e9275c76c5a6d9b9",
+    "tree": "55db47246a3365ca0a8f908f83a0b0ea06f0856a"
+  },
+  "schema_version": 1
 }

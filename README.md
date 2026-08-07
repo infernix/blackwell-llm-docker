@@ -481,6 +481,64 @@ same NVFP4 KV format, K6 adds only 0.000856839 mean KLD over the no-online
 run. Use `examples/docker-compose-glm52-exl3-v20-r28.yml`; the exact receipt
 is `validation/gilded-gnosis-v20-r28-remote-gpu.json`.
 
+The r29 release completes the SparkInfer-to-B12X package rename, fixes the
+compressed-MLA verifier capacity contract, and captures DSpark context-KV work
+in dedicated FULL CUDA graphs. The split planner and scratch allocator now
+receive the physical verifier row capacity: 384 rows for MNS64 fixed K5 and
+512 for fixed K7. This replaces the old fixed 256-row assumption that could
+select an invalid graph contract above C24.
+
+An identical TP2/DCP1 fixed-K5 C64 gate reproduced the r28 failure at 140/192
+correct responses and passed r29 at 192/192. Fixed K7 and dynamic K7 also
+passed the original 192/192 gate. The final clean image passed a second K5
+C64 gate at 192/192 and a K7 C32 smoke gate at 96/96.
+
+The context-KV graph path maps actual verifier rows to the smallest captured
+bucket and makes padded rows inert. It keeps profiling, dummy runs,
+out-of-envelope shapes, and non-DSpark execution on the eager path. A matched
+60-second A/B on the same TP2 GPUs measured:
+
+| Fixed K5 test | Eager context-KV | FULL context-KV | Result |
+|---|---:|---:|---:|
+| CC1 server decode | 182.82 tok/s | 190.68 tok/s | +4.3% |
+| CC32 aggregate median | 1,257.73 tok/s | 1,253.69 tok/s | -0.3% (noise) |
+| Clean release image | - | 190.66 / 1,259.85 tok/s | CC1 / CC32 |
+
+At CC32 the trace reduced DSpark proposal time from 2.408 to 1.510 ms per
+step and removed 108 eager launches over four profiled steps, but target/MoE
+work already saturates the server, so end-to-end throughput stays flat. Graph
+memory increased from 2.14 to 2.17 GiB and the matched short-context KV pool
+lost only 74 tokens. Prefill remains PIECEWISE; host metadata, input
+preparation, rejection sampling, and output bookkeeping remain eager.
+
+Fixed K5 remains the default. K7 can be faster in predictable code phases,
+but did not establish a repeatable mixed-workload advantage after prompt,
+reasoning-effort, and acceptance accounting were matched.
+
+The same image also includes the one-shard DCP query-split topology. A final
+TP4/DCP4/MTP0 test on the 3.42 bpw GLM checkpoint confirmed one indexer shard,
+lossless full CKV gather, and 3,352/3,393 tok/s uncached prefill at 8k/64k.
+
+Reproduce the exact source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r29 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Validated r29 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm55db472-b12x6bc35fd-fi801d57a-cu132-20260807-r29
+Local validated image ID: sha256:3b6057d254da1a4115dc31f742d0206820b30ac0e411fa1860ea918cda90af89
+Registry digest: sha256:3441df47253919d20deb5f57a75e47142f9e0eec8a2ceb2c6f4898ebc9680e16
+```
+
+Use `examples/docker-compose-ds4-v20-r29.yml`. The immutable source receipt is
+`validation/gilded-gnosis-v20-r29-remote-gpu.json`; its vLLM and B12X trees
+are `55db47246a3365ca0a8f908f83a0b0ea06f0856a` and
+`6bc35fdb76b6f9d11601009fe413720b461fb444`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

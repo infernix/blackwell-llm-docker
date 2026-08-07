@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllm55db472-b12x6bc35fd-fi801d57a-cu132-20260807-r29",
+  "image_id": "sha256:3b6057d254da1a4115dc31f742d0206820b30ac0e411fa1860ea918cda90af89",
+  "registry_digest": "sha256:3441df47253919d20deb5f57a75e47142f9e0eec8a2ceb2c6f4898ebc9680e16",
+  "vllm_tree": "55db47246a3365ca0a8f908f83a0b0ea06f0856a",
+  "b12x_tree": "6bc35fdb76b6f9d11601009fe413720b461fb444",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "validated_at": "2026-08-07T14:14:35Z",
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "cuda_graphs": "pass: target, DSpark proposal, and context-KV FULL graphs",
+    "correctness": "pass",
+    "batch_correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass",
+    "dspark_capacity_contract": "pass",
+    "glm_one_shard_query_split": "pass"
+  },
+  "evidence": {
+    "ds4": {
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "profile": "TP2/DCP1, B12X W4A8, MNS64, fixed K5 unless stated otherwise",
+      "r28_fixed_k5_c64_exact": {
+        "attempted": 192,
+        "correct": 140,
+        "wrong": 52,
+        "errors": 0
+      },
+      "r29_fixed_k5_c64_exact": {
+        "attempted": 192,
+        "correct": 192,
+        "wrong": 0,
+        "errors": 0
+      },
+      "r29_fixed_k7_c64_exact": {
+        "attempted": 192,
+        "correct": 192,
+        "wrong": 0,
+        "errors": 0
+      },
+      "r29_dynamic_k7_c64_exact": {
+        "attempted": 192,
+        "correct": 192,
+        "wrong": 0,
+        "errors": 0
+      },
+      "row_contract_sweep_fixed_k5": {
+        "decode_ctx0_tps": 174.0443040530682,
+        "coding_median_tps": 272.2857222898663,
+        "coding_mean_tps": 277.8218023172696,
+        "coding_max_tps": 303.2771394773043,
+        "aggregate_tps": {
+          "cc24": 760.7607257923939,
+          "cc25": 734.8355924965819,
+          "cc32": 796.2022051816027,
+          "cc64": 795.7616296790897
+        },
+        "model_load_gib_per_gpu": 80.97
+      },
+      "fixed_k7": {
+        "decode_ctx0_tps": 164.96,
+        "coding_median_tps": 265.88,
+        "aggregate_tps": {
+          "cc24": 966.89,
+          "cc25": 999.01,
+          "cc32": 956.45,
+          "cc64": 720.07
+        }
+      },
+      "dynamic_k7": {
+        "decode_ctx0_tps": 158.61,
+        "aggregate_tps": {
+          "cc24": 408.26,
+          "cc32": 304.22,
+          "cc64": 339.96
+        }
+      },
+      "context_kv_full_graph": {
+        "pull_request": "https://github.com/local-inference-lab/vllm/pull/251",
+        "capture_policy": "smallest qualified bucket; padded rows use position 0 and slot -1",
+        "eager_fallbacks": [
+          "profiling",
+          "dummy runs",
+          "out-of-envelope shapes",
+          "non-DSpark models"
+        ],
+        "matched_ab": {
+          "cc1_server_tps": {
+            "eager": 182.82,
+            "full_graph": 190.68,
+            "delta_percent": 4.3
+          },
+          "cc32_aggregate_tps_median": {
+            "eager": 1257.73,
+            "full_graph": 1253.69,
+            "delta_percent": -0.3,
+            "interpretation": "noise/parity"
+          },
+          "dspark_proposal_ms_per_step": {
+            "eager": 2.408,
+            "full_graph": 1.51
+          },
+          "eager_launches_over_four_steps": {
+            "eager": 296,
+            "full_graph": 188
+          },
+          "estimated_graph_memory_gib": {
+            "eager": 2.14,
+            "full_graph": 2.17
+          },
+          "kv_cache_token_delta": -74
+        }
+      },
+      "clean_release_image": {
+        "source_mounts": 0,
+        "instanttensor": "BUFFERED",
+        "fixed_k5": {
+          "graph_envelope_rows": 384,
+          "context_graph_buckets": 43,
+          "graph_pool_gib": 0.3,
+          "model_load_gib_per_gpu": 80.97,
+          "kv_cache_tokens": 14001,
+          "raw_block_slots": 23472,
+          "decode_ctx0_client_tps": 190.66069240548242,
+          "decode_ctx0_server_tps": 190.60356869896276,
+          "cc32_client_tps": 1259.853079844297,
+          "cc32_server_tps": 1256.354043674625,
+          "cc64_correctness": "192/192"
+        },
+        "fixed_k7_smoke": {
+          "graph_envelope_rows": 256,
+          "context_graph_buckets": 35,
+          "graph_pool_gib": 0.28,
+          "kv_cache_tokens": 15444,
+          "raw_block_slots": 25892,
+          "decode_ctx0_client_tps": 168.5,
+          "cc32_client_tps": 818.8,
+          "cc32_correctness": "96/96"
+        }
+      },
+      "release_default": "fixed K5"
+    },
+    "glm": {
+      "model": "willfalco/GLM-5.2-EXL3-TR3-3.42bpw",
+      "profile": "TP4/DCP4/MTP0, online K6, NVFP4 MLA KV, MNS1, graph 6, GMU 0.95",
+      "policy": {
+        "query_split": 1,
+        "query_split_min_context_tokens": 0,
+        "ckv_gather": 1,
+        "topk_owner_merge": 0,
+        "indexer_shards": 1,
+        "ckv_prefetch_depth": 1
+      },
+      "model_load_gib_per_gpu": 79.85,
+      "kv_cache_tokens_global": 690176,
+      "correctness": "42/42",
+      "prefill": {
+        "8192_tps": 3352.0,
+        "8192_samples": 14,
+        "65536_tps": 3393.0,
+        "65536_samples": 2
+      }
+    }
+  }
+}

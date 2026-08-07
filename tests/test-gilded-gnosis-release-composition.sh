@@ -337,6 +337,47 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r29="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r29 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r29' <<<"${output_r29}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm55db472-b12x6bc35fd-fi801d57a-cu132-20260807-r29' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllm55db472.b12x6bc35fd.fi801d57a.cu132.20260807.r29' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'vllm_tree=55db47246a3365ca0a8f908f83a0b0ea06f0856a' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'b12x_tree=6bc35fdb76b6f9d11601009fe413720b461fb444' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'launcher_ref=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'launcher_commit=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r29/lmcache/integration.patch' \
+  <<<"${output_r29}"
+grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r29}"
+grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r29}"
+grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r29}"
+grep -Fxq \
+  'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
+  <<<"${output_r29}"
+grep -Fxq \
+  'instanttensor_commit=49b4010afc1cae0441e71fe0b0bffc24fa05e932' \
+  <<<"${output_r29}"
+
 output_r28="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r28 \
@@ -547,16 +588,16 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm26b7515-b12x851df7c-fi801d57a-cu132-[0-9]{8}-r29$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm55db472-b12x6bc35fd-fi801d57a-cu132-[0-9]{8}-r29$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm26b7515[.]b12x851df7c[.]fi801d57a[.]cu132[.][0-9]{8}[.]r29$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm55db472[.]b12x6bc35fd[.]fi801d57a[.]cu132[.][0-9]{8}[.]r29$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=26b75156a7dfa255ecdfa6bf02bfbbf7da7394cb' \
+  'vllm_tree=55db47246a3365ca0a8f908f83a0b0ea06f0856a' \
   <<<"${output_clean}"
 grep -Fxq \
-  'b12x_tree=851df7cad900279e063b0e0a92b812e2caa925cd' \
+  'b12x_tree=6bc35fdb76b6f9d11601009fe413720b461fb444' \
   <<<"${output_clean}"
 grep -Fxq \
   'launcher_commit=7f01a6202a3b3136fa7a4c54523127d8af42413e' \
