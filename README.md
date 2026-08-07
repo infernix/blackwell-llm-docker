@@ -539,6 +539,49 @@ Use `examples/docker-compose-ds4-v20-r29.yml`. The immutable source receipt is
 are `55db47246a3365ca0a8f908f83a0b0ea06f0856a` and
 `6bc35fdb76b6f9d11601009fe413720b461fb444`.
 
+The r30 release rebases the same qualified DS4 paths on current GG
+`e2666d9a65` and fixes native tiered KV-offload finalization. The scheduler
+previously released `TieringOffloadingManager` request state before the next
+step built the EOS-completed final store. Under a deep queue this caused a
+deterministic `KeyError` in `prepare_store()` and terminated EngineCore. r30
+builds the final store first, retains state until submitted transfers finish,
+and then finalizes the request.
+
+r30 also updates the semantic B12X CUDA-graph channel integration to GG's
+current graph-manager API. Target, DSpark proposal, and DFlash context-KV
+FULL graph families were all captured in the final image. Prefill remains
+PIECEWISE, and profiling, dummy, unsupported-shape, and non-DSpark paths keep
+their explicit fallbacks.
+
+The final TP2/DCP1/K5 validation used the reported 500k-context native
+`TieringOffloadingSpec` configuration with a 16 GiB L1 and filesystem L2.
+All 1,792 concurrent stress requests completed successfully. The strongest
+wave held 218 requests in deferred lookup, completed 1,184 store operations
+(38.93 GB), and the replay loaded 408 batches (18.46 GB). The final queues
+were zero, EngineCore remained healthy, and a post-stress request returned
+exactly `42`.
+
+Reproduce the exact source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r30 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Validated r30 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm20ed7f9-b12x6bc35fd-fi801d57a-cu132-20260807-r30
+Local validated image ID: sha256:b0d592d0f4395de3936034075caf29d883d3e17e75839ff5ea800c41d6a2548c
+Registry digest: sha256:a8a7a05fe8a8599b2ff86cfa2814e4a3b1ec1a28fb154b496f891115f28a6c84
+```
+
+Use `examples/docker-compose-ds4-v20-r30.yml`. The immutable source and live
+qualification receipt is
+`validation/gilded-gnosis-v20-r30-remote-gpu.json`; its vLLM and B12X trees
+are `20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f` and
+`6bc35fdb76b6f9d11601009fe413720b461fb444`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal

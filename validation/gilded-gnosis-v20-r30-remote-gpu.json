@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllm20ed7f9-b12x6bc35fd-fi801d57a-cu132-20260807-r30",
+  "image_id": "sha256:b0d592d0f4395de3936034075caf29d883d3e17e75839ff5ea800c41d6a2548c",
+  "registry_digest": "sha256:a8a7a05fe8a8599b2ff86cfa2814e4a3b1ec1a28fb154b496f891115f28a6c84",
+  "vllm_base": "e2666d9a65f41fc376607531453cbd57c4c71016",
+  "vllm_tree": "20ed7f98b1ab2c0e6f008a6ad34306fd3b72b33f",
+  "b12x_base": "680d8195b80420296d7fed2688b75406be15eb38",
+  "b12x_tree": "6bc35fdb76b6f9d11601009fe413720b461fb444",
+  "lmcache_tree": "9a05c8818bae48d15b79c7e876418bb813c08cd0",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [
+    4,
+    5
+  ],
+  "validated_at": "2026-08-07T17:32:14Z",
+  "profile": {
+    "model": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "parallelism": "TP2/DCP1",
+    "backend": "B12X W4A8",
+    "speculation": "fixed probabilistic K5",
+    "max_model_len": 500000,
+    "max_num_seqs": 16,
+    "max_num_batched_tokens": 4096,
+    "graph_cap": 128,
+    "gpu_memory_utilization": 0.975,
+    "load_format": "InstantTensor BUFFERED",
+    "kv_cache": "FP8 DS-MLA",
+    "native_offload_gib": 16,
+    "secondary_tier": "filesystem",
+    "allocator": "expandable_segments:False"
+  },
+  "tests": {
+    "release_composition": "pass",
+    "compose_config": "pass",
+    "shell_syntax": "pass",
+    "lmcache_tests": "222 passed, 131 skipped",
+    "model_startup": "pass",
+    "cuda_graphs": "pass: target, DSpark proposal, and DFlash context-KV FULL graphs",
+    "tiered_offload_startup": "pass",
+    "concurrent_final_store": "pass",
+    "filesystem_replay": "pass",
+    "post_stress_correctness": "pass: exact response 42",
+    "engine_health": "pass"
+  },
+  "evidence": {
+    "gpu_kv_cache_tokens": 784369,
+    "stress_requests": 1792,
+    "stress_passed": 1792,
+    "stress_failed": 0,
+    "peak_capacity_waiting_observed": 237,
+    "peak_deferred_waiting_observed": 218,
+    "store_operations": 1184,
+    "store_bytes": 38931425280,
+    "load_operations": 408,
+    "load_bytes": 18457528320,
+    "async_lookup_completions": 454,
+    "async_lookup_cumulative_seconds": 14210.906352067366,
+    "final_running_requests": 0,
+    "final_waiting_requests": 0,
+    "http_request_errors": 0,
+    "engine_fatal_errors": 0,
+    "l2_files_observed": 17563,
+    "l2_disk_usage": "36G"
+  },
+  "pull_requests": {
+    "graph_channels_and_context_kv": "https://github.com/local-inference-lab/vllm/pull/251",
+    "native_offload_final_store": "https://github.com/local-inference-lab/vllm/pull/252"
+  },
+  "issue": "https://github.com/local-inference-lab/rtx6kpro/issues/60"
+}

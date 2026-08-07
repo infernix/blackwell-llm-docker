@@ -101,8 +101,18 @@ if [[ "${composition_mode}" == "clean" ]]; then
     --output-dir "${lmcache_composition_dir}" >/dev/null
   configure_lmcache_composition "${lmcache_composition_dir}" 1
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r29}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r29}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi801d57a-cu132-${release_date}-r30}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}.fi801d57a.cu132.${release_date}.r30}"
+elif [[ "${composition_mode}" == "reproduce-r30" ]]; then
+  configure_vllm_composition \
+    "patches/releases/gilded-gnosis-v20-r30/vllm" 0
+  configure_b12x_composition \
+    "patches/releases/gilded-gnosis-v20-r30/b12x" 0
+  configure_lmcache_composition \
+    "patches/releases/gilded-gnosis-v20-r30/lmcache" 0
+
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm20ed7f9-b12x6bc35fd-fi801d57a-cu132-20260807-r30}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm20ed7f9.b12x6bc35fd.fi801d57a.cu132.20260807.r30}"
 elif [[ "${composition_mode}" == "reproduce-r29" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r29/vllm" 0
@@ -360,7 +370,7 @@ export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b96
 
 export VLLM_PATCH_URL=
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
   export B12X_VERSION="${B12X_VERSION:-1.1.0}"
   export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-b12x}"
 else
@@ -369,7 +379,7 @@ else
 fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-7f01a6202a3b3136fa7a4c54523127d8af42413e}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-7f01a6202a3b3136fa7a4c54523127d8af42413e}"
 elif [[ "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r26" ]]; then
@@ -400,7 +410,7 @@ export TRITON_KERNELS_REF=
 export TRITON_KERNELS_COMMIT=
 
 export XGRAMMAR_REPO="${XGRAMMAR_REPO:-https://github.com/mlc-ai/xgrammar.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r8" || "${composition_mode}" == "reproduce-r9" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
   export XGRAMMAR_REF="${XGRAMMAR_REF:-v0.2.5}"
   export XGRAMMAR_COMMIT="${XGRAMMAR_COMMIT:-2ea71da4ccb997a06928c9fb69b99f330da56697}"
   export XGRAMMAR_VERSION="${XGRAMMAR_VERSION:-0.2.5}"
@@ -414,7 +424,7 @@ else
   export XGRAMMAR_TRANSFORMERS5_COMPAT="${XGRAMMAR_TRANSFORMERS5_COMPAT:-0}"
 fi
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r27" ]]; then
   export INSTANTTENSOR_REPO="${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}"
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}"
@@ -427,7 +437,7 @@ else
   export INSTANTTENSOR_REF="${INSTANTTENSOR_REF:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
   export INSTANTTENSOR_COMMIT="${INSTANTTENSOR_COMMIT:-85e7c5f5539d9c006ee0c26bc1b5233c65251b6b}"
 fi
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
   export LMCACHE_BUILD_VERSION="${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.4}"
 elif [[ "${composition_mode}" == "reproduce-r6" ]]; then
   export LMCACHE_REPO="${LMCACHE_REPO:-https://github.com/LMCache/LMCache.git}"
@@ -534,7 +544,7 @@ jq -e --arg value "${LMCACHE_PATCH_SHA256}" '."local-inference.lmcache.patch_sha
 jq -e --arg value "${LMCACHE_BUILD_VERSION}" '."local-inference.lmcache.version" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_REPO}" '."local-inference.instanttensor.repo" == $value' <<<"${labels}" >/dev/null
 jq -e --arg value "${INSTANTTENSOR_COMMIT}" '."local-inference.instanttensor.commit" == $value' <<<"${labels}" >/dev/null
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r11" || "${composition_mode}" == "reproduce-r12" || "${composition_mode}" == "reproduce-r13" || "${composition_mode}" == "reproduce-r14" || "${composition_mode}" == "reproduce-r15" || "${composition_mode}" == "reproduce-r16" || "${composition_mode}" == "reproduce-r17" || "${composition_mode}" == "reproduce-r18" || "${composition_mode}" == "reproduce-r19" || "${composition_mode}" == "reproduce-r20" || "${composition_mode}" == "reproduce-r24" || "${composition_mode}" == "reproduce-r25" || "${composition_mode}" == "reproduce-r26" || "${composition_mode}" == "reproduce-r27" || "${composition_mode}" == "reproduce-r28" || "${composition_mode}" == "reproduce-r29" || "${composition_mode}" == "reproduce-r30" ]]; then
   jq -e --arg value "${LMCACHE_INTEGRATION_TREE}" '."local-inference.lmcache.integration.tree" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_PRS}" '."local-inference.lmcache.integration.prs" == $value' <<<"${labels}" >/dev/null
   jq -e --arg value "${LMCACHE_INTEGRATION_LOCK_SHA256}" '."local-inference.lmcache.integration.lock_sha256" == $value' <<<"${labels}" >/dev/null
