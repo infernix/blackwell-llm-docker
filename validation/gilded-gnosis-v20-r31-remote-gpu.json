@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31",
+  "image_id": "sha256:b162476b0b3432096e9dd1d0b0d8c825ba71bf33635423c511d9bac533b12a9f",
+  "registry_digest": "sha256:3230c25ff95f8678a8eeb52a463f0d3b9f96f6ad550418cc51ea12177a55b41c",
+  "vllm_base": "e2666d9a65f41fc376607531453cbd57c4c71016",
+  "vllm_tree": "fa13d334a2962756f9f7e9b562deb85387359f42",
+  "vllm_patch_sha256": "c03a83a6cf81c213caa435ec6190f61b6b10c02ab8cc3d5b24fe6d291a121b39",
+  "b12x_base": "680d8195b80420296d7fed2688b75406be15eb38",
+  "b12x_tree": "acee6e504209068bd0cbb01cb2b98966bddcf042",
+  "flashinfer_commit": "1ac6942776b383c6b03c7a5805a22e72a3e3349f",
+  "lmcache_tree": "9a05c8818bae48d15b79c7e876418bb813c08cd0",
+  "launcher_commit": "3d3b94a7f2493c50aa677fdf6d799cc224db5785",
+  "validator_host": "192.168.0.69",
+  "validator_topology": "eight RTX PRO 6000 Blackwell GPUs on direct CPU root ports; no PCIe switch",
+  "reference_topology": "same validator host and physical GPU set; no result from the local switched 16-GPU host is used as a performance reference",
+  "gpu_ids": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "validated_at": "2026-08-07T23:00:39Z",
+  "profile": {
+    "model": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "parallelism": "TP2 and TP4, DCP1",
+    "target_backend": "B12X W4A8",
+    "all_reduce": "FlashInfer PCIe IPC at TP2 auto; B12X at TP4 auto",
+    "speculation": "target-only and fixed probabilistic DSpark K5",
+    "load_format": "InstantTensor BUFFERED",
+    "kv_cache": "FP8 DS-MLA",
+    "container_privileged": false
+  },
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass",
+    "release_composition": "pass: all open GG PRs classified and every included head pinned by full SHA",
+    "focused_vllm_tests": "pass: 50",
+    "docker_audit_tests": "pass: 11",
+    "lmcache_tests": "pass: 222 passed, 131 skipped",
+    "cuda_graphs": "pass: target, DSpark proposal through 384 rows, and DFlash context-KV FULL graphs",
+    "packed_ue8m0": "pass: batch 16 and 17 int32 packed scales matched eager bitwise",
+    "native_l2_restart_replay": "pass",
+    "engine_health": "pass"
+  },
+  "evidence": {
+    "target_only_tp2": {
+      "flashinfer_pcie_ipc": {
+        "decode_c1_tps": 126.83568269850063,
+        "decode_c32_tps": 1139.5235795132012,
+        "prefill_8k_tps": 13366,
+        "prefill_64k_tps": 12669
+      },
+      "b12x": {
+        "decode_c1_tps": 129.86572928295013,
+        "decode_c32_tps": 1135.696048624085,
+        "prefill_8k_tps": 14197,
+        "prefill_64k_tps": 13421
+      }
+    },
+    "target_only_tp4_b12x": {
+      "current": {
+        "decode_c1_tps": 148.35828822104534,
+        "decode_c32_tps": 1511.027257163364,
+        "prefill_8k_tps": 16360,
+        "prefill_64k_tps": 15511
+      },
+      "same_host_reference": {
+        "decode_c1_tps": 144.50643648008491,
+        "decode_c32_tps": 1499.2461340930604,
+        "prefill_8k_tps": 15406,
+        "prefill_64k_tps": 14721
+      }
+    },
+    "dspark_k5_tp4": {
+      "max_num_seqs": 64,
+      "graph_row_capacity": 384,
+      "gpu_kv_cache_tokens": 797049,
+      "decode_c64_tps": 2540.4815434541647,
+      "strict_draft_acceptance": 0.31361607142857145,
+      "estonia_passed": 64,
+      "estonia_failed": 0,
+      "estonia_max_token_hits": 0,
+      "estonia_completion_p50": 1917.5,
+      "estonia_completion_p90": 3475.2,
+      "prefill_134217_tokens_tps": 13352
+    },
+    "native_l2": {
+      "tp": 2,
+      "host_l1_gib": 4.5,
+      "filesystem_l2_gib": 4,
+      "prefill_32k_tps": 12972,
+      "restart_replay_prompt_tokens": 32000,
+      "restart_replay_seconds": 0.415,
+      "restart_replay_load_bytes": 303586560
+    }
+  },
+  "artifacts": {
+    "tp2_b12x_decode": "7f5d2fb3c7a6e6379ae7dfda2a47cb9165ced900745f3ff622a41b22eac263b7",
+    "tp2_flashinfer_decode": "68a69e6d61c2bbea0026fc4c32a031eb2e86bbcc32381f1ee14ea220d09850d5",
+    "tp4_b12x_decode": "f68aa5201134c7ed49e62bd921a0dbf6b0aa086a63768b0a68e81e92e6dd4a19",
+    "tp4_b12x_prefill": "bddc17244de2b1e3c10e75c706593ad19cfbcb26e00a5fa7b98e71aa85f4a41c",
+    "tp4_k5_c64": "ea6dae0fbb085b38432df97718d9bbf176a8d4c5b35d9affd35bba2d941587b9",
+    "tp4_k5_estonia": "67212e42d70c6d57054fd78d48aa73380b840d42b2e1d3e2c530a6ee2910b7d0",
+    "native_l2_prefill": "81d2b18a00dd0517556d286ff4c883c28bec685c03631948c1a17f4adce23e0d"
+  },
+  "issue": "https://github.com/local-inference-lab/rtx6kpro/issues/33"
+}

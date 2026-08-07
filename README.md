@@ -622,15 +622,44 @@ VLLM_RELEASE_COMPOSITION=reproduce-r31 \
   ./build-gilded-gnosis-v20-final-cu132.sh
 ```
 
-Release candidate image:
+Validated r31 image:
 
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-20260807-r31
+Local validated image ID: sha256:b162476b0b3432096e9dd1d0b0d8c825ba71bf33635423c511d9bac533b12a9f
+Registry digest: sha256:3230c25ff95f8678a8eeb52a463f0d3b9f96f6ad550418cc51ea12177a55b41c
 ```
 
 Use `examples/docker-compose-ds4-v20-r31.yml`. `ALLREDUCE_MODE=auto` selects
 `flashinfer-ipc` at TP2 and `b12x` at TP4 or larger; either backend can be
 forced explicitly for diagnostics.
+
+The release was validated on physical GPUs 4-7 of `192.168.0.69`, where the
+GPUs are attached through CPU root ports rather than the PCIe switches in the
+local 16-GPU server. All performance comparisons below use earlier artifacts
+from that same remote host and GPU set; results from the switched server are
+not used as a reference.
+
+| Target-only profile | C1 tok/s | C32 tok/s | Prefill 8k tok/s | Prefill 64k tok/s |
+|---|---:|---:|---:|---:|
+| r31 TP2, FlashInfer PCIe IPC | 126.8 | 1,139.5 | 13,366 | 12,669 |
+| r31 TP2, B12X | 129.9 | 1,135.7 | 14,197 | 13,421 |
+| r31 TP4, B12X | 148.4 | 1,511.0 | 16,360 | 15,511 |
+| Previous TP4 B12X, same host | 144.5 | 1,499.2 | 15,406 | 14,721 |
+
+The TP4/K5 row-contract gate captured FULL target, DSpark proposal, and DFlash
+context-KV graphs through the required 384-row envelope. Sustained C64 decode
+was 2,540.5 tok/s. The long-context Estonia gate passed 64/64 requests with no
+output-cap hits, and its 134,217-token prefill scout reached 13,352 tok/s.
+Compiled packed-UE8M0 scales matched eager output bitwise at both aligned and
+unaligned batch sizes. Native L2 was verified across a full engine restart: an
+identical 32k prompt restored 303,586,560 bytes from filesystem storage in
+0.415 seconds after process-local GPU/L1 state had been discarded.
+
+The immutable source and live qualification receipt is
+`validation/gilded-gnosis-v20-r31-remote-gpu.json`; its vLLM and B12X trees are
+`fa13d334a2962756f9f7e9b562deb85387359f42` and
+`acee6e504209068bd0cbb01cb2b98966bddcf042`.
 
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
