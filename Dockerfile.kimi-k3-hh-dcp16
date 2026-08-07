@@ -8,7 +8,7 @@ ARG VLLM_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
 ARG VLLM_COMMIT=30b4f0cb0e0556a786da9b17f0f9282e50e6a24e
 ARG SPARKINFER_REPO=https://github.com/local-inference-lab/b12x.git
 ARG SPARKINFER_REF=pr/kimi-k3-dspark-dcp16-perf-20260806
-ARG SPARKINFER_COMMIT=c1ec5fa8bce2ede0ba0617f1194599d7089d93ce
+ARG SPARKINFER_COMMIT=38202447159856e8c7b4df2f610a4321a947938c
 ARG DOCKER_COMMIT=unknown
 
 ENV TORCH_CUDA_ARCH_LIST=12.0a \
@@ -107,5 +107,5 @@ LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 DCP8/DCP16 runtime" \
       local-inference-lab.vllm.commit="30b4f0cb0e0556a786da9b17f0f9282e50e6a24e" \
       local-inference-lab.vllm.pr="238" \
       local-inference-lab.sparkinfer.ref="pr/kimi-k3-dspark-dcp16-perf-20260806" \
-      local-inference-lab.sparkinfer.commit="c1ec5fa8bce2ede0ba0617f1194599d7089d93ce" \
+      local-inference-lab.sparkinfer.commit="38202447159856e8c7b4df2f610a4321a947938c" \
       local-inference-lab.sparkinfer.pr="118"
