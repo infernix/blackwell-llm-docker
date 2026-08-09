@@ -1,0 +1,47 @@
+{
+  "base": {
+    "commit": "9bbae67841e4818e7472e1edcdca8ebcbda68611",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "b549a8709b4fc1c8bd0da3d048e4b1efb5d64f425516410c75a44d157e074043"
+  },
+  "name": "gilded-gnosis-v20-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "282d61a483c908eaa440a19ba0d70a557c73197f",
+      "number": 125,
+      "ref": "refs/pull/125/head",
+      "title": "Declare compressed MLA decode row capacity"
+    },
+    {
+      "disposition": "merged",
+      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
+      "number": 126,
+      "ref": "refs/pull/126/head",
+      "title": "Prewarm target and native-MTP route packing"
+    },
+    {
+      "disposition": "merged",
+      "head": "287fec1c8e6457a5d687f0b7a96a4e1579c1b791",
+      "number": 133,
+      "ref": "refs/pull/133/head",
+      "title": "Add topology-scoped fused all-reduce paths"
+    },
+    {
+      "disposition": "merged",
+      "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
+      "number": 135,
+      "ref": "refs/pull/135/head",
+      "title": "Preserve dense GEMM API contracts with block FP8"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "e11221efec54f125a6ab3f5e1e52f63edf5529186c7a61df47eaaae1678c04fb",
+    "tree": "817fb3da19a4592a54e79571128e83b702be9e0a"
+  },
+  "schema_version": 1
+}

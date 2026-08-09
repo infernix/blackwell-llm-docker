@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-20260809-r33",
+  "image_id": "sha256:60944a4ea1fbb2d1f35d7972f685d8fb0b91e77dd5aeca1dcafa3bcc29846d12",
+  "vllm_base": "e2666d9a65f41fc376607531453cbd57c4c71016",
+  "vllm_tree": "fa13d334a2962756f9f7e9b562deb85387359f42",
+  "vllm_patch_sha256": "c03a83a6cf81c213caa435ec6190f61b6b10c02ab8cc3d5b24fe6d291a121b39",
+  "b12x_base": "9bbae67841e4818e7472e1edcdca8ebcbda68611",
+  "b12x_tree": "06db0f4b27dbd19eb934da0da27eff7a7c49d8c4",
+  "b12x_patch_sha256": "6ee9f0b437379fd8246781b5a99da10eed2ad47eb8d7426272d3f8bff1553303",
+  "flashinfer_commit": "1ac6942776b383c6b03c7a5805a22e72a3e3349f",
+  "lmcache_tree": "9a05c8818bae48d15b79c7e876418bb813c08cd0",
+  "launcher_commit": "47ac813334e094090d5fd85b317d13b2e932ef09",
+  "validator_host": "192.168.0.69",
+  "validator_topology": "eight RTX PRO 6000 Blackwell GPUs on direct CPU root ports; only physical GPUs 4-7 were used",
+  "reference_topology": "same validator host and GPU set; no result from the local switched 16-GPU host is used as a performance reference",
+  "gpu_ids": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "validated_at": "2026-08-09T10:00:26Z",
+  "profiles": {
+    "glm52_exl3": {
+      "model": "willfalco/GLM-5.2-EXL3-TR3-3.36bpw@8d9aa923a17502675ca23737349b67f2e66bb69d",
+      "parallelism": "TP4/DCP1/MTP3",
+      "quantization": "EXL3 checkpoint plus online EXL3 K6 dense path",
+      "kv_cache": "NVFP4 DS-MLA",
+      "scheduler": "MNS1, graph cap 6, max model length 131072",
+      "load_format": "InstantTensor BUFFERED"
+    },
+    "ds4_flash": {
+      "model": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+      "parallelism": "TP2 and TP4, DCP1",
+      "target_backend": "B12X W4A8",
+      "all_reduce": "FlashInfer PCIe IPC at TP2 auto; B12X at TP4 auto",
+      "speculation": "fixed probabilistic DSpark K5",
+      "kv_cache": "FP8 DS-MLA",
+      "load_format": "InstantTensor BUFFERED"
+    }
+  },
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass",
+    "release_composition": "pass",
+    "docker_release_tests": "pass",
+    "lmcache_tests": "pass: 222 passed, 131 skipped",
+    "focused_b12x_tests": "pass: 9 passed, 59 deselected",
+    "cuda_graphs": "pass: FULL+PIECEWISE target and speculative graph capture through each configured scheduler envelope",
+    "engine_health": "pass"
+  },
+  "evidence": {
+    "glm52_exl3_tp4_dcp1_mtp3_standard": {
+      "prompt": "llm_decode_bench default encyclopedia prompt",
+      "decode_c1_runs_tps": [
+        116.20981073209954,
+        112.02957747360817
+      ],
+      "decode_c1_median_tps": 114.11969410285386,
+      "same_profile_historical_tps": 113.397,
+      "gpu_kv_cache_tokens": 202304,
+      "note": "A separate synthetic MTP-friendly prompt reached about 144 tok/s; it is deliberately excluded from the standard comparison."
+    },
+    "ds4_k5_tp4_b12x": {
+      "decode_c1_tps": 247.0248264544163,
+      "decode_c4_tps": 541.9472533507881,
+      "decode_c8_tps": 804.4637861699726,
+      "strict_draft_acceptance_c1": 0.37411764705882355,
+      "strict_draft_acceptance_c4": 0.347,
+      "strict_draft_acceptance_c8": 0.31987179487179485,
+      "gpu_kv_cache_tokens": 188320
+    },
+    "ds4_k5_tp2_flashinfer_pcie_ipc": {
+      "decode_c1_tps": 180.58589777719473,
+      "decode_c4_tps": 397.0906333375556,
+      "decode_c8_tps": 580.6711853523535,
+      "strict_draft_acceptance_c1": 0.29393939393939394,
+      "strict_draft_acceptance_c4": 0.34459459459459457,
+      "strict_draft_acceptance_c8": 0.33303571428571427,
+      "prefill_8k_tps": 12849,
+      "correctness_response": "42"
+    },
+    "b12x_remote_push_policy": {
+      "decision": "TP2 and TP4 remain opt-in; TP8 owner reduction remains the automatic path",
+      "tp2_stock_c1_c4_c8_tps": [
+        170.2,
+        401.2,
+        588.1
+      ],
+      "tp2_remote_push_c1_c4_c8_tps": [
+        171.3,
+        391.7,
+        595.3
+      ],
+      "tp4_stock_c1_c4_c8_c16_c32_tps": [
+        217.2,
+        545.7,
+        785.9,
+        1113.4,
+        1750.1
+      ],
+      "tp4_remote_push_c1_c4_c8_c16_c32_tps": [
+        239.7,
+        534.0,
+        793.1,
+        1132.9,
+        1718.5
+      ],
+      "note": "Same-host matched runs showed workload-dependent gains and losses rather than a consistent end-to-end win."
+    }
+  },
+  "artifacts": {
+    "glm52_standard_run1": "99a4b9ce0570eefae137cde9223ae0cd3611b4fa62dc11fc141701832c3f211c",
+    "glm52_standard_run2": "2ca337fdc6dbe169efa7ac6e72608185513da86479a712005d8d9d80a4c489ab",
+    "ds4_tp4_k5_decode": "55ce3ca9ce94fb551ad0102e6594feed50efee935aec6a91c65201a4c2db223d",
+    "ds4_tp2_k5_decode_c1": "de0d664fe1dbfda7eef8fff6aa5ac75f56c8fb8d42a44d68eec5b9f52c716c47",
+    "ds4_tp2_k5_decode_c4_c8": "aa0d3f32a00f2a6682e096b09908770f058c174585b3800971b4044a65c9ee06",
+    "ds4_tp2_k5_prefill8k": "b093961d3a25f5836e28222b4199b82582cce1dfa2edb0b3174d2d5ef5bc3080",
+    "ds4_tp2_correctness": "c714ff3d18f8d9ef25afccb602bfd6815e7009326d7fff5a08d202af2b019add"
+  },
+  "issue": "https://github.com/local-inference-lab/rtx6kpro/issues/33"
+}

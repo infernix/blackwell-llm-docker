@@ -1,0 +1,68 @@
+# DeepSeek-V4-Flash-0731 DSpark r32 release profile.
+#
+# Default: TP2/DCP1, B12X W4A8, fixed K5. r32 adds B12X's qualified
+# topology-scoped fused all-reduce. TP8 owner reduction is enabled by default.
+# TP2 and TP4 remote-push variants remain explicit experiments because matched
+# end-to-end testing did not establish a stable gain.
+#
+# ALLREDUCE_MODE=auto still selects FlashInfer PCIe IPC at TP2 and B12X at TP4
+# or larger. To test the B12X TP2 variant, set both ALLREDUCE_MODE=b12x and
+# B12X_PCIE_TP2_REMOTE_PUSH=1. At TP4, set B12X_PCIE_TP4_REMOTE_PUSH=1.
+# Disable the default TP8 owner path with B12X_PCIE_TP8_OWNER_REDUCE=0.
+#
+# Target, DSpark proposal, and DFlash context-KV execution use separate FULL
+# CUDA graph families. Prefill remains PIECEWISE, and unsupported shapes retain
+# the existing fallback.
+#
+# K7 remains available with DSPARK_TOKENS=7 for predictable code. K5 is the
+# mixed-workload default.
+services:
+  ds4:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32}
+    container_name: ${NAME:-ds4-0731-r32}
+    entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
+    network_mode: host
+    ipc: host
+    init: true
+    shm_size: ${SHM_SIZE:-32gb}
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
+      PORT: ${PORT:-8000}
+      MODE: ${MODE:-dspark}
+      BACKEND: ${BACKEND:-b12x-a8}
+      TP_SIZE: ${TP_SIZE:-2}
+      DCP_SIZE: ${DCP_SIZE:-1}
+      ALLREDUCE_MODE: ${ALLREDUCE_MODE:-auto}
+      B12X_PCIE_TP2_REMOTE_PUSH: ${B12X_PCIE_TP2_REMOTE_PUSH:-0}
+      B12X_PCIE_TP4_REMOTE_PUSH: ${B12X_PCIE_TP4_REMOTE_PUSH:-0}
+      B12X_PCIE_TP8_OWNER_REDUCE: ${B12X_PCIE_TP8_OWNER_REDUCE:-1}
+      DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+      DSPARK_TOKENS: ${DSPARK_TOKENS:-5}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      GRAPH: ${GRAPH:-auto}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-131072}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
+      PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
+      KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-0}
+      NATIVE_L2_PATH: ${NATIVE_L2_PATH:-}
+      NATIVE_L2_GB: ${NATIVE_L2_GB:-}
+      EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${MODEL_ROOT:-/root/models}:/root/models:ro
+      - ${JIT_CACHE:-./cache/ds4-v20-r32}:/cache
+      - ${CONTAINER_TMP:-./cache/ds4-v20-r32/tmp}:/container-tmp
+      - ${NATIVE_L2_HOST_PATH:-./cache/ds4-v20-r32/native-l2}:/native-l2

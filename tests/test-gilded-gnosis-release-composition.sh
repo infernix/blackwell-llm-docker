@@ -337,6 +337,92 @@ grep -Fxq 'lmcache_version=0.5.2+glm52dcp.4' <<<"${output_r18}"
 grep -Fxq 'xgrammar_ref=v0.2.5' <<<"${output_r18}"
 grep -Fxq 'xgrammar_transformers5_compat=1' <<<"${output_r18}"
 
+output_r33="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r33 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r33' <<<"${output_r33}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-20260809-r33' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12x06db0f4.fi1ac6942.cu132.20260809.r33' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'b12x_tree=06db0f4b27dbd19eb934da0da27eff7a7c49d8c4' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'launcher_commit=47ac813334e094090d5fd85b317d13b2e932ef09' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r33}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r33/lmcache/integration.patch' \
+  <<<"${output_r33}"
+
+r33_compose="${repo_root}/examples/docker-compose-ds4-v20-r33.yml"
+grep -Fq \
+  'gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-20260809-r33' \
+  "${r33_compose}"
+grep -Fq 'B12X_PCIE_TP2_REMOTE_PUSH: ${B12X_PCIE_TP2_REMOTE_PUSH:-0}' \
+  "${r33_compose}"
+grep -Fq 'B12X_PCIE_TP4_REMOTE_PUSH: ${B12X_PCIE_TP4_REMOTE_PUSH:-0}' \
+  "${r33_compose}"
+grep -Fq 'B12X_PCIE_TP8_OWNER_REDUCE: ${B12X_PCIE_TP8_OWNER_REDUCE:-1}' \
+  "${r33_compose}"
+
+output_r32="$(
+  cd "${repo_root}"
+  PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r32 \
+    ./build-gilded-gnosis-v20-final-cu132.sh
+)"
+
+grep -Fxq 'composition=reproduce-r32' <<<"${output_r32}"
+grep -Fxq \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12x817fb3d.fi1ac6942.cu132.20260809.r32' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'b12x_tree=817fb3da19a4592a54e79571128e83b702be9e0a' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'launcher_commit=6b3456a6485d55898534b87a4a07353e434b23b3' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r32}"
+grep -Fxq \
+  'lmcache_patch=releases/gilded-gnosis-v20-r32/lmcache/integration.patch' \
+  <<<"${output_r32}"
+
+r32_compose="${repo_root}/examples/docker-compose-ds4-v20-r32.yml"
+grep -Fq \
+  'gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32' \
+  "${r32_compose}"
+grep -Fq 'B12X_PCIE_TP2_REMOTE_PUSH: ${B12X_PCIE_TP2_REMOTE_PUSH:-0}' \
+  "${r32_compose}"
+grep -Fq 'B12X_PCIE_TP4_REMOTE_PUSH: ${B12X_PCIE_TP4_REMOTE_PUSH:-0}' \
+  "${r32_compose}"
+grep -Fq 'B12X_PCIE_TP8_OWNER_REDUCE: ${B12X_PCIE_TP8_OWNER_REDUCE:-1}' \
+  "${r32_compose}"
+
 output_r31="$(
   cd "${repo_root}"
   PRINT_RELEASE_CONFIG=1 VLLM_RELEASE_COMPOSITION=reproduce-r31 \
@@ -678,22 +764,22 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xacee6e5-fi1ac6942-cu132-[0-9]{8}-r31$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-[0-9]{8}-r33$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12xacee6e5[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r31$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12x06db0f4[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r33$' \
   <<<"${output_clean}"
 grep -Fxq \
   'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_clean}"
 grep -Fxq \
-  'b12x_tree=acee6e504209068bd0cbb01cb2b98966bddcf042' \
+  'b12x_tree=06db0f4b27dbd19eb934da0da27eff7a7c49d8c4' \
   <<<"${output_clean}"
 grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
   <<<"${output_clean}"
 grep -Fxq \
-  'launcher_commit=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
+  'launcher_commit=47ac813334e094090d5fd85b317d13b2e932ef09' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
