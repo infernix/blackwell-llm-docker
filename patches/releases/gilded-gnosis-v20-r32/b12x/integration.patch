@@ -1,3 +1,68 @@
+diff --git a/b12x/_lib/dense_gemm.py b/b12x/_lib/dense_gemm.py
+index 1c72c8cbd9017784ab359034595aa01cbd16ea68..818e37b22cfdf9627f98aa0f3a2394380ad91ca8 100644
+--- a/b12x/_lib/dense_gemm.py
++++ b/b12x/_lib/dense_gemm.py
+@@ -630,6 +630,7 @@ class DenseGemmKernel:
+         mxfp6_fmt_b: Optional[str] = None,
+         b_packed: bool = False,
+         plain_fp8: bool = False,
++        fused_quant_bf16: Optional[bool] = None,
+         block_fp8: bool = False,
+     ):
+         # When set, A/B operands are MX codes carried in Float8E4M3FN
+@@ -1884,10 +1885,12 @@ class DenseGemmKernel:
+         accumulators = cute.make_rmem_tensor(acc_shape, self.acc_dtype)
+         if cutlass.const_expr(self.block_fp8):
+             stage_accumulators = cute.make_rmem_tensor(acc_shape, self.acc_dtype)
+-            c_identity = cute.make_identity_tensor(
++            block_c_identity = cute.make_identity_tensor(
+                 cute.slice_(self.tile_shape_mnk, (None, None, 0))
+             )
+-            coord_mn = _reshape_acc_to_mn(thr_mma.partition_C(c_identity))
++            block_coord_mn = _reshape_acc_to_mn(
++                thr_mma.partition_C(block_c_identity)
++            )
+ 
+         # Cluster/thread sync
+         if cute.size(self.cluster_shape_mnk) > 1:
+@@ -2340,7 +2343,7 @@ class DenseGemmKernel:
+                                 self._accumulate_block_fp8_stage(
+                                     accumulators,
+                                     stage_accumulators,
+-                                    coord_mn,
++                                    block_coord_mn,
+                                     directSFA_mkl,
+                                     directSFB_nkl,
+                                     tile_coord_mnl,
+@@ -2485,7 +2488,7 @@ class DenseGemmKernel:
+                             self._accumulate_block_fp8_stage(
+                                 accumulators,
+                                 stage_accumulators,
+-                                coord_mn,
++                                block_coord_mn,
+                                 directSFA_mkl,
+                                 directSFB_nkl,
+                                 tile_coord_mnl,
+@@ -7094,6 +7097,7 @@ def dense_gemm(
+     x_bf16: Optional[torch.Tensor] = None,
+     w_gscale: Optional[torch.Tensor] = None,
+     plain_fp8: bool = False,
++    row_scale: Optional[torch.Tensor] = None,
+     block_fp8: bool = False,
+ ) -> torch.Tensor:
+     """Execute dense block-scaled GEMM for one expert-major batch stack.
+@@ -7134,6 +7138,11 @@ def dense_gemm(
+     SM12x dense pipeline. The scalar ``alpha`` carries the combined activation
+     and weight dequantization scale.
+ 
++    ``row_scale``: optional contiguous ``(M,)`` tensor in the C dtype, applied
++    per output row in the epilogue. It replaces a separate ``out.mul_(v)``
++    launch and reproduces that multiply bit-for-bit, including its second
++    rounding to the C dtype. MX-FP6 only.
++
+     ``block_fp8``: accumulate ordinary E4M3 MMA over each K128 block, then
+     apply compact FP32 activation ``[M,K/128]`` and weight
+     ``[N/128,K/128]`` scales before adding it to the final accumulator.
 diff --git a/b12x/attention/_shared/mla/compressed_config.py b/b12x/attention/_shared/mla/compressed_config.py
 index 3d333ba382f7a762d812018a4adf636c4aeb0a20..ac1fb708058a5667a64767b8096b31df1a3508e9 100644
 --- a/b12x/attention/_shared/mla/compressed_config.py
@@ -2610,6 +2675,38 @@ index 8159ba77b76f81b11779e2fd1cddaff2e0339018..9ed9199c607a2e39d75c204cd5f4c0e5
          torch.cuda.synchronize(device)
      finally:
          pool.close()
+diff --git a/tests/gemm/test_fp6_packed_b.py b/tests/gemm/test_fp6_packed_b.py
+index 466efd0c6ab52869b1f530defde2742d1c4aa801..231bb22792773d32b6fc1d19f52ecd0524c024f3 100644
+--- a/tests/gemm/test_fp6_packed_b.py
++++ b/tests/gemm/test_fp6_packed_b.py
+@@ -7,6 +7,8 @@ streaming format differs.
+ """
+ from __future__ import annotations
+ 
++import inspect
++
+ import pytest
+ import torch
+ 
+@@ -15,6 +17,18 @@ cuda_required = pytest.mark.skipif(
+ )
+ 
+ 
++def test_dense_gemm_preserves_fp6_api_contracts():
++    """Keep the FP6 caller and dense GEMM implementation contracts in sync."""
++    from b12x._lib.dense_gemm import DenseGemmKernel, dense_gemm
++
++    parameter = inspect.signature(dense_gemm).parameters["row_scale"]
++    assert parameter.default is None
++    kernel_parameter = inspect.signature(DenseGemmKernel).parameters[
++        "fused_quant_bf16"
++    ]
++    assert kernel_parameter.default is None
++
++
+ def _gemm_operands(m: int, n: int, k: int, source_format: str):
+     """Quantized operands for one case, mirroring ``dense_fp6_linear_expanded``."""
+     from b12x._lib.fp6 import SF_VEC_SIZE_FP6, as_grouped_mxfp6_scale_view
 diff --git a/tests/moe/test_w4a16_route_pack_warmup.py b/tests/moe/test_w4a16_route_pack_warmup.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..6c7288b314ebc2785418085ce323881960fe192e

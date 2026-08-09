@@ -18,7 +18,7 @@
 # mixed-workload default.
 services:
   ds4:
-    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xe90b8af-fi1ac6942-cu132-20260809-r32}
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32}
     container_name: ${NAME:-ds4-0731-r32}
     entrypoint: ["/usr/local/bin/serve-ds4-flash.sh"]
     network_mode: host

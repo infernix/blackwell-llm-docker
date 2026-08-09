@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "manifest": {
-    "sha256": "3b0270cd3b4a0e627f7565090df0ebbfe9ad367f6f3ff32b3dea3a43a7cc1757"
+    "sha256": "b549a8709b4fc1c8bd0da3d048e4b1efb5d64f425516410c75a44d157e074043"
   },
   "name": "gilded-gnosis-v20-b12x",
   "pull_requests": [
@@ -29,12 +29,19 @@
       "number": 133,
       "ref": "refs/pull/133/head",
       "title": "Add topology-scoped fused all-reduce paths"
+    },
+    {
+      "disposition": "merged",
+      "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
+      "number": 135,
+      "ref": "refs/pull/135/head",
+      "title": "Preserve dense GEMM API contracts with block FP8"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "da68a395fc6131b3c775472fac0f0295f92c351ebec24f86b4569fd8bbfb78ce",
-    "tree": "e90b8af95d906ff21764814633ac5259d1c0cb4f"
+    "patch_sha256": "e11221efec54f125a6ab3f5e1e52f63edf5529186c7a61df47eaaae1678c04fb",
+    "tree": "817fb3da19a4592a54e79571128e83b702be9e0a"
   },
   "schema_version": 1
 }

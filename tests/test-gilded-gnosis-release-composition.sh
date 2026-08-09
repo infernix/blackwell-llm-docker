@@ -345,16 +345,16 @@ output_r32="$(
 
 grep -Fxq 'composition=reproduce-r32' <<<"${output_r32}"
 grep -Fxq \
-  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xe90b8af-fi1ac6942-cu132-20260809-r32' \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32' \
   <<<"${output_r32}"
 grep -Fxq \
-  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12xe90b8af.fi1ac6942.cu132.20260809.r32' \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllmfa13d33.b12x817fb3d.fi1ac6942.cu132.20260809.r32' \
   <<<"${output_r32}"
 grep -Fxq \
   'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_r32}"
 grep -Fxq \
-  'b12x_tree=e90b8af95d906ff21764814633ac5259d1c0cb4f' \
+  'b12x_tree=817fb3da19a4592a54e79571128e83b702be9e0a' \
   <<<"${output_r32}"
 grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
@@ -371,7 +371,7 @@ grep -Fxq \
 
 r32_compose="${repo_root}/examples/docker-compose-ds4-v20-r32.yml"
 grep -Fq \
-  'gilded-gnosis-v20-vllmfa13d33-b12xe90b8af-fi1ac6942-cu132-20260809-r32' \
+  'gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-20260809-r32' \
   "${r32_compose}"
 grep -Fq 'B12X_PCIE_TP2_REMOTE_PUSH: ${B12X_PCIE_TP2_REMOTE_PUSH:-0}' \
   "${r32_compose}"
@@ -721,16 +721,16 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12xe90b8af-fi1ac6942-cu132-[0-9]{8}-r32$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x817fb3d-fi1ac6942-cu132-[0-9]{8}-r32$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12xe90b8af[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r32$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmfa13d33[.]b12x817fb3d[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r32$' \
   <<<"${output_clean}"
 grep -Fxq \
   'vllm_tree=fa13d334a2962756f9f7e9b562deb85387359f42' \
   <<<"${output_clean}"
 grep -Fxq \
-  'b12x_tree=e90b8af95d906ff21764814633ac5259d1c0cb4f' \
+  'b12x_tree=817fb3da19a4592a54e79571128e83b702be9e0a' \
   <<<"${output_clean}"
 grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \

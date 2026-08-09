@@ -18,6 +18,11 @@
       "number": 133,
       "head": "287fec1c8e6457a5d687f0b7a96a4e1579c1b791",
       "title": "Add topology-scoped fused all-reduce paths"
+    },
+    {
+      "number": 135,
+      "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
+      "title": "Preserve dense GEMM API contracts with block FP8"
     }
   ],
   "reviewed_exclusions": [
