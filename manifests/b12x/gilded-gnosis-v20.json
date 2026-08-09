@@ -23,6 +23,16 @@
       "number": 135,
       "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
       "title": "Preserve dense GEMM API contracts with block FP8"
+    },
+    {
+      "number": 136,
+      "head": "b3f572da20b7167bdcdf866419dc414d56945ad6",
+      "title": "Restore capture-safe K6 small-M dispatch"
+    },
+    {
+      "number": 137,
+      "head": "850bc0d0c48c626f236b0ee7e8ea41cc44d75d6d",
+      "title": "Realign mixed Trellis with the QSRT ABI"
     }
   ],
   "reviewed_exclusions": [

@@ -76,7 +76,7 @@ assert_pr_set \
   '145 188 213 214 217 218 228 229 230 234 235 245 248 251 252 253 254 255 256'
 assert_pr_set \
   manifests/b12x/gilded-gnosis-v20.json \
-  '125 126 133 135'
+  '125 126 133 135 136 137'
 assert_pr_set \
   manifests/lmcache/gilded-gnosis-v20.json \
   '7 8 9 10 11 12 13 14 15 16 17'
