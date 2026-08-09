@@ -413,7 +413,10 @@ else
 fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r33" || "${composition_mode}" == "reproduce-r32" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r33" ]]; then
+  export LAUNCHER_REF="${LAUNCHER_REF:-47ac813334e094090d5fd85b317d13b2e932ef09}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-47ac813334e094090d5fd85b317d13b2e932ef09}"
+elif [[ "${composition_mode}" == "reproduce-r32" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-6b3456a6485d55898534b87a4a07353e434b23b3}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-6b3456a6485d55898534b87a4a07353e434b23b3}"
 elif [[ "${composition_mode}" == "reproduce-r31" ]]; then
