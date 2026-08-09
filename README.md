@@ -681,6 +681,7 @@ Validated r33 image:
 ```text
 voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-20260809-r33
 Local validated image ID: sha256:60944a4ea1fbb2d1f35d7972f685d8fb0b91e77dd5aeca1dcafa3bcc29846d12
+Registry digest: sha256:fdde59fed7f9fc12f9fd5ef1b3b3ea8d5097bf10ebad54b348497102c3a83f82
 ```
 
 Validation used only GPUs 4-7 on `192.168.0.69`. The GLM row used
