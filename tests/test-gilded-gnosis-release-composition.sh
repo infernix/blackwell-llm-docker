@@ -360,7 +360,7 @@ grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
   <<<"${output_r32}"
 grep -Fxq \
-  'launcher_commit=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
+  'launcher_commit=306d4d25185ca069721400545b40aa2a309477e5' \
   <<<"${output_r32}"
 grep -Fxq \
   'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
@@ -736,7 +736,7 @@ grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
   <<<"${output_clean}"
 grep -Fxq \
-  'launcher_commit=3d3b94a7f2493c50aa677fdf6d799cc224db5785' \
+  'launcher_commit=306d4d25185ca069721400545b40aa2a309477e5' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \
