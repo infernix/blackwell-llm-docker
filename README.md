@@ -661,6 +661,47 @@ The immutable source and live qualification receipt is
 `fa13d334a2962756f9f7e9b562deb85387359f42` and
 `acee6e504209068bd0cbb01cb2b98966bddcf042`.
 
+The r33 release keeps the qualified r31 vLLM tree and adds four isolated B12X
+changes. PR #133 adds topology-scoped fused all-reduce paths: TP8 owner
+reduction is automatic, while TP2/TP4 remote push remains opt-in because
+matched end-to-end runs showed gains and losses rather than a consistent win.
+PR #135 preserves the dense GEMM API contract for block-FP8 callers. PR #136
+restores capture-safe K6 small-M dispatch with an explicit SM120 capability
+gate. PR #137 realigns mixed-Trellis execution with the QSRT ABI.
+
+Reproduce the exact source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r33 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+Validated r33 image:
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllmfa13d33-b12x06db0f4-fi1ac6942-cu132-20260809-r33
+Local validated image ID: sha256:60944a4ea1fbb2d1f35d7972f685d8fb0b91e77dd5aeca1dcafa3bcc29846d12
+```
+
+Validation used only GPUs 4-7 on `192.168.0.69`. The GLM row used
+`willfalco/GLM-5.2-EXL3-TR3-3.36bpw`, TP4/DCP1/MTP3, online EXL3 K6, and
+NVFP4 DS-MLA KV. The standard `llm_decode_bench` prompt produced 116.2 and
+112.0 tok/s, for a two-run median of 114.1 tok/s versus the historical 113.4
+tok/s result. A separate synthetic MTP-friendly prompt reached about 144
+tok/s; that number is not used as the standard headline or regression gate.
+
+| DS4 fixed probabilistic K5 | C1 tok/s | C4 tok/s | C8 tok/s | Prefill 8k tok/s |
+|---|---:|---:|---:|---:|
+| TP2, FlashInfer PCIe IPC auto | 180.6 | 397.1 | 580.7 | 12,849 |
+| TP4, B12X auto | 247.0 | 541.9 | 804.5 | not repeated |
+
+Both DS4 rows used the pinned `DeepSeek-V4-Flash-0731` revision, B12X W4A8,
+FP8 DS-MLA KV, InstantTensor BUFFERED, and FULL+PIECEWISE CUDA graphs. The TP2
+correctness request returned exactly `42`. The immutable validation receipt is
+`validation/gilded-gnosis-v20-r33-remote-gpu.json`; its vLLM and B12X trees are
+`fa13d334a2962756f9f7e9b562deb85387359f42` and
+`06db0f4b27dbd19eb934da0da27eff7a7c49d8c4`.
+
 The current unified image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
