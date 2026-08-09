@@ -172,6 +172,36 @@
       "head": "e15f0fedcd7baa8df2764df374aff66bb43e2558",
       "disposition": "out_of_scope",
       "reason": "Heterogeneous expert-width checkpoints are not in the qualified GLM-5.2/DS4 release matrix."
+    },
+    {
+      "number": 258,
+      "head": "63b77c8031e02d23a2c464627196cd5663f7116f",
+      "disposition": "experimental",
+      "reason": "Prompt-logprobs memory accounting still lacks its planned TP2/TP4 GPU qualification."
+    },
+    {
+      "number": 265,
+      "head": "e371d81ff147d13becd2bf12c34f46c00455a234",
+      "disposition": "out_of_scope",
+      "reason": "EXL3 extension-path hardening is orthogonal to this topology transport release and has not been qualified in the release matrix."
+    },
+    {
+      "number": 266,
+      "head": "0c3c5877f74874ed8bc34059075a2f303d0d76d3",
+      "disposition": "out_of_scope",
+      "reason": "Prompt-logprobs API validation is orthogonal to the model and collective paths qualified for this release."
+    },
+    {
+      "number": 268,
+      "head": "a2e09ba01dbdd235996676020777d1826c91d995",
+      "disposition": "out_of_scope",
+      "reason": "Configured NCCL path validation is orthogonal to this performance release and has not been qualified in its runtime matrix."
+    },
+    {
+      "number": 271,
+      "head": "310c3ac9718f8d28a6d2c6e009ca4376e54f4457",
+      "disposition": "experimental",
+      "reason": "Full-CKV prewarm is still a draft with GPU qualification in progress."
     }
   ]
 }

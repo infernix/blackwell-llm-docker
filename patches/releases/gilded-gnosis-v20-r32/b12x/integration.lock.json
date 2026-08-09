@@ -1,0 +1,40 @@
+{
+  "base": {
+    "commit": "9bbae67841e4818e7472e1edcdca8ebcbda68611",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "3b0270cd3b4a0e627f7565090df0ebbfe9ad367f6f3ff32b3dea3a43a7cc1757"
+  },
+  "name": "gilded-gnosis-v20-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "282d61a483c908eaa440a19ba0d70a557c73197f",
+      "number": 125,
+      "ref": "refs/pull/125/head",
+      "title": "Declare compressed MLA decode row capacity"
+    },
+    {
+      "disposition": "merged",
+      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
+      "number": 126,
+      "ref": "refs/pull/126/head",
+      "title": "Prewarm target and native-MTP route packing"
+    },
+    {
+      "disposition": "merged",
+      "head": "287fec1c8e6457a5d687f0b7a96a4e1579c1b791",
+      "number": 133,
+      "ref": "refs/pull/133/head",
+      "title": "Add topology-scoped fused all-reduce paths"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "da68a395fc6131b3c775472fac0f0295f92c351ebec24f86b4569fd8bbfb78ce",
+    "tree": "e90b8af95d906ff21764814633ac5259d1c0cb4f"
+  },
+  "schema_version": 1
+}
