@@ -404,8 +404,8 @@ fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
 if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r32" ]]; then
-  export LAUNCHER_REF="${LAUNCHER_REF:-306d4d25185ca069721400545b40aa2a309477e5}"
-  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-306d4d25185ca069721400545b40aa2a309477e5}"
+  export LAUNCHER_REF="${LAUNCHER_REF:-6b3456a6485d55898534b87a4a07353e434b23b3}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-6b3456a6485d55898534b87a4a07353e434b23b3}"
 elif [[ "${composition_mode}" == "reproduce-r31" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-3d3b94a7f2493c50aa677fdf6d799cc224db5785}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-3d3b94a7f2493c50aa677fdf6d799cc224db5785}"
