@@ -1,0 +1,56 @@
+# GLM-5.2 R7 mixed-K3/K4/K5 EXL3 profile for 4x RTX PRO 6000 Blackwell.
+#
+# Routed experts execute directly from their K3/K4/K5 checkpoint payloads.
+# Eligible BF16 dense and shared projections are encoded to K6 once and reused
+# from /cache. InstantTensor borrowed buffers avoid a second loader-owned copy;
+# parameter loaders consume each borrowed tensor before the iterator advances.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-20260810-r34}
+    container_name: ${NAME:-glm52-r7-r34}
+    entrypoint: ["/usr/local/bin/serve-gilded-gnosis.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 32gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52-exl3
+      GPUS: ${GPUS:-0,1,2,3}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78}
+      MODEL_REVISION: ${MODEL_REVISION:-9ab9579774cc432df91567a36f6e9e863e0d4c9f}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-EXL3-R7-3.5bpw}
+      TP: 4
+      DCP: ${DCP:-1}
+      MTP: ${MTP:-3}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
+      GRAPH: ${GRAPH:-32}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-65536}
+      MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-2048}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.97}
+      MOE_MODE: a16
+      MOE_BACKEND: b12x
+      QUANTIZATION: exl3
+      ONLINE_QUANT: ${ONLINE_QUANT:-exl3-b6}
+      KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-nvfp4_ds_mla}
+      VLLM_EXL3_PREFILL_CAPACITY: ${VLLM_EXL3_PREFILL_CAPACITY:-2048}
+      LOAD_FORMAT: instanttensor
+      INSTANTTENSOR_BACKEND: BUFFERED
+      INSTANTTENSOR_COPY: 0
+      INSTANTTENSOR_BUFFER_SIZE: ${INSTANTTENSOR_BUFFER_SIZE:-536870912}
+      INSTANTTENSOR_MAX_FREE_MEM_USAGE: ${INSTANTTENSOR_MAX_FREE_MEM_USAGE:-0.05}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-r7-r34}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-r7-r34/tmp}:/container-tmp

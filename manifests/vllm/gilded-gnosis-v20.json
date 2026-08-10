@@ -45,11 +45,6 @@
       "title": "Align native SWA/MTP retention and shared-prefix tails"
     },
     {
-      "number": 228,
-      "head": "5ec935796f0afa19e3d8e41888ecc51a6a637528",
-      "title": "Consolidate EXL3 runtime and prewarm mixed-Trellis route packing"
-    },
-    {
       "number": 230,
       "head": "9401f9d8916f3bdf34123d2d493a918b748c8132",
       "title": "Keep broadcast MHC pre behind the compile boundary"
@@ -91,13 +86,28 @@
     },
     {
       "number": 254,
-      "head": "5d961ad9d2efaba40531e8e4542a6c193412898d",
+      "head": "72c9470982ad9b22e0eb575db38dfa158daeb730",
       "title": "Harden native offload cleanup and bound filesystem storage"
     },
     {
       "number": 255,
       "head": "d1b7bbeb78da068ab0a505bd09505f6637cddcd9",
       "title": "Register GG runtime controls consumed directly by backends"
+    },
+    {
+      "number": 258,
+      "head": "63b77c8031e02d23a2c464627196cd5663f7116f",
+      "title": "Bound prompt-logprobs memory and preserve connector lifecycle"
+    },
+    {
+      "number": 280,
+      "head": "3c0a496caf9339f396b0be8da6910b1887920709",
+      "title": "EXL3 R7 native mixed K3/K4/K5 runtime"
+    },
+    {
+      "number": 281,
+      "head": "126039af3cc28c667f3b13da3ee0d3abefdd12fe",
+      "title": "Add explicit InstantTensor borrowed-buffer mode"
     }
   ],
   "reviewed_exclusions": [
@@ -123,7 +133,7 @@
       "number": 165,
       "head": "8cee971bef4f483904d86d196a39da1aa9f7c106",
       "disposition": "superseded",
-      "reason": "Superseded by current-GG PR #254, which also handles stale secondary-tier hits."
+      "reason": "Superseded by PR #254 against dev/gilded-gnosis, which also handles stale secondary-tier hits."
     },
     {
       "number": 171,
@@ -135,13 +145,13 @@
       "number": 186,
       "head": "6a3b950ce17b4a5dabbee442e0654fb08ffeab0e",
       "disposition": "superseded",
-      "reason": "Superseded by PR #255, which preserves the current NVFP4 scale-file contract."
+      "reason": "Superseded by PR #255, which preserves the ModelOpt NVFP4 scale-file contract."
     },
     {
       "number": 187,
       "head": "647a3a6f3ba96db53b25aba18899d00481fd47f5",
       "disposition": "superseded",
-      "reason": "Superseded by current-GG PR #256 with the unresolved review feedback addressed."
+      "reason": "Superseded by PR #256 against dev/gilded-gnosis with the review findings addressed."
     },
     {
       "number": 197,
@@ -174,10 +184,16 @@
       "reason": "Heterogeneous expert-width checkpoints are not in the qualified GLM-5.2/DS4 release matrix."
     },
     {
-      "number": 258,
-      "head": "63b77c8031e02d23a2c464627196cd5663f7116f",
-      "disposition": "experimental",
-      "reason": "Prompt-logprobs memory accounting still lacks its planned TP2/TP4 GPU qualification."
+      "number": 228,
+      "head": "5ec935796f0afa19e3d8e41888ecc51a6a637528",
+      "disposition": "superseded",
+      "reason": "Superseded by PR #280 against dev/gilded-gnosis, which contains the qualified EXL3 runtime and the R7 K3/K4/K5 contract."
+    },
+    {
+      "number": 279,
+      "head": "7b2d831dd329277b5a947177a7f5a43b62662db8",
+      "disposition": "superseded",
+      "reason": "Superseded by PR #280 against dev/gilded-gnosis; PR #280 retains the R7 implementation commits and authorship."
     },
     {
       "number": 265,

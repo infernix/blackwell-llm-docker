@@ -10,32 +10,47 @@
       "title": "Declare compressed MLA decode row capacity"
     },
     {
-      "number": 126,
-      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
-      "title": "Prewarm target and native-MTP route packing"
-    },
-    {
       "number": 133,
       "head": "287fec1c8e6457a5d687f0b7a96a4e1579c1b791",
       "title": "Add topology-scoped fused all-reduce paths"
     },
     {
+      "number": 144,
+      "head": "c8d5f33b4a682a4a0b06e29c816aa24e28313473",
+      "title": "Add native R7 mixed K3/K4/K5 Trellis runtime"
+    }
+  ],
+  "reviewed_exclusions": [
+    {
+      "number": 126,
+      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
+      "disposition": "superseded",
+      "reason": "Superseded by PR #144, which retains the route-pack prewarm and adds the complete R7 mixed-Trellis runtime."
+    },
+    {
       "number": 135,
       "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
-      "title": "Preserve dense GEMM API contracts with block FP8"
+      "disposition": "superseded",
+      "reason": "B12X commit 7cecbb2c4819636ae7f05f8b116f2c45ee2cff7b contains the dense block-FP8 API behavior, so composing PR #135 would duplicate it."
     },
     {
       "number": 136,
       "head": "b3f572da20b7167bdcdf866419dc414d56945ad6",
-      "title": "Restore capture-safe K6 small-M dispatch"
+      "disposition": "superseded",
+      "reason": "Superseded by PR #144 with the capture-safe SM120 K6 dispatch retained."
     },
     {
       "number": 137,
       "head": "850bc0d0c48c626f236b0ee7e8ea41cc44d75d6d",
-      "title": "Realign mixed Trellis with the QSRT ABI"
-    }
-  ],
-  "reviewed_exclusions": [
+      "disposition": "superseded",
+      "reason": "Superseded by PR #144, which retains the QSRT ABI correction in the complete R7 runtime."
+    },
+    {
+      "number": 140,
+      "head": "50a9fe1e2985bdd2198962a3e3b457093bb53f43",
+      "disposition": "superseded",
+      "reason": "Superseded by PR #144 against master; PR #144 retains the projection-tier commits and authorship."
+    },
     {
       "number": 130,
       "head": "9ead9eaa188c2d36f091c8e5225e196896545721",
@@ -44,9 +59,15 @@
     },
     {
       "number": 129,
-      "head": "56d5a9063e7726d6799c87760e2070c38e479677",
+      "head": "1e886ab4e0a560e5bc326adfed93ba6680653f63",
       "disposition": "out_of_scope",
       "reason": "Fruit QSRT atoms are unrelated to the qualified GLM-5.2 and DeepSeek-V4 runtime paths."
+    },
+    {
+      "number": 138,
+      "head": "c7b575e93ff659c02e0dbc1834177263e9b37603",
+      "disposition": "out_of_scope",
+      "reason": "Kimi-K3 TP16 CuTe pair-gather and top-16 transport are outside the GLM-5.2 and DeepSeek-V4 TP2/TP4/TP8 validation matrix."
     },
     {
       "number": 124,
