@@ -6,7 +6,7 @@
 # parameter loaders consume each borrowed tensor before the iterator advances.
 services:
   glm52:
-    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-20260810-r34}
+    image: ${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34}
     container_name: ${NAME:-glm52-r7-r34}
     entrypoint: ["/usr/local/bin/serve-gilded-gnosis.sh"]
     network_mode: host
@@ -38,7 +38,7 @@ services:
       GRAPH: ${GRAPH:-32}
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-65536}
       MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-2048}
-      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.97}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.98}
       MOE_MODE: a16
       MOE_BACKEND: b12x
       QUANTIZATION: exl3

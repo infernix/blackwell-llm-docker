@@ -114,8 +114,8 @@ elif [[ "${composition_mode}" == "reproduce-r34" ]]; then
   configure_lmcache_composition \
     "patches/releases/gilded-gnosis-v20-r34/lmcache" 0
 
-  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-20260810-r34}"
-  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllmb0f8c85.b12xcd3ce19.fi1ac6942.cu132.20260810.r34}"
+  export IMAGE="${IMAGE:-voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34}"
+  export VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev280+gilded.gnosis.v20.vllm4d006a4.b12xcd3ce19.fi1ac6942.cu132.20260810.r34}"
 elif [[ "${composition_mode}" == "reproduce-r33" ]]; then
   configure_vllm_composition \
     "patches/releases/gilded-gnosis-v20-r33/vllm" 0
@@ -413,7 +413,10 @@ export EXLLAMAV3_COMMIT="${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b96
 
 export VLLM_PATCH_URL=
 
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r34" || "${composition_mode}" == "reproduce-r33" || "${composition_mode}" == "reproduce-r32" || "${composition_mode}" == "reproduce-r31" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r34" ]]; then
+  export B12X_VERSION="${B12X_VERSION:-1.2.1}"
+  export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-b12x}"
+elif [[ "${composition_mode}" == "reproduce-r33" || "${composition_mode}" == "reproduce-r32" || "${composition_mode}" == "reproduce-r31" || "${composition_mode}" == "reproduce-r30" || "${composition_mode}" == "reproduce-r29" ]]; then
   export B12X_VERSION="${B12X_VERSION:-1.1.0}"
   export EXPECTED_B12X_PACKAGE="${EXPECTED_B12X_PACKAGE:-b12x}"
 else
@@ -422,7 +425,10 @@ else
 fi
 
 export LAUNCHER_REPO="${LAUNCHER_REPO:-https://github.com/local-inference-lab/blackwell-llm-docker.git}"
-if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r34" || "${composition_mode}" == "reproduce-r33" ]]; then
+if [[ "${composition_mode}" == "clean" || "${composition_mode}" == "reproduce-r34" ]]; then
+  export LAUNCHER_REF="${LAUNCHER_REF:-7302862b8fcfdc7c06a411a61e1f0fb072258880}"
+  export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-7302862b8fcfdc7c06a411a61e1f0fb072258880}"
+elif [[ "${composition_mode}" == "reproduce-r33" ]]; then
   export LAUNCHER_REF="${LAUNCHER_REF:-47ac813334e094090d5fd85b317d13b2e932ef09}"
   export LAUNCHER_COMMIT="${LAUNCHER_COMMIT:-47ac813334e094090d5fd85b317d13b2e932ef09}"
 elif [[ "${composition_mode}" == "reproduce-r32" ]]; then
@@ -508,9 +514,10 @@ else
 fi
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
-  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nb12x_tree=%s\nflashinfer_repo=%s\nflashinfer_ref=%s\nflashinfer_commit=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
+  printf 'composition=%s\nimage=%s\nversion=%s\nvllm_tree=%s\nb12x_tree=%s\nb12x_package_version=%s\nflashinfer_repo=%s\nflashinfer_ref=%s\nflashinfer_commit=%s\nlauncher_repo=%s\nlauncher_ref=%s\nlauncher_commit=%s\nlmcache_tree=%s\nlmcache_repo=%s\nlmcache_ref=%s\nlmcache_commit=%s\nlmcache_patch=%s\nlmcache_version=%s\nxgrammar_repo=%s\nxgrammar_ref=%s\nxgrammar_commit=%s\nxgrammar_version=%s\nxgrammar_transformers5_compat=%s\ninstanttensor_repo=%s\ninstanttensor_ref=%s\ninstanttensor_commit=%s\n' \
     "${composition_mode}" "${IMAGE}" "${VLLM_BUILD_VERSION}" \
     "${VLLM_INTEGRATION_TREE:-}" "${B12X_INTEGRATION_TREE:-}" \
+    "${B12X_VERSION}" \
     "${FLASHINFER_REPO}" "${FLASHINFER_REF}" "${FLASHINFER_COMMIT}" \
     "${LAUNCHER_REPO}" "${LAUNCHER_REF}" "${LAUNCHER_COMMIT}" \
     "${LMCACHE_INTEGRATION_TREE:-}" \
@@ -797,7 +804,8 @@ for fused_moe_export in (
 assert fused_moe_impl._dynamic_kernel_intermediate_size(352, "w4a8_mx") == 384
 assert tiled_topk._COARSE_RADIX_BITS == 10
 assert tiled_topk._SMEM_CANDS == 8192
-assert inspect.getsource(w4a16_kernel).count("cooperative=True") >= 2
+assert inspect.getsource(w4a16_kernel).count("cooperative=True") == 1
+assert inspect.getsource(mixed_trellis).count("cooperative=True") >= 2
 assert callable(mixed_trellis.compile_mixed_trellis)
 assert callable(mixed_trellis.run_mixed_trellis)
 assert _normalize_fp8_mode("i8-ring") == "i8_ring"

@@ -345,19 +345,23 @@ output_r34="$(
 
 grep -Fxq 'composition=reproduce-r34' <<<"${output_r34}"
 grep -Fxq \
-  'image=voipmonitor/vllm:gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-20260810-r34' \
+  'image=voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34' \
   <<<"${output_r34}"
 grep -Fxq \
-  'version=0.11.2.dev280+gilded.gnosis.v20.vllmb0f8c85.b12xcd3ce19.fi1ac6942.cu132.20260810.r34' \
+  'version=0.11.2.dev280+gilded.gnosis.v20.vllm4d006a4.b12xcd3ce19.fi1ac6942.cu132.20260810.r34' \
   <<<"${output_r34}"
 grep -Fxq \
-  'vllm_tree=b0f8c85c7b96497e0148a18230f43d18854ae04a' \
+  'vllm_tree=4d006a43928cdee01306691a766542c1e9bebb59' \
   <<<"${output_r34}"
 grep -Fxq \
   'b12x_tree=cd3ce190f0f1917402cdfd5773724267cc9a63f8' \
   <<<"${output_r34}"
+grep -Fxq 'b12x_package_version=1.2.1' <<<"${output_r34}"
 grep -Fxq \
   'lmcache_tree=9a05c8818bae48d15b79c7e876418bb813c08cd0' \
+  <<<"${output_r34}"
+grep -Fxq \
+  'launcher_commit=7302862b8fcfdc7c06a411a61e1f0fb072258880' \
   <<<"${output_r34}"
 grep -Fxq \
   'lmcache_patch=releases/gilded-gnosis-v20-r34/lmcache/integration.patch' \
@@ -365,14 +369,23 @@ grep -Fxq \
 
 r34_glm_compose="${repo_root}/examples/docker-compose-glm52-r7-v20-r34.yml"
 grep -Fq \
-  'gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-20260810-r34' \
+  'gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34' \
   "${r34_glm_compose}"
 grep -Fq \
   'MODEL_REVISION: ${MODEL_REVISION:-9ab9579774cc432df91567a36f6e9e863e0d4c9f}' \
   "${r34_glm_compose}"
 grep -Fq 'ONLINE_QUANT: ${ONLINE_QUANT:-exl3-b6}' "${r34_glm_compose}"
+grep -Fq \
+  'GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.98}' \
+  "${r34_glm_compose}"
 grep -Fq 'LOAD_FORMAT: instanttensor' "${r34_glm_compose}"
 grep -Fq 'INSTANTTENSOR_COPY: 0' "${r34_glm_compose}"
+grep -Fq \
+  'inspect.getsource(w4a16_kernel).count("cooperative=True") == 1' \
+  "${repo_root}/build-gilded-gnosis-v20-final-cu132.sh"
+grep -Fq \
+  'inspect.getsource(mixed_trellis).count("cooperative=True") >= 2' \
+  "${repo_root}/build-gilded-gnosis-v20-final-cu132.sh"
 
 output_r33="$(
   cd "${repo_root}"
@@ -393,6 +406,7 @@ grep -Fxq \
 grep -Fxq \
   'b12x_tree=06db0f4b27dbd19eb934da0da27eff7a7c49d8c4' \
   <<<"${output_r33}"
+grep -Fxq 'b12x_package_version=1.1.0' <<<"${output_r33}"
 grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
   <<<"${output_r33}"
@@ -801,22 +815,23 @@ output_clean="$(
 
 grep -Fxq 'composition=clean' <<<"${output_clean}"
 grep -Eq \
-  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllmb0f8c85-b12xcd3ce19-fi1ac6942-cu132-[0-9]{8}-r34$' \
+  '^image=voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-[0-9]{8}-r34$' \
   <<<"${output_clean}"
 grep -Eq \
-  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllmb0f8c85[.]b12xcd3ce19[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r34$' \
+  '^version=0[.]11[.]2[.]dev280[+]gilded[.]gnosis[.]v20[.]vllm4d006a4[.]b12xcd3ce19[.]fi1ac6942[.]cu132[.][0-9]{8}[.]r34$' \
   <<<"${output_clean}"
 grep -Fxq \
-  'vllm_tree=b0f8c85c7b96497e0148a18230f43d18854ae04a' \
+  'vllm_tree=4d006a43928cdee01306691a766542c1e9bebb59' \
   <<<"${output_clean}"
 grep -Fxq \
   'b12x_tree=cd3ce190f0f1917402cdfd5773724267cc9a63f8' \
   <<<"${output_clean}"
+grep -Fxq 'b12x_package_version=1.2.1' <<<"${output_clean}"
 grep -Fxq \
   'flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f' \
   <<<"${output_clean}"
 grep -Fxq \
-  'launcher_commit=47ac813334e094090d5fd85b317d13b2e932ef09' \
+  'launcher_commit=7302862b8fcfdc7c06a411a61e1f0fb072258880' \
   <<<"${output_clean}"
 grep -Fxq \
   'instanttensor_repo=https://github.com/voipmonitor/InstantTensor.git' \

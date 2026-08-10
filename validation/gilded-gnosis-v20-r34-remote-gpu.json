@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Immutable qualification receipt for the GLM-5.2 R7 mixed-K3/K4/K5 EXL3 serving profile",
+  "image": "voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34",
+  "image_id": "sha256:0ff4b1de4e950cf48dd0405562908a2f81597f4524698c0291ac2c40514ae17e",
+  "registry_digest": "sha256:820181fbbc975cd5291c411cda9771d58fecee1636d916f508f47230df20592b",
+  "validated_at": "2026-08-10T19:36:02Z",
+  "source_composition": {
+    "vllm": {
+      "base": "e2666d9a65f41fc376607531453cbd57c4c71016",
+      "tree": "4d006a43928cdee01306691a766542c1e9bebb59",
+      "patch_sha256": "8a7269851ab5bfff8f730db9af6f19ac6c0fc26620ba32108ba17cfe4e51c903"
+    },
+    "b12x": {
+      "base": "7cecbb2c4819636ae7f05f8b116f2c45ee2cff7b",
+      "tree": "cd3ce190f0f1917402cdfd5773724267cc9a63f8",
+      "patch_sha256": "406970efd643f5a7d1c989b7d988331b16ab7e84d868cf2d9cbabb7707633687",
+      "package_version": "1.2.1"
+    },
+    "flashinfer": "1ac6942776b383c6b03c7a5805a22e72a3e3349f",
+    "instanttensor": "49b4010afc1cae0441e71fe0b0bffc24fa05e932",
+    "lmcache": {
+      "base": "9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "9a05c8818bae48d15b79c7e876418bb813c08cd0",
+      "patch_sha256": "e9f5369ee134cbc697e77d9fd9d77219aceea5fabf2fe90e3b74542bbeb200ca"
+    },
+    "launcher": "7302862b8fcfdc7c06a411a61e1f0fb072258880"
+  },
+  "runtime_packages": {
+    "torch": "2.12.0+cu132",
+    "cuda": "13.2.1",
+    "cudnn": "9.22.0.52",
+    "cublas": "13.4.1.2",
+    "nccl": "2.30.4",
+    "cutlass_dsl": "4.6.0",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78",
+    "revision": "9ab9579774cc432df91567a36f6e9e863e0d4c9f",
+    "role": "Routed experts use native K3/K4/K5 Trellis payloads; shared experts in layers 3-77 are BF16 sources encoded into merged K6 gate-up and down projections at load time.",
+    "shared_bf16_shard": "model-sharedbf16.safetensors",
+    "shared_bf16_shard_sha256": "ee1e7d9b2adb5d49c0895dc2f4b7d6d424b108cdb796879eee4c55d040408c6a",
+    "shared_bf16_tensor_count": 228,
+    "index_total_size_bytes": 346196508248,
+    "metadata_correction": {
+      "status": "qualified",
+      "repository_state": "unmerged",
+      "pull_request": "https://huggingface.co/brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78/discussions/3",
+      "head": "ed36ad6d767af08845a317b56fe89ce73ed520f4",
+      "compatibility": "The correction changes index metadata and reproducibility files; model tensor bytes are unchanged."
+    }
+  },
+  "validation_environment": {
+    "host": "192.168.0.69",
+    "gpu_ids": [4, 5, 6, 7],
+    "topology": "Four RTX PRO 6000 Blackwell GPUs attached through independent CPU root ports",
+    "comparison_policy": "Performance comparisons use the same host and GPU set; switched-host results are excluded.",
+    "parallelism": "TP4/DCP1",
+    "attention_backend": "B12X MLA sparse",
+    "moe_backend": "B12X A16",
+    "quantization": "EXL3 checkpoint plus online EXL3 K6 shared and dense projections",
+    "kv_cache": "NVFP4 DS-MLA",
+    "load_format": "InstantTensor BUFFERED with borrowed-buffer consumption",
+    "scheduler": "MAX_NUM_SEQS=8, graph cap 32, max model length 65536, max batched tokens 2048",
+    "prefill_capacity": 2048
+  },
+  "tests": {
+    "release_composition": "pass",
+    "runtime_contracts": "pass against the installed r34 image on GPU 4",
+    "vllm_focused": "pass: 112 tests",
+    "b12x_host": "pass: 33 tests; 41 GPU tests skipped by the host-only run",
+    "b12x_gpu": "pass: 6 focused CUDA and CUDA-graph tests",
+    "model_startup_mtp0": "pass",
+    "model_startup_mtp3": "pass",
+    "correctness": "pass: exact response 'r34 validation passed'; 9 successful requests and no request errors",
+    "cuda_graphs": "pass: FULL decode capture for all eight configured graph sizes and FULL+PIECEWISE prefill capture",
+    "engine_health": "pass"
+  },
+  "evidence": {
+    "mtp0": {
+      "gpu_memory_utilization": 0.97,
+      "kv_cache_tokens": 82816,
+      "sustained_decode_context_tokens": 0,
+      "sustained_decode_seconds_per_cell": 20,
+      "decode_tps": {
+        "c1": 53.79979741685472,
+        "c4": 171.30271530012007,
+        "c8": 283.0500540882469
+      },
+      "uncached_prefill_tps": {
+        "8192": 3253,
+        "64000_runs": [2966, 3239, 3236],
+        "64000_median": 3236
+      },
+      "conclusion": "Under the recorded TP4/DCP1 conditions, the packaged runtime sustains 53.80, 171.30, and 283.05 tok/s at C1, C4, and C8, plus 3253 tok/s for an uncached 8192-token prefill."
+    },
+    "mtp3": {
+      "gpu_memory_utilization": 0.98,
+      "kv_cache_tokens": 75072,
+      "sustained_decode_context_tokens": 0,
+      "sustained_decode_seconds_per_cell": 20,
+      "decode_tps": {
+        "c1": 121.24668513414368,
+        "c4": 297.6899090810516,
+        "c8": 436.22764949875074
+      },
+      "uncached_prefill_8192_tps": 3239,
+      "accepted_draft_tokens": 15307,
+      "drafted_tokens": 23391,
+      "strict_draft_acceptance": 0.654396990295,
+      "conclusion": "MTP3 fits the 65536-token profile at GMU 0.98 and executes target verification plus all three draft forwards through CUDA graphs."
+    },
+    "teacher_forced_quality": {
+      "status": "qualified",
+      "conditions": "Paired 2047-position full-vocabulary comparison against one BF16 teacher, FP8 KV cache, and three repeats per candidate",
+      "separate_shared_k6_mean_kld": 0.064467,
+      "separate_shared_k6_run_sd": 0.001973,
+      "bf16_source_merged_k6_mean_kld": 0.065339,
+      "bf16_source_merged_k6_run_sd": 0.001285,
+      "absolute_mean_delta": 0.000872,
+      "conclusion": "The BF16-source merged-K6 and separate-shared-K6 run distributions overlap; the test did not measure a quality regression from merged runtime K6 encoding.",
+      "limitation": "The paired quality test used FP8 KV. The r34 Compose profile uses NVFP4 DS-MLA KV, so the numbers do not isolate the quality effect of that cache format."
+    }
+  },
+  "artifacts": {
+    "validation/r34/mtp0-decode.json": "19ad998fb4e4232eb372194a966bae1833866cfac4a11e64223c2a2847b12a35",
+    "validation/r34/mtp0-prefill.json": "fd8d6ed1296bc14fbc4cda17e895f20c16dd9f64c6951b8d61594cb14ef0b8c7",
+    "validation/r34/mtp0-prefill-64k-r2.json": "7dd55b6dfd4912d4167e39c879d54095b145ddfb38c672a14d099648e29be540",
+    "validation/r34/mtp0-prefill-64k-r3.json": "a654129e27476c0dffbe8f8339f3258f2d146e044a1877809d3fb28ae791f075",
+    "validation/r34/mtp3-decode.json": "a12bf1bf22d10c1b907f59aacd0195241249b6fc5105e16c8dd642526042868d",
+    "validation/r34/mtp3-prefill-8k.json": "95d5050a234e86e15808309daf461a7c440c4f7cb4ba52caa7317e4842f8ae0b"
+  },
+  "release_issue": "https://github.com/local-inference-lab/rtx6kpro/issues/33"
+}

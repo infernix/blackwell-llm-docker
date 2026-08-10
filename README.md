@@ -703,7 +703,64 @@ correctness request returned exactly `42`. The immutable validation receipt is
 `fa13d334a2962756f9f7e9b562deb85387359f42` and
 `06db0f4b27dbd19eb934da0da27eff7a7c49d8c4`.
 
-The current unified image installs
+### Gilded Gnosis r34 GLM-5.2 R7 mixed-Trellis profile
+
+Status: **qualified**.
+
+The r34 GLM-5.2 profile serves
+`brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78@9ab9579774cc432df91567a36f6e9e863e0d4c9f`.
+Routed experts execute directly from checkpoint-native K3/K4/K5 Trellis
+payloads. Shared experts in layers 3-77 remain BF16 in the checkpoint and are
+encoded once into merged K6 gate-up and down projections. The encoded matrices
+use a content-addressed persistent cache, so warm starts do not repeat the
+encoding.
+
+```text
+voipmonitor/vllm:gilded-gnosis-v20-vllm4d006a4-b12xcd3ce19-fi1ac6942-cu132-20260810-r34
+Local image ID: sha256:0ff4b1de4e950cf48dd0405562908a2f81597f4524698c0291ac2c40514ae17e
+Registry digest: sha256:820181fbbc975cd5291c411cda9771d58fecee1636d916f508f47230df20592b
+```
+
+Use `examples/docker-compose-glm52-r7-v20-r34.yml`. Its qualified profile is
+TP4/DCP1, A16 B12X MoE, B12X sparse MLA, online EXL3 K6, NVFP4 DS-MLA KV,
+InstantTensor BUFFERED, `MAX_NUM_SEQS=8`, graph cap 32, and a 65,536-token
+model limit. MTP3 requires `GPU_MEMORY_UTILIZATION=0.98`; that setting exposes
+75,072 KV tokens on 96 GB GPUs and leaves enough memory for graph capture.
+
+Validation used physical GPUs 4-7 on `192.168.0.69`, where each GPU is
+attached through a CPU root port. Results from the PCIe-switched 16-GPU host
+are not used in the comparison.
+
+| Profile | C1 tok/s | C4 tok/s | C8 tok/s | Prefill 8k tok/s | KV tokens |
+|---|---:|---:|---:|---:|---:|
+| MTP0, GMU 0.97 | 53.8 | 171.3 | 283.1 | 3,253 | 82,816 |
+| MTP3, GMU 0.98 | 121.2 | 297.7 | 436.2 | 3,239 | 75,072 |
+
+The MTP3 run accepted 15,307 of 23,391 draft tokens (65.44%). FULL decode
+graphs covered every configured scheduler size; target verification and all
+three draft forwards remained graph-captured. Six focused B12X GPU tests,
+112 focused vLLM tests, startup, deterministic correctness, and the installed
+runtime-contract verifier passed.
+
+A paired 2,047-position full-vocabulary quality gate used FP8 KV and three
+repeats per candidate. Separate shared K6 measured mean KLD 0.064467; BF16
+source plus merged runtime K6 measured 0.065339. The 0.000872 difference was
+smaller than the observed run variation. These KLD values do not isolate the
+NVFP4 DS-MLA cache format selected by the Compose profile.
+
+Reproduce the immutable source composition with:
+
+```bash
+VLLM_RELEASE_COMPOSITION=reproduce-r34 \
+  ./build-gilded-gnosis-v20-final-cu132.sh
+```
+
+The machine-readable qualification record is
+`validation/gilded-gnosis-v20-r34-remote-gpu.json`. Its vLLM and B12X trees
+are `4d006a43928cdee01306691a766542c1e9bebb59` and
+`cd3ce190f0f1917402cdfd5773724267cc9a63f8`.
+
+The archived Fathomless Firmament v17 image installs
 `/usr/local/bin/serve-fathomless-firmament.sh`, which dispatches to the GLM or
 DS4 helper through `MODEL_FAMILY`. Start either model with a minimal
 environment-only Compose file and override only the serving choices you need:

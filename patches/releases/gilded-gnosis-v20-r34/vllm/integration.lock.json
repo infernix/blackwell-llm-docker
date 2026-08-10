@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "c06921ddd59b5d9d740803cf408910a74901dd60574dbca92d9b946a1e63f31e"
+    "sha256": "f484b959e403bf84d237ba447a9fc8bc0a5e34c50b1fc12ead9e6bed6f7b3a4d"
   },
   "name": "gilded-gnosis-v20",
   "pull_requests": [
@@ -144,7 +144,7 @@
     },
     {
       "disposition": "merged",
-      "head": "3c0a496caf9339f396b0be8da6910b1887920709",
+      "head": "8e7be4d5c97fb86d983bd5f83c825153452efaec",
       "number": 280,
       "ref": "refs/pull/280/head",
       "title": "EXL3 R7 native mixed K3/K4/K5 runtime"
@@ -159,8 +159,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "f77100d76cddfccf1e2a34a6d584a3b974e263632dd4aef2998a508011c5a883",
-    "tree": "b0f8c85c7b96497e0148a18230f43d18854ae04a"
+    "patch_sha256": "8a7269851ab5bfff8f730db9af6f19ac6c0fc26620ba32108ba17cfe4e51c903",
+    "tree": "4d006a43928cdee01306691a766542c1e9bebb59"
   },
   "schema_version": 1
 }
