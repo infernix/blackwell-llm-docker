@@ -21,9 +21,6 @@ ARG B12X_PATCH_SHA256
 ARG B12X_INTEGRATION_TREE
 ARG B12X_INTEGRATION_LOCK_SHA256
 ARG B12X_PRS
-ARG RELEASE_NAME
-ARG RELEASE_DATE
-ARG DOCKER_COMMIT
 ARG CACHE_FINGERPRINT
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -151,6 +148,10 @@ RUN set -eux; \
 COPY --chmod=0755 launchers/serve-kimi-k3-nospec /usr/local/bin/serve-kimi-k3-nospec
 COPY --chmod=0755 launchers/serve-kimi-k3-dspark /usr/local/bin/serve-kimi-k3-dspark
 COPY --chmod=0755 launchers/serve-kimi-k3-dflash /usr/local/bin/serve-kimi-k3-dflash
+
+ARG RELEASE_NAME
+ARG RELEASE_DATE
+ARG DOCKER_COMMIT
 
 LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 runtime" \
       org.opencontainers.image.description="Pinned HH and b12x source composition for Kimi-K3 full-MXFP4 no-spec, DSpark, and DFlash serving" \
