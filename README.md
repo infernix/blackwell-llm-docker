@@ -136,11 +136,11 @@ The image contains three entrypoints:
 | Full MXFP4 target with BF16 DSpark K7 | `/usr/local/bin/serve-kimi-k3-dspark` |
 | Full MXFP4 target with online-MXFP8 DFlash K7 | `/usr/local/bin/serve-kimi-k3-dflash` |
 
-Each profile must use a separate persistent `/cache/jit` host directory. JIT
-artifacts are source-fingerprinted inside that directory, but the profile
-separation also prevents incompatible CUDA-graph and generated-kernel state
-from being reused across target-only, DSpark, and DFlash processes. The
-machine-readable qualification receipt is
+Each profile must use a separate persistent `/cache/jit` host directory. The
+vLLM, Triton, CuTe DSL, and B12X caches are source-fingerprinted inside that
+directory. Profile separation also prevents incompatible CUDA-graph and
+generated-kernel state from being reused across target-only, DSpark, and
+DFlash processes. The machine-readable qualification receipt is
 `validation/kimi-k3-hh-runtime-20260811.json`.
 
 ### Clean GG release composition
