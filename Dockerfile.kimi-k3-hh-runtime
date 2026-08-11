@@ -146,10 +146,11 @@ RUN set -eux; \
       serve-kimi-k3-full-mxfp4-dflash-dcp16-1m.sh; do \
       test -x "${launcher}"; \
       bash -n "${launcher}"; \
-    done; \
-    ln -s /opt/kimi-k3-hh/vllm/serve-kimi-k3-full-mxfp4-dcp16-1m-no-dspark.sh /usr/local/bin/serve-kimi-k3-nospec; \
-    ln -s /opt/kimi-k3-hh/vllm/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m-kda-mxfp8.sh /usr/local/bin/serve-kimi-k3-dspark; \
-    ln -s /opt/kimi-k3-hh/vllm/serve-kimi-k3-full-mxfp4-dflash-dcp16-1m.sh /usr/local/bin/serve-kimi-k3-dflash
+    done
+
+COPY --chmod=0755 launchers/serve-kimi-k3-nospec /usr/local/bin/serve-kimi-k3-nospec
+COPY --chmod=0755 launchers/serve-kimi-k3-dspark /usr/local/bin/serve-kimi-k3-dspark
+COPY --chmod=0755 launchers/serve-kimi-k3-dflash /usr/local/bin/serve-kimi-k3-dflash
 
 LABEL org.opencontainers.image.title="Kimi-K3 HH TP16 runtime" \
       org.opencontainers.image.description="Pinned HH and b12x source composition for Kimi-K3 full-MXFP4 no-spec, DSpark, and DFlash serving" \

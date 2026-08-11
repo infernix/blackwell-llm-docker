@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /opt/kimi-k3-hh/vllm/serve-kimi-k3-full-mxfp4-dflash-dcp16-1m.sh "$@"
