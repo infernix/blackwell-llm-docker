@@ -8,9 +8,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-release_name="${RELEASE_NAME:-kimi-k3-hh-runtime-r1}"
+release_name="${RELEASE_NAME:-kimi-k3-hh-runtime}"
 release_date="${RELEASE_DATE:-$(date -u +%Y%m%d)}"
-revision="${REVISION:-r1}"
+revision="${REVISION:-r2}"
 composition_mode="${KIMI_K3_COMPOSITION:-reproduce-r1}"
 
 case "${composition_mode}" in
