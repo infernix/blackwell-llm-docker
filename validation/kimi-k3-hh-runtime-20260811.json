@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "qualified_at_utc": "2026-08-11",
+  "image": {
+    "name": "voipmonitor/vllm:kimi-k3-hh-vllm138eccd-b12x7617005-cu132-20260811-r2",
+    "registry_digest": "sha256:7ca3d4ffc6d5812984b3164e1ec821104bfa5ae85a5467aea9e86e7462943092",
+    "local_image_id": "sha256:4d8f652e2c1f268a9b14f290a72bba745825f4ea1ecbeeec45c49dbe794e1626",
+    "size_bytes": 25635888471,
+    "recipe_commit": "d97246b15744fbda49cc0405b74111156e140293"
+  },
+  "source_composition": {
+    "vllm": {
+      "base_branch": "dev/heraldic-harbinger",
+      "base_commit": "6389c45f4d172d5414526e0969e3c689096f1959",
+      "pull_requests": [
+        "242@fbd738571739e5e629da44ed40e486a8e6cdc1b8",
+        "278@23d51b1953814eca0090c930c5e6cd99bc396253"
+      ],
+      "integration_tree": "138eccd127bb6e2b5c52940203d36b951a3c6284"
+    },
+    "b12x": {
+      "base_branch": "master",
+      "base_commit": "ce7f62275b12ceaeee71e603fb2419bb556e166a",
+      "pull_requests": [
+        "124@5b6a53f7e83413d717c6b797eece9ce079f86954",
+        "138@8596afcf10a3c48f2329ee34ce6e310ceeb6d110",
+        "139@a5089aa3c6aa8cbe40dbdaf520a6c8bddf1d50e8"
+      ],
+      "integration_tree": "76170059b95c2189966476ddd6eb872a886882c4"
+    }
+  },
+  "hardware": {
+    "gpu_count": 16,
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "tensor_parallel_size": 16,
+    "decode_context_parallel_size": 16
+  },
+  "model": {
+    "target_repository": "moonshotai/Kimi-K3",
+    "target_revision": "2496450e92e425c886db095102a52a6682ca3970",
+    "target_weight_format": "source MXFP4",
+    "target_kv_cache_dtype": "FP8",
+    "maximum_model_length_tokens": 1048576,
+    "load_format": "instanttensor"
+  },
+  "profiles": {
+    "target_only": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-nospec",
+      "served_model_name": "Kimi-K3-MXFP4-HH-DCP16-1M-NoDSpark",
+      "reported_gpu_kv_cache_tokens": 1460937,
+      "decode_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "allowed_token_id": 13,
+        "runs": 3
+      },
+      "decode_tokens_per_second": [
+        56.27545280634313,
+        56.40401141221996,
+        56.2951219066899
+      ],
+      "decode_tokens_per_second_median": 56.2951219066899,
+      "weight_load_seconds": 163.68,
+      "model_load_seconds": 186.86,
+      "conclusion": "The packaged runtime matches the qualified target-only source stack within measurement noise."
+    },
+    "dspark": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-dspark",
+      "served_model_name": "Kimi-K3-MXFP4-HH-DSpark7-BF16-DCP16-1M-KDA-MXFP8-P4096",
+      "draft_repository": "Inferact/Kimi-K3-DSpark",
+      "draft_revision": "cf6b8244620e7ea4b0651d214f28e89eac75bed6",
+      "draft_weight_format": "BF16 TP-sharded",
+      "speculative_tokens": 7,
+      "target_kda_projection_format": "online MXFP8",
+      "reported_target_kv_cache_tokens": 1057049,
+      "replicated_draft_tail_tokens": 32768,
+      "normalized_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "warmups": 2,
+        "runs": 6
+      },
+      "normalized_decode_tokens_per_second_median": 107.2405674845234,
+      "target_cycles_per_second_median": 30.22281119163987,
+      "draft_acceptance_rate_median": 0.3642664636076626,
+      "coding_generation_tokens_per_second": [
+        123.49216658869224,
+        104.00914539642864,
+        137.82780562864968
+      ],
+      "coding_generation_tokens_per_second_median": 123.49216658869224,
+      "coding_cjk_characters": 0,
+      "model_load_seconds": 203.0,
+      "conclusion": "DSpark serves the full target with a physical distributed one-million-token target KV allocation and bounded replicated draft state."
+    },
+    "dflash": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-dflash",
+      "served_model_name": "Kimi-K3-MXFP4-HH-DFlash-DCP16-1M",
+      "draft_repository": "modal-labs/Kimi-K3-DFlash",
+      "draft_revision": "c192d15a43407bf758b5ae0880d5c72052fef1de",
+      "draft_weight_format": "online MXFP8 linears with BF16 qkv_proj",
+      "speculative_tokens": 7,
+      "target_kda_projection_format": "online MXFP8",
+      "reported_target_kv_cache_tokens": 1039043,
+      "capacity_shortfall_from_1048576_tokens": 9533,
+      "normalized_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "warmups": 2,
+        "runs": 6
+      },
+      "normalized_decode_tokens_per_second_median": 93.66978298394793,
+      "target_cycles_per_second_median": 29.56750818312279,
+      "draft_acceptance_rate_median": 0.30951497809806416,
+      "coding_generation_tokens_per_second": [
+        129.03638817703555,
+        161.32668831624687,
+        159.21287579714547
+      ],
+      "coding_generation_tokens_per_second_median": 159.21287579714547,
+      "coding_cjk_characters": 0,
+      "model_load_seconds": 196.34,
+      "conclusion": "DFlash is functional with the full MXFP4 target; its target KV allocation is 0.91 percent below 1048576 tokens."
+    }
+  },
+  "artifact_root": "/mnt/luke/kimi-k3-runs/hh-release-20260811"
+}
