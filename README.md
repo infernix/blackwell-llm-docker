@@ -87,6 +87,11 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # Build the Lucifer DS4 Flash/CUTLASS image from local-inference-lab/vllm:lucifer.
 ./build-lucifer-cu132.sh
 
+# Build the Kimi-K3 TP16/DCP16 image from pinned Heraldic Harbinger and B12X
+# source compositions. The image defaults to the DSpark launcher and also
+# contains target-only and DFlash launchers.
+./build-kimi-k3-hh-runtime.sh
+
 # Build the unified GLM-5.2 and DS4/DSpark v16 image from immutable vLLM,
 # B12X, FlashInfer, DeepGEMM, CUTLASS, InstantTensor, and NCCL commits.
 ./build-fathomless-firmament-v16-cu132.sh
@@ -100,6 +105,43 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # manifests from scratch.
 ./build-gilded-gnosis-v20-final-cu132.sh
 ```
+
+### Kimi-K3 Heraldic Harbinger runtime
+
+`build-kimi-k3-hh-runtime.sh` applies hash-verified integration patches to a
+pinned `dev/heraldic-harbinger` vLLM commit and a pinned B12X `master` commit.
+The included changes are restricted to the Kimi-K3 runtime:
+
+- vLLM PRs #242 and #278;
+- B12X PRs #124, #138, and #139.
+
+The committed integration locks under
+`patches/releases/kimi-k3-hh-runtime-r1/` record the base commits, PR heads,
+resulting Git trees, and patch hashes. A publication build requires a clean
+repository and uses those locks by default. Set `KIMI_K3_COMPOSITION=compose`
+only to regenerate candidate locks from the manifests under `manifests/`.
+
+Published image:
+
+```text
+voipmonitor/vllm:kimi-k3-hh-vllm138eccd-b12x7617005-cu132-20260811-r2
+sha256:7ca3d4ffc6d5812984b3164e1ec821104bfa5ae85a5467aea9e86e7462943092
+```
+
+The image contains three entrypoints:
+
+| Runtime profile | Entrypoint |
+|---|---|
+| Full MXFP4 target without speculation | `/usr/local/bin/serve-kimi-k3-nospec` |
+| Full MXFP4 target with BF16 DSpark K7 | `/usr/local/bin/serve-kimi-k3-dspark` |
+| Full MXFP4 target with online-MXFP8 DFlash K7 | `/usr/local/bin/serve-kimi-k3-dflash` |
+
+Each profile must use a separate persistent `/cache/jit` host directory. JIT
+artifacts are source-fingerprinted inside that directory, but the profile
+separation also prevents incompatible CUDA-graph and generated-kernel state
+from being reused across target-only, DSpark, and DFlash processes. The
+machine-readable qualification receipt is
+`validation/kimi-k3-hh-runtime-20260811.json`.
 
 ### Clean GG release composition
 
