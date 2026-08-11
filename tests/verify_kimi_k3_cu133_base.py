@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the CUDA, PyTorch, NCCL, XGrammar, and Transformers base contract."""
+"""Verify the Kimi CUDA 13.3 base package and native-library contract."""
 
 from __future__ import annotations
 
@@ -40,6 +40,7 @@ def _mapped_libraries(fragment: str) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--torch-version", required=True)
+    parser.add_argument("--torchvision-version", required=True)
     parser.add_argument("--cuda-version", required=True)
     parser.add_argument("--nccl-version-code", required=True, type=int)
     parser.add_argument("--nccl-library", required=True)
@@ -48,6 +49,7 @@ def main() -> None:
     args = parser.parse_args()
 
     import torch
+    import torchvision
     import transformers
     import xgrammar
 
@@ -55,6 +57,11 @@ def main() -> None:
     assert not torch.__version__.startswith(f"{args.torch_version}a")
     assert torch.version.cuda == args.cuda_version
     assert "USE_NCCL=1" in torch.__config__.show()
+    assert Version(torchvision.__version__).base_version == args.torchvision_version
+    assert torchvision.extension._has_ops()
+    boxes = torch.tensor([[0.0, 0.0, 2.0, 2.0], [0.0, 0.0, 1.0, 1.0]])
+    scores = torch.tensor([0.9, 0.8])
+    assert torchvision.ops.nms(boxes, scores, 0.5).tolist() == [0, 1]
 
     nccl_path = Path(args.nccl_library).resolve(strict=True)
     nccl = ctypes.CDLL(str(nccl_path))
@@ -84,7 +91,8 @@ def main() -> None:
 
     print(
         "Kimi-K3 CUDA base contract: PASS "
-        f"torch={torch.__version__} cuda={torch.version.cuda} "
+        f"torch={torch.__version__} torchvision={torchvision.__version__} "
+        f"cuda={torch.version.cuda} "
         f"nccl={version.value} xgrammar={xgrammar_version} "
         f"transformers={transformers_version}"
     )
