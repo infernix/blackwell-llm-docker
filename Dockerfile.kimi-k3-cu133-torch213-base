@@ -96,6 +96,7 @@ ARG TORCHVISION_REF=v0.28.0
 ARG TORCHVISION_COMMIT=8fb87713a24951e639c494b0f2a8a81b5f8e33a6
 ARG TORCHVISION_VERSION=0.28.0
 ARG TORCHVISION_MAX_JOBS=128
+ARG PYTORCH_VERSION=2.13.0
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
@@ -107,6 +108,7 @@ COPY --from=torch-build /build/torch-wheels/ /tmp/torch-wheels/
 ENV LD_LIBRARY_PATH=/opt/local-inference/nccl/lib:${LD_LIBRARY_PATH} \
     LD_PRELOAD=/opt/local-inference/nccl/lib/libnccl.so.2.31.2 \
     FORCE_CUDA=1 \
+    PYTORCH_VERSION=${PYTORCH_VERSION} \
     TORCH_CUDA_ARCH_LIST=12.0a \
     MAX_JOBS=${TORCHVISION_MAX_JOBS} \
     BUILD_VERSION=${TORCHVISION_VERSION} \
