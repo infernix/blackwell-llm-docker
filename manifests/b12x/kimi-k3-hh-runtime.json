@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-hh-runtime",
+  "repository": "https://github.com/local-inference-lab/b12x.git",
+  "base_ref": "refs/heads/master",
+  "pull_requests": [
+    {
+      "number": 124,
+      "head": "5b6a53f7e83413d717c6b797eece9ce079f86954",
+      "title": "Add TP16 dense-MLA bindings and distributed vocabulary argmax"
+    },
+    {
+      "number": 138,
+      "head": "8596afcf10a3c48f2329ee34ce6e310ceeb6d110",
+      "title": "Vectorize TP16 pair gather and exact top-16 routing with CuTe DSL"
+    },
+    {
+      "number": 139,
+      "head": "a5089aa3c6aa8cbe40dbdaf520a6c8bddf1d50e8",
+      "title": "Route TP16 all-reduces through island reduce-scatter by message size"
+    }
+  ]
+}

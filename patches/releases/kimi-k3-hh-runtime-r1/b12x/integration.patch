@@ -1,0 +1,3281 @@
+diff --git a/b12x/attention/dense_mla/_kernel.py b/b12x/attention/dense_mla/_kernel.py
+index 12bae04d9c33d022434a637f9ac1fe5c3fe5f726..9f738b498206da9a3763e95f1a62875fad3844ec 100644
+--- a/b12x/attention/dense_mla/_kernel.py
++++ b/b12x/attention/dense_mla/_kernel.py
+@@ -93,37 +93,20 @@ def _signature(binding: Binding) -> tuple[object, ...]:
+     )
+ 
+ 
+-@dataclass(frozen=True)
+-class _ForwardLaunch:
++@dataclass(frozen=True, slots=True)
++class _ForwardCompileTemplate:
+     entry: DenseMlaForwardKernel
+-    args: tuple[object, ...]
+     spec: KernelCompileSpec
+ 
+ 
+-@dataclass(frozen=True)
+-class _MergeLaunch:
++@dataclass(frozen=True, slots=True)
++class _MergeCompileTemplate:
+     entry: DenseMlaMergeKernel
+-    args: tuple[object, ...]
+     spec: KernelCompileSpec
+ 
+ 
+-def _forward_launch(binding: Binding) -> _ForwardLaunch:
++def _forward_args(binding: Binding) -> tuple[object, ...]:
+     scratch = binding.scratch
+-    fp8 = binding.q.dtype == _FP8
+-    layout = make_smem_layout(
+-        query_tile=scratch.query_tile,
+-        fp8=fp8,
+-    )
+-    entry = DenseMlaForwardKernel(
+-        layout=layout,
+-        page_size=scratch.page_size,
+-        num_heads=scratch.num_q_heads,
+-        num_splits=scratch.num_splits,
+-        chunks_per_split=scratch.chunks_per_split,
+-        query_tile=scratch.query_tile,
+-        fp8=fp8,
+-    )
+-
+     q_bytes = _byte_base_pointer(binding.q)
+     cache_bytes = _byte_base_pointer(binding.kv_cache)
+     page_table = binding.page_table.reshape(-1)
+@@ -139,7 +122,7 @@ def _forward_launch(binding: Binding) -> _ForwardLaunch:
+     )
+     q_scale = binding.q_scale if binding.q_scale is not None else unused_scale_storage
+     stream = cuda.CUstream(torch.cuda.current_stream().cuda_stream)
+-    args = (
++    return (
+         _to_cute(
+             q_bytes,
+             cutlass.Uint8,
+@@ -191,6 +174,24 @@ def _forward_launch(binding: Binding) -> _ForwardLaunch:
+         Int32(binding.active_splits),
+         stream,
+     )
++
++
++def _forward_compile_template(binding: Binding) -> _ForwardCompileTemplate:
++    scratch = binding.scratch
++    fp8 = binding.q.dtype == _FP8
++    layout = make_smem_layout(
++        query_tile=scratch.query_tile,
++        fp8=fp8,
++    )
++    entry = DenseMlaForwardKernel(
++        layout=layout,
++        page_size=scratch.page_size,
++        num_heads=scratch.num_q_heads,
++        num_splits=scratch.num_splits,
++        chunks_per_split=scratch.chunks_per_split,
++        query_tile=scratch.query_tile,
++        fp8=fp8,
++    )
+     spec = KernelCompileSpec.from_fields(
+         "attention.dense_mla.forward",
+         3,
+@@ -223,7 +224,7 @@ def _forward_launch(binding: Binding) -> _ForwardLaunch:
+         ),
+         tensor_key(
+             "output",
+-            output,
++            binding.output,
+             dims=(
+                 DimKey.dynamic(),
+                 DimKey.exact(scratch.num_q_heads),
+@@ -231,18 +232,17 @@ def _forward_launch(binding: Binding) -> _ForwardLaunch:
+             ),
+         ),
+     )
+-    return _ForwardLaunch(entry=entry, args=args, spec=spec)
++    return _ForwardCompileTemplate(entry=entry, spec=spec)
+ 
+ 
+-def _merge_launch(binding: Binding) -> _MergeLaunch | None:
++def _merge_args(binding: Binding) -> tuple[object, ...] | None:
+     scratch = binding.scratch
+     if scratch.num_splits == 1:
+         return None
+     assert scratch.partial_output is not None
+     assert scratch.partial_lse is not None
+-    entry = DenseMlaMergeKernel(scratch.num_splits)
+     stream = cuda.CUstream(torch.cuda.current_stream().cuda_stream)
+-    args = (
++    return (
+         _to_cute(
+             scratch.partial_output,
+             cutlass.BFloat16,
+@@ -259,6 +259,14 @@ def _merge_launch(binding: Binding) -> _MergeLaunch | None:
+         Int32(binding.active_splits),
+         stream,
+     )
++
++
++def _merge_compile_template(binding: Binding) -> _MergeCompileTemplate | None:
++    scratch = binding.scratch
++    if scratch.num_splits == 1:
++        return None
++    assert scratch.partial_output is not None
++    entry = DenseMlaMergeKernel(scratch.num_splits)
+     spec = KernelCompileSpec.from_fields(
+         "attention.dense_mla.merge",
+         4,
+@@ -284,7 +292,7 @@ def _merge_launch(binding: Binding) -> _MergeLaunch | None:
+             ),
+         ),
+     )
+-    return _MergeLaunch(entry=entry, args=args, spec=spec)
++    return _MergeCompileTemplate(entry=entry, spec=spec)
+ 
+ 
+ def _compile_entries(binding: Binding) -> tuple[object, object | None]:
+@@ -293,21 +301,24 @@ def _compile_entries(binding: Binding) -> tuple[object, object | None]:
+         compiled_forward = _FORWARD_CACHE.get(signature)
+         compiled_merge = _MERGE_CACHE.get(signature)
+     if compiled_forward is None:
+-        launch = _forward_launch(binding)
++        template = _forward_compile_template(binding)
++        args = _forward_args(binding)
+         compiled_forward = compile_cute(
+-            launch.entry,
+-            *launch.args,
+-            compile_spec=launch.spec,
++            template.entry,
++            *args,
++            compile_spec=template.spec,
+         )
+         with _LOCK:
+             _FORWARD_CACHE[signature] = compiled_forward
+     if binding.scratch.num_splits > 1 and compiled_merge is None:
+-        launch = _merge_launch(binding)
+-        assert launch is not None
++        template = _merge_compile_template(binding)
++        args = _merge_args(binding)
++        assert template is not None
++        assert args is not None
+         compiled_merge = compile_cute(
+-            launch.entry,
+-            *launch.args,
+-            compile_spec=launch.spec,
++            template.entry,
++            *args,
++            compile_spec=template.spec,
+         )
+         with _LOCK:
+             _MERGE_CACHE[signature] = compiled_merge
+@@ -343,13 +354,12 @@ def run_dense_mla(
+             )
+         compiled_forward, compiled_merge = _compile_entries(binding)
+ 
+-    forward = _forward_launch(binding)
+-    run_compiled(compiled_forward, forward.args)
++    run_compiled(compiled_forward, _forward_args(binding))
+     if binding.scratch.num_splits > 1 and binding.active_splits > 1:
+         assert compiled_merge is not None
+-        merge = _merge_launch(binding)
+-        assert merge is not None
+-        run_compiled(compiled_merge, merge.args)
++        merge_args = _merge_args(binding)
++        assert merge_args is not None
++        run_compiled(compiled_merge, merge_args)
+     rows = int(binding.q.shape[0])
+     return binding.output, binding.scratch.final_lse[:rows]
+ 
+diff --git a/b12x/attention/dense_mla/_scratch.py b/b12x/attention/dense_mla/_scratch.py
+index ba4362bf6b6035e6046285036a4ac21d31ce317e..17b49ea133c7d7406090a91b74d6fb2572b814b5 100644
+--- a/b12x/attention/dense_mla/_scratch.py
++++ b/b12x/attention/dense_mla/_scratch.py
+@@ -206,7 +206,7 @@ def _dense_mla_scratch_layout(
+     )
+ 
+ 
+-@dataclass(kw_only=True)
++@dataclass(kw_only=True, slots=True)
+ class Scratch:
+     shared_scratch: torch.Tensor
+     device: torch.device
+@@ -228,7 +228,7 @@ class Scratch:
+     final_lse: torch.Tensor
+ 
+ 
+-@dataclass(frozen=True, kw_only=True)
++@dataclass(frozen=True, kw_only=True, slots=True)
+ class Binding:
+     scratch: Scratch
+     q: torch.Tensor
+@@ -462,6 +462,51 @@ def _validate_binding(
+     )
+ 
+ 
++def _bind_prevalidated(
++    *,
++    scratch: Scratch,
++    q: torch.Tensor,
++    kv_cache: torch.Tensor,
++    output: torch.Tensor,
++    page_table: torch.Tensor,
++    cache_seqlens: torch.Tensor,
++    cu_seqlens_q: torch.Tensor,
++    kv_scale: torch.Tensor | None,
++    q_scale: torch.Tensor | None,
++    sm_scale: float,
++    active_splits: int,
++) -> Binding:
++    """Build fresh views for a caller that already proved the tensor contract.
++
++    Framework integrations validate and capacity-plan these capture-static
++    tensors while constructing their attention metadata. Repeating storage
++    bounds, shape, stride, device, and dtype checks in every layer of every
++    decode step adds Python latency but no additional safety. This path still
++    creates a new caller-scratch-owned ``Scratch`` and ``Binding`` per call;
++    it never caches a binding or workspace.
++    """
++    active_splits = int(active_splits)
++    if not 1 <= active_splits <= scratch.num_splits:
++        raise ValueError(
++            "active_splits must be in the planned range "
++            f"[1, {scratch.num_splits}], got {active_splits}"
++        )
++    cache = kv_cache[:, :, 0, :] if kv_cache.ndim == 4 else kv_cache
++    return Binding(
++        scratch=scratch,
++        q=q,
++        kv_cache=cache,
++        output=output,
++        page_table=page_table,
++        cache_seqlens=cache_seqlens,
++        cu_seqlens_q=cu_seqlens_q,
++        kv_scale=kv_scale,
++        q_scale=q_scale,
++        sm_scale=float(sm_scale),
++        active_splits=active_splits,
++    )
++
++
+ def _materialize(
+     caps: Caps,
+     scratch_storage: torch.Tensor,
+@@ -518,6 +563,75 @@ def _materialize(
+     )
+ 
+ 
++def _materialize_prevalidated(
++    caps: Caps,
++    scratch_storage: torch.Tensor,
++    layout: _ScratchLayout,
++) -> Scratch:
++    """Map fresh typed views without repeating the generic layout checks.
++
++    ``Plan.bind(validate=False)`` is used only after the framework has proved
++    that the capture-static byte tensor matches the plan.  Keep the ownership
++    contract explicit by constructing new tensor views and a new ``Scratch``
++    container for every bind, while avoiding per-layer scalar-tensor dtype
++    queries and generic alignment work.
++    """
++    partial_output = None
++    partial_lse = None
++    if layout.num_splits > 1:
++        assert layout.partial_output_offset_bytes is not None
++        assert layout.partial_lse_offset_bytes is not None
++        bf16_storage = scratch_storage.view(torch.bfloat16)
++        partial_output = bf16_storage.as_strided(
++            (
++                caps.max_total_q,
++                caps.num_q_heads,
++                layout.num_splits,
++                K3_VALUE_DIM,
++            ),
++            (
++                caps.num_q_heads * layout.num_splits * K3_VALUE_DIM,
++                layout.num_splits * K3_VALUE_DIM,
++                K3_VALUE_DIM,
++                1,
++            ),
++            bf16_storage.storage_offset() + layout.partial_output_offset_bytes // 2,
++        )
++        fp32_storage = scratch_storage.view(torch.float32)
++        partial_lse = fp32_storage.as_strided(
++            (caps.max_total_q, caps.num_q_heads, layout.num_splits),
++            (caps.num_q_heads * layout.num_splits, layout.num_splits, 1),
++            fp32_storage.storage_offset() + layout.partial_lse_offset_bytes // 4,
++        )
++    else:
++        fp32_storage = scratch_storage.view(torch.float32)
++    final_lse = fp32_storage.as_strided(
++        (caps.max_total_q, caps.num_q_heads),
++        (caps.num_q_heads, 1),
++        fp32_storage.storage_offset() + layout.final_lse_offset_bytes // 4,
++    )
++    return Scratch(
++        shared_scratch=scratch_storage,
++        device=caps.device,
++        mode=caps.mode,
++        kv_dtype=caps.kv_dtype,
++        num_q_heads=caps.num_q_heads,
++        page_size=caps.page_size,
++        max_total_q=caps.max_total_q,
++        max_batch=caps.max_batch,
++        max_cache_tokens=caps.max_cache_tokens,
++        max_page_table_width=caps.max_page_table_width,
++        num_cache_pages=caps.num_cache_pages,
++        num_splits=layout.num_splits,
++        chunks_per_split=layout.chunks_per_split,
++        query_tile=_query_tile(caps),
++        use_cuda_graph=caps.use_cuda_graph,
++        partial_output=partial_output,
++        partial_lse=partial_lse,
++        final_lse=final_lse,
++    )
++
++
+ @dataclass(frozen=True)
+ class Plan:
+     caps: Caps
+@@ -556,14 +670,35 @@ class Plan:
+         q_scale: torch.Tensor | None = None,
+         sm_scale: float = K3_SM_SCALE,
+         active_splits: int | None = None,
++        validate: bool = True,
+     ) -> Binding:
+-        storage = scratch_tensor(
+-            scratch,
+-            self._scratch_specs,
+-            owner="dense MLA",
+-        )
+-        scratch_views = _materialize(self.caps, storage, self.layout)
+-        return _validate_binding(
++        if not validate and isinstance(scratch, torch.Tensor):
++            # The unchecked binding path omits dtype, layout, and device
++            # queries after the framework validates capture-static metadata.
++            # Capacity remains a memory-safety invariant because as_strided
++            # does not reject a view that extends beyond the allocation.
++            required_bytes = int(self.layout.nbytes)
++            available_bytes = int(scratch.numel()) * scratch.element_size()
++            if available_bytes < required_bytes:
++                raise ValueError(
++                    "prevalidated dense MLA scratch is smaller than required: "
++                    f"need {required_bytes} bytes, got {available_bytes}"
++                )
++            storage = scratch
++            scratch_views = _materialize_prevalidated(
++                self.caps,
++                storage,
++                self.layout,
++            )
++        else:
++            storage = scratch_tensor(
++                scratch,
++                self._scratch_specs,
++                owner="dense MLA",
++            )
++            scratch_views = _materialize(self.caps, storage, self.layout)
++        bind_impl = _validate_binding if validate else _bind_prevalidated
++        return bind_impl(
+             scratch=scratch_views,
+             q=q,
+             kv_cache=kv_cache,
+diff --git a/b12x/comm/pcie/__init__.py b/b12x/comm/pcie/__init__.py
+index 216310e44c775a422d3dec494fac60673b309760..6dbcdf4ab12b4709e5e0deab4b3dfc3df68a7435 100644
+--- a/b12x/comm/pcie/__init__.py
++++ b/b12x/comm/pcie/__init__.py
+@@ -15,10 +15,11 @@ pools via ``<Class>Pool``.
+   per-token FP8-e4m3 transport.
+ - ``DcpAllToAll``: DCP attention exchange with fused LSE reduce-scatter.
+ - ``DcpTopKOwnerExchange``: exact DCP candidate owner staging.
++- ``VocabParallelArgmax``: TP16 fused BF16 add and exact global greedy argmax.
+ 
+-Every device kernel is authored in Python with CuTe DSL.  Host-side CUDA
+-Runtime/Driver calls are also made from Python; this package contains no
+-repo-authored C++ or CUDA source and never invokes a native extension build.
++Most device kernels are authored in Python with CuTe DSL. Vocabulary-parallel
++argmax JIT-builds the bundled ``pcie_vocab_argmax.cu`` extension on first use.
++Host-side CUDA Runtime and Driver calls are made from Python.
+ """
+ 
+ from __future__ import annotations
+@@ -40,13 +41,14 @@ META = OpMeta(
+         "DcpAllToAll",
+         "DcpAllToAllPool",
+         "DcpTopKOwnerExchange",
++        "VocabParallelArgmax",
+         "autotune_dma_crossovers",
+         "parse_oneshot_max_size",
+         "lse_reduce_scatter_reference",
+         "owner_stage_reference",
+         "is_supported",
+     ),
+-    dtypes=("bf16", "fp32", "fp8_e4m3", "int32"),
++    dtypes=("bf16", "fp32", "fp8_e4m3", "int32", "int64"),
+     requires=("multi_gpu",),
+     provenance=Provenance(
+         repo="https://github.com/lukealonso/b12x",
+@@ -68,6 +70,7 @@ if TYPE_CHECKING:  # static analysis only; runtime resolution is lazy
+         OneshotAllReduce,
+         OneshotAllReducePool,
+         TwoShotReduceScatter,
++        VocabParallelArgmax,
+         autotune_dma_crossovers,
+         is_supported,
+         lse_reduce_scatter_reference,
+diff --git a/b12x/comm/pcie/_cute_intrinsics.py b/b12x/comm/pcie/_cute_intrinsics.py
+index 6f2daab78ea857079cdbc74cec904b54aa0688a2..f65c60211700800186d467edc249f43037df3b78 100644
+--- a/b12x/comm/pcie/_cute_intrinsics.py
++++ b/b12x/comm/pcie/_cute_intrinsics.py
+@@ -501,3 +501,57 @@ def rsqrt_approx_f32(value: Float32, *, loc=None, ip=None) -> Float32:
+             ip=ip,
+         )
+     )
++
++
++@dsl_user_op
++def float_order_key(value: Float32, *, loc=None, ip=None) -> Uint32:
++    """Map a float onto a u32 whose unsigned order matches float order.
++
++    Lets a (score, expert) pair be packed into one integer key, so "better
++    candidate" becomes a plain integer max and the tie-break stops costing a
++    second comparison.
++    """
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Float32(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .u32 bits, mask;
++                mov.b32 bits, $1;
++                shr.u32 mask, bits, 31;
++                mul.lo.u32 mask, mask, 0x7fffffff;
++                or.b32 mask, mask, 0x80000000;
++                xor.b32 $0, bits, mask;
++            }
++            """,
++            "=r,f",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def redux_max_u32(value: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Warp-wide unsigned max in one instruction.
++
++    ``cute.arch.warp_redux_sync`` exposes the float variant, which libNVVM
++    rejects for sm_120a; the integer one is what the kernel actually needs.
++    """
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Uint32(value).ir_value(loc=loc, ip=ip)],
++            "redux.sync.max.u32 $0, $1, 0xffffffff;",
++            "=r,r",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
+diff --git a/b12x/comm/pcie/_dcp_a2a_cute.py b/b12x/comm/pcie/_dcp_a2a_cute.py
+index 0dea2609cbb9a6e337ea54b2be37002c989c405c..cf6ca276f9a5e084923a78e487419cd0a79d9a09 100644
+--- a/b12x/comm/pcie/_dcp_a2a_cute.py
++++ b/b12x/comm/pcie/_dcp_a2a_cute.py
+@@ -17,12 +17,15 @@ from b12x._lib.intrinsics import (
+     fmax_f32,
+     ld_global_v4_u32,
+     st_global_v4_u32,
++    u32_as_f32,
+ )
+ from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
+ from b12x._lib.utils import current_cuda_stream, make_ptr
+ 
+ from ._dcp_cute_common import block_pair_barrier
+ from ._cute_intrinsics import (
++    float_order_key,
++    redux_max_u32,
+     ld_generic_f32,
+     ld_relaxed_gpu_u32,
+     pack_f32x2_to_bf16x2,
+@@ -106,6 +109,89 @@ def _copy_16b(source: cute.Pointer, destination: cute.Pointer) -> None:
+     st_global_v4_u32(destination.toint(), *values)
+ 
+ 
++@dsl_user_op
++def _select_if_eq_u32(
++    lhs: Uint32,
++    rhs: Uint32,
++    on_equal: Uint32,
++    otherwise: Uint32,
++    *,
++    loc=None,
++    ip=None,
++) -> Uint32:
++    """``lhs == rhs ? on_equal : otherwise`` as one predicated select."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Uint32(lhs).ir_value(loc=loc, ip=ip),
++                Uint32(rhs).ir_value(loc=loc, ip=ip),
++                Uint32(on_equal).ir_value(loc=loc, ip=ip),
++                Uint32(otherwise).ir_value(loc=loc, ip=ip),
++            ],
++            "{ .reg .pred p; setp.eq.u32 p, $1, $2; selp.b32 $0, $3, $4, p; }",
++            "=r,r,r,r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _select_if_eq_u64(
++    lhs: cutlass.Uint64,
++    rhs: cutlass.Uint64,
++    on_equal: cutlass.Uint64,
++    otherwise: cutlass.Uint64,
++    *,
++    loc=None,
++    ip=None,
++) -> cutlass.Uint64:
++    """``lhs == rhs ? on_equal : otherwise`` as one predicated select.
++
++    A Python ``if`` on a runtime condition becomes a branch region. The top-16
++    rounds update a register-held key array, so a divergent branch can spill the
++    array to local memory. A ternary chain emits straight-line predicated code
++    and lets ptxas fold repeated ``setp`` operations.
++    """
++
++    return cutlass.Uint64(
++        llvm.inline_asm(
++            T.i64(),
++            [
++                cutlass.Uint64(lhs).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(rhs).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(on_equal).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(otherwise).ir_value(loc=loc, ip=ip),
++            ],
++            "{ .reg .pred p; setp.eq.u64 p, $1, $2; selp.b64 $0, $3, $4, p; }",
++            "=l,l,l,l,l",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@cute.jit
++def _copy_16b_addr(source: Int64, destination: Int64) -> None:
++    """Copy 16B between two byte addresses already resolved by the caller.
++
++    The gather loops pick their source rank at runtime.  Selecting the address
++    first and issuing one copy keeps a single load in flight per thread; cloning
++    the copy once per peer inside a constexpr chain makes a warp that straddles
++    two source ranks issue its loads in two serialised batches.
++    """
++    values = ld_global_v4_u32(source)
++    st_global_v4_u32(destination, *values)
++
++
+ @dsl_user_op
+ def _fma_rn_f32(
+     a: Float32,
+@@ -168,7 +254,7 @@ def _add_u64_opaque(
+     loc=None,
+     ip=None,
+ ) -> Int64:
+-    """Add a payload offset without CSE into the earlier LSE address phase."""
++    """Add a payload offset without CSE into the LSE-address calculation."""
+ 
+     return Int64(
+         llvm.inline_asm(
+@@ -188,6 +274,70 @@ def _add_u64_opaque(
+     )
+ 
+ 
++
++_KIMI_NEG_INF = float("-inf")
++
++
++@cute.jit
++def _kimi_pack_key(score: Float32, expert: Int32) -> cutlass.Uint64:
++    """Pack (score, expert) so that a plain integer max picks the winner.
++
++    The expert index goes in complemented, so a tie on score resolves to the
++    lower index -- the same order the native reference produces, without a
++    second comparison at every step.
++    """
++    return (cutlass.Uint64(float_order_key(score)) << cutlass.Uint64(32)) | (
++        cutlass.Uint64(0xFFFF) - cutlass.Uint64(expert)
++    )
++
++
++@cute.jit
++def _kimi_key_expert(key: cutlass.Uint64) -> Int32:
++    return Int32(cutlass.Uint64(0xFFFF) - (key & cutlass.Uint64(0xFFFF)))
++
++
++@cute.jit
++def _kimi_warp_max_key(key: cutlass.Uint64) -> cutlass.Uint64:
++    """Warp-wide max of a 64-bit key in two instructions.
++
++    Reduces the high words, then only the low words of the lanes that tied on
++    the high word, which is cheaper than carrying a 64-bit value through a
++    shuffle chain.
++    """
++    hi = cutlass.Uint32(key >> cutlass.Uint64(32))
++    lo = cutlass.Uint32(key & cutlass.Uint64(0xFFFFFFFF))
++    max_hi = redux_max_u32(hi)
++    contribution = _select_if_eq_u32(hi, max_hi, lo, Uint32(0))
++    max_lo = redux_max_u32(contribution)
++    return (cutlass.Uint64(max_hi) << cutlass.Uint64(32)) | cutlass.Uint64(max_lo)
++
++
++def _kimi_sort_desc(keys, count: int) -> None:
++    """Descending bitonic sort over a compile-time number of packed keys.
++
++    Every index is a Python constant, so the whole network unrolls and the
++    per-round selection can just read ``keys[0]``.
++    """
++    width = 2
++    while width <= count:
++        stride = width // 2
++        while stride > 0:
++            for index in range(count):
++                peer = index ^ stride
++                if peer <= index:
++                    continue
++                descending = (index & width) == 0
++                lower = keys[index]
++                upper = keys[peer]
++                if descending:
++                    keys[index] = cutlass.max(lower, upper)
++                    keys[peer] = cutlass.min(lower, upper)
++                else:
++                    keys[index] = cutlass.min(lower, upper)
++                    keys[peer] = cutlass.max(lower, upper)
++            stride //= 2
++        width *= 2
++
+ class _DCPA2ABase:
+     def __init__(
+         self,
+@@ -902,23 +1052,31 @@ class _AllGatherHeadsLaunch(_DCPA2ABase):
+                 * Int64(packs_per_head)
+             )
+             output_base = Int64(row) * Int64(packs_per_head)
++            # Resolve the peer's base address first and copy once. Cloning the
++            # whole pack loop into all sixteen arms of the constexpr chain
++            # bloats the kernel and pays the chain on every row.
++            source_address = Int64(
++                (local_input + source_base * Int64(4)).toint()
++            )
+             for source in cutlass.range_constexpr(self._world_size):
+                 if source_rank == Int32(source):
+                     if cutlass.const_expr(source == self._rank):
+                         source_words = local_input
+                     else:
+                         source_words = self._staging_words(staging[source])
+-                    pack = lane
+-                    while pack < packs_per_head:
+-                        _copy_16b(
+-                            source_words
+-                            + source_base * Int64(4)
+-                            + Int64(pack) * Int64(4),
+-                            output
+-                            + output_base * Int64(4)
+-                            + Int64(pack) * Int64(4),
+-                        )
+-                        pack += Int32(32)
++                    source_address = Int64(
++                        (source_words + source_base * Int64(4)).toint()
++                    )
++            output_address = Int64(
++                (output + output_base * Int64(4)).toint()
++            )
++            pack = lane
++            while pack < packs_per_head:
++                _copy_16b_addr(
++                    source_address + Int64(pack) * Int64(16),
++                    output_address + Int64(pack) * Int64(16),
++                )
++                pack += Int32(32)
+             row += warp_stride
+ 
+         if cutlass.const_expr(self._device_slot_selection):
+@@ -1188,6 +1346,19 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+             )
+             source_rank = row_pack // first_packs
+             pack = row_pack - source_rank * first_packs
++            # Default to this rank's own slice so the address is always
++            # mappable; the chain below always overwrites it, because
++            # source_rank is derived from row_pack and is in range.
++            source_address = Int64(
++                (
++                    local_first
++                    + (
++                        Int64(batch_index) * Int64(first_packs)
++                        + Int64(pack)
++                    )
++                    * Int64(4)
++                ).toint()
++            )
+             for source in cutlass.range_constexpr(self._world_size):
+                 if source_rank == Int32(source):
+                     if cutlass.const_expr(source == self._rank):
+@@ -1200,11 +1371,16 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                         source_base = (
+                             Int64(batch_index) * Int64(combined_packs)
+                         )
+-                    _copy_16b(
+-                        source_words
+-                        + (source_base + Int64(pack)) * Int64(4),
+-                        output_first + Int64(linear) * Int64(4),
++                    source_address = Int64(
++                        (
++                            source_words
++                            + (source_base + Int64(pack)) * Int64(4)
++                        ).toint()
+                     )
++            _copy_16b_addr(
++                source_address,
++                Int64((output_first + Int64(linear) * Int64(4)).toint()),
++            )
+             linear += Int32(self._threads)
+ 
+         if cutlass.const_expr(not self._kimi_topk):
+@@ -1221,6 +1397,16 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 )
+                 source_rank = row_pack // second_packs
+                 pack = row_pack - source_rank * second_packs
++                source_address = Int64(
++                    (
++                        local_second
++                        + (
++                            Int64(batch_index) * Int64(second_packs)
++                            + Int64(pack)
++                        )
++                        * Int64(4)
++                    ).toint()
++                )
+                 for source in cutlass.range_constexpr(self._world_size):
+                     if source_rank == Int32(source):
+                         if cutlass.const_expr(source == self._rank):
+@@ -1236,11 +1422,18 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                                 Int64(batch_index) * Int64(combined_packs)
+                                 + Int64(first_packs)
+                             )
+-                        _copy_16b(
+-                            source_words
+-                            + (source_base + Int64(pack)) * Int64(4),
+-                            output_second + Int64(linear) * Int64(4),
++                        source_address = Int64(
++                            (
++                                source_words
++                                + (source_base + Int64(pack)) * Int64(4)
++                            ).toint()
+                         )
++                _copy_16b_addr(
++                    source_address,
++                    Int64(
++                        (output_second + Int64(linear) * Int64(4)).toint()
++                    ),
++                )
+                 linear += Int32(self._threads)
+         else:
+             smem_alloc = cutlass.utils.SmemAllocator()
+@@ -1253,6 +1446,10 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 unbiased_scores: cute.struct.Align[
+                     cute.struct.MemRange[Float32, 896], 16
+                 ]
++                # The 64 survivors of the warp-local rounds, as packed keys.
++                reduce_keys: cute.struct.Align[
++                    cute.struct.MemRange[cutlass.Uint64, 64], 16
++                ]
+ 
+             storage = smem_alloc.allocate(SharedStorage)
+             selection_scores = storage.selection_scores.get_tensor(
+@@ -1261,30 +1458,51 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+             unbiased_scores = storage.unbiased_scores.get_tensor(
+                 cute.make_layout((896,), stride=(1,))
+             )
++            reduce_keys = storage.reduce_keys.get_tensor(
++                cute.make_layout((64,), stride=(1,))
++            )
+ 
+-            expert = Int32(tidx)
+-            while expert < Int32(896):
+-                source_rank = expert // Int32(56)
+-                local_expert = expert - source_rank * Int32(56)
+-                router_value = Float32(0.0)
++            # Pull the 3,584-byte router row in 16-byte packs. This uses 224
++            # peer transactions instead of 896 scalar transactions; PCIe
++            # transaction count dominates this phase.
++            router_pack = Int32(tidx)
++            router_packs_total = Int32(self._world_size) * second_packs
++            while router_pack < router_packs_total:
++                source_rank = router_pack // second_packs
++                pack = router_pack - source_rank * second_packs
++                source_address = Int64(
++                    (local_second + Int64(pack) * Int64(4)).toint()
++                )
+                 for source in cutlass.range_constexpr(self._world_size):
+                     if source_rank == Int32(source):
+                         if cutlass.const_expr(source == self._rank):
+-                            source_router = cute.recast_ptr(
+-                                local_second.align(4), dtype=Float32
+-                            )
++                            source_words = local_second
++                            source_base = Int64(0)
+                         else:
+-                            source_router = cute.recast_ptr(
+-                                (
+-                                    staging[source]
+-                                    + slot_offset
+-                                    + Int64(first_packs) * Int64(16)
+-                                ).align(4),
+-                                dtype=Float32,
++                            source_words = self._staging_words(
++                                staging[source] + slot_offset
+                             )
+-                        router_value = cute.arch.load(
+-                            source_router + Int64(local_expert), Float32
++                            source_base = Int64(first_packs)
++                        source_address = Int64(
++                            (
++                                source_words
++                                + (source_base + Int64(pack)) * Int64(4)
++                            ).toint()
+                         )
++                word0, word1, word2, word3 = ld_global_v4_u32(source_address)
++                # linear pack index * 4 is exactly rank * 56 + 4 * pack, so the
++                # four floats land on their own global expert indices.
++                base_expert = router_pack * Int32(4)
++                selection_scores[base_expert] = u32_as_f32(word0)
++                selection_scores[base_expert + Int32(1)] = u32_as_f32(word1)
++                selection_scores[base_expert + Int32(2)] = u32_as_f32(word2)
++                selection_scores[base_expert + Int32(3)] = u32_as_f32(word3)
++                router_pack += Int32(self._threads)
++            cute.arch.sync_threads()
++
++            expert = Int32(tidx)
++            while expert < Int32(896):
++                router_value = selection_scores[expert]
+                 bias = cute.arch.load(
+                     correction_bias + Int64(expert), Float32
+                 )
+@@ -1306,43 +1524,89 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 expert += Int32(self._threads)
+             cute.arch.sync_threads()
+ 
+-            if Int32(tidx) == Int32(0):
+-                selected_ids = cute.make_rmem_tensor((16,), Int32)
+-                selected_weights = cute.make_rmem_tensor((16,), Float32)
++            # Two-level top-16 over packed (score, expert) keys. Four warps each
++            # reduce 256 experts held in registers (8 per lane); warp 0 then
++            # merges the 64 survivors.
++            # A round costs one warp reduction -- two instructions -- because the
++            # tie-break lives in the key rather than in a second comparison.
++            lane = Int32(tidx) % Int32(32)
++            warp = Int32(tidx) // Int32(32)
++            lane_key = cutlass.Uint64(0)
++            keys = cute.make_rmem_tensor((8,), cutlass.Uint64)
++            if warp < Int32(4):
++                for item in cutlass.range_constexpr(8):
++                    expert_id = warp * Int32(256) + Int32(item * 32) + lane
++                    value = Float32(_KIMI_NEG_INF)
++                    if expert_id < Int32(896):
++                        value = selection_scores[expert_id]
++                    keys[item] = _kimi_pack_key(value, expert_id)
++                _kimi_sort_desc(keys, 8)
++                previous = cutlass.Uint64(0)
+                 for selected in cutlass.range_constexpr(16):
+-                    selected_ids[selected] = Int32(-1)
+-                    selected_weights[selected] = Float32(0.0)
+-                weight_sum = Float32(0.0)
++                    if cutlass.const_expr(selected > 0):
++                        # Hold the head before the shift overwrites it, so
++                        # every element selects on the same condition.
++                        head = keys[0]
++                        tail_key = _kimi_pack_key(
++                            Float32(_KIMI_NEG_INF), _kimi_key_expert(keys[7])
++                        )
++                        for item in cutlass.range_constexpr(7):
++                            keys[item] = _select_if_eq_u64(
++                                previous, head, keys[item + 1], keys[item]
++                            )
++                        keys[7] = _select_if_eq_u64(
++                            previous, head, tail_key, keys[7]
++                        )
++                    previous = _kimi_warp_max_key(keys[0])
++                    lane_key = _select_if_eq_u64(
++                        cutlass.Uint64(lane),
++                        cutlass.Uint64(selected),
++                        previous,
++                        lane_key,
++                    )
++                if lane < Int32(16):
++                    reduce_keys[warp * Int32(16) + lane] = lane_key
++            cute.arch.sync_threads()
++            selected_ids = cute.make_rmem_tensor((16,), Int32)
++            selected_weights = cute.make_rmem_tensor((16,), Float32)
++            weight_sum = Float32(0.0)
++            if warp == Int32(0):
++                merge_keys = cute.make_rmem_tensor((2,), cutlass.Uint64)
++                for item in cutlass.range_constexpr(2):
++                    merge_keys[item] = reduce_keys[Int32(item * 32) + lane]
++                _kimi_sort_desc(merge_keys, 2)
++                previous = cutlass.Uint64(0)
+                 for selected in cutlass.range_constexpr(16):
+-                    best_score = Float32(float("-inf"))
+-                    best_expert = Int32(-1)
+-                    candidate = Int32(0)
+-                    while candidate < Int32(896):
+-                        already_selected = False
+-                        for prior in cutlass.range_constexpr(selected):
+-                            if selected_ids[prior] == candidate:
+-                                already_selected = True
+-                        score = selection_scores[candidate]
+-                        if not already_selected:
+-                            if (
+-                                score > best_score
+-                                or (
+-                                    score == best_score
+-                                    and (
+-                                        best_expert < Int32(0)
+-                                        or candidate < best_expert
+-                                    )
+-                                )
+-                            ):
+-                                best_score = score
+-                                best_expert = candidate
+-                        candidate += Int32(1)
+-                    selected_ids[selected] = best_expert
+-                    weight = Float32(0.0)
+-                    if best_expert >= Int32(0):
+-                        weight = unbiased_scores[best_expert]
++                    if cutlass.const_expr(selected > 0):
++                        head = merge_keys[0]
++                        tail_key = _kimi_pack_key(
++                            Float32(_KIMI_NEG_INF),
++                            _kimi_key_expert(merge_keys[1]),
++                        )
++                        merge_keys[0] = _select_if_eq_u64(
++                            previous, head, merge_keys[1], merge_keys[0]
++                        )
++                        merge_keys[1] = _select_if_eq_u64(
++                            previous, head, tail_key, merge_keys[1]
++                        )
++                    previous = _kimi_warp_max_key(merge_keys[0])
++                    # The reduction broadcasts, so every lane agrees here.
++                    final_expert = _kimi_key_expert(previous)
++                    selected_ids[selected] = final_expert
++                    weight = unbiased_scores[final_expert]
+                     selected_weights[selected] = weight
+-                    weight_sum += weight
++                # The native kernel renormalises with cg::reduce over the warp,
++                # which folds by halves (lane l adds lane l+stride, stride
++                # halving from 16). Summing left to right instead lands a ULP
++                # away, so fold in the same order. Same fifteen adds.
++                eight = [
++                    selected_weights[item] + selected_weights[item + 8]
++                    for item in range(8)
++                ]
++                four = [eight[item] + eight[item + 4] for item in range(4)]
++                two = [four[item] + four[item + 2] for item in range(2)]
++                weight_sum = two[0] + two[1]
++            if Int32(tidx) == Int32(0):
+                 scale = Float32(1.0) / (weight_sum + Float32(1.0e-20))
+                 for selected in cutlass.range_constexpr(16):
+                     cute.arch.store(
+diff --git a/b12x/comm/pcie/_island_rs_cute.py b/b12x/comm/pcie/_island_rs_cute.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8953fcf9aa6cb945fdd0711587bd2c2d1820a0d1
+--- /dev/null
++++ b/b12x/comm/pcie/_island_rs_cute.py
+@@ -0,0 +1,654 @@
++"""CuTeDSL pull-based island reduce-scatter TP16 collective.
++
++The leader-gather hierarchy in :mod:`._hierarchical_cute` funnels the whole
++vector through one rank per island and moves the inter-island exchange in
++fp32, so the leader's PCIe link carries roughly fifteen times the payload of
++the all-reduce it is performing.  That is invisible at one token and dominant
++by eight, which is exactly the shape a K3 speculative verify step produces.
++
++This collective keeps the four-GPU islands -- and therefore the bounded peer
++degree the island decomposition exists to satisfy -- but gives every rank an
++equal quarter of the vector instead of electing a leader.
++
++Transfers are pulls.  Measured on this fabric a GPU reading from a peer
++sustains ~52 GB/s while writing into one sustains ~2.6 GB/s, so a push
++protocol -- the shape flashinfer PR #4393 uses -- loses badly here no matter
++how the hops are arranged.
++
++Rank ``island * 4 + lane`` owns quarter ``lane`` and talks to six peers: the
++three other lanes of its island, and the same lane in the three other islands.
++Per-rank wire traffic is 2.25x the payload, all bf16, in three flag rounds.
++"""
++
++from __future__ import annotations
++
++import functools
++from collections.abc import Callable, Sequence
++
++import cuda.bindings.driver as cuda
++import cutlass
++import cutlass.cute as cute
++from cutlass import Float32, Int32, Int64, Uint32
++from cutlass.cutlass_dsl import T, dsl_user_op
++from cutlass._mlir.dialects import llvm
++from typing import Tuple
++
++from b12x._lib.compiler import KernelCompileSpec
++from b12x._lib.compiler import compile as b12x_compile
++from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
++from b12x._lib.utils import current_cuda_stream, make_ptr
++
++def _atomic_add_global_u32(
++    address: Int64, value: Uint32, *, loc=None, ip=None
++) -> Uint32:
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Int64(address).ir_value(loc=loc, ip=ip),
++                Uint32(value).ir_value(loc=loc, ip=ip),
++            ],
++            "atom.global.add.u32 $0, [$1], $2;",
++            "=r,l,r",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _load_acquire_sys_u32(address: Int64, *, loc=None, ip=None) -> Uint32:
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Int64(address).ir_value(loc=loc, ip=ip)],
++            "ld.acquire.sys.global.u32 $0, [$1];",
++            "=r,l",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _store_release_sys_u32(
++    address: Int64, value: Uint32, *, loc=None, ip=None
++) -> None:
++    llvm.inline_asm(
++        None,
++        [
++            Int64(address).ir_value(loc=loc, ip=ip),
++            Uint32(value).ir_value(loc=loc, ip=ip),
++        ],
++        "st.release.sys.global.u32 [$0], $1;",
++        "l,r",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def _fence_sc_sys(*, loc=None, ip=None) -> None:
++    llvm.inline_asm(
++        None,
++        [],
++        "fence.sc.sys;",
++        "",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def _nanosleep(cycles: Uint32, *, loc=None, ip=None) -> None:
++    llvm.inline_asm(
++        None,
++        [Uint32(cycles).ir_value(loc=loc, ip=ip)],
++        "nanosleep.u32 $0;",
++        "r",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@cute.jit
++def _wait_for(address: Int64, generation: Uint32, cycles: int) -> None:
++    observed = _load_acquire_sys_u32(address)
++    while observed < generation:
++        if cutlass.const_expr(cycles > 0):
++            _nanosleep(Uint32(cycles))
++        observed = _load_acquire_sys_u32(address)
++
++
++@cute.jit
++def _flag_address(base: Int64, region: int, block: Int32, index: Int32) -> Int64:
++    return (
++        base
++        + Int64(region)
++        + (
++            Int64(block) * Int64(_ISLAND_SIZE) + Int64(index)
++        )
++        * Int64(128)
++    )
++
++
++@dsl_user_op
++def unpack_bf16x2(value: Uint32, *, loc=None, ip=None) -> Tuple[Float32, Float32]:
++    result = llvm.inline_asm(
++        llvm.StructType.get_literal([T.f32(), T.f32()]),
++        [Uint32(value).ir_value(loc=loc, ip=ip)],
++        """
++        {
++            .reg .b16 lo, hi;
++            mov.b32 {lo, hi}, $2;
++            cvt.f32.bf16 $0, lo;
++            cvt.f32.bf16 $1, hi;
++        }
++        """,
++        "=f,=f,r",
++        has_side_effects=False,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++    return (
++        Float32(llvm.extractvalue(T.f32(), result, [0], loc=loc, ip=ip)),
++        Float32(llvm.extractvalue(T.f32(), result, [1], loc=loc, ip=ip)),
++    )
++
++
++@dsl_user_op
++def pack_f32x2_to_bf16x2(
++    lo: Float32, hi: Float32, *, loc=None, ip=None
++) -> Uint32:
++    """Match two scalar ``__float2bfloat16`` conversions without saturation."""
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Float32(lo).ir_value(loc=loc, ip=ip),
++                Float32(hi).ir_value(loc=loc, ip=ip),
++            ],
++            """
++            {
++                .reg .b16 blo, bhi;
++                cvt.rn.bf16.f32 blo, $1;
++                cvt.rn.bf16.f32 bhi, $2;
++                mov.b32 $0, {blo, bhi};
++            }
++            """,
++            "=r,f,f",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++_ISLAND_SIZE = 4
++_MAX_ISLANDS = 4
++_MAX_WORLD_SIZE = _ISLAND_SIZE * _MAX_ISLANDS
++
++# One 128-byte line per (block, slot); 32 blocks x 4 slots per region.
++_RS_ARRIVED = 256
++_XS_ARRIVED = 16_640
++_AG_ARRIVED = 33_024
++HEADER_BYTES = 49_408
++MAX_BLOCKS = 32
++
++
++def island_rs_peers(rank: int, world_size: int) -> tuple[int, ...]:
++    """Slabs this rank maps: three island lanes, three same-lane partners."""
++
++    if world_size != _MAX_WORLD_SIZE:
++        raise ValueError(f"island reduce-scatter requires TP16, got TP{world_size}")
++    if not 0 <= rank < world_size:
++        raise ValueError(f"invalid rank {rank} for TP{world_size}")
++    island, lane = divmod(rank, _ISLAND_SIZE)
++    lanes = {island * _ISLAND_SIZE + p for p in range(_ISLAND_SIZE)}
++    partners = {j * _ISLAND_SIZE + lane for j in range(_MAX_ISLANDS)}
++    return tuple(sorted((lanes | partners) - {rank}))
++
++
++class _IslandRSLaunch:
++    """Rank-specialized launcher; every peer index folds away at compile time."""
++
++    def __init__(
++        self,
++        world_size: int,
++        rank: int,
++        *,
++        threads: int = 128,
++        wait_nanosleep_cycles: int = 24,
++    ) -> None:
++        if world_size != _MAX_WORLD_SIZE:
++            raise ValueError(f"unsupported world size {world_size}")
++        if not 0 <= rank < world_size:
++            raise ValueError(f"invalid rank {rank} for world size {world_size}")
++        if not 32 <= threads <= 1024 or threads % 32:
++            raise ValueError("threads must be a multiple of 32 in [32, 1024]")
++        self._world_size = int(world_size)
++        self._rank = int(rank)
++        self._threads = int(threads)
++        self._wait_nanosleep_cycles = int(wait_nanosleep_cycles)
++        self._island = self._rank // _ISLAND_SIZE
++        self._lane = self._rank % _ISLAND_SIZE
++
++    @cute.jit
++    def __call__(
++        self,
++        slab0: cute.Pointer,
++        slab1: cute.Pointer,
++        slab2: cute.Pointer,
++        slab3: cute.Pointer,
++        slab4: cute.Pointer,
++        slab5: cute.Pointer,
++        slab6: cute.Pointer,
++        slab7: cute.Pointer,
++        slab8: cute.Pointer,
++        slab9: cute.Pointer,
++        slab10: cute.Pointer,
++        slab11: cute.Pointer,
++        slab12: cute.Pointer,
++        slab13: cute.Pointer,
++        slab14: cute.Pointer,
++        slab15: cute.Pointer,
++        input_ptr: cute.Pointer,
++        output_ptr: cute.Pointer,
++        stage_offset: Int64,
++        part_offset: Int64,
++        final_offset: Int64,
++        quarter_capacity: Int64,
++        elements: Int64,
++        blocks: Int32,
++        stream: cuda.CUstream,
++    ) -> None:
++        self.kernel(
++            slab0, slab1, slab2, slab3, slab4, slab5, slab6, slab7,
++            slab8, slab9, slab10, slab11, slab12, slab13, slab14, slab15,
++            input_ptr,
++            output_ptr,
++            stage_offset,
++            part_offset,
++            final_offset,
++            quarter_capacity,
++            elements,
++        ).launch(
++            grid=(blocks, 1, 1),
++            block=[self._threads, 1, 1],
++            cluster=(1, 1, 1),
++            stream=stream,
++        )
++
++    @cute.kernel
++    def kernel(
++        self,
++        slab0: cute.Pointer,
++        slab1: cute.Pointer,
++        slab2: cute.Pointer,
++        slab3: cute.Pointer,
++        slab4: cute.Pointer,
++        slab5: cute.Pointer,
++        slab6: cute.Pointer,
++        slab7: cute.Pointer,
++        slab8: cute.Pointer,
++        slab9: cute.Pointer,
++        slab10: cute.Pointer,
++        slab11: cute.Pointer,
++        slab12: cute.Pointer,
++        slab13: cute.Pointer,
++        slab14: cute.Pointer,
++        slab15: cute.Pointer,
++        input_ptr: cute.Pointer,
++        output_ptr: cute.Pointer,
++        stage_offset: Int64,
++        part_offset: Int64,
++        final_offset: Int64,
++        quarter_capacity: Int64,
++        elements: Int64,
++    ) -> None:
++        slabs = (
++            slab0, slab1, slab2, slab3, slab4, slab5, slab6, slab7,
++            slab8, slab9, slab10, slab11, slab12, slab13, slab14, slab15,
++        )
++        tidx, _, _ = cute.arch.thread_idx()
++        bidx, _, _ = cute.arch.block_idx()
++        gdim, _, _ = cute.arch.grid_dim()
++        self_base = Int64(slabs[self._rank].toint())
++
++        allocator = cutlass.utils.SmemAllocator()
++        shared_generation = allocator.allocate_tensor(
++            element_type=cutlass.Uint32,
++            layout=cute.make_layout((1,)),
++            byte_alignment=4,
++        )
++        if tidx == Int32(0):
++            shared_generation[0] = _atomic_add_global_u32(
++                self_base + Int64(bidx) * Int64(4), Uint32(1)
++            ) + Uint32(1)
++        cute.arch.barrier()
++        generation = Uint32(shared_generation[0])
++
++        # Everything below counts in bf16x2 words; callers guarantee an even
++        # element count so there is no scalar tail to chase.
++        pairs = elements // Int64(2)
++        quarter = (pairs + Int64(_ISLAND_SIZE - 1)) // Int64(_ISLAND_SIZE)
++        stride = Int64(gdim) * Int64(self._threads)
++        start = Int64(bidx) * Int64(self._threads) + Int64(tidx)
++
++        input_words = cute.recast_ptr(input_ptr.align(4), dtype=Uint32)
++        output_words = cute.recast_ptr(output_ptr.align(4), dtype=Uint32)
++
++        # Every remote transfer below is a *read*.  Measured on this fabric a
++        # GPU pulling from a peer sustains ~52 GB/s while pushing into one
++        # sustains ~2.6 GB/s, so the direction of the wire traffic matters far
++        # more than the number of hops.  The equal-quarter split is what buys
++        # the win over the leader-gather hierarchy: no rank moves more than
++        # three quarters of the vector on behalf of anyone else.
++
++        # Phase 1 -- publish my whole input locally, then reduce my quarter by
++        # pulling it out of the four island stages.
++        self_stage = cute.recast_ptr(
++            cute.make_ptr(
++                cutlass.BFloat16,
++                self_base + stage_offset,
++                cute.AddressSpace.gmem,
++                assumed_align=16,
++            ).align(4),
++            dtype=Uint32,
++        )
++        index = start
++        while index < pairs:
++            self_stage[index] = input_words[index]
++            index += stride
++        cute.arch.barrier()
++        if tidx == Int32(0):
++            _fence_sc_sys()
++            for p in cutlass.range_constexpr(_ISLAND_SIZE):
++                if cutlass.const_expr(p != self._lane):
++                    peer = self._island * _ISLAND_SIZE + p
++                    _store_release_sys_u32(
++                        _flag_address(
++                            Int64(slabs[peer].toint()),
++                            _RS_ARRIVED,
++                            bidx,
++                            Int32(self._lane),
++                        ),
++                        generation,
++                    )
++            for p in cutlass.range_constexpr(_ISLAND_SIZE):
++                if cutlass.const_expr(p != self._lane):
++                    _wait_for(
++                        _flag_address(self_base, _RS_ARRIVED, bidx, Int32(p)),
++                        generation,
++                        self._wait_nanosleep_cycles,
++                    )
++        cute.arch.barrier()
++
++        mine_begin = Int64(self._lane) * quarter
++        mine_stop = mine_begin + quarter
++        if mine_stop > pairs:
++            mine_stop = pairs
++        mine_length = mine_stop - mine_begin
++
++        self_part = cute.recast_ptr(
++            cute.make_ptr(
++                cutlass.BFloat16,
++                self_base + part_offset,
++                cute.AddressSpace.gmem,
++                assumed_align=16,
++            ).align(4),
++            dtype=Uint32,
++        )
++        index = start
++        while index < mine_length:
++            total_lo = Float32(0.0)
++            total_hi = Float32(0.0)
++            for p in cutlass.range_constexpr(_ISLAND_SIZE):
++                peer = self._island * _ISLAND_SIZE + p
++                peer_stage = cute.recast_ptr(
++                    cute.make_ptr(
++                        cutlass.BFloat16,
++                        Int64(slabs[peer].toint()) + stage_offset,
++                        cute.AddressSpace.gmem,
++                        assumed_align=16,
++                    ).align(4),
++                    dtype=Uint32,
++                )
++                lo, hi = unpack_bf16x2(peer_stage[mine_begin + index])
++                total_lo += lo
++                total_hi += hi
++            self_part[index] = pack_f32x2_to_bf16x2(total_lo, total_hi)
++            index += stride
++        cute.arch.barrier()
++
++        # Phase 2 -- combine the four island partials for my quarter, again by
++        # pulling, from the same lane in every island.
++        if tidx == Int32(0):
++            _fence_sc_sys()
++            for j in cutlass.range_constexpr(_MAX_ISLANDS):
++                if cutlass.const_expr(j != self._island):
++                    partner = j * _ISLAND_SIZE + self._lane
++                    _store_release_sys_u32(
++                        _flag_address(
++                            Int64(slabs[partner].toint()),
++                            _XS_ARRIVED,
++                            bidx,
++                            Int32(self._island),
++                        ),
++                        generation,
++                    )
++            for j in cutlass.range_constexpr(_MAX_ISLANDS):
++                if cutlass.const_expr(j != self._island):
++                    _wait_for(
++                        _flag_address(self_base, _XS_ARRIVED, bidx, Int32(j)),
++                        generation,
++                        self._wait_nanosleep_cycles,
++                    )
++        cute.arch.barrier()
++
++        self_final = cute.recast_ptr(
++            cute.make_ptr(
++                cutlass.BFloat16,
++                self_base + final_offset,
++                cute.AddressSpace.gmem,
++                assumed_align=16,
++            ).align(4),
++            dtype=Uint32,
++        )
++        index = start
++        while index < mine_length:
++            total_lo = Float32(0.0)
++            total_hi = Float32(0.0)
++            for j in cutlass.range_constexpr(_MAX_ISLANDS):
++                partner = j * _ISLAND_SIZE + self._lane
++                partner_part = cute.recast_ptr(
++                    cute.make_ptr(
++                        cutlass.BFloat16,
++                        Int64(slabs[partner].toint()) + part_offset,
++                        cute.AddressSpace.gmem,
++                        assumed_align=16,
++                    ).align(4),
++                    dtype=Uint32,
++                )
++                lo, hi = unpack_bf16x2(partner_part[index])
++                total_lo += lo
++                total_hi += hi
++            value = pack_f32x2_to_bf16x2(total_lo, total_hi)
++            self_final[mine_begin + index] = value
++            output_words[mine_begin + index] = value
++            index += stride
++        cute.arch.barrier()
++
++        # Phase 3 -- island all-gather, pulling the three quarters I do not own
++        # straight into my output.
++        if tidx == Int32(0):
++            _fence_sc_sys()
++            for p in cutlass.range_constexpr(_ISLAND_SIZE):
++                if cutlass.const_expr(p != self._lane):
++                    peer = self._island * _ISLAND_SIZE + p
++                    _store_release_sys_u32(
++                        _flag_address(
++                            Int64(slabs[peer].toint()),
++                            _AG_ARRIVED,
++                            bidx,
++                            Int32(self._lane),
++                        ),
++                        generation,
++                    )
++            for p in cutlass.range_constexpr(_ISLAND_SIZE):
++                if cutlass.const_expr(p != self._lane):
++                    _wait_for(
++                        _flag_address(self_base, _AG_ARRIVED, bidx, Int32(p)),
++                        generation,
++                        self._wait_nanosleep_cycles,
++                    )
++        cute.arch.barrier()
++
++        for p in cutlass.range_constexpr(_ISLAND_SIZE):
++            if cutlass.const_expr(p != self._lane):
++                peer = self._island * _ISLAND_SIZE + p
++                peer_final = cute.recast_ptr(
++                    cute.make_ptr(
++                        cutlass.BFloat16,
++                        Int64(slabs[peer].toint()) + final_offset,
++                        cute.AddressSpace.gmem,
++                        assumed_align=16,
++                    ).align(4),
++                    dtype=Uint32,
++                )
++                begin = Int64(p) * quarter
++                stop = begin + quarter
++                if stop > pairs:
++                    stop = pairs
++                index = start
++                while index < stop - begin:
++                    output_words[begin + index] = peer_final[begin + index]
++                    index += stride
++
++@functools.lru_cache(maxsize=None)
++def get_island_rs_launcher(
++    world_size: int,
++    rank: int,
++    device_index: int,
++    *,
++    threads: int = 128,
++    wait_nanosleep_cycles: int = 24,
++) -> Callable[..., None]:
++    """Return the rank-specialized TP16 island reduce-scatter launcher."""
++
++    del device_index  # retained in the process-local cache key
++    launch = _IslandRSLaunch(
++        world_size,
++        rank,
++        threads=threads,
++        wait_nanosleep_cycles=wait_nanosleep_cycles,
++    )
++    cache_key = (
++        int(world_size),
++        int(rank),
++        int(threads),
++        int(wait_nanosleep_cycles),
++    )
++    raise_if_kernel_resolution_frozen(
++        "cute.compile", target=launch, cache_key=cache_key
++    )
++    slab_placeholder = make_ptr(
++        cutlass.Uint8,
++        256,
++        cute.AddressSpace.gmem,
++        assumed_align=256,
++    )
++    raw = b12x_compile(
++        launch,
++        *(slab_placeholder for _ in range(_MAX_WORLD_SIZE)),
++        make_ptr(cutlass.BFloat16, 16, cute.AddressSpace.gmem, assumed_align=2),
++        make_ptr(cutlass.BFloat16, 16, cute.AddressSpace.gmem, assumed_align=2),
++        1,
++        1,
++        1,
++        1,
++        1,
++        1,
++        current_cuda_stream(),
++        compile_spec=KernelCompileSpec.from_key(
++            "comm.pcie.island_rs.bf16",
++            1,
++            cache_key,
++            labels=(
++                "world_size",
++                "rank",
++                "threads",
++                "wait_nanosleep_cycles",
++            ),
++        ),
++    )
++
++    def run(
++        slab_addresses: Sequence[int],
++        input_address: int,
++        output_address: int,
++        stage_offset: int,
++        part_offset: int,
++        final_offset: int,
++        quarter_capacity: int,
++        elements: int,
++        blocks: int,
++    ) -> None:
++        if len(slab_addresses) != world_size:
++            raise ValueError(
++                f"expected {world_size} slab addresses, got {len(slab_addresses)}"
++            )
++        raw(
++            *(
++                make_ptr(
++                    cutlass.Uint8,
++                    int(address),
++                    cute.AddressSpace.gmem,
++                    assumed_align=256,
++                )
++                for address in slab_addresses
++            ),
++            make_ptr(
++                cutlass.BFloat16,
++                input_address,
++                cute.AddressSpace.gmem,
++                assumed_align=2,
++            ),
++            make_ptr(
++                cutlass.BFloat16,
++                output_address,
++                cute.AddressSpace.gmem,
++                assumed_align=2,
++            ),
++            stage_offset,
++            part_offset,
++            final_offset,
++            quarter_capacity,
++            elements,
++            blocks,
++            current_cuda_stream(),
++        )
++
++    return run
++
++
++__all__ = ["get_island_rs_launcher", "island_rs_peers", "HEADER_BYTES", "MAX_BLOCKS"]
+diff --git a/b12x/comm/pcie/api.py b/b12x/comm/pcie/api.py
+index 098d100320990f7b8bb4bf4ecd228688ccbc2f79..3a57f4fa57a4a8f157abe600c7ccbd25995ed26a 100644
+--- a/b12x/comm/pcie/api.py
++++ b/b12x/comm/pcie/api.py
+@@ -37,13 +37,16 @@ from .pcie_oneshot import (
+ from .pcie_twoshot import (
+     PCIeTwoShotSP as TwoShotReduceScatter,
+ )
++from .pcie_vocab_argmax import (
++    PCIeVocabParallelArgmax as VocabParallelArgmax,
++)
+ 
+ 
+ def is_supported(device=None) -> bool:
+     """True on SM120/SM121 with >= 2 visible CUDA devices.
+ 
+-    Device kernels are compiled from the Python CuTe DSL sources on first use;
+-    no repo-authored C++/CUDA extension or runtime nvcc build is involved.
++    CuTe device kernels compile from Python sources. ``VocabParallelArgmax``
++    JIT-builds its bundled CUDA extension on first use.
+     """
+     import torch
+ 
+@@ -59,6 +62,7 @@ __all__ = [
+     "DcpAllToAll",
+     "DcpAllToAllPool",
+     "DcpTopKOwnerExchange",
++    "VocabParallelArgmax",
+     "autotune_dma_crossovers",
+     "parse_oneshot_max_size",
+     "lse_reduce_scatter_reference",
+diff --git a/b12x/comm/pcie/pcie_allreduce.py b/b12x/comm/pcie/pcie_allreduce.py
+index f97b314af912aae858ee69251bd692ecfeca4127..64eb638930c11208d0312a12ecc797eaa880b1a0 100644
+--- a/b12x/comm/pcie/pcie_allreduce.py
++++ b/b12x/comm/pcie/pcie_allreduce.py
+@@ -2,7 +2,9 @@
+ 
+ from __future__ import annotations
+ 
+-from contextlib import contextmanager
++import os
++
++from contextlib import ExitStack, contextmanager, suppress
+ from typing import Any, Optional, Sequence
+ 
+ import torch
+@@ -15,6 +17,15 @@ from .pcie_hierarchical import (
+ from .pcie_hierarchical import (
+     PCIeHierarchicalAllReduce,
+ )
++from .pcie_island_rs import (
++    CROSSOVER_ELEMENTS as ISLAND_RS_CROSSOVER_ELEMENTS,
++)
++from .pcie_island_rs import (
++    SUPPORTED_WORLD_SIZES as ISLAND_RS_WORLD_SIZES,
++)
++from .pcie_island_rs import (
++    PCIeIslandRSAllReduce,
++)
+ from .pcie_oneshot import (
+     DEFAULT_MAX_SIZE,
+     DEFAULT_RANK_DATA_BYTES,
+@@ -23,6 +34,37 @@ from .pcie_oneshot import (
+ )
+ 
+ 
++# The island reduce-scatter runtime keeps beating NCCL up to about this size;
++# past it NCCL's flat protocol cost wins again (37.6 vs 35.3 us at twelve rows
++# of 7168). Callers that gate on a byte limit should ask for this rather than
++# carrying their own constant.
++ISLAND_RS_MAX_BYTES = 160 * 1024
++
++
++def _algorithm_override() -> str:
++    """``auto`` picks per message size; the others pin one implementation."""
++
++    choice = os.getenv("B12X_PCIE_ALLREDUCE_ALGORITHM", "auto").strip().lower()
++    if choice not in ("auto", "hierarchical", "island_rs"):
++        raise ValueError(
++            "B12X_PCIE_ALLREDUCE_ALGORITHM must be auto, hierarchical or "
++            f"island_rs, got {choice!r}"
++        )
++    return choice
++
++
++def recommended_max_bytes(world_size: int, *, default: int = DEFAULT_MAX_SIZE) -> int:
++    """Largest all-reduce this runtime expects to win at, for this world size.
++
++    Callers use this policy without duplicating world-size- and
++    implementation-specific thresholds.
++    """
++
++    if world_size in ISLAND_RS_WORLD_SIZES and _algorithm_override() != "hierarchical":
++        return max(default, ISLAND_RS_MAX_BYTES)
++    return default
++
++
+ MAX_DIRECT_WORLD_SIZE = 8
+ DIRECT_WORLD_SIZES = tuple(
+     world_size
+@@ -52,8 +94,16 @@ class PCIeAllReduce:
+     connection limit.
+     """
+ 
+-    def __init__(self, runtime: Any, algorithm: str) -> None:
++    def __init__(
++        self,
++        runtime: Any,
++        algorithm: str,
++        island_rs: Any = None,
++    ) -> None:
+         self._runtime = runtime
++        # Optional second implementation for the same world. When present the
++        # dispatcher routes by message size instead of exposing a knob.
++        self._island_rs = island_rs
+         self.algorithm = algorithm
+         self.rank = runtime.rank
+         self.world_size = runtime.world_size
+@@ -92,7 +142,43 @@ class PCIeAllReduce:
+                 max_elements=max_size // torch.bfloat16.itemsize,
+                 ext_module=ext_module,
+             )
+-        return cls(runtime, algorithm)
++        island_rs = cls._maybe_island_rs(
++            exchange_group=exchange_group,
++            device=device,
++            max_size=max_size,
++        )
++        return cls(runtime, algorithm, island_rs)
++
++    @staticmethod
++    def _maybe_island_rs(
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        max_size: int,
++    ) -> Any:
++        """Attach the equal-quarter runtime when topology and policy allow it.
++
++        Capacity includes :data:`ISLAND_RS_MAX_BYTES` independently of the
++        caller's ``max_size`` so the dispatcher covers the complete crossover
++        band. Returns ``None`` on any failure; the hierarchical runtime remains
++        a correct fallback.
++        """
++
++        world_size = dist.get_world_size(group=exchange_group)
++        if world_size not in ISLAND_RS_WORLD_SIZES:
++            return None
++        if _algorithm_override() == "hierarchical":
++            return None
++        capacity = max(int(max_size), ISLAND_RS_MAX_BYTES)
++        elements = capacity // torch.bfloat16.itemsize
++        try:
++            return PCIeIslandRSAllReduce(
++                exchange_group=exchange_group,
++                device=device,
++                max_elements=elements - (elements % 2),
++            )
++        except Exception:
++            return None
+ 
+     @classmethod
+     def from_process_group(
+@@ -126,8 +212,32 @@ class PCIeAllReduce:
+         return self.algorithm == "oneshot"
+ 
+     def for_stream(self, stream: object = None):
++        if self._island_rs is not None:
++            self._island_rs.for_stream(stream)
+         return self._runtime.for_stream(stream)
+ 
++    def _use_island_rs(self, inp: torch.Tensor) -> bool:
++        """Route large messages to the equal-quarter runtime.
++
++        Small ones stay on the hierarchy, whose critical path is shorter for the
++        ranks that are not the island leader; large ones would otherwise funnel
++        the whole vector through that leader's PCIe link.
++        """
++
++        if self._island_rs is None:
++            return False
++        override = _algorithm_override()
++        if override == "hierarchical":
++            return False
++        if override != "island_rs" and inp.numel() <= ISLAND_RS_CROSSOVER_ELEMENTS:
++            return False
++        return self._island_rs.should_allreduce(inp)
++
++    def should_allreduce(self, inp: torch.Tensor) -> bool:
++        if self._runtime.should_allreduce(inp):
++            return True
++        return self._island_rs is not None and self._island_rs.should_allreduce(inp)
++
+     def all_reduce(
+         self,
+         inp: torch.Tensor,
+@@ -142,6 +252,8 @@ class PCIeAllReduce:
+                 raise ValueError(
+                     "peer_input_ptrs are unavailable for hierarchical all-reduce"
+                 )
++            if self._use_island_rs(inp):
++                return self._island_rs.all_reduce(inp, out=out, blocks=blocks)
+             return self._runtime.all_reduce(
+                 inp,
+                 out=out,
+@@ -159,10 +271,17 @@ class PCIeAllReduce:
+ 
+     @contextmanager
+     def capture(self, stream: object = None):
+-        with self._runtime.capture(stream=stream) as runtime:
++        with ExitStack() as stack:
++            runtime = stack.enter_context(self._runtime.capture(stream=stream))
++            if self._island_rs is not None:
++                stack.enter_context(self._island_rs.capture(stream=stream))
+             yield runtime
+ 
+     def close(self) -> None:
++        if self._island_rs is not None:
++            with suppress(Exception):
++                self._island_rs.close()
++            self._island_rs = None
+         self._runtime.close()
+ 
+     def __getattr__(self, name: str):
+diff --git a/b12x/comm/pcie/pcie_island_rs.py b/b12x/comm/pcie/pcie_island_rs.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..253cf446840c83026bc15723964f6c2623c94890
+--- /dev/null
++++ b/b12x/comm/pcie/pcie_island_rs.py
+@@ -0,0 +1,241 @@
++"""Pull-based island reduce-scatter TP16 all-reduce runtime."""
++
++from __future__ import annotations
++
++import os
++from contextlib import contextmanager, suppress
++from typing import Optional
++
++import torch
++import torch.distributed as dist
++from torch.distributed import ProcessGroup
++
++from ._island_rs_cute import (
++    HEADER_BYTES,
++    MAX_BLOCKS,
++    get_island_rs_launcher,
++    island_rs_peers,
++)
++from ._cuda_ipc import CudaRTLibrary
++from .pcie_oneshot import _broadcast_gather_object, _normalize_device
++
++
++SUPPORTED_WORLD_SIZES = (16,)
++SUPPORTED_BLOCKS = (1, 2, 4, 8, 16, 32)
++_ISLAND_SIZE = 4
++_ALIGNMENT = 256
++
++
++def _align_up(value: int, alignment: int = _ALIGNMENT) -> int:
++    return (int(value) + alignment - 1) // alignment * alignment
++
++
++def _threads_from_env() -> int:
++    # 512 is the measured TP16 optimum: each phase moves only about 86KB, so
++    # the kernel needs enough concurrent reads to cover the PCIe round trip.
++    # At [8, 7168] the same kernel costs 49.8 us with 128 threads and 25.9 with
++    # 512; 1024 gives nothing back.
++    raw = os.getenv("B12X_PCIE_ISLAND_RS_THREADS", "512")
++    threads = int(raw)
++    if not 32 <= threads <= 1024 or threads % 32:
++        raise ValueError(
++            "B12X_PCIE_ISLAND_RS_THREADS must be a multiple of 32 in [32, 1024]"
++        )
++    return threads
++
++
++def _wait_nanosleep_cycles_from_env() -> int:
++    cycles = int(os.getenv("B12X_PCIE_ISLAND_RS_NANOSLEEP_CYCLES", "24"))
++    if not 0 <= cycles <= 1024:
++        raise ValueError(
++            "B12X_PCIE_ISLAND_RS_NANOSLEEP_CYCLES must be in [0, 1024]"
++        )
++    return cycles
++
++
++def _pick_blocks(elements: int) -> int:
++    """Measured TP16 launch geometry; 32 blocks regress, 8 under-fill."""
++
++    if elements <= 4096:
++        return 8
++    return 16
++
++
++# Below this the leader-gather hierarchy is still ahead (18.16 vs 20.51 us at
++# one row of 7168), because it has a shorter critical path for the ranks that
++# are not the leader. Above it the leader's link is the bottleneck and the
++# equal-quarter split wins: 22.44 vs 30.36 us at four rows, 26.03 vs 46.79 at
++# eight. Expressed in elements so it does not depend on the model's hidden size.
++CROSSOVER_ELEMENTS = 14_336
++
++
++class PCIeIslandRSAllReduce:
++    """Equal-quarter BF16 TP16 all-reduce with no leader hotspot.
++
++    Every rank owns one quarter of the vector and reaches six peers: the three
++    other lanes of its four-GPU island, and the same lane in the three other
++    islands. Peer degree is bounded at six, and no rank carries the whole
++    vector on behalf of the others.
++    """
++
++    def __init__(
++        self,
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        max_elements: int,
++        blocks: Optional[int] = None,
++    ) -> None:
++        self.group = exchange_group
++        self.rank = dist.get_rank(group=exchange_group)
++        self.world_size = dist.get_world_size(group=exchange_group)
++        self.device = _normalize_device(device)
++        if self.world_size not in SUPPORTED_WORLD_SIZES:
++            raise ValueError(
++                f"island reduce-scatter requires TP16, got TP{self.world_size}"
++            )
++        if self.device.type != "cuda":
++            raise ValueError("island reduce-scatter requires a CUDA device")
++        if blocks is not None and blocks not in SUPPORTED_BLOCKS:
++            raise ValueError(f"blocks must be one of {SUPPORTED_BLOCKS}")
++        if max_elements <= 0 or max_elements % 2:
++            raise ValueError("max_elements must be a positive even count")
++
++        self.max_elements = int(max_elements)
++        self.blocks = None if blocks is None else int(blocks)
++        self.threads = _threads_from_env()
++        self.wait_nanosleep_cycles = _wait_nanosleep_cycles_from_env()
++
++        max_pairs = self.max_elements // 2
++        # Quarter stride in bf16x2 words, shared by the scatter and exchange
++        # regions so both index by (source, word) with a compile-time stride.
++        self.quarter_capacity = _align_up(
++            (max_pairs + _ISLAND_SIZE - 1) // _ISLAND_SIZE, 8
++        )
++        quarter_bytes = self.quarter_capacity * 4
++        self.stage_offset = _align_up(HEADER_BYTES)
++        self.part_offset = _align_up(self.stage_offset + self.max_elements * 2)
++        self.final_offset = _align_up(self.part_offset + quarter_bytes)
++        slab_bytes = _align_up(self.final_offset + self.max_elements * 2)
++
++        self._ipc = CudaRTLibrary()
++        self._ipc.cudaSetDevice(self.device.index or 0)
++        self._slab_ptrs: tuple[int, ...] = ()
++        self._local_ptr = 0
++        self._remote_ptrs: list[int] = []
++        self._closed = False
++        self._launcher = None
++
++        peer_ptrs = [0] * self.world_size
++        try:
++            self._local_ptr = self._ipc.cudaMalloc(slab_bytes)
++            self._ipc.cudaMemset(self._local_ptr, 0, slab_bytes)
++            local_handle = self._ipc.cudaIpcGetMemHandleBytes(self._local_ptr)
++            handles = _broadcast_gather_object(local_handle, exchange_group)
++            peer_ptrs[self.rank] = self._local_ptr
++            for peer in island_rs_peers(self.rank, self.world_size):
++                remote_ptr = self._ipc.cudaIpcOpenMemHandleBytes(handles[peer])
++                peer_ptrs[peer] = remote_ptr
++                self._remote_ptrs.append(remote_ptr)
++            self._slab_ptrs = tuple(peer_ptrs)
++            with torch.cuda.device(self.device):
++                self._launcher = get_island_rs_launcher(
++                    self.world_size,
++                    self.rank,
++                    self.device.index or 0,
++                    threads=self.threads,
++                    wait_nanosleep_cycles=self.wait_nanosleep_cycles,
++                )
++        except Exception:
++            self.close()
++            raise
++
++    @property
++    def mapped_peer_count(self) -> int:
++        return len(self._remote_ptrs)
++
++    def should_allreduce(self, inp: torch.Tensor) -> bool:
++        return (
++            not self._closed
++            and inp.device == self.device
++            and inp.dtype == torch.bfloat16
++            and inp.is_contiguous()
++            and 0 < inp.numel() <= self.max_elements
++            and inp.numel() % 2 == 0
++            and inp.data_ptr() % 4 == 0
++        )
++
++    def all_reduce(
++        self,
++        inp: torch.Tensor,
++        *,
++        out: Optional[torch.Tensor] = None,
++        blocks: Optional[int] = None,
++    ) -> torch.Tensor:
++        if not self.should_allreduce(inp):
++            raise ValueError(
++                "input does not satisfy island reduce-scatter requirements "
++                f"(shape={tuple(inp.shape)}, dtype={inp.dtype})"
++            )
++        if out is None:
++            out = torch.empty_like(inp)
++        if (
++            out.dtype != inp.dtype
++            or out.device != inp.device
++            or out.shape != inp.shape
++            or not out.is_contiguous()
++            or out.data_ptr() % 4 != 0
++        ):
++            raise ValueError("output must match input and be 4-byte aligned")
++        if blocks is not None:
++            selected = int(blocks)
++        elif self.blocks is not None:
++            selected = self.blocks
++        else:
++            selected = _pick_blocks(inp.numel())
++        if selected not in SUPPORTED_BLOCKS or selected > MAX_BLOCKS:
++            raise ValueError(f"blocks must be one of {SUPPORTED_BLOCKS}")
++        with torch.cuda.device(self.device):
++            self._launcher(
++                self._slab_ptrs,
++                inp.data_ptr(),
++                out.data_ptr(),
++                self.stage_offset,
++                self.part_offset,
++                self.final_offset,
++                self.quarter_capacity,
++                inp.numel(),
++                selected,
++            )
++        return out
++
++    def for_stream(self, stream: object = None) -> "PCIeIslandRSAllReduce":
++        del stream
++        return self
++
++    @contextmanager
++    def capture(self, stream: object = None):
++        del stream
++        yield self
++
++    def register_graph_buffers(self) -> None:
++        return None
++
++    def close(self) -> None:
++        if self._closed:
++            return
++        self._closed = True
++        if self.device.type == "cuda":
++            with suppress(Exception):
++                torch.cuda.synchronize(self.device)
++        for ptr in self._remote_ptrs:
++            with suppress(Exception):
++                self._ipc.cudaIpcCloseMemHandle(ptr)
++        self._remote_ptrs.clear()
++        if self._local_ptr:
++            with suppress(Exception):
++                self._ipc.cudaFree(self._local_ptr)
++            self._local_ptr = 0
++
++
++__all__ = ["PCIeIslandRSAllReduce", "SUPPORTED_WORLD_SIZES"]
+diff --git a/b12x/comm/pcie/pcie_vocab_argmax.cu b/b12x/comm/pcie/pcie_vocab_argmax.cu
+new file mode 100644
+index 0000000000000000000000000000000000000000..618c4c0870ab1878b1928f25ac69dfd60d70d36e
+--- /dev/null
++++ b/b12x/comm/pcie/pcie_vocab_argmax.cu
+@@ -0,0 +1,346 @@
++// Bounded-degree TP16 fused BF16 add + global greedy argmax.
++
++#include <ATen/cuda/Exceptions.h>
++#include <c10/cuda/CUDAGuard.h>
++#include <c10/cuda/CUDAStream.h>
++#include <cuda_bf16.h>
++#include <cuda_runtime.h>
++#include <math_constants.h>
++#include <torch/extension.h>
++
++#include <climits>
++#include <cmath>
++#include <cstdint>
++#include <memory>
++#include <stdexcept>
++#include <vector>
++
++#ifndef B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES
++#define B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES 24
++#endif
++
++static_assert(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES >= 0);
++
++namespace pcie_vocab_argmax {
++
++constexpr int kWorldSize = 16;
++constexpr int kIslandSize = 4;
++constexpr int kNumIslands = 4;
++constexpr int kSlots = 2;
++constexpr int kMaxBatch = 8;
++constexpr int kThreads = 512;
++
++struct Pair {
++  float value;
++  int32_t index;
++};
++
++struct alignas(128) Flag {
++  uint32_t value;
++  uint32_t padding[31];
++};
++
++struct alignas(256) Header {
++  uint32_t generation[kMaxBatch];
++  uint32_t generation_padding[64 - kMaxBatch];
++  Flag local_ready[kSlots][kMaxBatch][kIslandSize];
++  Flag island_ready[kSlots][kMaxBatch][kNumIslands];
++  Pair local_pair[kSlots][kMaxBatch];
++  Pair island_pair[kSlots][kMaxBatch];
++};
++
++static_assert(sizeof(Flag) == 128);
++static_assert(sizeof(Header) % 256 == 0);
++
++struct Runtime {
++  Header* slabs[kWorldSize] = {};
++  int rank;
++  int64_t local_elements;
++  int max_batch;
++};
++
++__device__ __forceinline__ uint32_t load_acquire(const uint32_t* ptr) {
++  uint32_t value;
++  asm volatile("ld.acquire.sys.global.u32 %0, [%1];"
++               : "=r"(value)
++               : "l"(ptr));
++  return value;
++}
++
++__device__ __forceinline__ void store_release(
++    uint32_t* ptr, uint32_t value) {
++  asm volatile("st.release.sys.global.u32 [%0], %1;"
++               :
++               : "l"(ptr), "r"(value)
++               : "memory");
++}
++
++__device__ __forceinline__ void wait_for(
++    const uint32_t* ptr, uint32_t generation) {
++  while (load_acquire(ptr) < generation) {
++#if __CUDA_ARCH__ >= 700 && \
++    B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES > 0
++    __nanosleep(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES);
++#endif
++  }
++}
++
++__device__ __forceinline__ Pair better(Pair lhs, Pair rhs) {
++  const bool lhs_nan = isnan(lhs.value);
++  const bool rhs_nan = isnan(rhs.value);
++  if (lhs_nan != rhs_nan) {
++    return rhs_nan ? rhs : lhs;
++  }
++  if (rhs.value > lhs.value ||
++      (rhs.value == lhs.value && rhs.index < lhs.index)) {
++    return rhs;
++  }
++  return lhs;
++}
++
++__device__ __forceinline__ Pair warp_reduce(Pair value) {
++  constexpr unsigned mask = 0xffffffffU;
++#pragma unroll
++  for (int offset = 16; offset > 0; offset >>= 1) {
++    Pair other{
++        __shfl_down_sync(mask, value.value, offset),
++        __shfl_down_sync(mask, value.index, offset),
++    };
++    if ((threadIdx.x & 31) + offset < 32) {
++      value = better(value, other);
++    }
++  }
++  return value;
++}
++
++__global__ void fused_add_argmax_tp16(
++    Runtime runtime,
++    const nv_bfloat16* base,
++    const nv_bfloat16* bias,
++    int64_t base_row_stride,
++    int64_t bias_row_stride,
++    int64_t* output) {
++  __shared__ Pair warp_pairs[32];
++  __shared__ Pair block_pair;
++  __shared__ uint32_t generation;
++
++  const int tid = threadIdx.x;
++  const int row = blockIdx.x;
++  const int lane = tid & 31;
++  const int warp = tid >> 5;
++  const int warps = blockDim.x >> 5;
++  const int64_t base_row_offset =
++      static_cast<int64_t>(row) * base_row_stride;
++  const int64_t bias_row_offset =
++      static_cast<int64_t>(row) * bias_row_stride;
++
++  Pair best{-CUDART_INF_F, INT_MAX};
++  for (int64_t index = tid; index < runtime.local_elements;
++       index += blockDim.x) {
++    const float sum = __bfloat162float(base[base_row_offset + index]) +
++                      __bfloat162float(bias[bias_row_offset + index]);
++    const nv_bfloat16 rounded = __float2bfloat16_rn(sum);
++    const Pair candidate{
++        __bfloat162float(rounded),
++        static_cast<int32_t>(runtime.rank * runtime.local_elements + index),
++    };
++    best = better(best, candidate);
++  }
++  best = warp_reduce(best);
++  if (lane == 0) {
++    warp_pairs[warp] = best;
++  }
++  __syncthreads();
++
++  if (warp == 0) {
++    Pair warp_best = lane < warps
++                         ? warp_pairs[lane]
++                         : Pair{-CUDART_INF_F, INT_MAX};
++    warp_best = warp_reduce(warp_best);
++    if (lane == 0) {
++      block_pair = warp_best;
++    }
++  }
++  __syncthreads();
++  if (tid != 0) {
++    return;
++  }
++
++  Header* self = runtime.slabs[runtime.rank];
++  generation = atomicAdd(&self->generation[row], 1U) + 1U;
++  const int slot = static_cast<int>(generation & 1U);
++  const int island = runtime.rank / kIslandSize;
++  const int local_rank = runtime.rank % kIslandSize;
++  const int island_base = island * kIslandSize;
++
++  self->local_pair[slot][row] = block_pair;
++  __threadfence_system();
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    if (peer_local == local_rank) {
++      continue;
++    }
++    Header* peer = runtime.slabs[island_base + peer_local];
++    store_release(
++        &peer->local_ready[slot][row][local_rank].value,
++        generation);
++  }
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    if (peer_local == local_rank) {
++      continue;
++    }
++    wait_for(
++        &self->local_ready[slot][row][peer_local].value,
++        generation);
++  }
++
++  Pair island_best{-CUDART_INF_F, INT_MAX};
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    island_best = better(
++        island_best,
++        runtime.slabs[island_base + peer_local]->local_pair[slot][row]);
++  }
++  self->island_pair[slot][row] = island_best;
++  __threadfence_system();
++
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    if (peer_island == island) {
++      continue;
++    }
++    Header* peer =
++        runtime.slabs[peer_island * kIslandSize + local_rank];
++    store_release(
++        &peer->island_ready[slot][row][island].value,
++        generation);
++  }
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    if (peer_island == island) {
++      continue;
++    }
++    wait_for(
++        &self->island_ready[slot][row][peer_island].value,
++        generation);
++  }
++
++  Pair global_best{-CUDART_INF_F, INT_MAX};
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    global_best = better(
++        global_best,
++        runtime.slabs[peer_island * kIslandSize + local_rank]
++            ->island_pair[slot][row]);
++  }
++  output[row] = static_cast<int64_t>(global_best.index);
++}
++
++}  // namespace pcie_vocab_argmax
++
++using Runtime = pcie_vocab_argmax::Runtime;
++
++static int64_t slab_bytes() {
++  return static_cast<int64_t>(sizeof(pcie_vocab_argmax::Header));
++}
++
++static int64_t init_runtime(
++    const std::vector<int64_t>& slab_ptrs,
++    int64_t rank,
++    int64_t local_elements,
++    int64_t max_batch) {
++  if (slab_ptrs.size() != pcie_vocab_argmax::kWorldSize) {
++    throw std::invalid_argument("vocabulary argmax requires TP16");
++  }
++  if (rank < 0 || rank >= pcie_vocab_argmax::kWorldSize ||
++      local_elements <= 0 ||
++      local_elements * pcie_vocab_argmax::kWorldSize >= (int64_t(1) << 31) ||
++      max_batch <= 0 || max_batch > pcie_vocab_argmax::kMaxBatch) {
++    throw std::invalid_argument("invalid vocabulary argmax geometry");
++  }
++  auto runtime = std::make_unique<Runtime>();
++  runtime->rank = static_cast<int>(rank);
++  runtime->local_elements = local_elements;
++  runtime->max_batch = static_cast<int>(max_batch);
++  for (int index = 0; index < pcie_vocab_argmax::kWorldSize; ++index) {
++    runtime->slabs[index] =
++        reinterpret_cast<pcie_vocab_argmax::Header*>(slab_ptrs[index]);
++  }
++
++  const int island = runtime->rank / pcie_vocab_argmax::kIslandSize;
++  const int local_rank = runtime->rank % pcie_vocab_argmax::kIslandSize;
++  for (int peer_local = 0; peer_local < pcie_vocab_argmax::kIslandSize;
++       ++peer_local) {
++    const int peer_rank = island * pcie_vocab_argmax::kIslandSize + peer_local;
++    if (runtime->slabs[peer_rank] == nullptr) {
++      throw std::invalid_argument("missing local-island slab");
++    }
++  }
++  for (int peer_island = 0; peer_island < pcie_vocab_argmax::kNumIslands;
++       ++peer_island) {
++    const int peer_rank =
++        peer_island * pcie_vocab_argmax::kIslandSize + local_rank;
++    if (runtime->slabs[peer_rank] == nullptr) {
++      throw std::invalid_argument("missing cross-island lane slab");
++    }
++  }
++  return reinterpret_cast<int64_t>(runtime.release());
++}
++
++static void fused_add_argmax(
++    int64_t runtime_handle,
++    torch::Tensor base,
++    torch::Tensor bias,
++    torch::Tensor output) {
++  auto* runtime = reinterpret_cast<Runtime*>(runtime_handle);
++  TORCH_CHECK(runtime != nullptr, "vocabulary argmax runtime is closed");
++  TORCH_CHECK(base.is_cuda() && bias.is_cuda() && output.is_cuda(),
++              "tensors must be CUDA");
++  TORCH_CHECK(base.scalar_type() == torch::kBFloat16 &&
++                  bias.scalar_type() == torch::kBFloat16,
++              "base and bias must be BF16");
++  TORCH_CHECK(output.scalar_type() == torch::kInt64,
++              "output must be int64");
++  TORCH_CHECK(base.device() == bias.device() &&
++                  base.device() == output.device(),
++              "tensors must be on the same CUDA device");
++  TORCH_CHECK(base.dim() == 2 && bias.dim() == 2,
++              "base and bias must be two-dimensional");
++  TORCH_CHECK(base.stride(1) == 1 && bias.stride(1) == 1,
++              "input last dimensions must be contiguous");
++  TORCH_CHECK(base.stride(0) > 0 && bias.stride(0) > 0,
++              "input row strides must be positive");
++  TORCH_CHECK(output.is_contiguous(), "output must be contiguous");
++  TORCH_CHECK(base.sizes() == bias.sizes(),
++              "base and bias shapes must match");
++  TORCH_CHECK(base.dim() == 2 && base.size(1) == runtime->local_elements,
++              "inputs must be [batch, local_vocab]");
++  TORCH_CHECK(base.size(0) > 0 && base.size(0) <= runtime->max_batch,
++              "batch exceeds vocabulary argmax capacity");
++  TORCH_CHECK(output.dim() == 1 && output.size(0) == base.size(0),
++              "output must be [batch]");
++
++  const c10::cuda::CUDAGuard guard(base.device());
++  const cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
++  pcie_vocab_argmax::fused_add_argmax_tp16
++      <<<static_cast<int>(base.size(0)), pcie_vocab_argmax::kThreads, 0, stream>>>(
++          *runtime,
++          reinterpret_cast<const nv_bfloat16*>(base.data_ptr()),
++          reinterpret_cast<const nv_bfloat16*>(bias.data_ptr()),
++          base.stride(0),
++          bias.stride(0),
++          reinterpret_cast<int64_t*>(output.data_ptr()));
++  C10_CUDA_KERNEL_LAUNCH_CHECK();
++}
++
++static void destroy_runtime(int64_t runtime_handle) {
++  delete reinterpret_cast<Runtime*>(runtime_handle);
++}
++
++PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
++  module.def("slab_bytes", &slab_bytes);
++  module.def("init_runtime", &init_runtime);
++  module.def("fused_add_argmax", &fused_add_argmax);
++  module.def("destroy_runtime", &destroy_runtime);
++}
+diff --git a/b12x/comm/pcie/pcie_vocab_argmax.py b/b12x/comm/pcie/pcie_vocab_argmax.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d6fc479ae32e11ec6ac7d8f7c6606a3969652ef
+--- /dev/null
++++ b/b12x/comm/pcie/pcie_vocab_argmax.py
+@@ -0,0 +1,326 @@
++"""Bounded-degree TP16 vocabulary argmax runtime."""
++
++from __future__ import annotations
++
++import os
++from contextlib import contextmanager, suppress
++from functools import lru_cache
++from pathlib import Path
++from typing import Optional
++from warnings import warn
++
++import torch
++import torch.distributed as dist
++from torch.distributed import ProcessGroup
++from torch.utils.cpp_extension import load
++
++from ._cuda_ipc import CudaRTLibrary
++from .pcie_oneshot import _broadcast_gather_object
++
++
++WORLD_SIZE = 16
++ISLAND_SIZE = 4
++MAX_BATCH_SIZE = 8
++
++
++def _exchange_ipc_handles(
++    local_handle: object,
++    group: ProcessGroup,
++) -> list[object]:
++    """Exchange CUDA IPC handles over NCCL or a metadata-only Gloo group."""
++
++    backend = str(dist.get_backend(group=group)).lower()
++    if "nccl" in backend:
++        return _broadcast_gather_object(local_handle, group)
++    if "gloo" not in backend:
++        raise ValueError(
++            "vocabulary argmax IPC exchange requires an NCCL or Gloo group, "
++            f"got {backend}"
++        )
++
++    world_size = dist.get_world_size(group=group)
++    rank = dist.get_rank(group=group)
++    all_objects: list[list[object | None]] = [[None] for _ in range(world_size)]
++    all_objects[rank][0] = local_handle
++    for index, src_rank in enumerate(dist.get_process_group_ranks(group)):
++        dist.broadcast_object_list(all_objects[index], src=src_rank, group=group)
++    return [entry[0] for entry in all_objects]
++
++
++def _wait_nanosleep_cycles_from_env() -> int:
++    raw = os.getenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", "24")
++    try:
++        cycles = int(raw)
++    except ValueError as exc:
++        raise ValueError(
++            "B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES must be an integer"
++        ) from exc
++    if not 0 <= cycles <= 1024:
++        raise ValueError("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES must be in [0, 1024]")
++    return cycles
++
++
++@lru_cache(maxsize=1)
++def _load_extension():
++    source = Path(__file__).with_name("pcie_vocab_argmax.cu")
++    wait_cycles = _wait_nanosleep_cycles_from_env()
++    return load(
++        name=f"b12x_pcie_vocab_argmax_ext_ns{wait_cycles}",
++        sources=[str(source)],
++        extra_cuda_cflags=[
++            "-O3",
++            f"-DB12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES={wait_cycles}",
++        ],
++        extra_ldflags=["-lcuda"],
++        verbose=(os.getenv("B12X_PCIE_VOCAB_ARGMAX_VERBOSE_BUILD", "0") == "1"),
++    )
++
++
++def _selected_peers(rank: int, world_size: int = WORLD_SIZE) -> tuple[int, ...]:
++    """Return three island peers plus the same lane in other islands."""
++
++    if world_size != WORLD_SIZE or not 0 <= rank < world_size:
++        raise ValueError(
++            f"vocabulary argmax requires TP{WORLD_SIZE}, got rank={rank}, "
++            f"TP={world_size}"
++        )
++    island = rank // ISLAND_SIZE
++    lane = rank % ISLAND_SIZE
++    local = set(range(island * ISLAND_SIZE, (island + 1) * ISLAND_SIZE))
++    cross_island = set(range(lane, world_size, ISLAND_SIZE))
++    return tuple(sorted((local | cross_island) - {rank}))
++
++
++class PCIeVocabParallelArgmax:
++    """Fuse BF16 add and exact global greedy sampling across TP16 shards."""
++
++    def __init__(
++        self,
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> None:
++        self.group = exchange_group
++        self.rank = dist.get_rank(group=exchange_group)
++        self.world_size = dist.get_world_size(group=exchange_group)
++        self.device = (
++            device
++            if isinstance(device, torch.device)
++            else torch.device(f"cuda:{device}" if isinstance(device, int) else device)
++        )
++        if self.world_size != WORLD_SIZE:
++            raise ValueError(
++                f"vocabulary argmax requires TP{WORLD_SIZE}, got TP{self.world_size}"
++            )
++        if self.device.type != "cuda":
++            raise ValueError("vocabulary argmax requires a CUDA device")
++        device_index = self.device.index
++        if device_index is None:
++            device_index = torch.cuda.current_device()
++            self.device = torch.device("cuda", device_index)
++        if local_vocab_size <= 0 or local_vocab_size * self.world_size >= 1 << 31:
++            raise ValueError("global vocabulary must fit a positive int32 index")
++        if not 0 < max_batch_size <= MAX_BATCH_SIZE:
++            raise ValueError(f"max_batch_size must be in [1, {MAX_BATCH_SIZE}]")
++
++        self.local_vocab_size = int(local_vocab_size)
++        self.max_batch_size = int(max_batch_size)
++        self._ext = ext_module or _load_extension()
++        self._ipc = CudaRTLibrary()
++        self._ipc.cudaSetDevice(device_index)
++        self._runtime = 0
++        self._local_ptr = 0
++        self._remote_ptrs: list[int] = []
++        self._closed = False
++
++        slab_bytes = int(self._ext.slab_bytes())
++        peer_ptrs = [0] * self.world_size
++        try:
++            self._local_ptr = self._ipc.cudaMalloc(slab_bytes)
++            self._ipc.cudaMemset(self._local_ptr, 0, slab_bytes)
++            local_handle = self._ipc.cudaIpcGetMemHandleBytes(self._local_ptr)
++            handles = _exchange_ipc_handles(local_handle, exchange_group)
++            peer_ptrs[self.rank] = self._local_ptr
++            for peer in _selected_peers(self.rank, self.world_size):
++                remote_ptr = self._ipc.cudaIpcOpenMemHandleBytes(handles[peer])
++                peer_ptrs[peer] = remote_ptr
++                self._remote_ptrs.append(remote_ptr)
++            self._runtime = int(
++                self._ext.init_runtime(
++                    peer_ptrs,
++                    self.rank,
++                    self.local_vocab_size,
++                    self.max_batch_size,
++                )
++            )
++        except Exception:
++            # Construction cleanup is rank-local. Mark the object closed so
++            # garbage collection cannot enter the collective close protocol.
++            self._closed = True
++            for ptr in self._remote_ptrs:
++                with suppress(Exception):
++                    self._ipc.cudaIpcCloseMemHandle(ptr)
++            self._remote_ptrs.clear()
++            if self._local_ptr:
++                with suppress(Exception):
++                    self._ipc.cudaFree(self._local_ptr)
++                self._local_ptr = 0
++            raise
++
++    @classmethod
++    def from_exchange_group(
++        cls,
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> "PCIeVocabParallelArgmax":
++        return cls(
++            exchange_group=exchange_group,
++            device=device,
++            local_vocab_size=local_vocab_size,
++            max_batch_size=max_batch_size,
++            ext_module=ext_module,
++        )
++
++    @classmethod
++    def from_process_group(
++        cls,
++        *,
++        process_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> "PCIeVocabParallelArgmax":
++        return cls.from_exchange_group(
++            exchange_group=process_group,
++            device=device,
++            local_vocab_size=local_vocab_size,
++            max_batch_size=max_batch_size,
++            ext_module=ext_module,
++        )
++
++    @property
++    def mapped_peer_count(self) -> int:
++        return len(self._remote_ptrs)
++
++    def fused_add_argmax(
++        self,
++        base: torch.Tensor,
++        bias: torch.Tensor,
++        out: Optional[torch.Tensor] = None,
++    ) -> torch.Tensor:
++        """Return exact global argmax of the BF16-rounded local sum."""
++
++        if self._closed:
++            raise RuntimeError("vocabulary argmax runtime is closed")
++        if base.device != self.device or bias.device != self.device:
++            raise ValueError("inputs must be on the runtime device")
++        if base.dtype != torch.bfloat16 or bias.dtype != torch.bfloat16:
++            raise ValueError("inputs must be BF16")
++        if base.ndim != 2 or base.shape != bias.shape:
++            raise ValueError("inputs must have matching [batch, local_vocab] shapes")
++        batch, local_vocab = (int(value) for value in base.shape)
++        if not 0 < batch <= self.max_batch_size:
++            raise ValueError(
++                f"batch size {batch} exceeds capacity {self.max_batch_size}"
++            )
++        if local_vocab != self.local_vocab_size:
++            raise ValueError(
++                f"local vocabulary must be {self.local_vocab_size}, got {local_vocab}"
++            )
++        if base.stride(1) != 1 or bias.stride(1) != 1:
++            raise ValueError("input last dimensions must be contiguous")
++        if base.stride(0) <= 0 or bias.stride(0) <= 0:
++            raise ValueError("input row strides must be positive")
++        if out is None:
++            out = torch.empty(batch, dtype=torch.int64, device=self.device)
++        if (
++            out.device != self.device
++            or out.dtype != torch.int64
++            or out.shape != (batch,)
++            or not out.is_contiguous()
++        ):
++            raise ValueError("output must be contiguous int64 [batch] on the device")
++        self._ext.fused_add_argmax(self._runtime, base, bias, out)
++        return out
++
++    def for_stream(self, stream: object = None) -> "PCIeVocabParallelArgmax":
++        del stream
++        return self
++
++    @contextmanager
++    def capture(self, stream: object = None):
++        del stream
++        yield self
++
++    def register_graph_buffers(self) -> None:
++        return None
++
++    def close(self) -> None:
++        if self._closed:
++            return
++        self._closed = True
++        torch.cuda.synchronize(self.device)
++        dist.barrier(group=self.group)
++        if self._runtime:
++            self._ext.destroy_runtime(self._runtime)
++            self._runtime = 0
++        for ptr in self._remote_ptrs:
++            self._ipc.cudaIpcCloseMemHandle(ptr)
++        self._remote_ptrs.clear()
++        dist.barrier(group=self.group)
++        if self._local_ptr:
++            self._ipc.cudaFree(self._local_ptr)
++            self._local_ptr = 0
++        dist.barrier(group=self.group)
++
++    def __enter__(self) -> "PCIeVocabParallelArgmax":
++        return self
++
++    def __exit__(self, *_args) -> None:
++        self.close()
++
++    def __del__(self) -> None:
++        if getattr(self, "_closed", True):
++            return
++
++        # Python garbage collection is not ordered across distributed ranks.
++        # Calling close() here could deadlock on its collective barriers, so
++        # finalization releases only resources owned by this rank. Callers
++        # must use close() or the context manager for coordinated teardown.
++        self._closed = True
++        with suppress(Exception):
++            warn(
++                "PCIeVocabParallelArgmax was garbage-collected without close(); "
++                "releasing rank-local CUDA resources without collective teardown",
++                ResourceWarning,
++                stacklevel=2,
++            )
++
++        runtime = getattr(self, "_runtime", 0)
++        self._runtime = 0
++        if runtime:
++            with suppress(Exception):
++                self._ext.destroy_runtime(runtime)
++
++        remote_ptrs = list(getattr(self, "_remote_ptrs", ()))
++        self._remote_ptrs = []
++        for ptr in remote_ptrs:
++            with suppress(Exception):
++                self._ipc.cudaIpcCloseMemHandle(ptr)
++
++        local_ptr = getattr(self, "_local_ptr", 0)
++        self._local_ptr = 0
++        if local_ptr:
++            with suppress(Exception):
++                self._ipc.cudaFree(local_ptr)
++
++
++__all__ = ["PCIeVocabParallelArgmax"]
+diff --git a/tests/attention/test_dense_mla.py b/tests/attention/test_dense_mla.py
+index fd77e2143830b72ef98104c7ae9c4445d7e3d262..2770f5308f0a6415a863d2ce03799ce705760103 100644
+--- a/tests/attention/test_dense_mla.py
++++ b/tests/attention/test_dense_mla.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import ast
+ from pathlib import Path
++from types import SimpleNamespace
+ 
+ import pytest
+ import torch
+@@ -99,6 +100,94 @@ def test_public_types_are_module_scoped_names() -> None:
+     assert dense_mla.Budget.__name__ == "Budget"
+ 
+ 
++def test_prevalidated_bind_is_fresh_and_caller_scratch_owned() -> None:
++    plan = dense_mla.plan(
++        dense_mla.Caps(
++            device="cpu",
++            mode="verify",
++            kv_dtype=torch.bfloat16,
++            num_q_heads=HEADS,
++            page_size=16,
++            max_total_q=8,
++            max_batch=1,
++            max_cache_tokens=128,
++            max_page_table_width=8,
++            num_cache_pages=8,
++        )
++    )
++    scratch = _scratch(plan)
++    kwargs = {
++        "scratch": scratch,
++        "q": torch.empty(8, HEADS, QK_DIM, dtype=torch.bfloat16),
++        "kv_cache": torch.empty(8, 16, QK_DIM, dtype=torch.bfloat16),
++        "output": torch.empty(8, HEADS, VALUE_DIM, dtype=torch.bfloat16),
++        "page_table": torch.zeros(1, 8, dtype=torch.int32),
++        "cache_seqlens": torch.tensor([128], dtype=torch.int32),
++        "cu_seqlens_q": torch.tensor([0, 8], dtype=torch.int32),
++        "active_splits": plan.num_splits,
++        "validate": False,
++    }
++
++    first = dense_mla.bind(plan, **kwargs)
++    second = dense_mla.bind(plan, **kwargs)
++
++    assert first is not second
++    assert first.scratch is not second.scratch
++    assert first.scratch.shared_scratch.data_ptr() == scratch.data_ptr()
++    assert second.scratch.shared_scratch.data_ptr() == scratch.data_ptr()
++    assert first.scratch.final_lse is not second.scratch.final_lse
++    assert first.scratch.final_lse.data_ptr() == second.scratch.final_lse.data_ptr()
++    if first.scratch.partial_output is not None:
++        assert second.scratch.partial_output is not None
++        assert first.scratch.partial_output is not second.scratch.partial_output
++        assert (
++            first.scratch.partial_output.data_ptr()
++            == second.scratch.partial_output.data_ptr()
++        )
++    assert first.q is kwargs["q"]
++    assert first.output is kwargs["output"]
++    with pytest.raises(ValueError, match="active_splits"):
++        dense_mla.bind(plan, **{**kwargs, "active_splits": 0})
++    with pytest.raises(ValueError, match="scratch is smaller"):
++        dense_mla.bind(plan, **{**kwargs, "scratch": scratch[:-1]})
++
++
++def test_runtime_launch_does_not_rebuild_compile_template(monkeypatch) -> None:
++    from b12x.attention.dense_mla import _kernel
++
++    signature = ("already-compiled",)
++    compiled = object()
++    launches: list[tuple[object, tuple[object, ...]]] = []
++    binding = SimpleNamespace(
++        q=SimpleNamespace(is_cuda=True, shape=(1,)),
++        scratch=SimpleNamespace(
++            num_splits=1,
++            final_lse=torch.empty(1, HEADS),
++        ),
++        output=torch.empty(1, HEADS, VALUE_DIM),
++    )
++    monkeypatch.setattr(_kernel, "_signature", lambda _: signature)
++    monkeypatch.setattr(_kernel, "_forward_args", lambda _: ("runtime",))
++    monkeypatch.setattr(torch.cuda, "is_current_stream_capturing", lambda: False)
++    monkeypatch.setattr(
++        _kernel,
++        "_forward_compile_template",
++        lambda _: pytest.fail("runtime rebuilt immutable compile metadata"),
++    )
++    monkeypatch.setattr(
++        _kernel,
++        "run_compiled",
++        lambda entry, args: launches.append((entry, args)),
++    )
++    monkeypatch.setitem(_kernel._FORWARD_CACHE, signature, compiled)
++
++    output, lse = _kernel.run_dense_mla(binding=binding)
++
++    assert launches == [(compiled, ("runtime",))]
++    assert output is binding.output
++    assert lse.data_ptr() == binding.scratch.final_lse.data_ptr()
++
++
+ def test_partial_row_budget_changes_native_split_policy() -> None:
+     device = require_b12x()
+     plan = dense_mla.plan(
+@@ -664,6 +753,76 @@ def test_fp8_production_split_plan_handles_short_live_sequence() -> None:
+     torch.testing.assert_close(full_lse, captured_lse, rtol=0, atol=0)
+ 
+ 
++@torch.inference_mode()
++def test_fp8_dcp16_fresh_bind_matches_reference() -> None:
++    """Exercise the exact 96-head/65,536-local-token DCP16 decode plan."""
++    device = require_b12x()
++    torch.manual_seed(20260806)
++    page_size = 768
++    max_cache_tokens = 65_536
++    page_width = (max_cache_tokens + page_size - 1) // page_size
++    plan = dense_mla.plan(
++        dense_mla.Caps(
++            device=device,
++            mode="decode",
++            kv_dtype=FP8,
++            num_q_heads=96,
++            page_size=page_size,
++            max_total_q=1,
++            max_batch=1,
++            max_cache_tokens=max_cache_tokens,
++            max_page_table_width=page_width,
++            num_cache_pages=1,
++            use_cuda_graph=True,
++        )
++    )
++    assert plan.num_splits == 47
++
++    q_float = torch.randn(1, 96, QK_DIM, device=device) * 0.1
++    cache_float = torch.randn(1, page_size, QK_DIM, device=device) * 0.1
++    q_scale = (q_float.abs().max() / 400).reshape(1).float()
++    kv_scale = (cache_float.abs().max() / 400).reshape(1).float()
++    q = (q_float / q_scale).to(FP8)
++    cache = (cache_float / kv_scale).to(FP8)
++    output = torch.empty(1, 96, VALUE_DIM, dtype=torch.bfloat16, device=device)
++    scratch = _scratch(plan)
++    kwargs = {
++        "scratch": scratch,
++        "q": q,
++        "kv_cache": cache,
++        "output": output,
++        "page_table": torch.zeros(1, 1, dtype=torch.int32, device=device),
++        "cache_seqlens": torch.tensor([257], dtype=torch.int32, device=device),
++        "cu_seqlens_q": torch.tensor([0, 1], dtype=torch.int32, device=device),
++        "q_scale": q_scale,
++        "kv_scale": kv_scale,
++        "active_splits": 1,
++        "validate": False,
++    }
++    first = dense_mla.bind(plan, **kwargs)
++    binding = dense_mla.bind(plan, **kwargs)
++    assert first is not binding
++    assert first.scratch is not binding.scratch
++    assert first.scratch.partial_output is not binding.scratch.partial_output
++    assert (
++        first.scratch.partial_output.data_ptr()
++        == binding.scratch.partial_output.data_ptr()
++    )
++
++    dense_mla.compile(binding=binding)
++    actual_output, actual_lse = dense_mla.run(binding=binding)
++    expected_output, expected_lse = dense_mla.reference(
++        q,
++        cache,
++        kwargs["page_table"],
++        kwargs["cache_seqlens"],
++        kwargs["cu_seqlens_q"],
++        q_scale=q_scale,
++        kv_scale=kv_scale,
++    )
++    _assert_matches(actual_output, actual_lse, expected_output, expected_lse)
++
++
+ @torch.inference_mode()
+ def test_page_ids_past_int32_scaled_offset_match_reference() -> None:
+     device = require_b12x()
+@@ -776,12 +935,15 @@ def test_fp8_page_ids_past_int32_scaled_offset_match_reference() -> None:
+         dtype=FP8,
+         device=device,
+     )
+-    cache_float = torch.randn(
+-        live_pages,
+-        page_size,
+-        QK_DIM,
+-        device=device,
+-    ) * 0.1
++    cache_float = (
++        torch.randn(
++            live_pages,
++            page_size,
++            QK_DIM,
++            device=device,
++        )
++        * 0.1
++    )
+     kv_scale = (cache_float.abs().max() / 400).reshape(1).float()
+     cache[high_page:] = (cache_float / kv_scale).to(FP8)
+     page_table = torch.arange(
+diff --git a/tests/comm/test_pcie_vocab_argmax.py b/tests/comm/test_pcie_vocab_argmax.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..91fb64b4a45721ee07229b8d8e49016423072917
+--- /dev/null
++++ b/tests/comm/test_pcie_vocab_argmax.py
+@@ -0,0 +1,250 @@
++from __future__ import annotations
++
++from unittest.mock import MagicMock
++
++import pytest
++import torch
++
++from b12x.comm.pcie import pcie_vocab_argmax as vocab_argmax_module
++from b12x.comm.pcie.pcie_hierarchical import (
++    _selected_peers as _allreduce_peers,
++)
++from b12x.comm.pcie.pcie_vocab_argmax import (
++    PCIeVocabParallelArgmax,
++    _exchange_ipc_handles,
++    _selected_peers,
++    _wait_nanosleep_cycles_from_env,
++)
++
++
++@pytest.mark.parametrize(
++    ("rank", "expected"),
++    [
++        (0, (1, 2, 3, 4, 8, 12)),
++        (1, (0, 2, 3, 5, 9, 13)),
++        (6, (2, 4, 5, 7, 10, 14)),
++        (15, (3, 7, 11, 12, 13, 14)),
++    ],
++)
++def test_vocab_argmax_uses_bounded_lane_topology(
++    rank: int,
++    expected: tuple[int, ...],
++) -> None:
++    assert _selected_peers(rank) == expected
++
++
++def test_vocab_argmax_and_tp16_allreduce_union_stays_within_peer_limit() -> None:
++    for rank in range(16):
++        peers = set(_selected_peers(rank)) | set(_allreduce_peers(rank, 16))
++        assert len(peers) <= 6
++
++
++def test_vocab_argmax_peer_graph_is_reciprocal_and_connected() -> None:
++    peer_sets = {rank: set(_selected_peers(rank)) for rank in range(16)}
++    for rank, peers in peer_sets.items():
++        for peer in peers:
++            assert rank in peer_sets[peer]
++
++    reached = {0}
++    frontier = [0]
++    while frontier:
++        rank = frontier.pop()
++        for peer in peer_sets[rank] - reached:
++            reached.add(peer)
++            frontier.append(peer)
++    assert reached == set(range(16))
++
++
++def test_vocab_argmax_exchanges_metadata_over_gloo(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 1)
++    monkeypatch.setattr(torch.distributed, "get_rank", lambda group: 0)
++    monkeypatch.setattr(torch.distributed, "get_process_group_ranks", lambda group: [0])
++    broadcasts = []
++
++    def fake_broadcast(objects, src, group):
++        broadcasts.append((objects, src, group))
++
++    monkeypatch.setattr(torch.distributed, "broadcast_object_list", fake_broadcast)
++
++    assert _exchange_ipc_handles(b"handle", group) == [b"handle"]
++    assert broadcasts == [([b"handle"], 0, group)]
++
++
++@pytest.mark.parametrize("rank", [-1, 16])
++def test_vocab_argmax_rejects_invalid_rank(rank: int) -> None:
++    with pytest.raises(ValueError, match="requires TP16"):
++        _selected_peers(rank)
++
++
++@pytest.mark.parametrize("world_size", [1, 8, 12, 32])
++def test_vocab_argmax_rejects_non_tp16_world(world_size: int) -> None:
++    with pytest.raises(ValueError, match="requires TP16"):
++        _selected_peers(0, world_size)
++
++
++@pytest.mark.parametrize("value", ["0", "24", "1024"])
++def test_vocab_argmax_wait_cycles(
++    monkeypatch: pytest.MonkeyPatch,
++    value: str,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", value)
++    assert _wait_nanosleep_cycles_from_env() == int(value)
++
++
++@pytest.mark.parametrize("value", ["-1", "1025", "bad"])
++def test_vocab_argmax_rejects_invalid_wait_cycles(
++    monkeypatch: pytest.MonkeyPatch,
++    value: str,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", value)
++    with pytest.raises(ValueError):
++        _wait_nanosleep_cycles_from_env()
++
++
++def _fake_runtime() -> PCIeVocabParallelArgmax:
++    runtime = PCIeVocabParallelArgmax.__new__(PCIeVocabParallelArgmax)
++    runtime.device = torch.device("cpu")
++    runtime.local_vocab_size = 16
++    runtime.max_batch_size = 8
++    runtime._closed = False
++    runtime._runtime = 123
++    runtime._ext = MagicMock()
++    runtime._ipc = MagicMock()
++    runtime._remote_ptrs = [456]
++    runtime._local_ptr = 789
++    return runtime
++
++
++def test_vocab_argmax_resolves_implicit_cuda_device(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    group = MagicMock()
++    extension = MagicMock()
++    extension.slab_bytes.return_value = 4096
++    extension.init_runtime.return_value = 123
++    ipc = MagicMock()
++    ipc.cudaMalloc.return_value = 1000
++    ipc.cudaIpcGetMemHandleBytes.return_value = b"local"
++    ipc.cudaIpcOpenMemHandleBytes.side_effect = range(2000, 2006)
++
++    monkeypatch.setattr(torch.distributed, "get_rank", lambda group: 0)
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 16)
++    monkeypatch.setattr(torch.cuda, "current_device", lambda: 7)
++    monkeypatch.setattr(vocab_argmax_module, "CudaRTLibrary", lambda: ipc)
++    monkeypatch.setattr(
++        vocab_argmax_module,
++        "_exchange_ipc_handles",
++        lambda local_handle, group: [local_handle] * 16,
++    )
++
++    runtime = PCIeVocabParallelArgmax(
++        exchange_group=group,
++        device="cuda",
++        local_vocab_size=16,
++        ext_module=extension,
++    )
++
++    assert runtime.device == torch.device("cuda:7")
++    ipc.cudaSetDevice.assert_called_once_with(7)
++    runtime._closed = True
++
++
++def test_vocab_argmax_destructor_never_enters_collective_teardown(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    runtime = _fake_runtime()
++    runtime.group = MagicMock()
++    barrier = MagicMock()
++    monkeypatch.setattr(torch.distributed, "barrier", barrier)
++
++    with pytest.warns(ResourceWarning, match="without close"):
++        runtime.__del__()
++
++    barrier.assert_not_called()
++    runtime._ext.destroy_runtime.assert_called_once_with(123)
++    runtime._ipc.cudaIpcCloseMemHandle.assert_called_once_with(456)
++    runtime._ipc.cudaFree.assert_called_once_with(789)
++    assert runtime._closed
++    assert runtime._runtime == 0
++    assert runtime._remote_ptrs == []
++    assert runtime._local_ptr == 0
++
++
++def test_vocab_argmax_allocates_int64_output_and_dispatches() -> None:
++    runtime = _fake_runtime()
++    base = torch.randn(4, 16, dtype=torch.bfloat16)
++    bias = torch.randn_like(base)
++
++    output = runtime.fused_add_argmax(base, bias)
++
++    assert output.shape == (4,)
++    assert output.dtype == torch.int64
++    runtime._ext.fused_add_argmax.assert_called_once_with(
++        123,
++        base,
++        bias,
++        output,
++    )
++
++
++def test_vocab_argmax_accepts_row_strided_inputs() -> None:
++    runtime = _fake_runtime()
++    base_storage = torch.randn(4, 3, 16, dtype=torch.bfloat16)
++    bias_storage = torch.randn(4, 5, 16, dtype=torch.bfloat16)
++    base = base_storage[:, 1]
++    bias = bias_storage[:, 3]
++
++    assert not base.is_contiguous()
++    assert not bias.is_contiguous()
++    output = runtime.fused_add_argmax(base, bias)
++
++    runtime._ext.fused_add_argmax.assert_called_once_with(
++        123,
++        base,
++        bias,
++        output,
++    )
++
++
++def test_vocab_argmax_rejects_noncontiguous_last_dimension() -> None:
++    base = torch.zeros(1, 32, dtype=torch.bfloat16)[:, ::2]
++    bias = torch.zeros_like(base)
++
++    with pytest.raises(ValueError, match="last dimensions"):
++        _fake_runtime().fused_add_argmax(base, bias)
++
++
++@pytest.mark.parametrize(
++    ("base", "bias", "error"),
++    [
++        (
++            torch.zeros(1, 16, dtype=torch.float32),
++            torch.zeros(1, 16, dtype=torch.float32),
++            "BF16",
++        ),
++        (
++            torch.zeros(1, 15, dtype=torch.bfloat16),
++            torch.zeros(1, 15, dtype=torch.bfloat16),
++            "local vocabulary",
++        ),
++        (
++            torch.zeros(9, 16, dtype=torch.bfloat16),
++            torch.zeros(9, 16, dtype=torch.bfloat16),
++            "capacity",
++        ),
++        (
++            torch.zeros(1, 16, dtype=torch.bfloat16),
++            torch.zeros(2, 16, dtype=torch.bfloat16),
++            "matching",
++        ),
++    ],
++)
++def test_vocab_argmax_validates_inputs(
++    base: torch.Tensor,
++    bias: torch.Tensor,
++    error: str,
++) -> None:
++    with pytest.raises(ValueError, match=error):
++        _fake_runtime().fused_add_argmax(base, bias)
