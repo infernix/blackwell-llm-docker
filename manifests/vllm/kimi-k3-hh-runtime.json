@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-hh-runtime",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/heraldic-harbinger",
+  "pull_requests": [
+    {
+      "number": 242,
+      "head": "fbd738571739e5e629da44ed40e486a8e6cdc1b8",
+      "title": "Serve Kimi-K3 full MXFP4 with TP16 decode context parallelism and bounded speculation"
+    },
+    {
+      "number": 278,
+      "head": "23d51b1953814eca0090c930c5e6cd99bc396253",
+      "title": "Use the b12x all-reduce policy and full decode CUDA graphs"
+    }
+  ]
+}
