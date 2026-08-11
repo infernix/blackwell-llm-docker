@@ -6,12 +6,12 @@
   "pull_requests": [
     {
       "number": 242,
-      "head": "fbd738571739e5e629da44ed40e486a8e6cdc1b8",
+      "head": "085f1677497fd2a322bbbc288e3285f81ad1c240",
       "title": "Serve Kimi-K3 full MXFP4 with TP16 decode context parallelism and bounded speculation"
     },
     {
       "number": 278,
-      "head": "23d51b1953814eca0090c930c5e6cd99bc396253",
+      "head": "792cccccb60803e61f04dd350cc8107de1880efd",
       "title": "Use the b12x all-reduce policy and full decode CUDA graphs"
     }
   ]

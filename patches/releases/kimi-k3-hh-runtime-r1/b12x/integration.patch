@@ -2487,10 +2487,10 @@ index 0000000000000000000000000000000000000000..618c4c0870ab1878b1928f25ac69dfd6
 +}
 diff --git a/b12x/comm/pcie/pcie_vocab_argmax.py b/b12x/comm/pcie/pcie_vocab_argmax.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..3d6fc479ae32e11ec6ac7d8f7c6606a3969652ef
+index 0000000000000000000000000000000000000000..4af30834ceb6b06f30af043e88aad157a42eab10
 --- /dev/null
 +++ b/b12x/comm/pcie/pcie_vocab_argmax.py
-@@ -0,0 +1,326 @@
+@@ -0,0 +1,325 @@
 +"""Bounded-degree TP16 vocabulary argmax runtime."""
 +
 +from __future__ import annotations
@@ -2532,12 +2532,11 @@ index 0000000000000000000000000000000000000000..3d6fc479ae32e11ec6ac7d8f7c6606a3
 +        )
 +
 +    world_size = dist.get_world_size(group=group)
-+    rank = dist.get_rank(group=group)
-+    all_objects: list[list[object | None]] = [[None] for _ in range(world_size)]
-+    all_objects[rank][0] = local_handle
-+    for index, src_rank in enumerate(dist.get_process_group_ranks(group)):
-+        dist.broadcast_object_list(all_objects[index], src=src_rank, group=group)
-+    return [entry[0] for entry in all_objects]
++    handles: list[object | None] = [None] * world_size
++    dist.all_gather_object(handles, local_handle, group=group)
++    if any(handle is None for handle in handles):
++        raise RuntimeError("vocabulary argmax IPC exchange returned an empty handle")
++    return list(handles)
 +
 +
 +def _wait_nanosleep_cycles_from_env() -> int:
@@ -3025,10 +3024,10 @@ index fd77e2143830b72ef98104c7ae9c4445d7e3d262..2770f5308f0a6415a863d2ce03799ce7
      page_table = torch.arange(
 diff --git a/tests/comm/test_pcie_vocab_argmax.py b/tests/comm/test_pcie_vocab_argmax.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..91fb64b4a45721ee07229b8d8e49016423072917
+index 0000000000000000000000000000000000000000..2a658079934720728d752a9198868537a19f511b
 --- /dev/null
 +++ b/tests/comm/test_pcie_vocab_argmax.py
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,263 @@
 +from __future__ import annotations
 +
 +from unittest.mock import MagicMock
@@ -3089,18 +3088,31 @@ index 0000000000000000000000000000000000000000..91fb64b4a45721ee07229b8d8e490164
 +def test_vocab_argmax_exchanges_metadata_over_gloo(monkeypatch) -> None:
 +    group = MagicMock()
 +    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
-+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 1)
-+    monkeypatch.setattr(torch.distributed, "get_rank", lambda group: 0)
-+    monkeypatch.setattr(torch.distributed, "get_process_group_ranks", lambda group: [0])
-+    broadcasts = []
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 2)
++    exchanges = []
 +
-+    def fake_broadcast(objects, src, group):
-+        broadcasts.append((objects, src, group))
++    def fake_all_gather(objects, local_handle, group):
++        exchanges.append((objects, local_handle, group))
++        objects[:] = [b"rank-0", b"rank-1"]
 +
-+    monkeypatch.setattr(torch.distributed, "broadcast_object_list", fake_broadcast)
++    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather)
 +
-+    assert _exchange_ipc_handles(b"handle", group) == [b"handle"]
-+    assert broadcasts == [([b"handle"], 0, group)]
++    assert _exchange_ipc_handles(b"rank-0", group) == [b"rank-0", b"rank-1"]
++    assert exchanges == [([b"rank-0", b"rank-1"], b"rank-0", group)]
++
++
++def test_vocab_argmax_rejects_missing_gloo_handle(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 2)
++
++    def fake_all_gather(objects, local_handle, group):
++        objects[:] = [local_handle, None]
++
++    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather)
++
++    with pytest.raises(RuntimeError, match="empty handle"):
++        _exchange_ipc_handles(b"rank-0", group)
 +
 +
 +@pytest.mark.parametrize("rank", [-1, 16])

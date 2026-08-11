@@ -6,7 +6,7 @@
   "pull_requests": [
     {
       "number": 124,
-      "head": "5b6a53f7e83413d717c6b797eece9ce079f86954",
+      "head": "fe50ccd25e16aa56c0bde93432993d4798839cc0",
       "title": "Add TP16 dense-MLA bindings and distributed vocabulary argmax"
     },
     {

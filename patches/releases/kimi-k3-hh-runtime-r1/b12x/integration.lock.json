@@ -1,17 +1,17 @@
 {
   "base": {
-    "commit": "ce7f62275b12ceaeee71e603fb2419bb556e166a",
+    "commit": "184d7d52ad630841d0c6caf962f8b9d36f38992a",
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "manifest": {
-    "sha256": "15ca136e30a60ce84c8ee530a38352351302a76040afad63e603a04e4afa92ca"
+    "sha256": "33d9ad7ea02071dd6f08768d9ea9cc2d5a3152ed22889bc10b875a0e4979fd07"
   },
   "name": "kimi-k3-hh-runtime",
   "pull_requests": [
     {
       "disposition": "merged",
-      "head": "5b6a53f7e83413d717c6b797eece9ce079f86954",
+      "head": "fe50ccd25e16aa56c0bde93432993d4798839cc0",
       "number": 124,
       "ref": "refs/pull/124/head",
       "title": "Add TP16 dense-MLA bindings and distributed vocabulary argmax"
@@ -33,8 +33,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "605f1845c9c5ce5e1b95a6f842dd9c55cd7d17cbaf265074e3beee360f57ba53",
-    "tree": "76170059b95c2189966476ddd6eb872a886882c4"
+    "patch_sha256": "d326ef3e23383af04b14022352f511e4098c0f5846cc9d1d732ab6dff543ec1e",
+    "tree": "2e6092a74d2449b8f8fa65d0c980533002db76cb"
   },
   "schema_version": 1
 }
