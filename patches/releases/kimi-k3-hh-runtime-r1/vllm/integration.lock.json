@@ -5,20 +5,20 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "33210373c030278abba43c9f0dd81c4c9540e03cb73f802bcb5dbdd24053277a"
+    "sha256": "7c560d329f2e5648e5b14d7e057bcdf025acf0ec5f1e8a495ecd259919576f4d"
   },
   "name": "kimi-k3-hh-runtime",
   "pull_requests": [
     {
       "disposition": "merged",
-      "head": "fbd738571739e5e629da44ed40e486a8e6cdc1b8",
+      "head": "085f1677497fd2a322bbbc288e3285f81ad1c240",
       "number": 242,
       "ref": "refs/pull/242/head",
       "title": "Serve Kimi-K3 full MXFP4 with TP16 decode context parallelism and bounded speculation"
     },
     {
       "disposition": "merged",
-      "head": "23d51b1953814eca0090c930c5e6cd99bc396253",
+      "head": "792cccccb60803e61f04dd350cc8107de1880efd",
       "number": 278,
       "ref": "refs/pull/278/head",
       "title": "Use the b12x all-reduce policy and full decode CUDA graphs"
@@ -26,8 +26,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "28969c2914e4037dcc9b1629a0c56f95c8b29168535fb789fa6b4d9af35c3b11",
-    "tree": "138eccd127bb6e2b5c52940203d36b951a3c6284"
+    "patch_sha256": "8fe02a803aa9e4cc5e8f51550a271267d3a93eab1fea621be59b227a0d7f22a2",
+    "tree": "6ecf5dbe724774b170fca82a366ab48ea9264830"
   },
   "schema_version": 1
 }

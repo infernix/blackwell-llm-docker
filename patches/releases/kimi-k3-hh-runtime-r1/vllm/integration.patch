@@ -1370,14 +1370,14 @@ index 0000000000000000000000000000000000000000..be7eb20f9e8a75af001b145a8381e8cb
 +exec "${SCRIPT_DIR}/serve-kimi-k3-full-mxfp4-dspark7.sh" "$@"
 diff --git a/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m-kda-mxfp8.sh b/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m-kda-mxfp8.sh
 new file mode 100755
-index 0000000000000000000000000000000000000000..f1734a3d177e667f6c6424bb259f786145bcc98a
+index 0000000000000000000000000000000000000000..71db8ff1a65be65c108de61b478430fa1f19d3cd
 --- /dev/null
 +++ b/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m-kda-mxfp8.sh
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,42 @@
 +#!/usr/bin/env bash
-+# Kimi-K3 production profile: stock MXFP4 routed experts, BF16 DSpark7,
-+# DCP16, a physical 1M-token cache, and low-sensitivity KDA projections
-+# quantized online to MXFP8/Marlin.
++# Kimi-K3 production profile: stock MXFP4 routed experts, a weight-only MXFP8
++# DSpark7 draft, DCP16, a physical 1M-token cache, and low-sensitivity KDA
++# projections quantized online to MXFP8/Marlin.
 +set -euo pipefail
 +
 +SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -1388,14 +1388,32 @@ index 0000000000000000000000000000000000000000..f1734a3d177e667f6c6424bb259f7861
 +# BF16 and the measured decode cycle does not regress.
 +export KIMI_TARGET_MXFP8_PROFILE="${KIMI_TARGET_MXFP8_PROFILE:-kda_in_proj}"
 +
++# The five-layer draft uses weight-only MXFP8 through Marlin W8A16. The target
++# launcher disables W8A8 kernels whenever an MXFP8 draft or target overlay is
++# selected, so activations remain BF16 in both models.
++export DSPARK_DRAFT_WEIGHT_FORMAT="${DSPARK_DRAFT_WEIGHT_FORMAT:-mxfp8}"
++export DSPARK_DRAFT_MXFP8_BACKEND="${DSPARK_DRAFT_MXFP8_BACKEND:-marlin}"
++
++# A 4096-token prefill shape needs the logical output for all rows but only a
++# 1024-row routed-expert scratch arena. Chunking preserves token-independent
++# MoE results while keeping CUDA-graph capture within the physical 1M profile.
++export B12X_MOE_WORKSPACE_TOKEN_LIMIT="${B12X_MOE_WORKSPACE_TOKEN_LIMIT:-1024}"
++export B12X_W4A16_SMALL_M_DIRECT="${B12X_W4A16_SMALL_M_DIRECT:-1}"
++export VLLM_DISABLE_SHARED_EXPERTS_STREAM="${VLLM_DISABLE_SHARED_EXPERTS_STREAM:-1}"
++
++# B12X kernel resolution traverses both graph shapes without launching a
++# second eager model execution. The graph manager captures separate M=8
++# speculative and M=1 no-draft FULL graphs before freezing kernel resolution.
++export VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM="${VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM:-1}"
++
 +# At a 4096 scheduler budget, speculative slots require two additional hybrid
-+# cache blocks compared with the old 2048 profile.  This allocation provides
-+# 1,057,049 physical tokens: enough for max_model_len=1,048,576 without using
-+# logical oversubscription.
++# cache blocks compared with a 2048-token scheduler profile. This allocation
++# provides 1,057,049 physical tokens: enough for max_model_len=1,048,576
++# without using logical oversubscription.
 +export MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
 +export VLLM_MLA_CHUNKED_PREFILL_WORKSPACE_SIZE="${VLLM_MLA_CHUNKED_PREFILL_WORKSPACE_SIZE:-4096}"
 +export KV_CACHE_MEMORY_BYTES="${KV_CACHE_MEMORY_BYTES:-1325000000}"
-+export SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-Kimi-K3-MXFP4-HH-DSpark7-BF16-DCP16-1M-KDA-MXFP8-P4096}"
++export SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-Kimi-K3-MXFP4-HH-DSpark7-DraftMXFP8-DCP16-1M-KDA-MXFP8-P4096}"
 +
 +exec "${SCRIPT_DIR}/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m.sh" "$@"
 diff --git a/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m.sh b/serve-kimi-k3-full-mxfp4-dspark7-dcp16-1m.sh
@@ -2841,10 +2859,143 @@ index c1c71c2f283a46389b09fadb172609038c16dfe6..78d46f31dac00a2f2a035338da3c3b77
 +    output.record_stream.assert_called_once_with(consumer_stream)
 +    assert not shared_experts._prelaunched[0]
 diff --git a/tests/model_executor/layers/test_b12x_moe_warmup.py b/tests/model_executor/layers/test_b12x_moe_warmup.py
-index 0be612914d897b2bd902ae02de55b4ec952637bc..7132343c0b3f15932241d72c46f504c96f937b8b 100644
+index 0be612914d897b2bd902ae02de55b4ec952637bc..6bcb29028074c67aeb4c051dfd8c62b5b82d44fe 100644
 --- a/tests/model_executor/layers/test_b12x_moe_warmup.py
 +++ b/tests/model_executor/layers/test_b12x_moe_warmup.py
-@@ -470,6 +470,45 @@ def test_b12x_moe_warmup_preserves_exact_graph_decode_shape(monkeypatch) -> None
+@@ -7,6 +7,7 @@ import pytest
+ import torch
+ 
+ import vllm.model_executor.layers.fused_moe.b12x_moe as b12x_moe
++import vllm.model_executor.layers.fused_moe.modular_kernel as modular_kernel
+ import vllm.model_executor.layers.fused_moe.runner.moe_runner as moe_runner
+ import vllm.model_executor.layers.quantization.compressed_tensors.compressed_tensors_moe.compressed_tensors_moe_w4a4_mxfp4 as ct_mxfp4  # noqa: E501
+ from vllm.model_executor.layers.fused_moe.activation import MoEActivation
+@@ -104,6 +105,73 @@ def _make_fake_moe_runner(fused_experts: object) -> MoERunner:
+     return runner
+ 
+ 
++class _FakeWorkspaceManager:
++    def __init__(self) -> None:
++        self.calls = []
++
++    def get_simultaneous(self, *specs):
++        self.calls.append(specs)
++        return [torch.empty(shape, dtype=dtype) for shape, dtype in specs]
++
++
++class _FakeModularExperts:
++    @staticmethod
++    def workspace_dtype(out_dtype: torch.dtype) -> torch.dtype:
++        return out_dtype
++
++    @staticmethod
++    def workspace_shapes(
++        M,
++        N,
++        K,
++        top_k,
++        global_num_experts,
++        local_num_experts,
++        expert_tokens_meta,
++        activation,
++    ):
++        return (7,), (11,), (M, K)
++
++
++def test_modular_moe_uses_compatible_output_as_workspace_destination(
++    monkeypatch,
++) -> None:
++    manager = _FakeWorkspaceManager()
++    monkeypatch.setattr(
++        modular_kernel, "current_workspace_manager", lambda: manager
++    )
++    monkeypatch.setattr(
++        modular_kernel,
++        "current_platform",
++        SimpleNamespace(is_rocm=lambda: False),
++    )
++    kernel = object.__new__(modular_kernel.FusedMoEKernelModularImpl)
++    kernel.fused_experts = _FakeModularExperts()
++    output = torch.empty(5, 64, dtype=torch.bfloat16)
++
++    workspace13, workspace2, fused_out = kernel._allocate_buffers(
++        out_dtype=torch.bfloat16,
++        device=torch.device("cpu"),
++        M_chunk=2,
++        M_full=5,
++        N=32,
++        K=64,
++        top_k=4,
++        global_num_experts=8,
++        local_num_experts=8,
++        expert_tokens_meta=None,
++        activation=MoEActivation.SWIGLUOAI_UNINTERLEAVE,
++        output_alias=output,
++    )
++
++    assert manager.calls == [
++        (((7,), torch.bfloat16), ((11,), torch.bfloat16))
++    ]
++    assert workspace13.shape == (7,)
++    assert workspace2.shape == (11,)
++    assert fused_out is output
++
++
+ def test_b12x_moe_runner_uses_functional_custom_op(monkeypatch) -> None:
+     monkeypatch.setattr(
+         moe_runner,
+@@ -420,6 +488,50 @@ def test_b12x_moe_warmup_runs_one_launch_per_planner_regime(monkeypatch) -> None
+     assert run_tokens == [3, 8]
+ 
+ 
++def test_b12x_moe_warmup_uses_workspace_token_limit(monkeypatch) -> None:
++    planned_tokens = []
++    run_tokens = []
++
++    monkeypatch.setenv("B12X_MOE_WORKSPACE_TOKEN_LIMIT", "4")
++    monkeypatch.setattr(
++        b12x_moe,
++        "_dynamic_moe_warmup_tokens",
++        lambda *, topk, quant_mode, requested_tokens: requested_tokens,
++    )
++    monkeypatch.setattr(
++        b12x_moe,
++        "_plan_b12x_moe_execution",
++        lambda **kwargs: (
++            planned_tokens.append(kwargs["tokens"])
++            or _FakePlan().launch_plan
++        ),
++    )
++    monkeypatch.setattr(
++        b12x_moe,
++        "_plan_b12x_moe_fp4_scratch",
++        lambda **kwargs: _FakePlan(),
++    )
++    monkeypatch.setattr(
++        b12x_moe,
++        "_run_b12x_moe_fp4",
++        lambda **kwargs: run_tokens.append(kwargs["a"].shape[0]),
++    )
++
++    experts = _make_fake_b12x_experts()
++    layer = SimpleNamespace(
++        w13_weight=torch.empty(8, 32, 32, dtype=torch.uint8),
++        w2_weight=torch.empty(8, 64, 8, dtype=torch.uint8),
++        activation=MoEActivation.SWIGLUOAI_UNINTERLEAVE,
++        apply_router_weight_on_input=False,
++    )
++
++    warmed = experts.warmup_dynamic_launches(layer, token_counts=(8,))
++
++    assert warmed == 1
++    assert planned_tokens == [4]
++    assert run_tokens == [4]
++
++
+ def test_b12x_moe_warmup_preserves_exact_graph_decode_shape(monkeypatch) -> None:
+     planned_tokens = []
+     run_tokens = []
+@@ -470,6 +582,45 @@ def test_b12x_moe_warmup_preserves_exact_graph_decode_shape(monkeypatch) -> None
      assert run_tokens == [1, 16]
  
  
@@ -2890,11 +3041,120 @@ index 0be612914d897b2bd902ae02de55b4ec952637bc..7132343c0b3f15932241d72c46f504c9
  def test_b12x_force_a16_nvfp4_selects_w4a16(monkeypatch) -> None:
      monkeypatch.setenv("B12X_MOE_FORCE_A16", "1")
  
+@@ -478,6 +629,81 @@ def test_b12x_force_a16_nvfp4_selects_w4a16(monkeypatch) -> None:
+     assert experts._quant_mode() == "w4a16"
+ 
+ 
++def test_b12x_moe_workspace_limit_bounds_scratch_not_output(monkeypatch) -> None:
++    planned_tokens = []
++
++    def fake_plan(**kwargs):
++        planned_tokens.append(kwargs["tokens"])
++        return _FakePlan()
++
++    monkeypatch.setenv("B12X_MOE_WORKSPACE_TOKEN_LIMIT", "2")
++    monkeypatch.setattr(b12x_moe, "_plan_b12x_moe_fp4_scratch", fake_plan)
++
++    experts = _make_fake_b12x_experts()
++    workspace13, workspace2, output = experts.workspace_shapes(
++        M=5,
++        N=32,
++        K=64,
++        topk=4,
++        global_num_experts=8,
++        local_num_experts=8,
++        expert_tokens_meta=None,
++        activation=MoEActivation.SWIGLUOAI_UNINTERLEAVE,
++    )
++
++    assert planned_tokens == [2]
++    assert workspace13 == (0,)
++    assert workspace2 == (32,)
++    assert output == (5, 64)
++
++
++def test_b12x_moe_workspace_limit_chunks_token_independent_launches(
++    monkeypatch,
++) -> None:
++    planned_tokens = []
++    launch_sizes = []
++
++    def fake_plan(**kwargs):
++        planned_tokens.append(kwargs["tokens"])
++        return _FakePlan()
++
++    def fake_run(**kwargs):
++        launch_sizes.append(kwargs["a"].shape[0])
++        kwargs["output"].copy_(kwargs["a"])
++
++    monkeypatch.setenv("B12X_MOE_WORKSPACE_TOKEN_LIMIT", "2")
++    monkeypatch.setattr(b12x_moe, "_plan_b12x_moe_fp4_scratch", fake_plan)
++    monkeypatch.setattr(b12x_moe, "_run_b12x_moe_fp4", fake_run)
++
++    experts = _make_fake_b12x_experts()
++    hidden_states = torch.arange(5 * 64, dtype=torch.bfloat16).view(5, 64)
++    output = torch.empty_like(hidden_states)
++    topk_ids = torch.zeros(5, 4, dtype=torch.int32)
++    topk_weights = torch.full((5, 4), 0.25, dtype=torch.float32)
++
++    experts.apply(
++        output=output,
++        hidden_states=hidden_states,
++        w1=torch.empty(0, dtype=torch.uint8),
++        w2=torch.empty(0, dtype=torch.uint8),
++        topk_weights=topk_weights,
++        topk_ids=topk_ids,
++        activation=MoEActivation.SWIGLUOAI_UNINTERLEAVE,
++        global_num_experts=8,
++        expert_map=None,
++        a1q_scale=None,
++        a2_scale=None,
++        workspace13=None,
++        workspace2=torch.empty(64, dtype=torch.uint8),
++        expert_tokens_meta=None,
++        apply_router_weight_on_input=False,
++    )
++
++    assert planned_tokens == [2, 2, 1]
++    assert launch_sizes == [2, 2, 1]
++    assert torch.equal(output, hidden_states)
++
++
+ def test_b12x_activation_amax_registers_stable_vllm_owned_tensor(
+     monkeypatch,
+ ) -> None:
 diff --git a/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py b/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
-index 26a8828ee7711f36e79af298a976686666fab84a..94a783d55a2fb4aee8b0e12273d75c3751722263 100644
+index 26a8828ee7711f36e79af298a976686666fab84a..41ad044bc1c8110bd5a9efe6f7f21483f9ed2ce7 100644
 --- a/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
 +++ b/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
-@@ -104,5 +104,36 @@ def test_instanttensor_falls_back_for_tensor_larger_than_ring(
+@@ -2,11 +2,15 @@
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+ 
+ import glob
++import inspect
+ 
+ import pytest
+ import torch
+ from safetensors.torch import save_file
+ 
++from vllm.model_executor.model_loader.reload.layerwise import (
++    _own_deferred_accelerator_tensors,
++)
+ from vllm.model_executor.model_loader.weight_utils import (
+     download_weights_from_hf,
+     instanttensor_weights_iterator,
+@@ -84,9 +88,7 @@ def test_instanttensor_honors_tensor_to_shard_index(tmp_path):
+     not current_platform.is_cuda(),
+     reason="InstantTensor requires NVIDIA GPUs",
+ )
+-def test_instanttensor_falls_back_for_tensor_larger_than_ring(
+-    tmp_path, monkeypatch
+-):
++def test_instanttensor_falls_back_for_tensor_larger_than_ring(tmp_path, monkeypatch):
+     shard = tmp_path / "model.safetensors"
+     small = torch.arange(256 * 1024, dtype=torch.float32)
+     large = torch.arange(9 * 256 * 1024, dtype=torch.float32)
+@@ -104,5 +106,39 @@ def test_instanttensor_falls_back_for_tensor_larger_than_ring(
      torch.testing.assert_close(weights["model.large"], large)
  
  
@@ -2902,11 +3162,9 @@ index 26a8828ee7711f36e79af298a976686666fab84a..94a783d55a2fb4aee8b0e12273d75c37
 +    not current_platform.is_cuda(),
 +    reason="InstantTensor requires NVIDIA GPUs",
 +)
-+def test_instanttensor_owning_tensors_survive_ring_reuse(tmp_path, monkeypatch):
++def test_instanttensor_deferred_tensors_survive_ring_reuse(tmp_path, monkeypatch):
 +    shard = tmp_path / "model.safetensors"
-+    # Five 4 MiB tensors force an 8 MiB ring to wrap more than once.  Keep the
-+    # yielded CUDA tensors alive, exactly as online layerwise quantization does
-+    # while waiting for a layer's remaining checkpoint shards.
++    # Five 4 MiB tensors force an 8 MiB ring to wrap more than once.
 +    source = {
 +        f"model.weight_{index}": torch.full(
 +            (2 * 1024 * 1024,), index, dtype=torch.bfloat16
@@ -2916,13 +3174,18 @@ index 26a8828ee7711f36e79af298a976686666fab84a..94a783d55a2fb4aee8b0e12273d75c37
 +    save_file(source, shard)
 +    monkeypatch.setenv("INSTANTTENSOR_BUFFER_SIZE", str(8 * 1024 * 1024))
 +
-+    retained = dict(
-+        instanttensor_weights_iterator(
-+            [str(shard)],
-+            use_tqdm_on_load=False,
-+            owning_tensors=True,
-+        )
-+    )
++    def deferred_loader(param, loaded_weight):
++        raise AssertionError("The loader must not run while arguments are queued")
++
++    signature = inspect.signature(deferred_loader)
++    retained = {}
++    for name, tensor in instanttensor_weights_iterator(
++        [str(shard)],
++        use_tqdm_on_load=False,
++    ):
++        bound_args = signature.bind(None, tensor)
++        _own_deferred_accelerator_tensors(bound_args)
++        retained[name] = bound_args.arguments["loaded_weight"]
 +    torch.cuda.synchronize()
 +
 +    for name, expected in source.items():
@@ -3303,7 +3566,7 @@ index 38a34bc923a5de69370e13673b2cd52aaf89d6ca..4592deca199497b72ca56f5611c8f991
  def test_fused_mtp_input(num_tokens: int):
      positions = torch.arange(num_tokens, device="cuda")
 diff --git a/tests/models/kimi_k3/test_eagle3.py b/tests/models/kimi_k3/test_eagle3.py
-index 61a24a83e041a92c8aa6ad7cf4acc523e886acc6..9235b89b3f689891c5502a12bc8e7d1a3d58d743 100644
+index 61a24a83e041a92c8aa6ad7cf4acc523e886acc6..81f54b8f97b92d0c685761b4c73218ef0cda9a00 100644
 --- a/tests/models/kimi_k3/test_eagle3.py
 +++ b/tests/models/kimi_k3/test_eagle3.py
 @@ -16,6 +16,8 @@ from vllm.models.kimi_k3.nvidia.model import (
@@ -3315,7 +3578,7 @@ index 61a24a83e041a92c8aa6ad7cf4acc523e886acc6..9235b89b3f689891c5502a12bc8e7d1a
      object.__setattr__(model, "aux_hidden_state_layers", (2,))
      object.__setattr__(model, "use_sequence_parallel", False)
      return model
-@@ -128,3 +130,76 @@ def test_kimi_linear_forward_extracts_attn_res_aux_hidden_states(monkeypatch):
+@@ -128,3 +130,90 @@ def test_kimi_linear_forward_extracts_attn_res_aux_hidden_states(monkeypatch):
      torch.testing.assert_close(aux_hidden_states[0], initial_hidden_states)
      torch.testing.assert_close(aux_hidden_states[1], prefix_sum + layer_hidden_states)
      assert final_attn_res.call_args.args[2] is block_residual
@@ -3392,6 +3655,20 @@ index 61a24a83e041a92c8aa6ad7cf4acc523e886acc6..9235b89b3f689891c5502a12bc8e7d1a
 +        result[0].untyped_storage().data_ptr()
 +        == block_residual.untyped_storage().data_ptr()
 +    )
++
++
++def test_kimi_aux_hidden_states_remain_separate_when_workspace_is_too_narrow():
++    aux_hidden_states = [
++        torch.randn(1024, 512, dtype=torch.bfloat16) for _ in range(5)
++    ]
++    block_residual = torch.empty(3, 1024, 512, dtype=torch.bfloat16).permute(1, 0, 2)
++
++    result = kimi_model._pack_aux_hidden_states_into_attn_res_workspace(
++        aux_hidden_states,
++        block_residual,
++    )
++
++    assert result is aux_hidden_states
 diff --git a/tests/models/kimi_k3/test_kda.py b/tests/models/kimi_k3/test_kda.py
 index be916f6c0d0f31a67b0b77e4b28d6fa032180016..837c807d1ee7a6df8e4ddbd720c8f65535ed58a0 100644
 --- a/tests/models/kimi_k3/test_kda.py
@@ -5557,6 +5834,92 @@ index b86371ff438cc7f52624a83bf9edb20d1f3dd179..2c953bb544e8bd2df8983c8450f6368f
  def test_prefill_plp():
      """Test prefill with APC and some prompt logprobs (plp) requests.
  
+diff --git a/tests/v1/cudagraph/test_breakable_cudagraph.py b/tests/v1/cudagraph/test_breakable_cudagraph.py
+index a7add20c539db4677def5d299c18362681395521..984525f22ae3f755c0148f6b18a223ca227c2569 100644
+--- a/tests/v1/cudagraph/test_breakable_cudagraph.py
++++ b/tests/v1/cudagraph/test_breakable_cudagraph.py
+@@ -401,7 +401,7 @@ def test_piecewise_capture_builds_fresh_metadata_for_both_passes():
+     assert create_calls[0][1] is not create_calls[1][1]
+ 
+ 
+-def test_compile_only_prewarm_skips_manager_full_forward(monkeypatch):
++def test_compile_only_prewarm_skips_breakable_piecewise_direct_warmup(monkeypatch):
+     import vllm.envs as envs
+     from vllm.config import CUDAGraphMode
+     from vllm.v1.worker.gpu.cudagraph_utils import (
+@@ -446,6 +446,72 @@ def test_compile_only_prewarm_skips_manager_full_forward(monkeypatch):
+     assert forward_calls == [(False, CUDAGraphMode.PIECEWISE)]
+ 
+ 
++def test_compile_only_prewarm_guards_full_capture_warmup(monkeypatch):
++    import vllm.envs as envs
++    from vllm.compilation.b12x_capture import is_b12x_compile_only_warmup
++    from vllm.config import CUDAGraphMode
++    from vllm.v1.worker.gpu import cudagraph_utils
++    from vllm.v1.worker.gpu.cudagraph_utils import (
++        BatchExecutionDescriptor,
++        CudaGraphManager,
++    )
++
++    monkeypatch.setenv("VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM", "1")
++    envs.disable_envs_cache()
++
++    manager = CudaGraphManager.__new__(CudaGraphManager)
++    desc = BatchExecutionDescriptor(CUDAGraphMode.FULL, 8, 1)
++    manager.device = torch.device("cpu")
++    manager._capture_descs = {CUDAGraphMode.FULL: [desc]}
++    manager._graphs_captured = False
++    manager.use_breakable_cg = True
++    manager.graphs = {}
++    manager.pool = object()
++
++    create_calls = []
++    forward_calls = []
++
++    def create_forward_fn(desc_arg, warmup):
++        assert desc_arg == desc
++        create_calls.append(warmup)
++
++        def forward_fn(cg_mode):
++            forward_calls.append(
++                (warmup, cg_mode, is_b12x_compile_only_warmup())
++            )
++
++        return forward_fn
++
++    offloader = SimpleNamespace(
++        sync_prev_onload=lambda: None,
++        join_after_forward=lambda: None,
++    )
++    with (
++        patch.object(cudagraph_utils, "graph_capture", return_value=nullcontext()),
++        patch.object(
++            cudagraph_utils,
++            "_b12x_dcp_a2a_capture_scope",
++            return_value=nullcontext(),
++        ),
++        patch.object(cudagraph_utils, "is_global_first_rank", return_value=False),
++        patch.object(
++            cudagraph_utils, "b12x_cuda_graph_prewarm_enabled", return_value=True
++        ),
++        patch.object(cudagraph_utils, "get_offloader", return_value=offloader),
++        patch.object(cudagraph_utils.torch.cuda, "CUDAGraph", return_value=object()),
++        patch.object(
++            cudagraph_utils.torch.cuda, "graph", return_value=nullcontext()
++        ),
++    ):
++        manager.capture(create_forward_fn)
++
++    assert create_calls == [True, False]
++    assert forward_calls == [
++        (False, CUDAGraphMode.NONE, True),
++        (False, CUDAGraphMode.NONE, False),
++    ]
++
++
+ @pytest.fixture(autouse=True)
+ def _reset_breakable_tls():
+     """Defensively clear thread-local capture state between tests so a
 diff --git a/tests/v1/spec_decode/test_acceptance_length_controller.py b/tests/v1/spec_decode/test_acceptance_length_controller.py
 index 9d0cc654a788277161477277c8fdc7d5d2cba371..c08c586abc9bd1ba0a2d4207461fc301347e3168 100644
 --- a/tests/v1/spec_decode/test_acceptance_length_controller.py
@@ -6125,6 +6488,71 @@ index 0000000000000000000000000000000000000000..77ab6de8de81e08aa63b6251d9954e22
 +    assert speculator._last_num_speculative_steps == 1
 +    assert speculator._last_proposal_confidence_valid is False
 +    assert base_propose.call_args.kwargs["num_speculative_tokens"] == 1
+diff --git a/tests/v1/spec_decode/test_dynamic_sd_cug.py b/tests/v1/spec_decode/test_dynamic_sd_cug.py
+index deb23908a9d15356be1e390102c09403f0fb9810..fade9d049565cdda9a86968e192ba0706d6fd44a 100644
+--- a/tests/v1/spec_decode/test_dynamic_sd_cug.py
++++ b/tests/v1/spec_decode/test_dynamic_sd_cug.py
+@@ -257,6 +257,60 @@ def test_basic_sd_does_not_capture_shorter_full_decode_shapes(monkeypatch):
+             assert desc.num_active_loras == 0
+ 
+ 
++def test_compile_only_breakable_capture_covers_no_draft_decode(monkeypatch):
++    """B12X compile-only prewarm must capture the one-token verifier shape."""
++
++    import vllm.envs as envs
++
++    monkeypatch.setenv("VLLM_USE_BREAKABLE_CUDAGRAPH", "1")
++    monkeypatch.setenv("VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM", "1")
++    envs.disable_envs_cache()
++    monkeypatch.setattr(
++        gpu_cudagraph_utils,
++        "get_pp_group",
++        lambda: SimpleNamespace(is_first_rank=True, is_last_rank=True),
++    )
++    monkeypatch.setattr(
++        gpu_cudagraph_utils.current_platform,
++        "get_global_graph_pool",
++        lambda: object(),
++    )
++
++    max_spec_tokens = 7
++    max_decode_query_len = max_spec_tokens + 1
++    vllm_config = _create_vllm_config_for_dsd(
++        max_num_seqs=1,
++        max_spec_tokens=max_spec_tokens,
++        cudagraph_mode="FULL_AND_PIECEWISE",
++        use_dynamic_sd=False,
++    )
++    manager = gpu_cudagraph_utils.CudaGraphManager(
++        vllm_config=vllm_config,
++        device=torch.device("cpu"),
++        cudagraph_mode=CUDAGraphMode.FULL_AND_PIECEWISE,
++        decode_query_len=max_decode_query_len,
++    )
++    manager._graphs_captured = True
++
++    no_draft_desc = manager.dispatch(
++        num_reqs=1,
++        num_tokens=1,
++        uniform_token_count=1,
++        num_active_loras=0,
++    )
++    partial_draft_desc = manager.dispatch(
++        num_reqs=1,
++        num_tokens=4,
++        uniform_token_count=4,
++        num_active_loras=0,
++    )
++
++    assert no_draft_desc.cg_mode == CUDAGraphMode.FULL
++    assert no_draft_desc.uniform_token_count == 1
++    assert no_draft_desc.num_tokens == 1
++    assert partial_draft_desc.cg_mode == CUDAGraphMode.PIECEWISE
++
++
+ def test_dynamic_sd_only_captures_scheduled_query_lengths(monkeypatch):
+     """DSD should only capture FULL graphs for query lengths in the schedule.
+ 
 diff --git a/tests/v1/worker/test_gpu_input_batch_v2.py b/tests/v1/worker/test_gpu_input_batch_v2.py
 index f517abb2b14db6688840356954a4379f1eadd9c5..6945983d7dfd90ba18079a19921c04eb1bf22628 100644
 --- a/tests/v1/worker/test_gpu_input_batch_v2.py
@@ -11968,10 +12396,29 @@ index bac4fe096da35d01487f35ef49d40468f46019f8..0dff58d6204974bcd789569e60303094
          prepared = prepare_ep_expert_map(
              expert_map,
 diff --git a/vllm/model_executor/layers/fused_moe/b12x_moe.py b/vllm/model_executor/layers/fused_moe/b12x_moe.py
-index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f84c7f904 100644
+index 80103bd862c9ebff9169a0000a1d2fd40e400b34..50da94c6cfcbaf159ca9bdf19fdbc35b7eef3ac5 100644
 --- a/vllm/model_executor/layers/fused_moe/b12x_moe.py
 +++ b/vllm/model_executor/layers/fused_moe/b12x_moe.py
-@@ -404,8 +404,8 @@ def _plan_b12x_moe_fp4_scratch(
+@@ -67,6 +67,18 @@ def _env_first(*names: str) -> str | None:
+     return None
+ 
+ 
++def _moe_workspace_token_limit() -> int:
++    """Return the per-launch B12X MoE scratch capacity, or zero if unlimited."""
++    return max(_env_int("B12X_MOE_WORKSPACE_TOKEN_LIMIT", 0), 0)
++
++
++def _moe_workspace_tokens(num_tokens: int) -> int:
++    """Bound one B12X MoE launch without changing the logical batch size."""
++    num_tokens = max(int(num_tokens), 1)
++    limit = _moe_workspace_token_limit()
++    return min(num_tokens, limit) if limit else num_tokens
++
++
+ def _moe_repeat_check_enabled() -> bool:
+     return _env_flag("B12X_MOE_REPEAT_CHECK") or _env_flag("VLLM_B12X_MOE_REPEAT_CHECK")
+ 
+@@ -404,8 +416,8 @@ def _plan_b12x_moe_fp4_scratch(
      swiglu_beta: float | None = None,
      collect_activation_amax: bool = False,
  ):
@@ -11982,7 +12429,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
  
      return plan_tp_moe_scratch(
          TPMoEScratchCaps(
-@@ -438,7 +438,7 @@ def _plan_b12x_moe_execution(
+@@ -438,7 +450,7 @@ def _plan_b12x_moe_execution(
      swiglu_alpha: float | None = None,
      swiglu_beta: float | None = None,
  ):
@@ -11991,7 +12438,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
  
      return plan_tp_moe_execution(
          num_tokens=max(int(tokens), 1),
-@@ -454,7 +454,7 @@ def _plan_b12x_moe_execution(
+@@ -454,7 +466,7 @@ def _plan_b12x_moe_execution(
  
  
  def _b12x_moe_plan_supports_aux_stream_overlap(plan: Any) -> bool:
@@ -12000,7 +12447,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
      # Some resident-grid plans use device-wide barriers, so lack of an explicit
      # guarantee must conservatively disable auxiliary-stream overlap.
      return False
-@@ -479,7 +479,7 @@ def _dynamic_moe_warmup_tokens(
+@@ -479,7 +491,7 @@ def _dynamic_moe_warmup_tokens(
      """Return a small token count that selects b12x's dynamic MoE backend."""
      # This warmup-only policy probe is not exposed by the public facade. Actual
      # planning, binding, and execution below all use the public API.
@@ -12009,7 +12456,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
  
      tokens = max(int(requested_tokens), 1)
      topk = max(int(topk), 1)
-@@ -561,7 +561,7 @@ def _run_b12x_moe_fp4(
+@@ -561,7 +573,7 @@ def _run_b12x_moe_fp4(
      layer_idx: int | None = None,
  ) -> None:
      """Call b12x MoE with caller-owned live scratch."""
@@ -12018,7 +12465,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
  
      if _moe_zero_scratch_enabled():
          if _is_current_stream_capturing():
-@@ -774,7 +774,7 @@ def _normalize_modelopt_expert_scale(scale: torch.Tensor) -> torch.Tensor:
+@@ -774,7 +786,7 @@ def _normalize_modelopt_expert_scale(scale: torch.Tensor) -> torch.Tensor:
  
  def _has_b12x() -> bool:
      try:
@@ -12027,7 +12474,7 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
  
          return True
      except ImportError:
-@@ -1145,11 +1145,11 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+@@ -1145,11 +1157,11 @@ class B12xExperts(mk.FusedMoEExpertsModular):
              a1_gscale = unit_scale
              a2_gscale = unit_scale
  
@@ -12042,7 +12489,15 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
              prepare_weights as prepare_b12x_fp4_moe_weights,
          )
  
-@@ -1360,10 +1360,13 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+@@ -1349,6 +1361,7 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+         for tokens in sorted(set(int(count) for count in direct_token_counts)):
+             if tokens <= 0:
+                 continue
++            tokens = _moe_workspace_tokens(tokens)
+             launch_plan = _plan_b12x_moe_execution(
+                 tokens=tokens,
+                 topk=meta.topk,
+@@ -1360,16 +1373,20 @@ class B12xExperts(mk.FusedMoEExpertsModular):
                  swiglu_alpha=meta.swiglu_alpha,
                  swiglu_beta=meta.swiglu_beta,
              )
@@ -12060,7 +12515,23 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
          for requested_tokens in sorted(set(int(count) for count in token_counts)):
              tokens = _dynamic_moe_warmup_tokens(
                  topk=meta.topk,
-@@ -1590,6 +1593,12 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+                 quant_mode=meta.quant_mode,
+                 requested_tokens=requested_tokens,
+             )
++            tokens = _moe_workspace_tokens(tokens)
+             launch_plan = _plan_b12x_moe_execution(
+                 tokens=tokens,
+                 topk=meta.topk,
+@@ -1518,7 +1535,7 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+         ):
+             swiglu_limit = None
+         plan = _plan_b12x_moe_fp4_scratch(
+-            tokens=max(int(M), 1),
++            tokens=_moe_workspace_tokens(M),
+             topk=int(topk),
+             device=device,
+             quant_mode=quant_mode,
+@@ -1590,6 +1607,12 @@ class B12xExperts(mk.FusedMoEExpertsModular):
              # the model solely to resolve attention bindings.
              output.zero_()
              return
@@ -12073,6 +12544,158 @@ index 80103bd862c9ebff9169a0000a1d2fd40e400b34..d9fe5276ec59fe27ac2577a78396550f
          if os.environ.get("VLLM_KIMI_DEBUG_FINITE") == "1":
              torch.cuda.synchronize()
              ids_min = int(topk_ids.min().item())
+@@ -1608,49 +1631,56 @@ class B12xExperts(mk.FusedMoEExpertsModular):
+                     f"expert_id_range=[{ids_min}, {ids_max}], "
+                     f"num_experts={num_experts}"
+                 )
+-        plan = _plan_b12x_moe_fp4_scratch(
+-            tokens=int(hidden_states.shape[0]),
+-            topk=int(topk_ids.shape[1]),
+-            device=hidden_states.device,
+-            quant_mode=quant_mode,
+-            experts=prepared,
+-            apply_router_weight_on_input=(
+-                apply_router_weight_on_input
+-                if apply_router_weight_on_input is not None
+-                else False
+-            ),
+-            swiglu_limit=swiglu_limit,
+-            swiglu_alpha=swiglu_alpha,
+-            swiglu_beta=swiglu_beta,
+-            collect_activation_amax=activation_amax is not None,
+-        )
+-        scratch = _workspace2_as_b12x_scratch(workspace2, plan)
+-
+-        _run_b12x_moe_fp4(
+-            a=hidden_states,
+-            experts=prepared,
+-            topk_weights=topk_weights,
+-            topk_ids=topk_ids,
+-            output=output,
+-            input_scales_static=input_scales_static,
+-            unit_scale_contract=unit_scale_contract,
+-            plan=plan,
+-            scratch=scratch,
+-            activation_amax=activation_amax,
+-            layer_idx=activation_layer_idx,
+-        )
+-        if activation_amax is None:
+-            _maybe_repeat_check_b12x_moe(
+-                original_output=output,
+-                a=hidden_states,
++        num_tokens = int(hidden_states.shape[0])
++        tokens_per_launch = _moe_workspace_tokens(num_tokens)
++        for start in range(0, num_tokens, tokens_per_launch):
++            end = min(start + tokens_per_launch, num_tokens)
++            chunk_hidden_states = hidden_states[start:end]
++            chunk_topk_ids = topk_ids[start:end]
++            chunk_topk_weights = topk_weights[start:end]
++            chunk_output = output[start:end]
++            plan = _plan_b12x_moe_fp4_scratch(
++                tokens=end - start,
++                topk=int(topk_ids.shape[1]),
++                device=hidden_states.device,
++                quant_mode=quant_mode,
+                 experts=prepared,
+-                topk_weights=topk_weights,
+-                topk_ids=topk_ids,
++                apply_router_weight_on_input=(
++                    apply_router_weight_on_input
++                    if apply_router_weight_on_input is not None
++                    else False
++                ),
++                swiglu_limit=swiglu_limit,
++                swiglu_alpha=swiglu_alpha,
++                swiglu_beta=swiglu_beta,
++                collect_activation_amax=activation_amax is not None,
++            )
++            scratch = _workspace2_as_b12x_scratch(workspace2, plan)
++            _run_b12x_moe_fp4(
++                a=chunk_hidden_states,
++                experts=prepared,
++                topk_weights=chunk_topk_weights,
++                topk_ids=chunk_topk_ids,
++                output=chunk_output,
+                 input_scales_static=input_scales_static,
+                 unit_scale_contract=unit_scale_contract,
+                 plan=plan,
+                 scratch=scratch,
++                activation_amax=activation_amax,
++                layer_idx=activation_layer_idx,
+             )
++            if activation_amax is None:
++                _maybe_repeat_check_b12x_moe(
++                    original_output=chunk_output,
++                    a=chunk_hidden_states,
++                    experts=prepared,
++                    topk_weights=chunk_topk_weights,
++                    topk_ids=chunk_topk_ids,
++                    input_scales_static=input_scales_static,
++                    unit_scale_contract=unit_scale_contract,
++                    plan=plan,
++                    scratch=scratch,
++                )
+ 
+     def moe_sum(self, input: torch.Tensor, output: torch.Tensor) -> None:
+         raise NotImplementedError("LoRA is not supported for B12xExperts")
+diff --git a/vllm/model_executor/layers/fused_moe/modular_kernel.py b/vllm/model_executor/layers/fused_moe/modular_kernel.py
+index f7dc5dc2c0546421454238afd3543d8138d1774e..75273e26a9e477f7a7fcf97870af1b1ec921cab2 100644
+--- a/vllm/model_executor/layers/fused_moe/modular_kernel.py
++++ b/vllm/model_executor/layers/fused_moe/modular_kernel.py
+@@ -1123,6 +1123,7 @@ class FusedMoEKernelModularImpl:
+         local_num_experts: int,
+         expert_tokens_meta: ExpertTokensMetadata | None,
+         activation: MoEActivation,
++        output_alias: torch.Tensor | None = None,
+     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+         """
+         Allocate temporary and output buffers for the fused experts op.
+@@ -1160,9 +1161,26 @@ class FusedMoEKernelModularImpl:
+             activation,
+         )
+ 
+-        # We can reuse the memory between cache1 and cache3 because by the
+-        # time we need cache3, we're done with cache1.
+-        # Reuse workspace13 for the output since there is only one chunk.
++        use_output_alias = (
++            not current_platform.is_rocm()
++            and output_alias is not None
++            and output_alias.shape == fused_out_shape
++            and output_alias.dtype == workspace_dtype
++            and output_alias.device == device
++            and output_alias.is_contiguous()
++        )
++        if use_output_alias:
++            workspace13, workspace2 = (
++                current_workspace_manager().get_simultaneous(
++                    (workspace13_shape, workspace_dtype),
++                    (workspace2_shape, workspace_dtype),
++                )
++            )
++            return workspace13, workspace2, output_alias
++
++        # Workspace 1 and workspace 3 have disjoint lifetimes. The reusable
++        # allocation also stores the fused output when the caller cannot
++        # provide a compatible destination tensor.
+         max_shape_size = max(prod(workspace13_shape), prod(fused_out_shape))
+         common_workspace, workspace2 = current_workspace_manager().get_simultaneous(
+             ((max_shape_size,), workspace_dtype),
+@@ -1317,6 +1335,7 @@ class FusedMoEKernelModularImpl:
+             local_num_experts,
+             expert_tokens_meta,
+             activation,
++            output_alias,
+         )
+ 
+         use_output_alias = (
+@@ -1356,7 +1375,6 @@ class FusedMoEKernelModularImpl:
+             expert_tokens_meta=expert_tokens_meta,
+             apply_router_weight_on_input=apply_router_weight_on_input,
+         )
+-
+         return fused_out
+ 
+     def _finalize(
 diff --git a/vllm/model_executor/layers/fused_moe/runner/latent_moe_runner.py b/vllm/model_executor/layers/fused_moe/runner/latent_moe_runner.py
 index 1d36f07057aab25722b6f1d9addd9a70f51aeab2..6fb59eacebe163b4409ebd70574fd2223a088301 100644
 --- a/vllm/model_executor/layers/fused_moe/runner/latent_moe_runner.py
@@ -13229,68 +13852,10 @@ index 372ef2572385b09f750c092dc000ec61ea486c1d..d38101c85de57fe9584c1d93f5a023ca
      )
  
 diff --git a/vllm/model_executor/model_loader/default_loader.py b/vllm/model_executor/model_loader/default_loader.py
-index f915dc9757de0f9f8b8147a6ea91f6a2397ec8c2..0c262b28099f567c5f5d6ea04e60b03059b05b0e 100644
+index f915dc9757de0f9f8b8147a6ea91f6a2397ec8c2..2be14a26e242b6085ce7731be4778f861e9272b8 100644
 --- a/vllm/model_executor/model_loader/default_loader.py
 +++ b/vllm/model_executor/model_loader/default_loader.py
-@@ -255,7 +255,7 @@ class DefaultModelLoader(BaseModelLoader):
-         return hf_folder, hf_weights_files, use_safetensors
- 
-     def _get_weights_iterator(
--        self, source: "Source"
-+        self, source: "Source", *, instanttensor_owning_tensors: bool = False
-     ) -> Generator[tuple[str, torch.Tensor], None, None]:
-         """Get an iterator for the model weights based on the load format."""
-         extra_config = self.load_config.model_loader_extra_config
-@@ -300,6 +300,7 @@ class DefaultModelLoader(BaseModelLoader):
-                     self.load_config.use_tqdm_on_load,
-                     weight_name_prefixes=source.weight_name_prefixes,
-                     indexed_tensor_files=indexed_tensor_files,
-+                    owning_tensors=instanttensor_owning_tensors,
-                 )
-             else:
-                 if extra_config.get("enable_multithread_load"):
-@@ -352,6 +353,17 @@ class DefaultModelLoader(BaseModelLoader):
-         model_config: ModelConfig,
-         model: nn.Module,
-     ) -> Generator[tuple[str, torch.Tensor], None, None]:
-+        instanttensor_owning_tensors = self.load_config.load_format == (
-+            "instanttensor"
-+        ) and any(
-+            getattr(getattr(module, "quant_method", None), "uses_meta_device", False)
-+            for module in model.modules()
-+        )
-+        if instanttensor_owning_tensors:
-+            logger.info_once(
-+                "InstantTensor is using owning views for the online-quantized "
-+                "model; the target model remains on the zero-copy path."
-+            )
-         primary_weights = DefaultModelLoader.Source(
-             model_config.model,
-             model_config.revision,
-@@ -362,14 +374,20 @@ class DefaultModelLoader(BaseModelLoader):
-                 model, "checkpoint_weight_name_prefixes", None
-             ),
-         )
--        yield from self._get_weights_iterator(primary_weights)
-+        yield from self._get_weights_iterator(
-+            primary_weights,
-+            instanttensor_owning_tensors=instanttensor_owning_tensors,
-+        )
- 
-         secondary_weights = cast(
-             Iterable[DefaultModelLoader.Source],
-             getattr(model, "secondary_weights", ()),
-         )
-         for source in secondary_weights:
--            yield from self._get_weights_iterator(source)
-+            yield from self._get_weights_iterator(
-+                source,
-+                instanttensor_owning_tensors=instanttensor_owning_tensors,
-+            )
- 
-     def download_model(self, model_config: ModelConfig) -> None:
-         self._prepare_weights(
-@@ -446,33 +464,6 @@ class DefaultModelLoader(BaseModelLoader):
+@@ -446,33 +446,6 @@ class DefaultModelLoader(BaseModelLoader):
  
      @instrument(span_name="Load weights")
      def load_weights(self, model: nn.Module, model_config: ModelConfig) -> None:
@@ -13325,7 +13890,7 @@ index f915dc9757de0f9f8b8147a6ea91f6a2397ec8c2..0c262b28099f567c5f5d6ea04e60b030
              quant_config = get_quant_config(model_config, self.load_config)
              if (
 diff --git a/vllm/model_executor/model_loader/reload/layerwise.py b/vllm/model_executor/model_loader/reload/layerwise.py
-index d6d4eb4b9308a8d57880e2d67af6bf3a5cafec09..1aaaa01f830b1f63c89f2567158830ed9f59e077 100644
+index d6d4eb4b9308a8d57880e2d67af6bf3a5cafec09..fc64854b647343d63d54d580c268fa63776e95ab 100644
 --- a/vllm/model_executor/model_loader/reload/layerwise.py
 +++ b/vllm/model_executor/model_loader/reload/layerwise.py
 @@ -52,6 +52,42 @@ LAYERWISE_INFO: WeakKeyDictionary[torch.nn.Module, LayerReloadingInfo] = (
@@ -13380,7 +13945,35 @@ index d6d4eb4b9308a8d57880e2d67af6bf3a5cafec09..1aaaa01f830b1f63c89f2567158830ed
      _wrap_parameters_weight_loader(layer)
  
  
-@@ -176,7 +212,7 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
+@@ -146,6 +182,27 @@ def _wrap_parameters_weight_loader(layer: torch.nn.Module) -> None:
+             tensor.weight_loader = make_online_process_loader(layer, name)
+ 
+ 
++def _own_deferred_accelerator_tensors(bound_args: inspect.BoundArguments) -> None:
++    """Give deferred weight-loader arguments independent device storage.
++
++    Streaming model loaders may yield views into a staging ring that is reused
++    when iteration resumes. Layerwise processing replays bound arguments only
++    after every checkpoint shard for a layer arrives, so accelerator tensors
++    must be cloned before they enter that deferred queue.
++    """
++    for name, value in tuple(bound_args.arguments.items()):
++        if (
++            name != "param"
++            and isinstance(value, torch.Tensor)
++            and value.device.type
++            not in (
++                "meta",
++                "cpu",
++            )
++        ):
++            bound_args.arguments[name] = value.clone()
++
++
+ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Callable:
+     """Create a wrapped weight loader that defers processing."""
+     info = get_layerwise_info(layer)
+@@ -176,13 +233,15 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
          # Re-run on each load: layers may register parameters later (e.g., `bias`).
          # Wrap late parameters and refresh `load_numel_total` so processing waits
          # until all parameters are loaded.
@@ -13389,7 +13982,15 @@ index d6d4eb4b9308a8d57880e2d67af6bf3a5cafec09..1aaaa01f830b1f63c89f2567158830ed
          _wrap_parameters_weight_loader(layer)
  
          # Bind and normalize arguments
-@@ -360,6 +396,8 @@ def _layerwise_process(layer: torch.nn.Module, info: LayerReloadingInfo):
+         bound_args = loader_signature.bind(*args, **kwargs)
+         bound_args.apply_defaults()
+ 
++        _own_deferred_accelerator_tensors(bound_args)
++
+         # Buffer loaded weights, track loading progress
+         info.loaded_weights.append((param_name, bound_args))
+         num_loaded, ret = get_numel_loaded(original_loader, bound_args)
+@@ -360,6 +419,8 @@ def _layerwise_process(layer: torch.nn.Module, info: LayerReloadingInfo):
          args.arguments["param"] = param
          param.weight_loader(*args.args, **args.kwargs)
  
@@ -13399,7 +14000,7 @@ index d6d4eb4b9308a8d57880e2d67af6bf3a5cafec09..1aaaa01f830b1f63c89f2567158830ed
      quant_method = getattr(layer, "quant_method", None)
      if isinstance(quant_method, QuantizeMethodBase):
 diff --git a/vllm/model_executor/model_loader/weight_utils.py b/vllm/model_executor/model_loader/weight_utils.py
-index 3df3d3d526189c21dd6eeb1c4e80c5a8f4e1f50f..f464739ee5ece708ef054deb624732bf9f41c106 100644
+index 3df3d3d526189c21dd6eeb1c4e80c5a8f4e1f50f..e0108c931036bf9e467797d2ea36fdf92e60de8e 100644
 --- a/vllm/model_executor/model_loader/weight_utils.py
 +++ b/vllm/model_executor/model_loader/weight_utils.py
 @@ -294,12 +294,20 @@ def get_quant_config(
@@ -13438,15 +14039,7 @@ index 3df3d3d526189c21dd6eeb1c4e80c5a8f4e1f50f..f464739ee5ece708ef054deb624732bf
      if quantization_config_json is not None:
          if hasattr(quant_cls, "from_config_dict_json"):
              return quant_cls.from_config_dict_json(quantization_config_json)
-@@ -1207,6 +1219,7 @@ def instanttensor_weights_iterator(
-     weight_name_prefixes: Sequence[str] | None = None,
-     *,
-     indexed_tensor_files: dict[str, str] | None = None,
-+    owning_tensors: bool = False,
- ) -> Generator[tuple[str, torch.Tensor], None, None]:
-     """Iterate over the weights in the model safetensor files
-     using instanttensor library.
-@@ -1263,11 +1276,13 @@ def instanttensor_weights_iterator(
+@@ -1263,10 +1275,9 @@ def instanttensor_weights_iterator(
          device=device,
          process_group=process_group,
          load_now=not restrict_before_io,
@@ -13454,17 +14047,12 @@ index 3df3d3d526189c21dd6eeb1c4e80c5a8f4e1f50f..f464739ee5ece708ef054deb624732bf
 -        # requesting the next one. A second owning clone here only doubles
 -        # device traffic and transient memory. Our InstantTensor build records
 -        # a consumer-stream event before reusing its ring-buffer storage.
--        copy=False,
-+        # Ordinary model weight loaders consume and copy every yielded tensor
-+        # before requesting the next one, so the zero-copy path is preferable.
-+        # Online quantization is different: its layerwise loader may retain a
-+        # yielded tensor until the remaining shards for that layer arrive.  In
-+        # that case request owning tensors so InstantTensor can safely recycle
-+        # its ring-buffer storage while the deferred repack is pending.
-+        copy=owning_tensors,
++        # Immediate weight loaders consume each view before iteration resumes.
++        # Deferred loaders clone accelerator arguments when they enqueue them,
++        # so the shared ring can remain zero-copy for every other tensor.
+         copy=False,
      )
      cpu_fallback_weights: list[tuple[str, str]] = []
-     if restrict_before_io:
 diff --git a/vllm/model_executor/models/qwen3_dflash.py b/vllm/model_executor/models/qwen3_dflash.py
 index b85db176366c5299575f0d6a8dc979ab1e431243..81c53a9b6a840d52d0ab458e16230095d66f5db1 100644
 --- a/vllm/model_executor/models/qwen3_dflash.py
@@ -15067,7 +15655,7 @@ index ea2019350fa906f6b7b88675e3340f9bbefa59b3..4f20e1a158ad04f3797b031a09393a66
              out.copy_(output_prefill[..., : self.v_head_dim].flatten(start_dim=-2))
 +        prefill.v_padding_buffer = None
 diff --git a/vllm/models/kimi_k3/nvidia/model.py b/vllm/models/kimi_k3/nvidia/model.py
-index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8ff58449b 100644
+index f66f2d3cad899da6fbe159c021777d66e737a9a3..821fc6439801d64ae354c110a32b2e36f1375d39 100644
 --- a/vllm/models/kimi_k3/nvidia/model.py
 +++ b/vllm/models/kimi_k3/nvidia/model.py
 @@ -17,7 +17,6 @@ from vllm.distributed import (
@@ -15102,7 +15690,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  from vllm.multimodal import MULTIMODAL_REGISTRY
  from vllm.multimodal.inputs import NestedTensors
  from vllm.platforms import current_platform
-@@ -131,6 +140,43 @@ logger = init_logger(__name__)
+@@ -131,6 +140,44 @@ logger = init_logger(__name__)
  # it the GEMMs saturate the device and the cross-stream sync is pure overhead,
  # so it falls back to sequential.
  _ROUTED_DOWN_PROJ_STREAM_TOKEN_THRESHOLD = 256
@@ -15129,9 +15717,10 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
 +        raise ValueError("K3 auxiliary hidden states must match the target chunk")
 +    packed_width = len(aux_hidden_states) * hidden_size
 +    if packed_width > num_blocks * hidden_size:
-+        raise ValueError(
-+            "K3 auxiliary states exceed the dead AttnRes workspace capacity"
-+        )
++        # Truncated validation models can expose more DSpark feature taps than
++        # reusable AttnRes blocks. Preserve the standard list representation
++        # when the dead workspace cannot hold every feature tensor.
++        return aux_hidden_states
 +    # The target has finished consuming every residual block. Reinterpret the
 +    # existing storage as a token-major contiguous matrix, then perform the
 +    # same copies torch.cat would have made without allocating another 140 MiB
@@ -15146,7 +15735,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
  
  def _uses_native_b12x_mxfp4_intermediate_size(
-@@ -146,9 +192,7 @@ def _uses_native_b12x_mxfp4_intermediate_size(
+@@ -146,9 +193,7 @@ def _uses_native_b12x_mxfp4_intermediate_size(
      if vllm_config.model_config.quantization != "mxfp4":
          return False
      moe_backend = vllm_config.kernel_config.moe_backend
@@ -15157,7 +15746,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
  
  def _shard_routed_down_projection(tp_size: int) -> bool:
-@@ -171,8 +215,7 @@ def _log_construction_memory(stage: str, prefix: str) -> None:
+@@ -171,8 +216,7 @@ def _log_construction_memory(stage: str, prefix: str) -> None:
          return
      gib = 1024**3
      logger.info(
@@ -15167,7 +15756,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          stage,
          prefix,
          torch.cuda.memory_allocated() / gib,
-@@ -193,20 +236,33 @@ class KimiShardedGate(ColumnParallelLinear):
+@@ -193,20 +237,33 @@ class KimiShardedGate(ColumnParallelLinear):
              prefix=prefix,
          )
  
@@ -15211,7 +15800,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  class KimiMLP(nn.Module):
      def __init__(
          self,
-@@ -221,6 +277,7 @@ class KimiMLP(nn.Module):
+@@ -221,6 +278,7 @@ class KimiMLP(nn.Module):
          activation_situ_linear_beta: float | None = None,
      ) -> None:
          super().__init__()
@@ -15219,7 +15808,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
          self.gate_up_proj = MergedColumnParallelLinear(
              hidden_size,
-@@ -253,11 +310,40 @@ class KimiMLP(nn.Module):
+@@ -253,11 +311,40 @@ class KimiMLP(nn.Module):
              )
  
      def forward(self, x):
@@ -15261,7 +15850,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
  class KimiRoutedOutputTransform(nn.Module):
      def __init__(
-@@ -463,6 +549,76 @@ def make_kimi_k3_mega_moe_expert_params_mapping(
+@@ -463,6 +550,76 @@ def make_kimi_k3_mega_moe_expert_params_mapping(
      return mapping
  
  
@@ -15338,7 +15927,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  class KimiMoE(nn.Module):
      def __init__(
          self,
-@@ -589,25 +745,23 @@ class KimiMoE(nn.Module):
+@@ -589,25 +746,23 @@ class KimiMoE(nn.Module):
          else:
              self.shared_experts = None
  
@@ -15368,7 +15957,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
              )
              if shard_routed_down:
                  logger.info_once(
-@@ -693,6 +847,14 @@ class KimiMoE(nn.Module):
+@@ -693,6 +848,14 @@ class KimiMoE(nn.Module):
                  current_platform.is_cuda()
                  and current_platform.is_device_capability_family(100)
              )
@@ -15383,7 +15972,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
              self.experts = FusedMoEFactory(
                  shared_experts=self.shared_experts,
                  num_experts=num_experts,
-@@ -711,6 +873,7 @@ class KimiMoE(nn.Module):
+@@ -711,6 +874,7 @@ class KimiMoE(nn.Module):
                  scoring_func=config.moe_router_activation_func,
                  e_score_correction_bias=self.gate.e_score_correction_bias,
                  routed_scaling_factor=self.routed_scaling_factor,
@@ -15391,7 +15980,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
                  # Down projection runs outside MoERunner so it can overlap the
                  # router gate on the aux stream (see forward()); the original
                  # hidden states are passed to forward() as shared_experts_input
-@@ -765,10 +928,9 @@ class KimiMoE(nn.Module):
+@@ -765,10 +929,9 @@ class KimiMoE(nn.Module):
              logits and ``topk_ids`` is ``None``.
          """
  
@@ -15404,7 +15993,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
              if not self.use_mega_moe:
                  return router_logits, None
              return fused_grouped_topk(
-@@ -783,11 +945,47 @@ class KimiMoE(nn.Module):
+@@ -783,11 +946,47 @@ class KimiMoE(nn.Module):
                  routed_scaling_factor=self.routed_scaling_factor,
              )
  
@@ -15452,7 +16041,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          (router_output, topk_ids), (routed_hidden_states, _) = (
              maybe_execute_in_parallel(
                  lambda: _router(hidden_states),
-@@ -810,6 +1008,8 @@ class KimiMoE(nn.Module):
+@@ -810,6 +1009,8 @@ class KimiMoE(nn.Module):
      def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
          num_tokens, hidden_size = hidden_states.shape
          hidden_states = hidden_states.view(-1, hidden_size)
@@ -15461,7 +16050,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          # Overlap the gate with the routed down projection; the returned hidden
          # states are already down-projected. Keep the original ``hidden_states``
          # for the shared experts.
-@@ -1013,6 +1213,26 @@ class KimiDecoderLayer(nn.Module):
+@@ -1013,6 +1214,26 @@ class KimiDecoderLayer(nn.Module):
  
          assert prefix_sum is not None
          assert residual is not None
@@ -15488,7 +16077,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          hidden_states = attn_res(
              prefix_sum,
              hidden_states,
-@@ -1024,6 +1244,7 @@ class KimiDecoderLayer(nn.Module):
+@@ -1024,6 +1245,7 @@ class KimiDecoderLayer(nn.Module):
              block_write_idx=(self.block_write_idx if self.is_block_write_layer else -1),
              eps=self.self_attention_res_norm.variance_epsilon,
              output_norm_eps=self.input_layernorm.variance_epsilon,
@@ -15496,7 +16085,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          )
          return hidden_states, prefix_sum, residual
  
-@@ -1040,11 +1261,22 @@ class KimiDecoderLayer(nn.Module):
+@@ -1040,11 +1262,22 @@ class KimiDecoderLayer(nn.Module):
              return hidden_states, prefix_sum, residual
  
          assert prefix_sum is not None
@@ -15519,7 +16108,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          mlp_valid_blocks = self.prev_valid_blocks + self.is_block_write_layer
          hidden_states = attn_res(
              prefix_sum,
-@@ -1057,6 +1289,7 @@ class KimiDecoderLayer(nn.Module):
+@@ -1057,6 +1290,7 @@ class KimiDecoderLayer(nn.Module):
              block_write_idx=-1,
              eps=self.mlp_res_norm.variance_epsilon,
              output_norm_eps=self.post_attention_layernorm.variance_epsilon,
@@ -15527,7 +16116,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          )
          return hidden_states, prefix_sum, residual
  
-@@ -1151,6 +1384,11 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
+@@ -1151,6 +1385,11 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
              if self.attn_res_block_size is not None
              else 0
          )
@@ -15539,7 +16128,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
          if get_pp_group().is_last_rank:
              self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-@@ -1202,6 +1440,71 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
+@@ -1202,6 +1441,71 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
      def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
          return self.embed_tokens(input_ids)
  
@@ -15611,7 +16200,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
      def forward(
          self,
          input_ids: torch.Tensor | None,
-@@ -1241,11 +1544,7 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
+@@ -1241,11 +1545,7 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
  
          prefix_sum = None
          if self.use_attn_res:
@@ -15624,7 +16213,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
              if residual is not None:
                  block_residual[:, : residual.size(1), :].copy_(residual)
              prefix_sum = hidden_states
-@@ -1291,6 +1590,11 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
+@@ -1291,6 +1591,11 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
  
          if self.use_attn_res:
              assert prefix_sum is not None
@@ -15636,7 +16225,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
              hidden_states = attn_res(
                  prefix_sum,
                  hidden_states,
-@@ -1302,7 +1606,13 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
+@@ -1302,7 +1607,13 @@ class KimiLinearModel(nn.Module, EagleModelMixin, SupportsQuant):
                  block_write_idx=-1,
                  eps=self.output_attn_res_norm.variance_epsilon,
                  output_norm_eps=0.0,
@@ -15650,7 +16239,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
          else:
              hidden_states = hidden_states + residual
  
-@@ -1622,6 +1932,9 @@ class KimiLinearForCausalLM(
+@@ -1622,6 +1933,9 @@ class KimiLinearForCausalLM(
          # hook for any AttentionLayerBase, so no manual trigger is needed here.
          return loaded
  
@@ -15660,7 +16249,7 @@ index f66f2d3cad899da6fbe159c021777d66e737a9a3..6386131ea4b708333f350a8f2c023ac8
  
  def get_spec_layer_idx_from_weight_name(
      config: KimiLinearConfig, weight_name: str
-@@ -2064,3 +2377,6 @@ class KimiK3ForConditionalGeneration(
+@@ -2064,3 +2378,6 @@ class KimiK3ForConditionalGeneration(
      def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]):
          loader = AutoWeightsLoader(self)
          return loader.load_weights(weights, mapper=self.hf_to_vllm_mapper)
@@ -18474,7 +19063,7 @@ index d41c95430d574bd9176eb491849d96c86afad4b4..1fbd7817fac66edebad8420b27fedd94
  
  @dataclass
 diff --git a/vllm/v1/worker/gpu/cudagraph_utils.py b/vllm/v1/worker/gpu/cudagraph_utils.py
-index 28bbfc0ee9069d9f83383822cf03736c9f36dd19..95ed25dc4e5858656349c27a58b531f9223f267f 100644
+index 28bbfc0ee9069d9f83383822cf03736c9f36dd19..62b68ef25cd493fde01c0e708491c1255bbed96f 100644
 --- a/vllm/v1/worker/gpu/cudagraph_utils.py
 +++ b/vllm/v1/worker/gpu/cudagraph_utils.py
 @@ -3,6 +3,7 @@
@@ -18485,7 +19074,15 @@ index 28bbfc0ee9069d9f83383822cf03736c9f36dd19..95ed25dc4e5858656349c27a58b531f9
  from dataclasses import dataclass
  from itertools import product
  from typing import Any, NamedTuple, Protocol
-@@ -115,6 +116,29 @@ def get_uniform_token_count(
+@@ -13,6 +14,7 @@ from tqdm import tqdm
+ 
+ import vllm.envs as envs
+ from vllm.compilation.b12x_capture import (
++    b12x_compile_only_warmup,
+     b12x_cuda_graph_prewarm_enabled,
+     guard_b12x_kernel_resolution,
+ )
+@@ -115,6 +117,29 @@ def get_uniform_token_count(
      return None
  
  
@@ -18515,7 +19112,26 @@ index 28bbfc0ee9069d9f83383822cf03736c9f36dd19..95ed25dc4e5858656349c27a58b531f9
  class CudaGraphManager:
      def __init__(
          self,
-@@ -462,7 +486,11 @@ class CudaGraphManager:
+@@ -277,6 +302,18 @@ class CudaGraphManager:
+         else:
+             decode_query_lens = [self.decode_query_len]
+ 
++        if (
++            speculative_config is not None
++            and self.use_breakable_cg
++            and envs.VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM
++            and not self.varlen_spec_decode
++        ):
++            # A request can receive no draft tokens even when speculative
++            # decoding is enabled. Compile-only B12X prewarm must give that
++            # one-token verifier step its own executable FULL graph instead of
++            # making its first execution a breakable PIECEWISE replay.
++            decode_query_lens = sorted({1, *decode_query_lens})
++
+         def decode_descs(
+             num_tokens: int,
+             num_active_loras: int,
+@@ -462,7 +499,11 @@ class CudaGraphManager:
          # the graph artifacts captured below. Some multi-stream custom ops run
          # on joined auxiliary streams where CUDA's per-current-stream capture
          # query is false even though later graph nodes retain those handles.
@@ -18528,6 +19144,22 @@ index 28bbfc0ee9069d9f83383822cf03736c9f36dd19..95ed25dc4e5858656349c27a58b531f9
              # Capture in order: PIECEWISE first, then FULL. PIECEWISE has larger
              # activations so FULL activations should fit in already allocated
              # buffers in the graph pool.
+@@ -511,7 +552,14 @@ class CudaGraphManager:
+                             # the CuTe launcher contract. Re-warm the exact
+                             # fresh state that FULL capture will use, so CUDA
+                             # graph capture only records resolved launches.
+-                            forward_fn(CUDAGraphMode.NONE)
++                            if envs.VLLM_B12X_CUDAGRAPH_COMPILE_ONLY_PREWARM:
++                                # Kernel resolution must see every B12X call,
++                                # but memory-constrained captures cannot afford
++                                # a second eager model execution here.
++                                with b12x_compile_only_warmup():
++                                    forward_fn(CUDAGraphMode.NONE)
++                            else:
++                                forward_fn(CUDAGraphMode.NONE)
+                         graph = torch.cuda.CUDAGraph()
+                         # Sync offloader's copy stream before capture.
+                         # Ensure any pre-capture prefetches from offloader are complete.
 diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
 index 428675af18448fbc9f32667249ad65fe8dcfd1ef..a0e377d059ff821e49427d83f5b8278968de1af2 100644
 --- a/vllm/v1/worker/gpu/model_runner.py
