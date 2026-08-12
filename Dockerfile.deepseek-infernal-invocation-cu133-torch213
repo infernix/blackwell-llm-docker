@@ -50,6 +50,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:${PATH} \
     PYTHONPATH=/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
     SPARKINFER_DIR=/opt/infernal-invocation/b12x \
+    CUTLASS_DSL_VERSION=${CUTLASS_DSL_VERSION} \
     TORCH_CUDA_ARCH_LIST=12.0a \
     CMAKE_CUDA_ARCHITECTURES=120a \
     FLASHINFER_CUDA_ARCH_LIST=12.0f \
