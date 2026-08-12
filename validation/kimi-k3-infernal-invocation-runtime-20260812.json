@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "qualified_at_utc": "2026-08-12",
+  "image": {
+    "name": "voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1",
+    "registry_digest": "sha256:974edc237f27a4eaa83a53ce4927dd176a5ad8ce4fbb8d3d689fce82348531a5",
+    "local_image_id": "sha256:4be1d706e29cc5d53fc2891378ba185538d5a35e69793062a8f973f1886217f0",
+    "size_bytes": 31388309606,
+    "recipe_commit": "697f50ff644f2c418645c64a50828dccce597d38"
+  },
+  "source_composition": {
+    "vllm": {
+      "base_branch": "dev/infernal-invocation",
+      "base_commit": "c8d04a543e0e8b0896e60b8b11bec0bb2d780860",
+      "integration_branch": "integration/kimi-k3-ii-cu133-torch213-20260811",
+      "integration_commit": "881ac39a4fb6c5bbfa14f3944db560e0a27f3ffe",
+      "integration_tree": "de04f08beb6ff0ef05189c31927f3a3320b1a6f1"
+    },
+    "b12x": {
+      "base_branch": "master",
+      "base_commit": "184d7d52ad630841d0c6caf962f8b9d36f38992a",
+      "pull_requests": [
+        "124@fe50ccd25e16aa56c0bde93432993d4798839cc0",
+        "138@8596afcf10a3c48f2329ee34ce6e310ceeb6d110",
+        "139@a5089aa3c6aa8cbe40dbdaf520a6c8bddf1d50e8"
+      ],
+      "integration_tree": "2e6092a74d2449b8f8fa65d0c980533002db76cb"
+    }
+  },
+  "runtime": {
+    "cuda": "13.3",
+    "pytorch": "2.13.0",
+    "nccl": "2.31.2",
+    "instanttensor": "0.1.9",
+    "flashinfer": "0.6.15.post1",
+    "vllm": "0.11.2.dev280+infernal.de04f08.cu133.torch213",
+    "kda_prefill_backend": "triton",
+    "target_attention_backend": "B12X_MLA"
+  },
+  "hardware": {
+    "gpu_count": 16,
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "tensor_parallel_size": 16,
+    "decode_context_parallel_size": 16
+  },
+  "target_model": {
+    "repository": "moonshotai/Kimi-K3",
+    "revision": "2496450e92e425c886db095102a52a6682ca3970",
+    "expert_weight_format": "checkpoint MXFP4",
+    "dense_weight_format_without_speculation": "BF16",
+    "kv_cache_dtype": "FP8",
+    "maximum_model_length_tokens": 1048576,
+    "load_format": "instanttensor"
+  },
+  "profiles": {
+    "target_only": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-nospec",
+      "served_model_name": "Kimi-K3-MXFP4-DCP16-1M",
+      "reported_target_kv_cache_tokens": 1460937,
+      "model_memory_gib_per_gpu": 90.93,
+      "target_weight_load_seconds": 161.42,
+      "model_load_seconds": 185.96,
+      "cuda_graph_memory_gib_per_gpu": 0.20,
+      "decode_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "allowed_token_id": 13,
+        "warmups": 2,
+        "runs": 8
+      },
+      "decode_tokens_per_second_median": 56.04754505393932,
+      "decode_tokens_per_second_min": 55.93005838188695,
+      "decode_tokens_per_second_max": 56.083767616138275,
+      "conclusion": "The target-only profile serves the checkpoint with more than one million physical target KV tokens."
+    },
+    "dspark": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-dspark",
+      "served_model_name": "Kimi-K3-MXFP4-DSpark7-DCP16-1M",
+      "draft_repository": "Inferact/Kimi-K3-DSpark",
+      "draft_revision": "cf6b8244620e7ea4b0651d214f28e89eac75bed6",
+      "speculative_tokens": 7,
+      "draft_weight_format": "online MXFP8 linears with BF16 fused_qkv_a_proj",
+      "target_kda_projection_format": "online MXFP8",
+      "target_kda_cpu_fallback": false,
+      "markov_head_distribution": "TP-sharded vocabulary projection with replicated 80 MiB W1",
+      "draft_kv_window_tokens": 32768,
+      "reported_target_kv_cache_tokens": 1057049,
+      "model_memory_gib_per_gpu": 89.79,
+      "target_weight_load_seconds": 165.29,
+      "draft_weight_load_seconds": 1.45,
+      "model_load_seconds": 186.99,
+      "cuda_graph_memory_gib_per_gpu": 0.31,
+      "decode_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "temperature": 0.0,
+        "warmups": 1,
+        "runs": 8
+      },
+      "decode_tokens_per_second_median": 118.92103096750236,
+      "target_cycles_per_second_median": 30.89786273823485,
+      "draft_acceptance_rate_median": 0.40928273463248915,
+      "mean_emitted_tokens_per_target_cycle_median": 3.864979142427424,
+      "conclusion": "The DSpark profile exceeds one million physical target KV tokens and has higher normalized decode throughput than the matched Heraldic Harbinger reference."
+    },
+    "dflash": {
+      "entrypoint": "/usr/local/bin/serve-kimi-k3-dflash",
+      "served_model_name": "Kimi-K3-MXFP4-DFlash-DCP16-1M",
+      "draft_repository": "modal-labs/Kimi-K3-DFlash",
+      "draft_revision": "c192d15a43407bf758b5ae0880d5c72052fef1de",
+      "speculative_tokens": 7,
+      "draft_weight_format": "online MXFP8 linears with BF16 qkv_proj",
+      "target_kda_projection_format": "online MXFP8",
+      "target_kda_cpu_fallback": false,
+      "reported_target_kv_cache_tokens": 1048576,
+      "model_memory_gib_per_gpu": 90.29,
+      "target_weight_load_seconds": 164.01,
+      "draft_weight_load_seconds": 3.88,
+      "model_load_seconds": 190.56,
+      "cuda_graph_memory_gib_per_gpu": 0.29,
+      "decode_protocol": {
+        "prompt_tokens": 256,
+        "completion_tokens": 1024,
+        "temperature": 0.0,
+        "warmups": 1,
+        "runs": 6
+      },
+      "decode_tokens_per_second_median": 89.34707284981056,
+      "target_cycles_per_second_median": 30.34112375227653,
+      "draft_acceptance_rate_median": 0.2771261857800319,
+      "mean_emitted_tokens_per_target_cycle_median": 2.939883300460224,
+      "conclusion": "The DFlash profile provides exactly one million physical target KV tokens and has higher normalized decode throughput than the matched Heraldic Harbinger reference."
+    }
+  },
+  "load_time_constraints": {
+    "online_projection_quantization": "Each selected BF16 KDA projection is converted to MXFP8 when its source tensor is loaded; the loader does not retain all BF16 KDA projections simultaneously.",
+    "dspark_transient": "The DSpark cold load emitted recoverable expandable-segment mapping warnings while less than 21 MiB was free per GPU. Loading completed and the steady server passed the decode qualification.",
+    "oversized_draft_tensor": "One 4.45 GiB DSpark draft tensor exceeds the 2.35 GiB InstantTensor ring and is loaded through CPU safetensors in 1.45 seconds. This tensor is not a target KDA projection."
+  },
+  "evidence_root": "/mnt/luke/kimi-k3-runs/infernal-release-20260812"
+}

@@ -147,38 +147,70 @@ generated-kernel state from being reused across target-only, DSpark, and
 DFlash processes. The machine-readable qualification receipt is
 `validation/kimi-k3-hh-runtime-20260811.json`.
 
-### Kimi-K3 dev/infernal-invocation runtime
+### Kimi-K3 Infernal Invocation runtime
 
-Status: **implemented**. The build script
-`build-kimi-k3-infernal-invocation-cu133-torch213.sh` composes the vLLM Git tree
-recorded by
+Status: **qualified**. The release artifact is:
+
+```text
+voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1
+sha256:974edc237f27a4eaa83a53ce4927dd176a5ad8ce4fbb8d3d689fce82348531a5
+```
+
+`build-kimi-k3-infernal-invocation-cu133-torch213.sh` composes the vLLM Git
+tree recorded by
 `patches/releases/kimi-k3-infernal-invocation-runtime-r1/vllm/integration.lock.json`
 with the B12X Git tree recorded by
 `patches/releases/kimi-k3-hh-runtime-r1/b12x/integration.lock.json`. The image
-uses CUDA 13.3, PyTorch 2.13.0, NCCL 2.31.2, and InstantTensor 0.1.9.
+uses CUDA 13.3, PyTorch 2.13.0, NCCL 2.31.2, InstantTensor 0.1.9, and
+FlashInfer 0.6.15.post1.
 
 The image contains these serving interfaces:
 
-| Runtime profile | Entrypoint | Draft checkpoint |
-|---|---|---|
-| Full MXFP4 target without speculation | `/usr/local/bin/serve-kimi-k3-nospec` | none |
-| Full MXFP4 target with seven-token DSpark | `/usr/local/bin/serve-kimi-k3-dspark` | `Inferact/Kimi-K3-DSpark` |
-| Full MXFP4 target with seven-token DFlash | `/usr/local/bin/serve-kimi-k3-dflash` | `modal-labs/Kimi-K3-DFlash` |
+| Runtime profile | Entrypoint | Draft checkpoint | Physical target KV tokens | Decode tok/s median |
+|---|---|---|---:|---:|
+| Full MXFP4 target without speculation | `/usr/local/bin/serve-kimi-k3-nospec` | none | 1,460,937 | 56.05 |
+| Full MXFP4 target with seven-token DSpark | `/usr/local/bin/serve-kimi-k3-dspark` | `Inferact/Kimi-K3-DSpark` | 1,057,049 | 118.92 |
+| Full MXFP4 target with seven-token DFlash | `/usr/local/bin/serve-kimi-k3-dflash` | `modal-labs/Kimi-K3-DFlash` | 1,048,576 | 89.35 |
 
-DSpark is the image entrypoint. Start that profile with:
+The speculative decode measurements used one request, a 256-token prompt,
+1,024 generated tokens, greedy sampling, and six or eight measured requests.
+DSpark and DFlash achieved 30.90 and 30.34 target cycles per second,
+respectively. The complete protocol and results are recorded in
+`validation/kimi-k3-infernal-invocation-runtime-20260812.json`.
+
+Create independent persistent caches for the three runtime profiles:
 
 ```bash
-docker run --rm --name kimi-k3-infernal-dspark \
-  --gpus all --ipc=host --network=host --shm-size=32g \
-  --ulimit memlock=-1 --ulimit stack=67108864 \
-  -v /root/.cache/huggingface:/root/.cache/huggingface:ro \
-  -v kimi-k3-infernal-dspark-jit:/cache/jit \
-  voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1
+mkdir -p /mnt/luke/kimi-k3-cache/infernal-release-20260812/nospec
+mkdir -p /mnt/luke/kimi-k3-cache/infernal-release-20260812/dspark
+mkdir -p /mnt/luke/kimi-k3-cache/infernal-release-20260812/dflash
 ```
 
-Use a distinct `/cache/jit` volume for each entrypoint. The three profiles have
-different graph shapes and generated kernels; sharing a writable JIT directory
-between them is unsupported.
+Set `KIMI_K3_ENTRYPOINT` and `KIMI_K3_CACHE` to select a profile, then start
+the server:
+
+```bash
+KIMI_K3_IMAGE=voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1
+KIMI_K3_ENTRYPOINT=/usr/local/bin/serve-kimi-k3-dspark
+KIMI_K3_CACHE=/mnt/luke/kimi-k3-cache/infernal-release-20260812/dspark
+
+docker run -d --name kimi-k3-infernal \
+  --gpus all --ipc=host --network=host --shm-size=32g \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  --ulimit nofile=1048576:1048576 \
+  -e PORT=8001 \
+  -v /root/.cache/huggingface:/root/.cache/huggingface:ro \
+  -v "${KIMI_K3_CACHE}:/cache/jit" \
+  --entrypoint "${KIMI_K3_ENTRYPOINT}" \
+  "${KIMI_K3_IMAGE}"
+```
+
+Use `/usr/local/bin/serve-kimi-k3-nospec` with the `nospec` cache directory or
+`/usr/local/bin/serve-kimi-k3-dflash` with the `dflash` cache directory for the
+other profiles. Port 8001 is used on hosts where a local proxy owns port 8000;
+set `PORT=8000` when port 8000 is directly available. Sharing a writable JIT
+directory between profiles is unsupported because their CUDA graph shapes and
+generated kernels differ.
 
 ### Clean GG release composition
 
