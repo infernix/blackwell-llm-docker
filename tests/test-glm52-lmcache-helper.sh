@@ -130,9 +130,12 @@ LMCACHE_TEST_MODEL_ARGS="${tmp_root}/allocator-model.args" \
 LMCACHE_TEST_MODEL_ENV="${tmp_root}/allocator-model.env" \
 PYTORCH_CUDA_ALLOC_CONF='max_split_size_mb:256,expandable_segments:True' \
 bash "${lmcache_wrapper}" \
-  "${tmp_root}/model-server"
+  "${tmp_root}/model-server" >"${tmp_root}/allocator-wrapper.log"
 grep -Fxq 'max_split_size_mb:256,expandable_segments:False' \
   "${tmp_root}/allocator-model.env"
+grep -Fxq \
+  'LMCache requires PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False; overriding expandable_segments:True' \
+  "${tmp_root}/allocator-wrapper.log"
 
 PATH="${tmp_root}/bin:${PATH}" \
 LMCACHE_MODE=disk \

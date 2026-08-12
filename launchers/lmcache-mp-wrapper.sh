@@ -143,7 +143,7 @@ if [[ -z "${allocator_config}" ]]; then
   allocator_config="expandable_segments:False"
 elif [[ "${allocator_config}" =~ (^|,)expandable_segments:True(,|$) ]]; then
   allocator_config="${allocator_config//expandable_segments:True/expandable_segments:False}"
-  echo "LMCache disabled PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+  echo "LMCache requires PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False; overriding expandable_segments:True"
 fi
 export PYTORCH_CUDA_ALLOC_CONF="${allocator_config}"
 
