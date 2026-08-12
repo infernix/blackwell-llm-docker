@@ -89,6 +89,8 @@ def main() -> None:
     assert metadata.version("nvidia-cutlass-dsl") == args.cutlass_dsl_version
     assert metadata.version("nvidia-cutlass-dsl-libs-base") == args.cutlass_dsl_version
     assert metadata.version("nvidia-cutlass-dsl-libs-cu13") == args.cutlass_dsl_version
+    assert os.environ["CUTLASS_DSL_VERSION"] == args.cutlass_dsl_version
+    assert metadata.version("pytest") == "8.4.1"
     assert hasattr(cute.nvgpu.warp, "MmaMXF8Op")
     assert flashinfer.__file__ and instanttensor.__file__ and lmcache.__file__
     assert nccl.__file__
@@ -116,6 +118,8 @@ def main() -> None:
     for launcher in (
         "/usr/local/bin/serve-ds4-flash.sh",
         "/usr/local/bin/serve-ds4-flash-spark.sh",
+        "/usr/local/bin/serve-infernal-invocation.sh",
+        "/usr/local/bin/serve-glm52-v19.sh",
         "/usr/local/bin/lmcache-mp-wrapper.sh",
     ):
         assert os.access(launcher, os.X_OK), launcher
