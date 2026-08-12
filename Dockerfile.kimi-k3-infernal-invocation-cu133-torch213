@@ -165,7 +165,7 @@ WORKDIR /opt/kimi-k3/vllm
 # Native extensions are compiled from the composed infernal-invocation source
 # against the packaged PyTorch 2.13 ABI. The source tree remains importable
 # through PYTHONPATH and contains every extension required by the Kimi profiles.
-RUN --mount=type=cache,target=/tmp/vllm-extensions,sharing=locked \
+RUN --mount=type=cache,id=kimi-k3-infernal-vllm-extensions,target=/tmp/vllm-extensions,sharing=locked \
     set -eux; \
     cmake -S . -B /tmp/vllm-extensions -G Ninja \
       -U MARLIN_GEN_SCRIPT_HASH_AND_ARCH \
