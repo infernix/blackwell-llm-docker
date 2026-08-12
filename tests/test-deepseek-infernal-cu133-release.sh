@@ -13,6 +13,7 @@ grep -Fq 'ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-202608
 grep -Fq 'local-inference.cuda.version="13.3"' "${dockerfile}"
 grep -Fq 'local-inference.torch.version="2.13.0"' "${dockerfile}"
 grep -Fq 'local-inference.nccl.version="2.31.2"' "${dockerfile}"
+grep -Fq 'local-inference.xgrammar.version="${XGRAMMAR_VERSION}"' "${dockerfile}"
 grep -Fq 'compose_source lmcache /opt/infernal-invocation/lmcache' "${dockerfile}"
 grep -Fq -- '--component _vllm_fa4_cutedsl_C' "${dockerfile}"
 grep -Fq 'vllm_flash_attn/cute/utils.py' "${dockerfile}"

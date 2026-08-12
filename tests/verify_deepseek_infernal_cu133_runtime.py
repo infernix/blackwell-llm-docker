@@ -46,6 +46,7 @@ def main() -> None:
     parser.add_argument("--instanttensor-version", default="0.1.9")
     parser.add_argument("--nccl4py-version", default="0.3.1")
     parser.add_argument("--cutlass-dsl-version", default="4.6.2")
+    parser.add_argument("--xgrammar-version", default="0.2.5")
     parser.add_argument("--vllm-source-root", default="/opt/infernal-invocation/vllm")
     parser.add_argument("--b12x-source-root", default="/opt/infernal-invocation/b12x")
     args = parser.parse_args()
@@ -83,6 +84,7 @@ def main() -> None:
     assert metadata.version("lmcache") == args.lmcache_version
     assert metadata.version("instanttensor") == args.instanttensor_version
     assert metadata.version("nccl4py") == args.nccl4py_version
+    assert metadata.version("xgrammar") == args.xgrammar_version
     assert metadata.version("cupy-cuda13x") == "13.6.0"
     assert metadata.version("nvidia-cutlass-dsl") == args.cutlass_dsl_version
     assert metadata.version("nvidia-cutlass-dsl-libs-base") == args.cutlass_dsl_version
@@ -136,7 +138,8 @@ def main() -> None:
         f"torch={torch.__version__} cuda={torch.version.cuda} nccl={version.value} "
         f"vllm={metadata.version('vllm')} b12x={metadata.version('b12x')} "
         f"flashinfer={metadata.version('flashinfer-python')} "
-        f"lmcache={metadata.version('lmcache')}"
+        f"lmcache={metadata.version('lmcache')} "
+        f"xgrammar={metadata.version('xgrammar')}"
     )
 
 

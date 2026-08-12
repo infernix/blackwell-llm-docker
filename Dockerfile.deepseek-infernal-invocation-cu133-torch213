@@ -39,6 +39,7 @@ ARG FLASHINFER_VERSION=0.6.18+cu133
 ARG DEEPGEMM_REPO=https://github.com/deepseek-ai/DeepGEMM.git
 ARG DEEPGEMM_COMMIT=a6b593d2826719dcf4892609af7b84ee23aaf32a
 ARG CUTLASS_DSL_VERSION=4.6.2
+ARG XGRAMMAR_VERSION=0.2.5
 ARG VLLM_PACKAGE_VERSION
 ARG CACHE_FINGERPRINT
 
@@ -329,7 +330,8 @@ RUN set -e; \
       --flashinfer-version "${FLASHINFER_VERSION}" \
       --lmcache-version "${LMCACHE_BUILD_VERSION}" \
       --instanttensor-version "${INSTANTTENSOR_VERSION}" \
-      --cutlass-dsl-version "${CUTLASS_DSL_VERSION}"; \
+      --cutlass-dsl-version "${CUTLASS_DSL_VERSION}" \
+      --xgrammar-version "${XGRAMMAR_VERSION}"; \
     pip_status=0; \
     python -m pip check > /tmp/pip-check.actual 2>&1 || pip_status=$?; \
     test "${pip_status}" -eq 1; \
@@ -388,6 +390,7 @@ LABEL org.opencontainers.image.title="DeepSeek Infernal Invocation CUDA 13.3 PyT
       local-inference.deepgemm.repo="${DEEPGEMM_REPO}" \
       local-inference.deepgemm.commit="${DEEPGEMM_COMMIT}" \
       local-inference.cutlass-dsl.version="${CUTLASS_DSL_VERSION}" \
+      local-inference.xgrammar.version="${XGRAMMAR_VERSION}" \
       local-inference.cuda.version="13.3" \
       local-inference.torch.version="2.13.0" \
       local-inference.nccl.version="2.31.2" \
