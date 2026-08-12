@@ -189,7 +189,7 @@ between them is unsupported.
 Status: **implemented**. The build script
 `build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
 vLLM, B12X, and LMCache trees recorded under
-`patches/releases/infernal-invocation-r3/`. The runtime uses CUDA 13.3,
+`patches/releases/infernal-invocation-r4/`. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
@@ -200,7 +200,7 @@ through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r3.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r4.yml \
   up -d
 ```
 

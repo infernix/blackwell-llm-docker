@@ -1,0 +1,183 @@
+diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels/w4a16/kernel.py
+index d8974e4024ee9d1c0c35af15a75b3191e105d75a..ae2cb7f411d6a122c1591dd793b3b54119542a9e 100644
+--- a/b12x/moe/_shared/kernels/w4a16/kernel.py
++++ b/b12x/moe/_shared/kernels/w4a16/kernel.py
+@@ -442,6 +442,7 @@ def _candidate_tile_fits(
+     weight_layout: str = "packed",
+     weight_bits: int = 4,
+     allow_logical_tail: bool = False,
++    allow_qualified_fc2_tile: bool = False,
+ ) -> bool:
+     if int(tile_k) == -1 or int(tile_n) == -1 or int(cta_threads) == -1:
+         return False
+@@ -462,7 +463,20 @@ def _candidate_tile_fits(
+         or int(tile_k) % scale_group_size != 0
+     ):
+         return False
+-    if int(tile_n) < 64 or int(tile_k) < 64 or int(cta_threads) < 128:
++    # The FC2 wave-balanced decode schedule uses one qualified 32x512 tile.
++    # Keep the generic tile floor while allowing that exact geometry to pass
++    # through the explicit-pin path used by the Torch custom-op boundary.
++    wide_n_fc2_tile = (
++        allow_qualified_fc2_tile
++        and int(tile_k) == 32
++        and int(tile_n) == 512
++        and int(cta_threads) == 256
++    )
++    if (
++        int(tile_n) < 64
++        or int(cta_threads) < 128
++        or (int(tile_k) < 64 and not wide_n_fc2_tile)
++    ):
+         return False
+     smem_bytes = _shared_memory_footprint(
+         cta_m_blocks=cta_m_blocks,
+@@ -9926,28 +9940,27 @@ def compile_w4a16_fused_moe(
+         and fc1_mn_after <= int(sms)
+     ):
+         ultra_fc2_tile_k = 32
+-        ultra_smem = _shared_memory_footprint(
++        if _candidate_tile_fits(
++            problem_n=hidden_size,
++            problem_k=intermediate_size,
+             cta_m_blocks=_covering_count(moe_block_size, 16),
+             tile_n=512,
+             tile_k=ultra_fc2_tile_k,
++            cta_threads=256,
++            max_shared_mem=int(max_shared_mem) - 512,
+             scale_format=scale_format,
+             weight_layout=weight_layout,
+             weight_bits=weight_bits,
+-        )
+-        if (
+-            int(intermediate_size) % ultra_fc2_tile_k == 0
+-            and ultra_smem <= int(max_shared_mem) - 512
++            allow_qualified_fc2_tile=True,
+         ):
+             fc2_tile_n = 512
+             fc2_tile_k = ultra_fc2_tile_k
+             fc2_cta_threads = 256
+     if force_tile_config is not None:
+-        # Explicit (fc1_tile_k, fc1_tile_n, fc2_tile_k, fc2_tile_n) pin. The
+-        # Some weight layouts are packed for a specific CTA
+-        # N-tile, so hybrid deployments pin ONE tile config across every m
+-        # regime instead of the m-dependent auto selection (and TC-decode
+-        # wide-N overrides) above. Overrides whatever was selected; the tiles
+-        # land in the GEMM cache keys, so no cache collision is possible.
++        # Some weight layouts are packed for a specific CTA N-tile. An explicit
++        # (fc1_tile_k, fc1_tile_n, fc2_tile_k, fc2_tile_n) tuple therefore pins
++        # one geometry across every M regime. Tile values are part of the GEMM
++        # cache key, so distinct packed layouts cannot collide.
+         fc1_tile_k, fc1_tile_n, fc2_tile_k, fc2_tile_n = (
+             int(v) for v in force_tile_config
+         )
+@@ -9974,6 +9987,7 @@ def compile_w4a16_fused_moe(
+                 weight_layout=weight_layout,
+                 weight_bits=weight_bits,
+                 allow_logical_tail=allow_native_logical_tail,
++                allow_qualified_fc2_tile=name == "fc2",
+             ):
+                 raise ValueError(
+                     f"force_tile_config {name} tile "
+diff --git a/pyproject.toml b/pyproject.toml
+index 1c90e6c10c159d330b5b1d42f8b3697d94400e3d..f385356d377c32261ee281d0592fab71270dd981 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -10,11 +10,11 @@ license-files = ["LICENSE"]
+ dependencies = [
+   "torch>=2.12.0",
+   "cuda-python",
+-  "nvidia-cutlass-dsl==4.6.0",
+-  "nvidia-cutlass-dsl-libs-base==4.6.0",
+-  "nvidia-cutlass-dsl-libs-core==4.6.0",
+-  "nvidia-cutlass-dsl-libs-cu12==4.6.0",
+-  "nvidia-cutlass-dsl-libs-cu13==4.6.0",
++  "nvidia-cutlass-dsl==4.6.2",
++  "nvidia-cutlass-dsl-libs-base==4.6.2",
++  "nvidia-cutlass-dsl-libs-core==4.6.2",
++  "nvidia-cutlass-dsl-libs-cu12==4.6.2",
++  "nvidia-cutlass-dsl-libs-cu13==4.6.2",
+   "apache-tvm-ffi>=0.1.6,!=0.1.8,!=0.1.8.post0,<0.2",
+   "rich>=13",
+   "transformers>=4.51",
+diff --git a/tests/moe/test_w4a16_tile_selection.py b/tests/moe/test_w4a16_tile_selection.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..d04469ab43962b075208892a78a3a00873235525
+--- /dev/null
++++ b/tests/moe/test_w4a16_tile_selection.py
+@@ -0,0 +1,41 @@
++from b12x.moe._shared.kernels.w4a16.kernel import _candidate_tile_fits
++
++
++def _fits(
++    *,
++    tile_k: int,
++    tile_n: int,
++    cta_threads: int,
++    allow_qualified_fc2_tile: bool = False,
++) -> bool:
++    return _candidate_tile_fits(
++        problem_n=4096,
++        problem_k=512,
++        cta_m_blocks=1,
++        tile_n=tile_n,
++        tile_k=tile_k,
++        cta_threads=cta_threads,
++        max_shared_mem=1 << 30,
++        scale_format="e8m0_k32",
++        weight_layout="modelopt",
++        weight_bits=4,
++        allow_qualified_fc2_tile=allow_qualified_fc2_tile,
++    )
++
++
++def test_wave_balanced_fc2_tile_is_valid_as_an_explicit_pin() -> None:
++    assert _fits(
++        tile_k=32,
++        tile_n=512,
++        cta_threads=256,
++        allow_qualified_fc2_tile=True,
++    )
++
++
++def test_wave_balanced_fc2_tile_is_rejected_for_fc1() -> None:
++    assert not _fits(tile_k=32, tile_n=512, cta_threads=256)
++
++
++def test_other_sub64_k_tiles_remain_unsupported() -> None:
++    assert not _fits(tile_k=32, tile_n=256, cta_threads=128)
++    assert not _fits(tile_k=16, tile_n=512, cta_threads=128)
+diff --git a/tests/test_packaging.py b/tests/test_packaging.py
+index da2532febabab966132be9484b559c013b3718cb..14b8348c6cb9b610b9a7f2b7ddca5a5b101b2cc7 100644
+--- a/tests/test_packaging.py
++++ b/tests/test_packaging.py
+@@ -1,6 +1,5 @@
+ from __future__ import annotations
+ 
+-import re
+ from pathlib import Path
+ 
+ try:
+@@ -11,6 +10,22 @@ except ModuleNotFoundError:  # Python 3.10
+ 
+ ROOT = Path(__file__).parents[1]
+ PCIE_SOURCE = ROOT / "b12x" / "comm" / "pcie"
++CUTLASS_DSL_VERSION = "4.6.2"
++
++
++def test_cutlass_dsl_packages_use_one_qualified_version() -> None:
++    config = tomllib.loads((ROOT / "pyproject.toml").read_text())
++    dependencies = set(config["project"]["dependencies"])
++    packages = (
++        "nvidia-cutlass-dsl",
++        "nvidia-cutlass-dsl-libs-base",
++        "nvidia-cutlass-dsl-libs-core",
++        "nvidia-cutlass-dsl-libs-cu12",
++        "nvidia-cutlass-dsl-libs-cu13",
++    )
++
++    for package in packages:
++        assert f"{package}=={CUTLASS_DSL_VERSION}" in dependencies
+ 
+ 
+ def test_pcie_collectives_are_python_only() -> None:

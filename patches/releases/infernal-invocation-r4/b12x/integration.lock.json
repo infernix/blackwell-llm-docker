@@ -1,0 +1,34 @@
+{
+  "base": {
+    "commit": "184d7d52ad630841d0c6caf962f8b9d36f38992a",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "22a55ac193b7fc300f35c461732e4024982e7fe13968f75516d126d51d65f54c"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "disposition": "merged",
+      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
+      "number": 146,
+      "ref": "refs/pull/146/head",
+      "title": "Validate the wave-balanced W4A16 FC2 tile"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "76961d880e3858d7be3b5594ccd68bd5f32dcf2bb576d235b27f6a7204a2a28b",
+    "tree": "1584743fd972ead81619e8f8934cb7bca61571db"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
