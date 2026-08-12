@@ -96,6 +96,10 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # dev/infernal-invocation-derived integration source and B12X composition.
 ./build-kimi-k3-infernal-invocation-cu133-torch213.sh
 
+# Build the DeepSeek-V4-Flash-0731 runtime from the source-locked Infernal
+# Invocation, B12X, and LMCache integration trees on CUDA 13.3/PyTorch 2.13.
+./build-deepseek-infernal-invocation-cu133-torch213.sh
+
 # Build the unified GLM-5.2 and DS4/DSpark v16 image from immutable vLLM,
 # B12X, FlashInfer, DeepGEMM, CUTLASS, InstantTensor, and NCCL commits.
 ./build-fathomless-firmament-v16-cu132.sh
@@ -179,6 +183,30 @@ docker run --rm --name kimi-k3-infernal-dspark \
 Use a distinct `/cache/jit` volume for each entrypoint. The three profiles have
 different graph shapes and generated kernels; sharing a writable JIT directory
 between them is unsupported.
+
+### DeepSeek-V4-Flash-0731 Infernal Invocation CUDA 13.3 runtime
+
+Status: **implemented**. The build script
+`build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
+vLLM, B12X, and LMCache trees recorded under
+`patches/releases/infernal-invocation-r3/`. The runtime uses CUDA 13.3,
+PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
+0.2.5, and InstantTensor 0.1.9.
+
+The default entrypoint serves `deepseek-ai/DeepSeek-V4-Flash-0731` with fixed
+probabilistic K5 and full target and DSpark CUDA graphs. Target-only, fixed K7,
+and confidence-controlled K7 profiles use the same entrypoint and are selected
+through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
+
+```bash
+docker compose \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r3.yml \
+  up -d
+```
+
+The Compose file also exposes mutually exclusive LMCache and native vLLM KV
+offload profiles. The helper requires InstantTensor loading for the qualified
+checkpoint contract.
 
 ### Clean GG release composition
 

@@ -9,8 +9,8 @@ cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-deepseek-infernal-invocation-cu133-torch213}
 release_date=${RELEASE_DATE:-20260812}
-revision=${REVISION:-r1}
-composition_root=patches/releases/infernal-invocation-r2
+revision=${REVISION:-r3}
+composition_root=patches/releases/infernal-invocation-r3
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
@@ -53,7 +53,7 @@ read_lock lmcache LMCACHE
 test "${VLLM_REF}" = dev/infernal-invocation
 test "${B12X_REF}" = master
 
-vllm_package_version=${VLLM_PACKAGE_VERSION:-0.26.1rc0+infernal.invocation.cu133.r1.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}}
+vllm_package_version=${VLLM_PACKAGE_VERSION:-0.26.1rc0+infernal.invocation.cu133.${revision}.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}}
 flashinfer_version=${FLASHINFER_VERSION:-0.6.18+cu133}
 lmcache_build_version=${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.5}
 cache_fingerprint="cu133-torch213-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}-lmcache${LMCACHE_INTEGRATION_TREE:0:10}"
@@ -164,9 +164,15 @@ docker run --rm --entrypoint /opt/venv/bin/python "${image}" \
   --lmcache-version "${lmcache_build_version}" \
   --instanttensor-version 0.1.9
 
-docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
-  -e DRY_RUN=1 -e MODE=dspark -e DSPARK_TOKENS=5 -e MAX_NUM_SEQS=16 \
-  -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}"
+launcher_output="$(
+  docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+    -e DRY_RUN=1 -e MODE=dspark -e DSPARK_TOKENS=5 -e MAX_NUM_SEQS=16 \
+    -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
+)"
+grep -Fq \
+  'Process-group interfaces: GLOO_SOCKET_IFNAME=lo NCCL_SOCKET_IFNAME=lo' \
+  <<<"${launcher_output}"
+printf '%s\n' "${launcher_output}"
 
 if [[ "${RUN_NCCL_SMOKE:-0}" == 1 ]]; then
   smoke_gpus=${NCCL_SMOKE_GPUS:-0,1,2,3}

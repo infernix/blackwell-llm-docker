@@ -1,78 +1,97 @@
 {
-  "schema_version": 1,
+  "base": {
+    "commit": "c8d04a543e0e8b0896e60b8b11bec0bb2d780860",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "4e009327aa0d2d738f262136908c1c469b36edb6c14ecb2cc960e1c4f1c8392c"
+  },
   "name": "infernal-invocation-vllm",
-  "repository": "https://github.com/local-inference-lab/vllm.git",
-  "base_ref": "refs/heads/dev/infernal-invocation",
   "pull_requests": [
     {
-      "number": 285,
+      "disposition": "merged",
       "head": "d6b7377cbf27836241d04c9dd08725b7426d88eb",
+      "number": 285,
+      "ref": "refs/pull/285/head",
       "title": "Preserve resolved Hugging Face revisions across worker spawn"
     },
     {
-      "number": 286,
+      "disposition": "merged",
       "head": "9dbec23e2b2ad5f788838ee3dafc3f6623b500b5",
+      "number": 286,
+      "ref": "refs/pull/286/head",
       "title": "Inherit target identity for in-checkpoint speculative drafts"
     },
     {
-      "number": 287,
+      "disposition": "merged",
       "head": "a5e76352ba295bf1bbc80c9bce52b2b7e280c24e",
+      "number": 287,
+      "ref": "refs/pull/287/head",
       "title": "Make DS4 launch identity and capacity explicit"
     },
     {
-      "number": 288,
+      "disposition": "merged",
       "head": "29f13ebc717d10d4aef5f728598c9ab0f75b082e",
+      "number": 288,
+      "ref": "refs/pull/288/head",
       "title": "Enforce the B12X mHC input-shape contract for DeepSeek V4 MTP"
     },
     {
-      "number": 289,
+      "disposition": "merged",
       "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
+      "number": 289,
+      "ref": "refs/pull/289/head",
       "title": "Bound DeepSeek V4 sparse metadata to active context"
     },
     {
-      "number": 290,
+      "disposition": "merged",
       "head": "c13a214bd70319938136fa38757a9ea739569639",
+      "number": 290,
+      "ref": "refs/pull/290/head",
       "title": "Profile serving-reachable shapes before KV cache sizing"
     },
     {
-      "number": 291,
+      "disposition": "merged",
       "head": "164d52e85dad7ca2f4b7eda2124abe4235edb547",
+      "number": 291,
+      "ref": "refs/pull/291/head",
       "title": "Normalize padded B12X MoE routes without allocation"
     },
     {
-      "number": 292,
+      "disposition": "merged",
       "head": "fb8d983acd642f059e5f3d3466e0f1c13e48b083",
+      "number": 292,
+      "ref": "refs/pull/292/head",
       "title": "Enforce canonical B12X package identifiers"
     },
     {
-      "number": 293,
+      "disposition": "merged",
       "head": "f487a59a91bcbf7ad87a6be9dc3027d26d60ca67",
+      "number": 293,
+      "ref": "refs/pull/293/head",
       "title": "Recover hybrid KV cache load failures across cache groups"
     },
     {
-      "number": 294,
+      "disposition": "merged",
       "head": "826bb4088f4671fe79e01183e0301f79134662c1",
+      "number": 294,
+      "ref": "refs/pull/294/head",
       "title": "Preserve grammar bitmask source widths after draft trimming"
     },
     {
-      "number": 295,
+      "disposition": "merged",
       "head": "71b93dc6f3d59e004c18535cf08b8fe750b64c19",
+      "number": 295,
+      "ref": "refs/pull/295/head",
       "title": "Stop XGrammar draft validation at grammar termination"
     }
   ],
-  "source_patches": [],
-  "reviewed_exclusions": [
-    {
-      "number": 271,
-      "head": "310c3ac9718f8d28a6d2c6e009ca4376e54f4457",
-      "disposition": "research-only",
-      "reason": "Full-CKV prewarm targets dev/gilded-gnosis and has no completed GPU qualification. DS4 serving does not require it."
-    },
-    {
-      "number": 280,
-      "head": "8e7be4d5c97fb86d983bd5f83c825153452efaec",
-      "disposition": "unsupported",
-      "reason": "The GLM-5.2 R7 mixed-Trellis integration targets dev/gilded-gnosis. Infernal Invocation contains its own QSRT and EXL3 implementation, and the DS4 qualification matrix does not exercise GLM R7 checkpoints."
-    }
-  ]
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "cccf47563edc3f555f814c034837eba44c3e10339e3229b70b9839f82b95a7bb",
+    "tree": "2f23cc93163add9f20503c2f035ab40b520119bb"
+  },
+  "schema_version": 1,
+  "source_patches": []
 }
