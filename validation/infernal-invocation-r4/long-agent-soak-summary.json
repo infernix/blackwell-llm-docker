@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Correctness qualification for concurrent long-context DeepSeek-V4-Flash-0731 requests with fixed probabilistic DSpark K5 and native tiered KV offload",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm3226eb7-b12x1584743-fi1ac6942-cu133-torch213-20260812-r4",
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "conditions": {
+    "parallelism": "TP2/DCP1",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "max_num_seqs": 4,
+    "cuda_graph_cap": 24,
+    "max_model_len": 524288,
+    "gpu_memory_utilization": 0.975,
+    "kv_cache": "FP8 compressed MLA",
+    "native_cpu_offload_gib": 40,
+    "native_filesystem_l2_gib": 200,
+    "load_format": "InstantTensor BUFFERED",
+    "test_profile": "Estonia long-context diagnostic",
+    "fixed_concurrency": 4,
+    "requested_runs": 160,
+    "maximum_completion_tokens": 40000
+  },
+  "results": {
+    "attempted": 160,
+    "completed": 160,
+    "passed": 160,
+    "wrong": 0,
+    "errors": 0,
+    "maximum_token_limit_hits": 0,
+    "aggregate_generation_tokens_per_second": 132.20469732299978,
+    "mean_per_request_generation_tokens_per_second": 132.27985636857062,
+    "mean_time_to_first_token_seconds": 0.6858141289498235,
+    "prefill_scout": {
+      "prompt_tokens": 134217,
+      "time_to_first_token_seconds": 12.058347906975541,
+      "tokens_per_second": 11130.668437417695
+    },
+    "native_offload": {
+      "gpu_to_offload_bytes": 11303262720,
+      "filesystem_l2_write_bytes": 11317698560
+    },
+    "response_integrity_violations": 0,
+    "runtime_error_scan": "pass",
+    "server_healthy_after": true
+  },
+  "conclusion": "Concurrent long-context generation remained correct through the complete 160-request workload. Requests 155 through 160 also remained correct; the r3 baseline image had reproduced response corruption in that interval under the same workload.",
+  "limitations": [
+    "The throughput values describe one PCIe-switch RTX PRO 6000 Blackwell host and are not topology-independent performance claims.",
+    "The test qualifies fixed probabilistic DSpark K5. Fixed K7 and dynamic K7 are covered by a separate runtime-mode qualification artifact."
+  ]
+}

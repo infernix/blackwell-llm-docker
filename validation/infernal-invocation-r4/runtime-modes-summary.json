@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Functional and CUDA-graph qualification for target-only, fixed-depth DSpark, and confidence-controlled DSpark serving modes",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm3226eb7-b12x1584743-fi1ac6942-cu133-torch213-20260812-r4",
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "modes": {
+    "target_only_tp2": {
+      "parallelism": "TP2/DCP1",
+      "max_num_seqs": 4,
+      "cuda_graph_cap": 4,
+      "max_model_len": 131072,
+      "arithmetic_result": "80235",
+      "target_full_cuda_graph_sizes": 4,
+      "decode_tokens_per_second": {
+        "c1": 151.8798880007647,
+        "c4": 397.9737201672003
+      },
+      "errors": 0
+    },
+    "fixed_probabilistic_k7_tp2": {
+      "parallelism": "TP2/DCP1",
+      "max_num_seqs": 4,
+      "cuda_graph_cap": 32,
+      "max_model_len": 8192,
+      "arithmetic_result": "80235",
+      "target_full_cuda_graph_sizes": 4,
+      "dspark_full_cuda_graph_sizes": 4,
+      "dflash_context_kv_full_cuda_graph_sizes": 7,
+      "decode_tokens_per_second": {
+        "c1": 210.62319320378063,
+        "c4": 410.0797831711726
+      },
+      "errors": 0
+    },
+    "confidence_controlled_k7_tp2": {
+      "parallelism": "TP2/DCP1",
+      "max_num_seqs": 4,
+      "cuda_graph_cap": 32,
+      "max_model_len": 8192,
+      "arithmetic_result": "80235",
+      "capacity_verification": "compact varlen",
+      "target_full_cuda_graph_sizes": 17,
+      "dspark_full_cuda_graph_sizes": 28,
+      "dflash_context_kv_full_cuda_graph_sizes": 7,
+      "decode_tokens_per_second": {
+        "c1": 178.39628736531415,
+        "c4": 271.12930625570283
+      },
+      "errors": 0
+    },
+    "fixed_probabilistic_k5_tp4": {
+      "parallelism": "TP4/DCP1",
+      "max_num_seqs": 8,
+      "cuda_graph_cap": 48,
+      "max_model_len": 131072,
+      "gpu_kv_cache_tokens": 894638,
+      "arithmetic_result": "80235",
+      "target_full_cuda_graph_sizes": 8,
+      "dspark_full_cuda_graph_sizes": 8,
+      "dflash_context_kv_full_cuda_graph_sizes": 9,
+      "decode_tokens_per_second": {
+        "c8": 905.6843854139657,
+        "coding_peak_median": 404.39626498618065,
+        "coding_peak_range": [
+          396.3280161296216,
+          428.5187661712719
+        ],
+        "temperature_zero_c1_range": [
+          231.7402156776156,
+          289.58531689924547
+        ]
+      },
+      "prefill_tokens_per_second": {
+        "8191_tokens": 16444,
+        "63984_tokens": 16011
+      },
+      "errors": 0
+    }
+  },
+  "conclusion": "All four serving modes produced the exact arithmetic result and ran the serving-reachable target and DSpark paths in FULL CUDA graphs. Fixed K5 is the qualified general production profile; K7 modes are functionally qualified but remain workload-specific options.",
+  "limitations": [
+    "The K7 graph envelope left insufficient KV capacity for a 131072-token TP2 startup under the selected memory budget, so K7 functional qualification used an 8192-token maximum model length.",
+    "Single-stream DSpark throughput depends strongly on workload phase and draft acceptance. The recorded TP4 temperature-zero C1 range is evidence of that variability, not a topology-independent performance interval.",
+    "Confidence-controlled K7 throughput is recorded for diagnostics and is not a promotion claim over fixed probabilistic K5."
+  ]
+}

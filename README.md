@@ -186,7 +186,7 @@ between them is unsupported.
 
 ### DeepSeek-V4-Flash-0731 Infernal Invocation CUDA 13.3 runtime
 
-Status: **implemented**. The build script
+Status: **qualified**. The build script
 `build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
 vLLM, B12X, and LMCache trees recorded under
 `patches/releases/infernal-invocation-r4/`. The runtime uses CUDA 13.3,
@@ -207,6 +207,11 @@ docker compose \
 The Compose file also exposes mutually exclusive LMCache and native vLLM KV
 offload profiles. The helper requires InstantTensor loading for the qualified
 checkpoint contract.
+
+The exact image identity, source trees, runtime packages, CUDA-graph coverage,
+160-request long-context correctness result, strict-tool concurrency result,
+and tiered-KV evidence are recorded in
+`validation/infernal-invocation-r4-local-gpu.json`.
 
 ### Clean GG release composition
 

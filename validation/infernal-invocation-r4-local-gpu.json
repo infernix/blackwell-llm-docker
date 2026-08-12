@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Immutable qualification receipt for DeepSeek-V4-Flash-0731 serving with the Infernal Invocation r4 CUDA 13.3 and PyTorch 2.13 source composition",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm3226eb7-b12x1584743-fi1ac6942-cu133-torch213-20260812-r4",
+  "image_id": "sha256:b0cac4ef4037ed8880809df87c14ddc592ef234d59499864e1468448eb928cbf",
+  "registry_digest": "sha256:21f048058375ccf00ea555f37addad326a7ee33bc2b4699ae53370f25af4ecb6",
+  "image_size_bytes": 30641932480,
+  "validated_at": "2026-08-12T20:41:22Z",
+  "validator_host": "aiserver",
+  "gpu_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "vllm_tree": "3226eb7ff642702908f502a2402f9d083d16511c",
+  "b12x_tree": "1584743fd972ead81619e8f8934cb7bca61571db",
+  "source_composition": {
+    "docker": {
+      "repository": "https://github.com/local-inference-lab/blackwell-llm-docker.git",
+      "commit": "0040f0af0670d0e5bb0f6bea6ee7cd2de2990b01"
+    },
+    "vllm": {
+      "repository": "https://github.com/local-inference-lab/vllm.git",
+      "base_ref": "dev/infernal-invocation",
+      "base_commit": "ce5f50f6d01b02336c4207f11277fd7bedacb4d6",
+      "tree": "3226eb7ff642702908f502a2402f9d083d16511c",
+      "patch_sha256": "dec8963846acbd52dd76500900286fa596da83cafbe1abbc55a8b190e16b8279",
+      "pull_requests": [
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        298
+      ],
+      "source_patches": []
+    },
+    "b12x": {
+      "repository": "https://github.com/local-inference-lab/b12x.git",
+      "base_ref": "master",
+      "base_commit": "184d7d52ad630841d0c6caf962f8b9d36f38992a",
+      "tree": "1584743fd972ead81619e8f8934cb7bca61571db",
+      "patch_sha256": "76961d880e3858d7be3b5594ccd68bd5f32dcf2bb576d235b27f6a7204a2a28b",
+      "pull_requests": [
+        145,
+        146
+      ],
+      "source_patches": []
+    },
+    "lmcache": {
+      "repository": "https://github.com/local-inference-lab/LMCache.git",
+      "base_ref": "release/v0.5.2-glm52-dcp-base",
+      "base_commit": "9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "ccccdfc37f108ab674ac0418b5ac5fc1c8b0857e",
+      "patch_sha256": "8863a04936596adb43ccb9badb19ddbe281201ee37591fbff8303a62446d0fd8",
+      "pull_requests": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        22
+      ],
+      "source_patches": []
+    },
+    "flashinfer": "1ac6942776b383c6b03c7a5805a22e72a3e3349f",
+    "instanttensor": "49b4010afc1cae0441e71fe0b0bffc24fa05e932",
+    "nccl": "fb6f40999a2a9e63104d4ae4a84118bce61528f8"
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r4.vllm3226eb7.b12x1584743",
+    "b12x": "1.2.3",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "nccl4py": "0.3.1",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "tokenizer_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "validation_environment": {
+    "host": "aiserver",
+    "gpu_ids_used": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB",
+    "topology": "Sixteen-GPU host with PCIe switches; each qualification case used an isolated TP2 or TP4 GPU subset.",
+    "attention_backend": "B12X MLA sparse",
+    "moe_backend": "B12X W4A8",
+    "kv_cache": "FP8 compressed MLA",
+    "load_format": "InstantTensor BUFFERED"
+  },
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass",
+    "release_composition": "pass: release-composition and CUDA 13.3 release-contract scripts",
+    "docker_repository_unit_tests": "pass: 27 tests",
+    "vllm_request_classification": "pass: 50 focused unit tests in pull request 298",
+    "target_only": "pass: TP2 startup, exact arithmetic, C1/C4 decode, and four target FULL CUDA graph sizes",
+    "fixed_k5": "pass: TP2 long-agent soak with native tiered KV; TP4 exact arithmetic, C8 decode, 8k/64k prefill, coding workload, eight target FULL graphs, eight DSpark FULL graphs, and nine DFlash context-KV FULL graphs",
+    "fixed_k7": "pass: TP2 exact arithmetic, four target FULL graphs, four DSpark FULL graphs, and seven DFlash context-KV FULL graphs",
+    "confidence_controlled_k7": "pass: TP2 exact arithmetic, compact varlen capacity verification, 17 target FULL graphs, 28 DSpark FULL graphs, and seven DFlash context-KV FULL graphs",
+    "strict_long_context_tools": "pass: concurrent 150003-token and 300128-token strict-tool requests with independent valid tool-call output",
+    "lmcache_filesystem_l2": "pass: local prefix reset, L1 clear, and 15872-token filesystem-L2 replay",
+    "runtime_error_scan": "pass: no traceback, engine initialization failure, CUDA runtime error, or response-integrity violation in qualified runs"
+  },
+  "evidence": {
+    "long_agent_soak": {
+      "parallelism": "TP2/DCP1",
+      "speculative_decoding": "fixed probabilistic DSpark K5",
+      "result": "160/160 pass",
+      "aggregate_generation_tokens_per_second": 132.20469732299978,
+      "mean_time_to_first_token_seconds": 0.6858141289498235,
+      "prefill_scout_prompt_tokens": 134217,
+      "prefill_scout_tokens_per_second": 11130.668437417695,
+      "response_integrity_violations": 0
+    },
+    "strict_tools": {
+      "parallelism": "TP2/DCP1",
+      "prompt_tokens": [
+        150003,
+        300128
+      ],
+      "finish_reasons": [
+        "tool_calls",
+        "tool_calls"
+      ],
+      "response_integrity_violations": 0,
+      "server_healthy_after": true
+    },
+    "tp4_fixed_k5": {
+      "decode_c8_tokens_per_second": 905.6843854139657,
+      "coding_median_tokens_per_second": 404.39626498618065,
+      "prefill_8191_tokens_per_second": 16444,
+      "prefill_63984_tokens_per_second": 16011,
+      "gpu_kv_cache_tokens": 894638,
+      "correctness": "pass: 317 * 253 + 34 returned 80235"
+    },
+    "lmcache_filesystem_l2": {
+      "conditions": "TP2/DCP1 target-only, 2 GiB L1, 8 GiB filesystem L2, and 512-token chunks",
+      "seed_prompt_tokens": 16092,
+      "seed_elapsed_seconds": 2.948948877019575,
+      "replay_cached_tokens": 15872,
+      "replay_elapsed_seconds": 0.38003973799641244
+    }
+  },
+  "limitations": [
+    "Performance values describe the recorded PCIe-switch host and selected GPU subsets; they do not claim identical throughput on direct-root-port or dual-socket topologies.",
+    "Fixed K7 and confidence-controlled K7 are functionally and CUDA-graph qualified. Their workload-specific throughput and quality are not promoted over fixed probabilistic K5 by this receipt.",
+    "The K7 functional gate used an 8192-token maximum model length because the selected TP2 memory budget could not hold the 131072-token KV target together with the K7 graph envelope.",
+    "Single-stream DSpark throughput changes with workload phase and draft acceptance. Use the recorded coding workload and concurrency results instead of one arbitrary long C1 stream as a general performance claim.",
+    "LMCache replay was qualified with speculative decoding disabled so cache movement and draft acceptance remained independent variables.",
+    "The complete throughput sweep across context lengths and concurrency levels remains separate from this release correctness gate."
+  ],
+  "artifacts": {
+    "patches/releases/infernal-invocation-r4/vllm/integration.lock.json": "b8323c265f8110f854fd1902a042e57928439c0ab18d1ee452858a92084f2243",
+    "patches/releases/infernal-invocation-r4/b12x/integration.lock.json": "a481a620c98d2567e4e9c46ab7f9dc8645784111d50b09640b4287a02ca51829",
+    "patches/releases/infernal-invocation-r4/lmcache/integration.lock.json": "f34d62f6c16848bcc6c0d3c8aa19833e4f7a6d89383e1af88255016614f7ac97",
+    "examples/docker-compose-ds4-infernal-invocation-cu133-r4.yml": "727ff0407dddbbe44a416810d87f7a2c0f08c4106a4fc9589758f4d7e751ad25",
+    "validation/infernal-invocation-r4/long-agent-soak-summary.json": "f1d1a66e2ba8af1bad534645184c91d4b6e640ac3b76088b096c43b68ea3501c",
+    "validation/infernal-invocation-r4/strict-tools-summary.json": "c934a7c50160f80e6eb80f45e8b21e58dbe2a8866d188df9d044cbd8fa81ae1c",
+    "validation/infernal-invocation-r4/runtime-modes-summary.json": "a1bb155858837f18fd7b8cb034b0f17eabe74c169ba1233fbc3c7c7816000592",
+    "validation/infernal-invocation-r4/lmcache-l2-replay-summary.json": "74c7c9e82e52d9c5f725c973909296c6f2a9a8dce769fa909823fdd7264dc55a"
+  }
+}

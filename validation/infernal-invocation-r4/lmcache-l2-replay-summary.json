@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "LMCache filesystem-L2 replay qualification for DeepSeek-V4-Flash-0731 compressed MLA KV state",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm3226eb7-b12x1584743-fi1ac6942-cu133-torch213-20260812-r4",
+  "conditions": {
+    "parallelism": "TP2/DCP1",
+    "speculative_decoding": "disabled",
+    "lmcache_mode": "disk",
+    "l1_gib": 2,
+    "filesystem_l2_gib": 8,
+    "chunk_tokens": 512,
+    "prompt_tokens": 16092,
+    "allocator_configuration": "expandable_segments:False"
+  },
+  "results": {
+    "seed": {
+      "cached_tokens": 0,
+      "elapsed_seconds": 2.948948877019575,
+      "stored_chunks": 32,
+      "l2_usage_bytes": 278267904
+    },
+    "local_prefix_reset": "pass",
+    "l1_clear": "pass",
+    "replay": {
+      "cached_tokens": 15872,
+      "elapsed_seconds": 0.38003973799641244,
+      "l2_prefetch_hit_chunk_delta": 62,
+      "l2_load_operation_delta": 2,
+      "lookup_hit_token_delta": 15872
+    },
+    "qualified": true
+  },
+  "conclusion": "After clearing the local prefix cache and LMCache L1, the repeated prompt restored 15872 tokens from filesystem L2 and completed successfully."
+}
