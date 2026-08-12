@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
+builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
+pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
+
+LC_ALL=C sort -cu "${pip_check_allowlist}"
+
+grep -Fq 'ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2' "${dockerfile}"
+grep -Fq 'local-inference.cuda.version="13.3"' "${dockerfile}"
+grep -Fq 'local-inference.torch.version="2.13.0"' "${dockerfile}"
+grep -Fq 'local-inference.nccl.version="2.31.2"' "${dockerfile}"
+grep -Fq 'compose_source lmcache /opt/infernal-invocation/lmcache' "${dockerfile}"
+grep -Fq -- '--component _vllm_fa4_cutedsl_C' "${dockerfile}"
+grep -Fq 'vllm_flash_attn/cute/utils.py' "${dockerfile}"
+grep -Fq -- '--force-reinstall /tmp/instanttensor-src' "${dockerfile}"
+grep -Fq 'local-inference.instanttensor.libaio.tree="${INSTANTTENSOR_LIBAIO_TREE}"' "${dockerfile}"
+grep -Fq 'local-inference.nccl4py.version="${NCCL4PY_VERSION}"' "${dockerfile}"
+grep -Fq 'deepseek-infernal-cu133-pip-check.allowlist' "${dockerfile}"
+grep -Fq 'ENTRYPOINT ["/usr/local/bin/lmcache-mp-wrapper.sh", "/usr/local/bin/serve-ds4-flash.sh"]' "${dockerfile}"
+grep -Fq -- '--build-arg "INSTANTTENSOR_COMMIT=${instanttensor_commit}"' "${builder}"
+grep -Fq -- '--build-arg "INSTANTTENSOR_LIBAIO_TREE=${instanttensor_libaio_tree}"' "${builder}"
+
+output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
+grep -Fxq 'release=deepseek-infernal-invocation-cu133-torch213' <<<"${output}"
+grep -Fxq 'revision=r1' <<<"${output}"
+grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
+grep -Fxq 'vllm_tree=344438d742b3cb3f3bd1851a0e9f33f4ebac64e0' <<<"${output}"
+grep -Fxq 'b12x_ref=master' <<<"${output}"
+grep -Fxq 'b12x_tree=1584743fd972ead81619e8f8934cb7bca61571db' <<<"${output}"
+grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
+grep -Fxq 'lmcache_tree=ccccdfc37f108ab674ac0418b5ac5fc1c8b0857e' <<<"${output}"
+grep -Fxq 'torch=2.13.0' <<<"${output}"
+grep -Fxq 'cuda=13.3' <<<"${output}"
+grep -Fxq 'nccl=2.31.2' <<<"${output}"
+grep -Fxq 'flashinfer=0.6.18+cu133' <<<"${output}"

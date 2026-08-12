@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Verify the DeepSeek Infernal Invocation CUDA 13.3 runtime contract."""
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import importlib.metadata as metadata
+import os
+from pathlib import Path
+
+import torch
+
+
+CUDA_RUNTIME_WHEEL_PREFIXES = (
+    "nvidia-cublas-",
+    "nvidia-cuda-cupti-",
+    "nvidia-cuda-nvrtc-",
+    "nvidia-cuda-runtime-",
+    "nvidia-cudnn-",
+    "nvidia-cufft-",
+    "nvidia-curand-",
+    "nvidia-cusolver-",
+    "nvidia-cusparse-",
+    "nvidia-nccl-",
+    "nvidia-nvjitlink-",
+)
+ALLOWED_CUDA_TOOLING_WHEELS = {"nvidia-cudnn-frontend"}
+
+
+def _mapped_libraries(fragment: str) -> set[Path]:
+    libraries: set[Path] = set()
+    with open("/proc/self/maps", encoding="utf-8") as maps:
+        for line in maps:
+            path = line.rsplit(maxsplit=1)[-1]
+            if path.startswith("/") and fragment in path:
+                libraries.add(Path(path))
+    return libraries
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--vllm-version", required=True)
+    parser.add_argument("--flashinfer-version", required=True)
+    parser.add_argument("--lmcache-version", required=True)
+    parser.add_argument("--instanttensor-version", default="0.1.9")
+    parser.add_argument("--nccl4py-version", default="0.3.1")
+    parser.add_argument("--cutlass-dsl-version", default="4.6.2")
+    parser.add_argument("--vllm-source-root", default="/opt/infernal-invocation/vllm")
+    parser.add_argument("--b12x-source-root", default="/opt/infernal-invocation/b12x")
+    args = parser.parse_args()
+
+    import cupy
+    import deep_gemm
+    import flashinfer
+    import instanttensor
+    import lmcache
+    import nccl
+    import vllm
+    from b12x.attention import dense_mla
+    from b12x.comm.pcie.pcie_dcp_a2a import SUPPORTED_WORLD_SIZES
+    from cutlass import cute
+    from lmcache.integration.vllm.vllm_multi_process_adapter import ParallelStrategy
+    from vllm.models.deepseek_v4.nvidia.ops import fused_indexer_q_cutedsl
+    from vllm.vllm_flash_attn.cute import utils as flash_attn_cute_utils
+
+    assert torch.__version__ == "2.13.0"
+    assert torch.version.cuda == "13.3"
+    assert torch.cuda.nccl.version() == (2, 31, 2)
+
+    nccl_path = Path(os.environ["NCCL_LOCAL_INFERENCE_PATH"]).resolve(strict=True)
+    nccl_library = ctypes.CDLL(str(nccl_path))
+    version = ctypes.c_int()
+    assert nccl_library.ncclGetVersion(ctypes.byref(version)) == 0
+    assert version.value == 23102
+    assert any(
+        path.exists() and os.path.samefile(path, nccl_path)
+        for path in _mapped_libraries("libnccl")
+    )
+
+    assert metadata.version("vllm") == args.vllm_version
+    assert metadata.version("flashinfer-python") == args.flashinfer_version
+    assert metadata.version("lmcache") == args.lmcache_version
+    assert metadata.version("instanttensor") == args.instanttensor_version
+    assert metadata.version("nccl4py") == args.nccl4py_version
+    assert metadata.version("cupy-cuda13x") == "13.6.0"
+    assert metadata.version("nvidia-cutlass-dsl") == args.cutlass_dsl_version
+    assert metadata.version("nvidia-cutlass-dsl-libs-base") == args.cutlass_dsl_version
+    assert metadata.version("nvidia-cutlass-dsl-libs-cu13") == args.cutlass_dsl_version
+    assert hasattr(cute.nvgpu.warp, "MmaMXF8Op")
+    assert flashinfer.__file__ and instanttensor.__file__ and lmcache.__file__
+    assert nccl.__file__
+    assert deep_gemm.__file__ and cupy.__file__ and vllm.__file__
+    assert fused_indexer_q_cutedsl.__file__ and flash_attn_cute_utils.__file__
+
+    vllm_root = Path(args.vllm_source_root).resolve(strict=True)
+    b12x_root = Path(args.b12x_source_root).resolve(strict=True)
+    assert Path(vllm.__file__).resolve(strict=True).is_relative_to(vllm_root)
+    assert Path(dense_mla.__file__).resolve(strict=True).is_relative_to(b12x_root)
+    assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)
+
+    strategy = ParallelStrategy(
+        use_mla=True,
+        vllm_world_size=8,
+        vllm_worker_id=5,
+        tp_size=8,
+        pp_size=1,
+        n_servers=1,
+        dcp_size=4,
+    )
+    assert (strategy.kv_world_size, strategy.kv_worker_id) == (4, 1)
+    assert (strategy.kv_tp_size, strategy.kv_readers_per_object) == (2, 2)
+
+    for launcher in (
+        "/usr/local/bin/serve-ds4-flash.sh",
+        "/usr/local/bin/serve-ds4-flash-spark.sh",
+        "/usr/local/bin/lmcache-mp-wrapper.sh",
+    ):
+        assert os.access(launcher, os.X_OK), launcher
+
+    installed = {
+        distribution.metadata["Name"].lower()
+        for distribution in metadata.distributions()
+        if distribution.metadata["Name"]
+    }
+    overlays = sorted(
+        package
+        for package in installed
+        if package.startswith(CUDA_RUNTIME_WHEEL_PREFIXES)
+        and package not in ALLOWED_CUDA_TOOLING_WHEELS
+    )
+    assert not overlays, f"pip CUDA runtime overlays are installed: {overlays}"
+
+    print(
+        "DeepSeek Infernal Invocation CUDA 13.3 runtime contract: PASS "
+        f"torch={torch.__version__} cuda={torch.version.cuda} nccl={version.value} "
+        f"vllm={metadata.version('vllm')} b12x={metadata.version('b12x')} "
+        f"flashinfer={metadata.version('flashinfer-python')} "
+        f"lmcache={metadata.version('lmcache')}"
+    )
+
+
+if __name__ == "__main__":
+    main()
