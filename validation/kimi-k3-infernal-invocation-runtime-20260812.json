@@ -40,7 +40,7 @@
   },
   "hardware": {
     "gpu_count": 16,
-    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
     "tensor_parallel_size": 16,
     "decode_context_parallel_size": 16
   },
