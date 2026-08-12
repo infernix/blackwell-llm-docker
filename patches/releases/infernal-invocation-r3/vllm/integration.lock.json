@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "7bc15e78413afe554695d3e3ec16a1dbe86ae47be31510a1f37bec2ab035242a"
+    "sha256": "285a7fe43ac40ef20d84ea5063d363f15206358e3bebc0d0a0c9f3af2560ac7c"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -85,12 +85,19 @@
       "number": 295,
       "ref": "refs/pull/295/head",
       "title": "Stop XGrammar draft validation at grammar termination"
+    },
+    {
+      "disposition": "merged",
+      "head": "b67b7ec7b11bffe617ebd597243aa3cd4e333121",
+      "number": 296,
+      "ref": "refs/pull/296/head",
+      "title": "Absorb duplicate DeepSeek V4 tool-call closers"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "a48009820b30290b092158648e0037a6d5861e59c4684cca5e3815ef67155bad",
-    "tree": "2f77f26d2efd72963275dd6ef10d1c8f82b4e86d"
+    "patch_sha256": "ee3a8f51f769158c5e584b5d326ddfe00ce6bffded272bfeb1cef9124c6b27fd",
+    "tree": "b67777e65fb261a179cdf7b366d14f754cc4abb4"
   },
   "schema_version": 1,
   "source_patches": []

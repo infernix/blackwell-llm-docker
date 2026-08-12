@@ -439,6 +439,47 @@ index d01fed5cc36bb7543e436f37701bde56cab162cb..215a76ac159e3e344ad9f8c290f22362
  def test_b12x_forward_broadcasts_initial_residual() -> None:
      layer = _make_b12x_layer()
      layer._use_b12x_mhc = True
+diff --git a/tests/parser/engine/test_deepseek_v4.py b/tests/parser/engine/test_deepseek_v4.py
+index ba5ebf76ed673741e3da19fbe901441e4d0791eb..eeab25233d3a1c7804c223be0ecd349ea445f93c 100644
+--- a/tests/parser/engine/test_deepseek_v4.py
++++ b/tests/parser/engine/test_deepseek_v4.py
+@@ -231,6 +231,36 @@ class TestMissingInvokeEnd:
+         assert "Done." in collect_content(results)
+ 
+ 
++class TestToolEndAbsorption:
++    def test_duplicate_tool_end_is_not_streamed_as_content(
++        self, mock_tokenizer, mock_request
++    ):
++        parser = DeepSeekV4Parser(mock_tokenizer)
++        chunks = [
++            DSML_TOOL_START,
++            DSML_INVOKE_PREFIX
++            + "get_weather"
++            + DSML_INVOKE_NAME_END
++            + "\n"
++            + _param("location", "true", "NYC")
++            + "\n"
++            + DSML_INVOKE_END
++            + "\n</",
++            "｜DSML｜tool_calls></",
++            "｜DSML｜tool_calls></think>",
++            "Done.",
++        ]
++
++        results = simulate_tool_streaming(parser, mock_request, chunks)
++
++        assert collect_function_name(results) == "get_weather"
++        assert json.loads(collect_tool_arguments(results)) == {"location": "NYC"}
++        content = collect_content(results)
++        assert content == "Done."
++        assert "DSML" not in content
++        assert "</think>" not in content
++
++
+ # ── Thinking mode initial state ──────────────────────────────────────
+ 
+ 
 diff --git a/tests/test_b12x_package_contract.py b/tests/test_b12x_package_contract.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..2415eb782592147b7804ae7acf592b045fa1ca83
@@ -1280,6 +1321,24 @@ index 38043dbba616220a9e9aa972fdbeb59915604a43..e8a58130fb12688125fd5e78ad897a3e
              self.c128a_max_compressed,
          )
          block_size = self.kv_cache_spec.block_size // self.compress_ratio
+diff --git a/vllm/parser/deepseek_v4.py b/vllm/parser/deepseek_v4.py
+index 9955d938545f604feaf83bc44a9ada8d7e8c1ec1..e167d3d436b1312e308bf27dfe4d8d40d03b6502 100644
+--- a/vllm/parser/deepseek_v4.py
++++ b/vllm/parser/deepseek_v4.py
+@@ -152,6 +152,13 @@ def deepseek_v4_config(thinking: bool = False) -> ParserEngineConfig:
+                 ParserState.CONTENT,
+                 (),
+             ),
++            # A DSML tool block owns its closing marker. Treat a repeated
++            # closer as idempotent instead of exposing protocol markup as
++            # assistant content after the first closer leaves tool state.
++            (ParserState.CONTENT, "TOOL_END"): Transition(
++                ParserState.CONTENT,
++                (),
++            ),
+             # Absorb a duplicate <think> while already reasoning
+             (ParserState.REASONING, "THINK_START"): Transition(
+                 ParserState.REASONING,
 diff --git a/vllm/transformers_utils/repo_utils.py b/vllm/transformers_utils/repo_utils.py
 index 4066edbbf094a5a9c6c16383e3bc9831469367e4..3a5ade69961462bad2c28d4be0c2bd808f512a64 100644
 --- a/vllm/transformers_utils/repo_utils.py

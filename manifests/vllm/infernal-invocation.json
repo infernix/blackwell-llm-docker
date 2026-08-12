@@ -58,6 +58,11 @@
       "number": 295,
       "head": "71b93dc6f3d59e004c18535cf08b8fe750b64c19",
       "title": "Stop XGrammar draft validation at grammar termination"
+    },
+    {
+      "number": 296,
+      "head": "b67b7ec7b11bffe617ebd597243aa3cd4e333121",
+      "title": "Absorb duplicate DeepSeek V4 tool-call closers"
     }
   ],
   "source_patches": [],
