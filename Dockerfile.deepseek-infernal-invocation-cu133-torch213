@@ -38,6 +38,8 @@ ARG FLASHINFER_COMMIT=1ac6942776b383c6b03c7a5805a22e72a3e3349f
 ARG FLASHINFER_VERSION=0.6.18+cu133
 ARG DEEPGEMM_REPO=https://github.com/deepseek-ai/DeepGEMM.git
 ARG DEEPGEMM_COMMIT=a6b593d2826719dcf4892609af7b84ee23aaf32a
+ARG EXLLAMAV3_REPO=https://github.com/brandonmmusic-max/exllamav3.git
+ARG EXLLAMAV3_COMMIT=704aefd743b390af4bd0fb429d1906f9b964c7d8
 ARG CUTLASS_DSL_VERSION=4.6.2
 ARG VLLM_PACKAGE_VERSION
 ARG CACHE_FINGERPRINT
@@ -46,7 +48,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:${PATH} \
-    PYTHONPATH=/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
+    PYTHONPATH=/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
     SPARKINFER_DIR=/opt/infernal-invocation/b12x \
     TORCH_CUDA_ARCH_LIST=12.0a \
     CMAKE_CUDA_ARCHITECTURES=120a \
@@ -66,6 +68,12 @@ ENV VIRTUAL_ENV=/opt/venv \
     VLLM_CPP_AR_1STAGE_NCCL_CUTOFF=56KB \
     VLLM_CPP_AR_IGNORE_CUTOFF_MAX_ROWS=0 \
     VLLM_DISABLED_KERNELS=MarlinFP8ScaledMMLinearKernel
+
+ENV VLLM_EXL3_EXT_PATH=/opt/exllamav3 \
+    VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3 \
+    VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT} \
+    VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online \
+    VLLM_EXL3_ONLINE_CACHE_MODE=readwrite
 
 ENV LOCAL_INFERENCE_CACHE_FINGERPRINT=${CACHE_FINGERPRINT} \
     XDG_CACHE_HOME=/cache/jit/${CACHE_FINGERPRINT} \
@@ -269,6 +277,27 @@ RUN BUILD_WITH_CUDA=1 TORCH_CUDA_ARCH_LIST=12.0 MAX_JOBS=48 \
  && test "$(python -c 'import importlib.metadata as m; print(m.version("lmcache"))')" = \
       "${LMCACHE_BUILD_VERSION}"
 
+# The EXL3 checkpoint loader uses B12X kernels for rank-sliced inference. The
+# pinned ExLlamaV3 source and extension provide generic checkpoint parity and
+# the deterministic encoder used by the optional online K6 weight cache.
+RUN git clone --filter=blob:none --no-checkout \
+      "${EXLLAMAV3_REPO}" /tmp/exllamav3-src \
+ && git -C /tmp/exllamav3-src fetch --depth=1 origin "${EXLLAMAV3_COMMIT}" \
+ && git -C /tmp/exllamav3-src checkout --detach "${EXLLAMAV3_COMMIT}" \
+ && test "$(git -C /tmp/exllamav3-src rev-parse HEAD)" = "${EXLLAMAV3_COMMIT}" \
+ && cd /tmp/exllamav3-src \
+ && TORCH_CUDA_ARCH_LIST=12.0a MAX_JOBS=48 python setup.py build_ext --inplace \
+ && mapfile -t extensions < <(find . -maxdepth 1 -type f \
+      -name 'exllamav3_ext*.so' -print) \
+ && test "${#extensions[@]}" -eq 1 \
+ && test -f exllamav3/modules/quant/exl3_lib/quantize.py \
+ && install -d /opt/exllamav3 /opt/exllamav3-python \
+ && install -m 0755 "${extensions[0]}" /opt/exllamav3/ \
+ && cp -a exllamav3 /opt/exllamav3-python/ \
+ && VLLM_EXL3_EXT_PATH=/opt/exllamav3 python -c \
+      'import torch, importlib; assert hasattr(importlib.import_module("exllamav3_ext"), "exl3_gemm")' \
+ && rm -rf /tmp/exllamav3-src
+
 ARG INSTANTTENSOR_VERSION=0.1.9
 ARG INSTANTTENSOR_LIBAIO_REPO=https://github.com/1g4-mirror/libaio.git
 ARG INSTANTTENSOR_LIBAIO_COMMIT=1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448
@@ -304,14 +333,25 @@ COPY launchers /tmp/runtime-launchers
 RUN for script in /opt/infernal-invocation/vllm/serve-*.sh; do \
       if test -f "${script}"; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
     done \
- && for script in /tmp/runtime-launchers/lmcache-*.sh; do \
+ && for script in /tmp/runtime-launchers/serve-*.sh \
+      /tmp/runtime-launchers/glm52-*.sh \
+      /tmp/runtime-launchers/lmcache-*.sh; do \
       install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; \
     done \
+ && if test -f /tmp/runtime-launchers/glm52-pcie-calibration.py; then \
+      install -m 0755 /tmp/runtime-launchers/glm52-pcie-calibration.py \
+        /usr/local/bin/glm52-pcie-calibration.py; \
+    fi \
  && test -x /usr/local/bin/serve-ds4-flash.sh \
  && test -x /usr/local/bin/serve-ds4-flash-spark.sh \
+ && test -x /usr/local/bin/serve-infernal-invocation.sh \
+ && test -x /usr/local/bin/serve-glm52-v19.sh \
+ && test -x /usr/local/bin/serve-glm52-hybrid-v19.sh \
  && test -x /usr/local/bin/lmcache-mp-wrapper.sh \
  && bash -n /usr/local/bin/serve-ds4-flash.sh \
  && bash -n /usr/local/bin/serve-ds4-flash-spark.sh \
+ && bash -n /usr/local/bin/serve-infernal-invocation.sh \
+ && bash -n /usr/local/bin/serve-glm52-v19.sh \
  && bash -n /usr/local/bin/lmcache-mp-wrapper.sh \
  && rm -rf /tmp/runtime-launchers
 
@@ -346,8 +386,8 @@ ARG RELEASE_NAME
 ARG RELEASE_DATE
 ARG DOCKER_COMMIT
 
-LABEL org.opencontainers.image.title="DeepSeek Infernal Invocation CUDA 13.3 PyTorch 2.13 runtime" \
-      org.opencontainers.image.description="Source-locked DeepSeek-V4-Flash and DSpark runtime with B12X, LMCache, InstantTensor, and NCCL 2.31.2" \
+LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13 runtime" \
+      org.opencontainers.image.description="Source-locked DeepSeek-V4-Flash and GLM-5.2 runtime with B12X, LMCache, InstantTensor, and NCCL 2.31.2" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.version="${RELEASE_DATE}" \
       org.opencontainers.image.revision="${DOCKER_COMMIT}" \
@@ -390,6 +430,8 @@ LABEL org.opencontainers.image.title="DeepSeek Infernal Invocation CUDA 13.3 PyT
       local-inference.flashinfer.version="${FLASHINFER_VERSION}" \
       local-inference.deepgemm.repo="${DEEPGEMM_REPO}" \
       local-inference.deepgemm.commit="${DEEPGEMM_COMMIT}" \
+      local-inference.exllamav3.repo="${EXLLAMAV3_REPO}" \
+      local-inference.exllamav3.commit="${EXLLAMAV3_COMMIT}" \
       local-inference.cutlass-dsl.version="${CUTLASS_DSL_VERSION}" \
       local-inference.xgrammar.version="${XGRAMMAR_VERSION}" \
       local-inference.cuda.version="13.3" \

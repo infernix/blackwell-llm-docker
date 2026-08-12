@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the CUDA 13.3 DeepSeek runtime from source-composition locks. The CUDA
-# 13.2 release remains an independent rollback artifact.
+# Build the CUDA 13.3 Infernal Invocation runtime from source-composition
+# locks. The image serves qualified DeepSeek and GLM model families.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-release_name=${RELEASE_NAME:-deepseek-infernal-invocation-cu133-torch213}
+release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
 release_date=${RELEASE_DATE:-20260812}
-revision=${REVISION:-r4}
-composition_root=patches/releases/infernal-invocation-r4
+revision=${REVISION:-r5}
+composition_root=patches/releases/infernal-invocation-r5
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
 instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://github.com/1g4-mirror/libaio.git}
 instanttensor_libaio_commit=${INSTANTTENSOR_LIBAIO_COMMIT:-1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448}
 instanttensor_libaio_tree=${INSTANTTENSOR_LIBAIO_TREE:-c9442e111b747e9329ea782c6edb9d13a827cc08}
+exllamav3_repo=${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}
+exllamav3_commit=${EXLLAMAV3_COMMIT:-704aefd743b390af4bd0fb429d1906f9b964c7d8}
 
 case "${revision}" in
   r[1-9]|r[1-9][0-9]*) ;;
@@ -128,6 +130,8 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "INSTANTTENSOR_LIBAIO_REPO=${instanttensor_libaio_repo}" \
   --build-arg "INSTANTTENSOR_LIBAIO_COMMIT=${instanttensor_libaio_commit}" \
   --build-arg "INSTANTTENSOR_LIBAIO_TREE=${instanttensor_libaio_tree}" \
+  --build-arg "EXLLAMAV3_REPO=${exllamav3_repo}" \
+  --build-arg "EXLLAMAV3_COMMIT=${exllamav3_commit}" \
   --build-arg "VLLM_PACKAGE_VERSION=${vllm_package_version}" \
   --build-arg "FLASHINFER_VERSION=${flashinfer_version}" \
   --build-arg "RELEASE_NAME=${release_name}" \
@@ -156,6 +160,8 @@ assert_label local-inference.instanttensor.libaio.repo "${instanttensor_libaio_r
 assert_label local-inference.instanttensor.libaio.commit "${instanttensor_libaio_commit}"
 assert_label local-inference.instanttensor.libaio.tree "${instanttensor_libaio_tree}"
 assert_label local-inference.nccl.version 2.31.2
+assert_label local-inference.exllamav3.repo "${exllamav3_repo}"
+assert_label local-inference.exllamav3.commit "${exllamav3_commit}"
 
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" \
   /opt/local-inference/verify_deepseek_infernal_cu133_runtime.py \
@@ -173,6 +179,18 @@ grep -Fq \
   'Process-group interfaces: GLOO_SOCKET_IFNAME=lo NCCL_SOCKET_IFNAME=lo' \
   <<<"${launcher_output}"
 printf '%s\n' "${launcher_output}"
+
+glm_launcher_output="$(
+  docker run --rm --entrypoint /usr/local/bin/serve-infernal-invocation.sh \
+    -e DRY_RUN=1 -e MODEL_FAMILY=glm52 -e TP=8 -e DCP=1 -e MTP=0 \
+    "${image}" 2>&1
+)"
+grep -Fq -- '--attention-backend B12X_MLA_SPARSE' <<<"${glm_launcher_output}"
+grep -Fq -- '--tensor-parallel-size 8' <<<"${glm_launcher_output}"
+grep -Fq -- '--decode-context-parallel-size 1' <<<"${glm_launcher_output}"
+
+docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
+  'import importlib, os, pathlib, torch; ext = importlib.import_module("exllamav3_ext"); assert hasattr(ext, "exl3_gemm"); assert pathlib.Path(os.environ["VLLM_EXL3_ENCODER_SOURCE"], "modules/quant/exl3_lib/quantize.py").is_file()'
 
 if [[ "${RUN_NCCL_SMOKE:-0}" == 1 ]]; then
   smoke_gpus=${NCCL_SMOKE_GPUS:-0,1,2,3}
