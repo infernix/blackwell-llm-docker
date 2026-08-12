@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-infernal-invocation-runtime",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/integration/kimi-k3-ii-cu133-torch213-20260811",
+  "pull_requests": []
+}

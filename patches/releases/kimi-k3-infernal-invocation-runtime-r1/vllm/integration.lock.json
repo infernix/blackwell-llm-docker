@@ -1,0 +1,18 @@
+{
+  "base": {
+    "commit": "881ac39a4fb6c5bbfa14f3944db560e0a27f3ffe",
+    "ref": "refs/heads/integration/kimi-k3-ii-cu133-torch213-20260811",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "6127ec072e21f35688f4a1c4448cf8b5b1a5c13152887ee2a063f671225fa08d"
+  },
+  "name": "kimi-k3-infernal-invocation-runtime",
+  "pull_requests": [],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tree": "de04f08beb6ff0ef05189c31927f3a3320b1a6f1"
+  },
+  "schema_version": 1
+}

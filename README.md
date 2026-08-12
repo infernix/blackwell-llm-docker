@@ -92,6 +92,10 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # contains target-only and DFlash launchers.
 ./build-kimi-k3-hh-runtime.sh
 
+# Build the Kimi-K3 TP16/DCP16 runtime pinned to the
+# dev/infernal-invocation-derived integration source and B12X composition.
+./build-kimi-k3-infernal-invocation-cu133-torch213.sh
+
 # Build the unified GLM-5.2 and DS4/DSpark v16 image from immutable vLLM,
 # B12X, FlashInfer, DeepGEMM, CUTLASS, InstantTensor, and NCCL commits.
 ./build-fathomless-firmament-v16-cu132.sh
@@ -142,6 +146,39 @@ directory. Profile separation also prevents incompatible CUDA-graph and
 generated-kernel state from being reused across target-only, DSpark, and
 DFlash processes. The machine-readable qualification receipt is
 `validation/kimi-k3-hh-runtime-20260811.json`.
+
+### Kimi-K3 dev/infernal-invocation runtime
+
+Status: **implemented**. The build script
+`build-kimi-k3-infernal-invocation-cu133-torch213.sh` composes the vLLM Git tree
+recorded by
+`patches/releases/kimi-k3-infernal-invocation-runtime-r1/vllm/integration.lock.json`
+with the B12X Git tree recorded by
+`patches/releases/kimi-k3-hh-runtime-r1/b12x/integration.lock.json`. The image
+uses CUDA 13.3, PyTorch 2.13.0, NCCL 2.31.2, and InstantTensor 0.1.9.
+
+The image contains these serving interfaces:
+
+| Runtime profile | Entrypoint | Draft checkpoint |
+|---|---|---|
+| Full MXFP4 target without speculation | `/usr/local/bin/serve-kimi-k3-nospec` | none |
+| Full MXFP4 target with seven-token DSpark | `/usr/local/bin/serve-kimi-k3-dspark` | `Inferact/Kimi-K3-DSpark` |
+| Full MXFP4 target with seven-token DFlash | `/usr/local/bin/serve-kimi-k3-dflash` | `modal-labs/Kimi-K3-DFlash` |
+
+DSpark is the image entrypoint. Start that profile with:
+
+```bash
+docker run --rm --name kimi-k3-infernal-dspark \
+  --gpus all --ipc=host --network=host --shm-size=32g \
+  --ulimit memlock=-1 --ulimit stack=67108864 \
+  -v /root/.cache/huggingface:/root/.cache/huggingface:ro \
+  -v kimi-k3-infernal-dspark-jit:/cache/jit \
+  voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1
+```
+
+Use a distinct `/cache/jit` volume for each entrypoint. The three profiles have
+different graph shapes and generated kernels; sharing a writable JIT directory
+between them is unsupported.
 
 ### Clean GG release composition
 
