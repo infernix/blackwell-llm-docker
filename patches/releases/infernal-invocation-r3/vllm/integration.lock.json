@@ -1,11 +1,11 @@
 {
   "base": {
-    "commit": "c8d04a543e0e8b0896e60b8b11bec0bb2d780860",
+    "commit": "ce5f50f6d01b02336c4207f11277fd7bedacb4d6",
     "ref": "refs/heads/dev/infernal-invocation",
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "285a7fe43ac40ef20d84ea5063d363f15206358e3bebc0d0a0c9f3af2560ac7c"
+    "sha256": "58b9042f509c1791153eb5c7b7605548b3b78d5cf6962d4415a8a72c9a285c6b"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -88,7 +88,7 @@
     },
     {
       "disposition": "merged",
-      "head": "b67b7ec7b11bffe617ebd597243aa3cd4e333121",
+      "head": "31472fd994f99802006a6297557d641b88652ceb",
       "number": 296,
       "ref": "refs/pull/296/head",
       "title": "Absorb duplicate DeepSeek V4 tool-call closers"
@@ -96,8 +96,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ee3a8f51f769158c5e584b5d326ddfe00ce6bffded272bfeb1cef9124c6b27fd",
-    "tree": "b67777e65fb261a179cdf7b366d14f754cc4abb4"
+    "patch_sha256": "a52aa74a0d08d6d2e2130bd79bd367d1c357b944b559f0e8e51df2b091471c60",
+    "tree": "6c50b0af7cc611703119d91970fbf84e4e540dab"
   },
   "schema_version": 1,
   "source_patches": []

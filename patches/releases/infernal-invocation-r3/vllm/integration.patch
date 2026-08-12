@@ -440,7 +440,7 @@ index d01fed5cc36bb7543e436f37701bde56cab162cb..215a76ac159e3e344ad9f8c290f22362
      layer = _make_b12x_layer()
      layer._use_b12x_mhc = True
 diff --git a/tests/parser/engine/test_deepseek_v4.py b/tests/parser/engine/test_deepseek_v4.py
-index ba5ebf76ed673741e3da19fbe901441e4d0791eb..eeab25233d3a1c7804c223be0ecd349ea445f93c 100644
+index ba5ebf76ed673741e3da19fbe901441e4d0791eb..703b59634923f1f3f676713622f0e3d10b0670aa 100644
 --- a/tests/parser/engine/test_deepseek_v4.py
 +++ b/tests/parser/engine/test_deepseek_v4.py
 @@ -231,6 +231,36 @@ class TestMissingInvokeEnd:
@@ -462,8 +462,8 @@ index ba5ebf76ed673741e3da19fbe901441e4d0791eb..eeab25233d3a1c7804c223be0ecd349e
 +            + "\n"
 +            + DSML_INVOKE_END
 +            + "\n</",
-+            "｜DSML｜tool_calls></",
-+            "｜DSML｜tool_calls></think>",
++            DSML_TOOL_END.removeprefix("</") + "</",
++            DSML_TOOL_END.removeprefix("</") + "</think>",
 +            "Done.",
 +        ]
 +
