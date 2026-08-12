@@ -41,7 +41,13 @@ printf '%s\n' "$@" >"${LMCACHE_TEST_MODEL_ARGS}"
 if [[ -n "${LMCACHE_TEST_MODEL_ENV:-}" ]]; then
   printf '%s\n' "${PYTORCH_CUDA_ALLOC_CONF-<unset>}" >"${LMCACHE_TEST_MODEL_ENV}"
 fi
-sleep "${LMCACHE_TEST_MODEL_SLEEP:-0}"
+if [[ "${LMCACHE_TEST_MODEL_HANDLE_TERM:-0}" == 1 ]]; then
+  trap 'exit 0' INT TERM HUP
+  sleep "${LMCACHE_TEST_MODEL_SLEEP:-0}" &
+  wait $! || true
+else
+  sleep "${LMCACHE_TEST_MODEL_SLEEP:-0}"
+fi
 SH
 chmod +x "${tmp_root}/model-server"
 
@@ -224,5 +230,43 @@ if PATH="${tmp_root}/bin:${PATH}" \
 fi
 grep -Fq 'ERROR: LMCache exited while the model server was running' \
   "${crash_stderr}"
+
+shutdown_stdout="${tmp_root}/shutdown.stdout"
+shutdown_stderr="${tmp_root}/shutdown.stderr"
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+PORT=8011 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/shutdown.log" \
+LMCACHE_TEST_MODEL_SLEEP=30 \
+LMCACHE_TEST_MODEL_HANDLE_TERM=1 \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/shutdown-server.args" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/shutdown-model.args" \
+bash "${lmcache_wrapper}" \
+  "${tmp_root}/model-server" >"${shutdown_stdout}" 2>"${shutdown_stderr}" &
+shutdown_pid=$!
+for _ in $(seq 1 100); do
+  if [[ -s "${tmp_root}/shutdown-model.args" ]]; then
+    break
+  fi
+  sleep 0.05
+done
+if [[ ! -s "${tmp_root}/shutdown-model.args" ]]; then
+  echo 'LMCache wrapper shutdown test did not start the model server' >&2
+  kill -TERM "${shutdown_pid}" 2>/dev/null || true
+  wait "${shutdown_pid}" 2>/dev/null || true
+  exit 1
+fi
+kill -TERM "${shutdown_pid}"
+wait "${shutdown_pid}"
+if grep -Fq 'unbound variable' "${shutdown_stderr}"; then
+  echo 'LMCache wrapper accessed an unset wait result during shutdown' >&2
+  exit 1
+fi
+if grep -Fq 'LMCache exited while the model server was running' \
+    "${shutdown_stderr}"; then
+  echo 'LMCache wrapper reported an expected shutdown as a server failure' >&2
+  exit 1
+fi
 
 echo 'LMCache multiprocessing helper: PASS'

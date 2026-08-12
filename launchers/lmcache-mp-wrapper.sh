@@ -152,6 +152,7 @@ export LMCACHE_DISABLE_BANNER="${LMCACHE_DISABLE_BANNER:-1}"
 lmcache "${server_args[@]}" >"${lmcache_log}" 2>&1 &
 lmcache_pid=$!
 model_pid=""
+shutdown_requested=0
 
 stop_children() {
   if [[ -n "${model_pid}" ]] && kill -0 "${model_pid}" 2>/dev/null; then
@@ -161,7 +162,12 @@ stop_children() {
     kill -TERM "${lmcache_pid}" 2>/dev/null || true
   fi
 }
-trap stop_children INT TERM HUP
+
+request_shutdown() {
+  shutdown_requested=1
+  stop_children
+}
+trap request_shutdown INT TERM HUP
 
 ready=0
 for _ in $(seq 1 "${LMCACHE_START_TIMEOUT:-120}"); do
@@ -203,7 +209,22 @@ wait -n -p completed_pid "${lmcache_pid}" "${model_pid}"
 first_status=$?
 set -e
 
-if [[ "${completed_pid}" == "${lmcache_pid}" ]]; then
+if [[ "${shutdown_requested}" == 1 ]]; then
+  set +e
+  if [[ "${completed_pid:-}" == "${model_pid}" ]]; then
+    model_status=${first_status}
+  else
+    wait "${model_pid}" 2>/dev/null
+    model_status=$?
+  fi
+  if [[ "${completed_pid:-}" != "${lmcache_pid}" ]]; then
+    wait "${lmcache_pid}" 2>/dev/null
+  fi
+  set -e
+  exit "${model_status}"
+fi
+
+if [[ "${completed_pid:-}" == "${lmcache_pid}" ]]; then
   echo "ERROR: LMCache exited while the model server was running" >&2
   sed -n '1,320p' "${lmcache_log}" >&2
   stop_children
