@@ -164,6 +164,49 @@ with the B12X Git tree recorded by
 uses CUDA 13.3, PyTorch 2.13.0, NCCL 2.31.2, InstantTensor 0.1.9, and
 FlashInfer 0.6.15.post1.
 
+The qualified runtime was built from the local base image
+`voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2` with image ID
+`sha256:651f0d37bc3da8469a2b9257bcff060f5509cc0d97c18f2bf340a6e5ce68d532`.
+The base image recipe is commit
+`3775a0b6bcf30350c329f69ab55df7f3ecc8764b`; the runtime image recipe is
+commit `697f50ff644f2c418645c64a50828dccce597d38`.
+
+Pull the byte-identical qualified runtime by digest:
+
+```bash
+docker pull \
+  voipmonitor/vllm@sha256:974edc237f27a4eaa83a53ce4927dd176a5ad8ce4fbb8d3d689fce82348531a5
+```
+
+Rebuild the pinned source composition with these commands. Native compiler
+metadata can make a rebuild's image digest differ even when all pinned source
+trees and runtime interfaces match.
+
+```bash
+git clone https://github.com/local-inference-lab/blackwell-llm-docker.git
+cd blackwell-llm-docker
+
+git checkout 3775a0b6bcf30350c329f69ab55df7f3ecc8764b
+IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2 \
+RELEASE_DATE=20260811 \
+REVISION=r2 \
+./build-kimi-k3-cu133-torch213-base.sh
+
+git checkout 697f50ff644f2c418645c64a50828dccce597d38
+BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2 \
+IMAGE=voipmonitor/vllm:kimi-k3-infernal-vllmde04f08-b12x2e6092a-cu133-torch213-20260812-r1 \
+RELEASE_DATE=20260812 \
+REVISION=r1 \
+./build-kimi-k3-infernal-invocation-cu133-torch213.sh
+```
+
+The base builder compiles PyTorch 2.13.0, Torchvision 0.28.0, patched NCCL
+2.31.2, and XGrammar 0.2.5 from pinned commits on the immutable NVIDIA PyTorch
+26.07 image. It then runs CUDA, Torchvision, and 16-rank NCCL smoke tests. The
+runtime builder verifies the vLLM and B12X integration trees, builds their
+native extensions, verifies package versions and imports, and repeats the
+16-rank NCCL smoke test.
+
 The image contains these serving interfaces:
 
 | Runtime profile | Entrypoint | Draft checkpoint | Physical target KV tokens | Decode tok/s median |
