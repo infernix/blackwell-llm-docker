@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "4e009327aa0d2d738f262136908c1c469b36edb6c14ecb2cc960e1c4f1c8392c"
+    "sha256": "7bc15e78413afe554695d3e3ec16a1dbe86ae47be31510a1f37bec2ab035242a"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -67,7 +67,7 @@
     },
     {
       "disposition": "merged",
-      "head": "f487a59a91bcbf7ad87a6be9dc3027d26d60ca67",
+      "head": "0e41faa811ce46df77acce3e9e7c6887954925de",
       "number": 293,
       "ref": "refs/pull/293/head",
       "title": "Recover hybrid KV cache load failures across cache groups"
@@ -89,8 +89,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "cccf47563edc3f555f814c034837eba44c3e10339e3229b70b9839f82b95a7bb",
-    "tree": "2f23cc93163add9f20503c2f035ab40b520119bb"
+    "patch_sha256": "a48009820b30290b092158648e0037a6d5861e59c4684cca5e3815ef67155bad",
+    "tree": "2f77f26d2efd72963275dd6ef10d1c8f82b4e86d"
   },
   "schema_version": 1,
   "source_patches": []

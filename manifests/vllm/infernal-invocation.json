@@ -46,7 +46,7 @@
     },
     {
       "number": 293,
-      "head": "f487a59a91bcbf7ad87a6be9dc3027d26d60ca67",
+      "head": "0e41faa811ce46df77acce3e9e7c6887954925de",
       "title": "Recover hybrid KV cache load failures across cache groups"
     },
     {
