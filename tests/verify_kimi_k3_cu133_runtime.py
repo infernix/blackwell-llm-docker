@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Verify the Kimi-K3 HH runtime without loading model weights."""
+"""Verify a Kimi-K3 CUDA 13.3 runtime without loading model weights."""
 
 from __future__ import annotations
 
 import argparse
 import ctypes
-import importlib.metadata as metadata
+import importlib.util
 import os
-from pathlib import Path
 import time
+from importlib import metadata
+from pathlib import Path
 
 import torch
 from packaging.version import Version
-
 
 FORBIDDEN_CUDA_WHEEL_PREFIXES = (
     "nvidia-cublas-",
@@ -50,6 +50,9 @@ def main() -> None:
     parser.add_argument("--flashinfer-version", required=True)
     parser.add_argument("--torchvision-version", required=True)
     parser.add_argument("--vllm-version", required=True)
+    parser.add_argument("--runtime-label", default="heraldic-harbinger")
+    parser.add_argument("--vllm-source-root", default="/opt/kimi-k3-hh/vllm")
+    parser.add_argument("--b12x-source-root", default="/opt/kimi-k3-hh/b12x")
     parser.add_argument("--require-cuda-platform", action="store_true")
     parser.add_argument("--require-flashinfer-sampler", action="store_true")
     args = parser.parse_args()
@@ -59,27 +62,22 @@ def main() -> None:
 
     if args.require_cuda_platform:
         assert not torch.cuda.is_initialized()
-        import vllm.v1.engine.async_llm  # noqa: F401
+        import vllm.v1.engine.async_llm
 
         assert not torch.cuda.is_initialized(), (
             "vLLM worker preload imports initialized CUDA; "
             "the forkserver cannot create CUDA workers safely"
         )
 
-    import cutlass.cute as cute
     import flashinfer
     import instanttensor
     import torchvision
-    import triton_kernels.matmul_ogs as matmul_ogs
     import transformers
     import xgrammar
     from b12x.attention import dense_mla
     from b12x.comm.pcie.pcie_dcp_a2a import SUPPORTED_WORLD_SIZES
-    from vllm.model_executor.layers.activation import ensure_kimi_k3_activation_ops
-    from vllm.models.kimi_k3.nvidia.kda import ensure_fused_kda_decode_op
-    from vllm.models.kimi_k3.nvidia.ops.fused_mla_key_concat_kv_cache import (
-        ensure_kimi_k3_cache_ops,
-    )
+    from cutlass import cute
+    from triton_kernels import matmul_ogs
 
     assert torch.__version__ == "2.13.0"
     assert torch.version.cuda == "13.3"
@@ -105,7 +103,7 @@ def main() -> None:
     except metadata.PackageNotFoundError:
         pass
     else:
-        raise AssertionError("TorchAO must not be installed in the Kimi-K3 runtime")
+        raise AssertionError("TorchAO must not be installed in a Kimi-K3 runtime")
     assert flashinfer.__file__
     assert instanttensor.__file__
     assert torchvision.__version__ == args.torchvision_version
@@ -118,21 +116,58 @@ def main() -> None:
     assert hasattr(cute.nvgpu.warp, "MmaMXF8Op")
     assert Version(metadata.version("xgrammar")) >= Version("0.2.5")
     assert Version(metadata.version("transformers")) >= Version("5.5.3")
-    triton_kernels_root = Path(
-        "/opt/kimi-k3-hh/vllm/vllm/third_party/triton_kernels"
+    vllm_source_root = Path(args.vllm_source_root).resolve(strict=True)
+    b12x_source_root = Path(args.b12x_source_root).resolve(strict=True)
+    triton_kernels_root = (
+        vllm_source_root / "vllm" / "third_party" / "triton_kernels"
     ).resolve(strict=True)
-    assert Path(matmul_ogs.__file__).resolve(strict=True).is_relative_to(
-        triton_kernels_root
+    assert (
+        Path(matmul_ogs.__file__)
+        .resolve(strict=True)
+        .is_relative_to(triton_kernels_root)
     )
     assert xgrammar.__file__
     assert transformers.__file__
 
-    assert dense_mla.__file__.startswith("/opt/kimi-k3-hh/b12x/")
+    assert (
+        Path(dense_mla.__file__).resolve(strict=True).is_relative_to(b12x_source_root)
+    )
     assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)
-    assert all(hasattr(dense_mla, name) for name in ("Caps", "plan", "bind", "compile", "run"))
-    ensure_kimi_k3_cache_ops()
-    assert ensure_fused_kda_decode_op()
-    assert ensure_kimi_k3_activation_ops()
+    assert all(
+        hasattr(dense_mla, name) for name in ("Caps", "plan", "bind", "compile", "run")
+    )
+    try:
+        from vllm.model_executor.layers.activation import (
+            ensure_kimi_k3_activation_ops,
+        )
+        from vllm.models.kimi_k3.nvidia.kda import ensure_fused_kda_decode_op
+        from vllm.models.kimi_k3.nvidia.ops.fused_mla_key_concat_kv_cache import (
+            ensure_kimi_k3_cache_ops,
+        )
+    except ImportError:
+        stable_ops_spec = importlib.util.find_spec("vllm._C_stable_libtorch")
+        assert stable_ops_spec is not None and stable_ops_spec.origin is not None
+        assert Path(stable_ops_spec.origin).resolve(strict=True).is_file()
+        if args.require_cuda_platform:
+            import vllm._C_stable_libtorch  # noqa: F401
+
+            required_native_ops = (
+                "fused_kimi_k3_mla_key_concat_kv_cache_insert",
+                "fused_kimi_k3_mla_decode_q_concat_kv_cache_fp8_insert",
+                "fused_kda_decode",
+                "situ_and_mul",
+                "masked_situ_and_mul",
+            )
+            missing_native_ops = [
+                name for name in required_native_ops if not hasattr(torch.ops._C, name)
+            ]
+            assert not missing_native_ops, (
+                f"Kimi-K3 native operators are missing: {missing_native_ops}"
+            )
+    else:
+        ensure_kimi_k3_cache_ops()
+        assert ensure_fused_kda_decode_op()
+        assert ensure_kimi_k3_activation_ops()
 
     if args.require_cuda_platform:
         from vllm.platforms import current_platform
@@ -188,7 +223,7 @@ def main() -> None:
     assert not forbidden, f"pip CUDA runtime overlays are installed: {forbidden}"
 
     print(
-        "Kimi-K3 HH runtime contract: PASS "
+        f"Kimi-K3 {args.runtime_label} runtime contract: PASS "
         f"torch={torch.__version__} cuda={torch.version.cuda} nccl={version.value} "
         f"instanttensor={metadata.version('instanttensor')} "
         f"flashinfer={metadata.version('flashinfer-python')} "
