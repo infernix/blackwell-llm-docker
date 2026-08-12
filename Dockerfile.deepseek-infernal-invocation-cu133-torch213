@@ -39,7 +39,6 @@ ARG FLASHINFER_VERSION=0.6.18+cu133
 ARG DEEPGEMM_REPO=https://github.com/deepseek-ai/DeepGEMM.git
 ARG DEEPGEMM_COMMIT=a6b593d2826719dcf4892609af7b84ee23aaf32a
 ARG CUTLASS_DSL_VERSION=4.6.2
-ARG XGRAMMAR_VERSION=0.2.5
 ARG VLLM_PACKAGE_VERSION
 ARG CACHE_FINGERPRINT
 
@@ -318,6 +317,8 @@ RUN for script in /opt/infernal-invocation/vllm/serve-*.sh; do \
 
 COPY tests/verify_deepseek_infernal_cu133_runtime.py /opt/local-inference/verify_deepseek_infernal_cu133_runtime.py
 COPY tests/deepseek-infernal-cu133-pip-check.allowlist /opt/local-inference/deepseek-infernal-cu133-pip-check.allowlist
+
+ARG XGRAMMAR_VERSION=0.2.5
 
 # LMCache's package metadata includes cloud and GPUDirect Storage backends that
 # are unsupported by this RAM and buffered-filesystem runtime. It also pins an
