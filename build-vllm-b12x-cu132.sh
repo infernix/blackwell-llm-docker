@@ -6,6 +6,9 @@ SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE:-voipmonitor/vllm:vllm-b12x-cu132-system-
 BUILD_BASE_IMAGE_TAG="${BUILD_BASE_IMAGE_TAG:-voipmonitor/vllm:vllm-b12x-cu132-build-base}"
 BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE:-1}"
 PUSH_BASE_IMAGE="${PUSH_BASE_IMAGE:-0}"
+TORCH_VERSION="${TORCH_VERSION:-2.12.0+cu132}"
+TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.27.0+cu132}"
+TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION:-2.29.7}"
 MAX_JOBS="${MAX_JOBS:-64}"
 VLLM_MAX_JOBS="${VLLM_MAX_JOBS:-64}"
 NVCC_THREADS="${NVCC_THREADS:-1}"
@@ -52,6 +55,9 @@ CUTLASS_REF="${CUTLASS_REF:-main}"
 CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION:-4.5.2}"
 TOKENSPEED_MLA_VERSION="${TOKENSPEED_MLA_VERSION:-0.1.2}"
 TVM_FFI_VERSION="${TVM_FFI_VERSION:-0.1.9}"
+TILELANG_VERSION="${TILELANG_VERSION:-0.1.9}"
+QUACK_KERNELS_SPEC="${QUACK_KERNELS_SPEC:-quack-kernels>=0.3.3}"
+FASTSAFETENSORS_SPEC="${FASTSAFETENSORS_SPEC:-fastsafetensors>=0.3.2}"
 VLLM_BUILD_VERSION="${VLLM_BUILD_VERSION:-0.11.2.dev279+black.benediction.b12x.cu132}"
 TRITON_KERNELS_REPO="${TRITON_KERNELS_REPO:-https://github.com/triton-lang/triton.git}"
 TRITON_KERNELS_REF="${TRITON_KERNELS_REF:-}"
@@ -154,12 +160,8 @@ if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
     echo "jq is required for clean vLLM release composition" >&2
     exit 1
   }
-  [[ "${VLLM_REF}" == "dev/gilded-gnosis" ]] || {
-    echo "Clean GG composition requires VLLM_REF=dev/gilded-gnosis, got ${VLLM_REF}" >&2
-    exit 1
-  }
   [[ -n "${VLLM_COMMIT}" && -n "${VLLM_PATCH_FILE}" && -n "${VLLM_INTEGRATION_LOCK_FILE}" ]] || {
-    echo "Clean GG composition requires a base commit, generated patch, and lockfile" >&2
+    echo "Clean vLLM composition requires a base commit, generated patch, and lockfile" >&2
     exit 1
   }
   [[ -f "${VLLM_INTEGRATION_LOCK_FILE}" ]] || {
@@ -195,7 +197,7 @@ if [[ "${REQUIRE_CLEAN_VLLM_COMPOSITION}" == "1" ]]; then
   if [[ "${VERIFY_VLLM_BASE_HEAD}" == "1" ]]; then
     current_base_commit="$(resolve_ref "${VLLM_REPO}" "${VLLM_REF}")"
     [[ "${current_base_commit}" == "${VLLM_COMMIT}" ]] || {
-      echo "GG advanced from ${VLLM_COMMIT} to ${current_base_commit}; rerun the release composer" >&2
+      echo "vLLM base ${VLLM_REF} advanced from ${VLLM_COMMIT} to ${current_base_commit}; rerun the release composer" >&2
       exit 1
     }
   fi
@@ -381,6 +383,9 @@ runtime_files_sha="$({
 cache_hash="$(printf '%s\n' \
   "SYSTEM_BASE_IMAGE=${SYSTEM_BASE_IMAGE}" \
   "BUILD_BASE_IMAGE_TAG=${BUILD_BASE_IMAGE_TAG}" \
+  "TORCH_VERSION=${TORCH_VERSION}" \
+  "TORCHVISION_VERSION=${TORCHVISION_VERSION}" \
+  "TORCH_BUNDLED_NCCL_VERSION=${TORCH_BUNDLED_NCCL_VERSION}" \
   "NCCL_REPO=${NCCL_REPO}" \
   "NCCL_REF=${NCCL_REF}" \
   "NCCL_COMMIT=${NCCL_COMMIT}" \
@@ -423,6 +428,9 @@ cache_hash="$(printf '%s\n' \
   "CUTLASS_DSL_VERSION=${CUTLASS_DSL_VERSION}" \
   "TOKENSPEED_MLA_VERSION=${TOKENSPEED_MLA_VERSION}" \
   "TVM_FFI_VERSION=${TVM_FFI_VERSION}" \
+  "TILELANG_VERSION=${TILELANG_VERSION}" \
+  "QUACK_KERNELS_SPEC=${QUACK_KERNELS_SPEC}" \
+  "FASTSAFETENSORS_SPEC=${FASTSAFETENSORS_SPEC}" \
   "TRITON_KERNELS_REPO=${TRITON_KERNELS_REPO}" \
   "TRITON_KERNELS_REF=${TRITON_KERNELS_REF}" \
   "TRITON_KERNELS_COMMIT=${TRITON_KERNELS_COMMIT}" \
@@ -447,8 +455,10 @@ cache_hash="$(printf '%s\n' \
   "VLLM_RUNTIME_EXTRA_PACKAGES=${VLLM_RUNTIME_EXTRA_PACKAGES}" \
   "RUNTIME_FILES_SHA256=${runtime_files_sha}" \
   | sha256sum | awk '{print substr($1, 1, 16)}')"
-vllm_cache_id="${VLLM_COMMIT:0:10}"
-b12x_cache_id="${B12X_COMMIT:0:10}"
+vllm_cache_source="${VLLM_INTEGRATION_TREE:-${VLLM_COMMIT}}"
+b12x_cache_source="${B12X_INTEGRATION_TREE:-${B12X_COMMIT}}"
+vllm_cache_id="${vllm_cache_source:0:10}"
+b12x_cache_id="${b12x_cache_source:0:10}"
 vllm_cache_id="${vllm_cache_id:-unpinned}"
 b12x_cache_id="${b12x_cache_id:-unpinned}"
 CACHE_FINGERPRINT="${CACHE_FINGERPRINT:-vllm${vllm_cache_id}-b12x${b12x_cache_id}-${cache_hash}}"
@@ -462,6 +472,9 @@ echo "  SYSTEM_BASE_IMAGE=${SYSTEM_BASE_IMAGE}"
 echo "  BUILD_BASE_IMAGE_TAG=${BUILD_BASE_IMAGE_TAG}"
 echo "  BUILD_BASE_IMAGE=${BUILD_BASE_IMAGE}"
 echo "  PUSH_BASE_IMAGE=${PUSH_BASE_IMAGE}"
+echo "  TORCH_VERSION=${TORCH_VERSION}"
+echo "  TORCHVISION_VERSION=${TORCHVISION_VERSION}"
+echo "  TORCH_BUNDLED_NCCL_VERSION=${TORCH_BUNDLED_NCCL_VERSION}"
 echo "  MAX_JOBS=${MAX_JOBS}"
 echo "  VLLM_MAX_JOBS=${VLLM_MAX_JOBS}"
 echo "  NVCC_THREADS=${NVCC_THREADS}"
@@ -491,6 +504,9 @@ echo "  CUTLASS_REF=${CUTLASS_REF} ${CUTLASS_COMMIT}"
 echo "  CUTLASS_DSL_VERSION=${CUTLASS_DSL_VERSION}"
 echo "  TOKENSPEED_MLA_VERSION=${TOKENSPEED_MLA_VERSION}"
 echo "  TVM_FFI_VERSION=${TVM_FFI_VERSION}"
+echo "  TILELANG_VERSION=${TILELANG_VERSION}"
+echo "  QUACK_KERNELS_SPEC=${QUACK_KERNELS_SPEC}"
+echo "  FASTSAFETENSORS_SPEC=${FASTSAFETENSORS_SPEC}"
 echo "  TRITON_KERNELS_REF=${TRITON_KERNELS_REF} ${TRITON_KERNELS_COMMIT}"
 echo "  INSTANTTENSOR_REF=${INSTANTTENSOR_REF} ${INSTANTTENSOR_COMMIT}"
 echo "  NCCL_REF=${NCCL_REF} ${NCCL_COMMIT}"
@@ -518,6 +534,9 @@ if [[ "${BUILD_BASE_IMAGE}" == "1" ]]; then
   DOCKER_BUILDKIT=1 docker build \
     --target vllm-b12x-cu132-build-base-build \
     --build-arg VLLM_B12X_CU132_SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE}" \
+    --build-arg TORCH_VERSION="${TORCH_VERSION}" \
+    --build-arg TORCHVISION_VERSION="${TORCHVISION_VERSION}" \
+    --build-arg TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION}" \
     --build-arg CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
     --progress=plain \
     -f Dockerfile.vllm-b12x-cu132 \
@@ -534,6 +553,9 @@ fi
 DOCKER_BUILDKIT=1 docker build \
   --build-arg VLLM_B12X_CU132_SYSTEM_BASE_IMAGE="${SYSTEM_BASE_IMAGE}" \
   --build-arg VLLM_B12X_CU132_BUILD_BASE_IMAGE="${BUILD_BASE_IMAGE_TAG}" \
+  --build-arg TORCH_VERSION="${TORCH_VERSION}" \
+  --build-arg TORCHVISION_VERSION="${TORCHVISION_VERSION}" \
+  --build-arg TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION}" \
   --build-arg MAX_JOBS="${MAX_JOBS}" \
   --build-arg VLLM_MAX_JOBS="${VLLM_MAX_JOBS}" \
   --build-arg NVCC_THREADS="${NVCC_THREADS}" \
@@ -581,6 +603,9 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" \
   --build-arg TOKENSPEED_MLA_VERSION="${TOKENSPEED_MLA_VERSION}" \
   --build-arg TVM_FFI_VERSION="${TVM_FFI_VERSION}" \
+  --build-arg TILELANG_VERSION="${TILELANG_VERSION}" \
+  --build-arg QUACK_KERNELS_SPEC="${QUACK_KERNELS_SPEC}" \
+  --build-arg FASTSAFETENSORS_SPEC="${FASTSAFETENSORS_SPEC}" \
   --build-arg TRITON_KERNELS_REPO="${TRITON_KERNELS_REPO}" \
   --build-arg TRITON_KERNELS_REF="${TRITON_KERNELS_REF}" \
   --build-arg TRITON_KERNELS_COMMIT="${TRITON_KERNELS_COMMIT}" \

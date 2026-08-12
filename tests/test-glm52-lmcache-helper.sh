@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+lmcache_wrapper="${repo_root}/launchers/lmcache-mp-wrapper.sh"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 mkdir -p "${tmp_root}/bin"
@@ -47,18 +48,22 @@ chmod +x "${tmp_root}/model-server"
 PATH="${tmp_root}/bin:${PATH}" \
 LMCACHE_MODE=ram \
 PORT=8002 \
-TP=8 \
-DCP=4 \
+TP_SIZE=8 \
+DCP_SIZE=4 \
 LMCACHE_L1_GB=2 \
 LMCACHE_LOG="${tmp_root}/ram.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/ram-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/ram-model.args" \
 LMCACHE_TEST_MODEL_ENV="${tmp_root}/ram-model.env" \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server" --model-arg value
 
 grep -Fq -- '--port 5557' "${tmp_root}/ram-server.args"
-grep -Fq -- '--http-port 8091' "${tmp_root}/ram-server.args"
+grep -Fq -- '--http-port 8101' "${tmp_root}/ram-server.args"
+if grep -Fq -- '--prometheus-port' "${tmp_root}/ram-server.args"; then
+  echo 'LMCache helper unexpectedly configured a standalone metrics port' >&2
+  exit 1
+fi
 grep -Fq -- '--l1-size-gb 2' "${tmp_root}/ram-server.args"
 grep -Fq -- '--max-gpu-workers 8' "${tmp_root}/ram-server.args"
 grep -Fq -- '--chunk-size 512' "${tmp_root}/ram-server.args"
@@ -81,7 +86,7 @@ LMCACHE_TEST_HTTP_READY=1 \
 LMCACHE_LOG="${tmp_root}/http-ready.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/http-ready-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/http-ready-model.args" \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server" http-ready
 grep -Fxq 'http-ready' "${tmp_root}/http-ready-model.args"
 
@@ -94,7 +99,7 @@ LMCACHE_L1_GB=2 \
 LMCACHE_LOG="${tmp_root}/tp6.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/tp6-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/tp6-model.args" \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server"
 grep -Fq -- '--max-gpu-workers 6' "${tmp_root}/tp6-server.args"
 grep -Fq -- '--chunk-size 384' "${tmp_root}/tp6-server.args"
@@ -110,7 +115,7 @@ LMCACHE_L1_GB=2 \
 LMCACHE_LOG="${tmp_root}/override.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/override-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/override-model.args" \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server"
 grep -Fq -- '--max-gpu-workers 2' "${tmp_root}/override-server.args"
 grep -Fq -- '--chunk-size 768' "${tmp_root}/override-server.args"
@@ -124,7 +129,7 @@ LMCACHE_TEST_SERVER_ARGS="${tmp_root}/allocator-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/allocator-model.args" \
 LMCACHE_TEST_MODEL_ENV="${tmp_root}/allocator-model.env" \
 PYTORCH_CUDA_ALLOC_CONF='max_split_size_mb:256,expandable_segments:True' \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server"
 grep -Fxq 'max_split_size_mb:256,expandable_segments:False' \
   "${tmp_root}/allocator-model.env"
@@ -135,20 +140,26 @@ PORT=8003 \
 LMCACHE_L1_GB=2 \
 LMCACHE_L2_GB=7 \
 LMCACHE_L2_PATH="${tmp_root}/l2" \
+LMCACHE_HTTP_PORT=8181 \
 LMCACHE_LOG="${tmp_root}/disk.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/disk-server.args" \
 LMCACHE_TEST_MODEL_ARGS="${tmp_root}/disk-model.args" \
-bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+bash "${lmcache_wrapper}" \
   "${tmp_root}/model-server"
 
 grep -Fq -- '--l2-adapter' "${tmp_root}/disk-server.args"
+grep -Fq -- '--http-port 8181' "${tmp_root}/disk-server.args"
+if grep -Fq -- '--prometheus-port' "${tmp_root}/disk-server.args"; then
+  echo 'LMCache disk mode unexpectedly configured a standalone metrics port' >&2
+  exit 1
+fi
 grep -Fq -- 'fs_native' "${tmp_root}/disk-server.args"
 grep -Fq -- 'use_odirect' "${tmp_root}/disk-server.args"
 grep -Fq -- 'max_capacity_gb' "${tmp_root}/disk-server.args"
 
 if PATH="${tmp_root}/bin:${PATH}" \
   LMCACHE_MODE=invalid \
-  bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  bash "${lmcache_wrapper}" \
     "${tmp_root}/model-server"; then
   echo 'Invalid LMCache mode unexpectedly succeeded' >&2
   exit 1
@@ -203,7 +214,7 @@ if PATH="${tmp_root}/bin:${PATH}" \
   LMCACHE_TEST_MODEL_SLEEP=5 \
   LMCACHE_TEST_SERVER_ARGS="${tmp_root}/crash-server.args" \
   LMCACHE_TEST_MODEL_ARGS="${tmp_root}/crash-model.args" \
-  bash "${repo_root}/launchers/glm52-lmcache-wrapper.sh" \
+  bash "${lmcache_wrapper}" \
     "${tmp_root}/model-server" 2>"${crash_stderr}"; then
   echo 'Wrapper unexpectedly survived an LMCache server failure' >&2
   exit 1
@@ -211,4 +222,4 @@ fi
 grep -Fq 'ERROR: LMCache exited while the model server was running' \
   "${crash_stderr}"
 
-echo 'GLM-5.2 LMCache helper: PASS'
+echo 'LMCache multiprocessing helper: PASS'

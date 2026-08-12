@@ -70,5 +70,5 @@ case "${MODEL_FAMILY:-}" in
     ;;
 esac
 
-lmcache_wrapper="${GLM52_LMCACHE_WRAPPER:-/usr/local/bin/glm52-lmcache-wrapper.sh}"
+lmcache_wrapper="${LMCACHE_MP_WRAPPER:-${GLM52_LMCACHE_WRAPPER:-/usr/local/bin/lmcache-mp-wrapper.sh}}"
 exec "${lmcache_wrapper}" "${model_command[@]}"

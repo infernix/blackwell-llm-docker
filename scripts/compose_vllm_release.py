@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compose a release tree from a fresh base branch and pinned pull requests."""
+"""Compose a release tree from a branch, pinned pull requests, and source patches."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Any
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CompositionError(RuntimeError):
@@ -88,6 +89,24 @@ def _load_manifest(path: Path) -> dict[str, Any]:
             raise CompositionError(f"PR #{number} has unexpected ref {ref!r}")
         entry["ref"] = ref
         seen.add(number)
+
+    source_patches = manifest.get("source_patches", [])
+    if not isinstance(source_patches, list):
+        raise CompositionError("manifest source_patches must be a list")
+    for index, entry in enumerate(source_patches):
+        if not isinstance(entry, dict):
+            raise CompositionError(f"source patch #{index + 1} must be an object")
+        path = entry.get("path")
+        digest = entry.get("sha256")
+        if not isinstance(path, str) or not path or Path(path).is_absolute():
+            raise CompositionError(
+                f"source patch #{index + 1} must use a relative path"
+            )
+        if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+            raise CompositionError(
+                f"source patch #{index + 1} must pin a SHA-256 digest"
+            )
+    manifest["source_patches"] = source_patches
     return manifest
 
 
@@ -183,10 +202,44 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
                 }
             )
 
-        _run(["git", "diff", "--check", base_sha, "HEAD"], cwd=checkout)
-        result_tree = _run(["git", "rev-parse", "HEAD^{tree}"], cwd=checkout).stdout.strip()
+        resolved_source_patches: list[dict[str, Any]] = []
+        for index, entry in enumerate(manifest["source_patches"]):
+            source_patch = (manifest_path.parent / entry["path"]).resolve()
+            if not source_patch.is_file():
+                raise CompositionError(
+                    f"source patch #{index + 1} does not exist: {entry['path']}"
+                )
+            actual_digest = _sha256(source_patch)
+            expected_digest = str(entry["sha256"])
+            if actual_digest != expected_digest:
+                raise CompositionError(
+                    f"source patch #{index + 1} digest mismatch: "
+                    f"expected {expected_digest}, got {actual_digest}"
+                )
+            apply_check = _run(
+                ["git", "apply", "--check", str(source_patch)],
+                cwd=checkout,
+                check=False,
+            )
+            if apply_check.returncode:
+                detail = apply_check.stderr.strip() or apply_check.stdout.strip()
+                raise CompositionError(
+                    f"source patch #{index + 1} does not apply to the composed tree: "
+                    f"{detail}"
+                )
+            _run(["git", "apply", "--index", str(source_patch)], cwd=checkout)
+            resolved_source_patches.append(
+                {
+                    "path": str(entry["path"]),
+                    "sha256": expected_digest,
+                    "title": entry.get("title", ""),
+                }
+            )
+
+        _run(["git", "diff", "--check", base_sha], cwd=checkout)
+        result_tree = _run(["git", "write-tree"], cwd=checkout).stdout.strip()
         patch = subprocess.run(
-            ["git", "diff", "--binary", "--full-index", base_sha, "HEAD"],
+            ["git", "diff", "--binary", "--full-index", base_sha],
             cwd=checkout,
             check=True,
             stdout=subprocess.PIPE,
@@ -215,6 +268,7 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
             "commit": base_sha,
         },
         "pull_requests": resolved_prs,
+        "source_patches": resolved_source_patches,
         "result": {
             "tree": result_tree,
             "patch": patch_path.name,

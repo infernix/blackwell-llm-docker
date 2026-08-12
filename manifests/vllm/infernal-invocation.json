@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "name": "infernal-invocation-vllm",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/infernal-invocation",
+  "pull_requests": [
+    {
+      "number": 285,
+      "head": "d6b7377cbf27836241d04c9dd08725b7426d88eb",
+      "title": "Preserve resolved Hugging Face revisions across worker spawn"
+    },
+    {
+      "number": 286,
+      "head": "9dbec23e2b2ad5f788838ee3dafc3f6623b500b5",
+      "title": "Inherit target identity for in-checkpoint speculative drafts"
+    },
+    {
+      "number": 287,
+      "head": "56468cf73481f99c92f4517c0a9fa78060ca0d55",
+      "title": "Make DS4 launch identity and capacity explicit"
+    },
+    {
+      "number": 288,
+      "head": "29f13ebc717d10d4aef5f728598c9ab0f75b082e",
+      "title": "Enforce the B12X mHC input-shape contract for DeepSeek V4 MTP"
+    },
+    {
+      "number": 289,
+      "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
+      "title": "Bound DeepSeek V4 sparse metadata to active context"
+    },
+    {
+      "number": 290,
+      "head": "c13a214bd70319938136fa38757a9ea739569639",
+      "title": "Profile serving-reachable shapes before KV cache sizing"
+    },
+    {
+      "number": 291,
+      "head": "164d52e85dad7ca2f4b7eda2124abe4235edb547",
+      "title": "Normalize padded B12X MoE routes without allocation"
+    },
+    {
+      "number": 292,
+      "head": "fb8d983acd642f059e5f3d3466e0f1c13e48b083",
+      "title": "Enforce canonical B12X package identifiers"
+    },
+    {
+      "number": 293,
+      "head": "f487a59a91bcbf7ad87a6be9dc3027d26d60ca67",
+      "title": "Recover hybrid KV cache load failures across cache groups"
+    }
+  ],
+  "source_patches": [],
+  "reviewed_exclusions": [
+    {
+      "number": 271,
+      "head": "310c3ac9718f8d28a6d2c6e009ca4376e54f4457",
+      "disposition": "research-only",
+      "reason": "Full-CKV prewarm targets dev/gilded-gnosis and has no completed GPU qualification. DS4 serving does not require it."
+    },
+    {
+      "number": 280,
+      "head": "8e7be4d5c97fb86d983bd5f83c825153452efaec",
+      "disposition": "unsupported",
+      "reason": "The GLM-5.2 R7 mixed-Trellis integration targets dev/gilded-gnosis. Infernal Invocation contains its own QSRT and EXL3 implementation, and the DS4 qualification matrix does not exercise GLM R7 checkpoints."
+    }
+  ]
+}

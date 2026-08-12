@@ -4,8 +4,8 @@
 #
 # Source stack:
 #   NVIDIA CUDA 13.2.1 cuDNN devel base
-#   Latest CUDA 13.2-compatible NVIDIA library overlays: cuBLAS 13.4.1, cuDNN 9.22
-#   PyTorch 2.12.0+cu132 from the official PyTorch wheel index
+#   CUDA 13.2-compatible NVIDIA library overlays: cuBLAS 13.4.1, cuDNN 9.22
+#   PyTorch from the official CUDA 13.2 wheel index
 #   Patched NCCL 2.30.4 from local-inference-lab/nccl-canonical
 #   FlashInfer from pinned upstream git
 #   B12X from pinned git
@@ -25,6 +25,9 @@ ARG CUDNN_CUDA13_VERSION=9.22.0.52-1
 ARG CUDA_COMPAT_13_2_VERSION=595.71.05-1ubuntu1
 ARG VLLM_B12X_CU132_SYSTEM_BASE_IMAGE=vllm-b12x-cu132-system-base-build
 ARG VLLM_B12X_CU132_BUILD_BASE_IMAGE=vllm-b12x-cu132-build-base-build
+ARG TORCH_VERSION=2.12.0+cu132
+ARG TORCHVISION_VERSION=0.27.0+cu132
+ARG TORCH_BUNDLED_NCCL_VERSION=2.29.7
 
 ARG NCCL_REPO=https://github.com/local-inference-lab/nccl-canonical.git
 ARG NCCL_REF=canonical/cu132-nccl2304-amd-noxml
@@ -80,6 +83,9 @@ ARG CUTLASS_COMMIT=982cb9e718bcd4d7ac546b1795702a08326dfe4b
 ARG CUTLASS_DSL_VERSION=4.5.3
 ARG TOKENSPEED_MLA_VERSION=0.1.2
 ARG TVM_FFI_VERSION=0.1.9
+ARG TILELANG_VERSION=0.1.9
+ARG QUACK_KERNELS_SPEC=quack-kernels>=0.3.3
+ARG FASTSAFETENSORS_SPEC=fastsafetensors>=0.3.2
 
 ARG TRITON_KERNELS_REPO=https://github.com/triton-lang/triton.git
 ARG TRITON_KERNELS_REF=
@@ -145,8 +151,8 @@ ENV LANG=C.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Keep the toolkit on 13.2.1, but overlay the latest CUDA 13 libraries NVIDIA
-# publishes for Ubuntu 24.04 without pulling CUDA 13.3 packages.
+# Keep the toolkit on 13.2.1. The cuBLAS and cuDNN build arguments select
+# CUDA 13-compatible overlays, while apt preferences reject CUDA 13.3 packages.
 RUN for attempt in {1..5}; do \
       if apt-get update; then break; fi; \
       if [[ "${attempt}" == "5" ]]; then exit 1; fi; \
@@ -221,7 +227,7 @@ ENV NCCL_LOCAL_INFERENCE_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     NCCL_PR2127_PATH=/opt/libnccl-local-inference.so.2.30.4 \
     VLLM_NCCL_SO_PATH=/opt/libnccl-local-inference.so.2.30.4
 
-LABEL org.opencontainers.image.description="Reusable CUDA 13.2.1 vLLM+B12X system base with latest CUDA 13.2-compatible cuBLAS/cuDNN overlays and patched NCCL 2.30.4" \
+LABEL org.opencontainers.image.description="Reusable CUDA 13.2.1 vLLM+B12X system base with pinned cuBLAS/cuDNN overlays and patched NCCL 2.30.4" \
       local-inference.cuda.version="13.2.1" \
       local-inference.cuda.compat.version="${CUDA_COMPAT_13_2_VERSION}" \
       local-inference.cublas.version="${CUBLAS_CUDA13_VERSION}" \
@@ -236,63 +242,53 @@ LABEL org.opencontainers.image.description="Reusable CUDA 13.2.1 vLLM+B12X syste
 FROM ${VLLM_B12X_CU132_SYSTEM_BASE_IMAGE} AS vllm-b12x-cu132-build-base-build
 
 ARG CUTLASS_DSL_VERSION
+ARG TORCH_VERSION
+ARG TORCHVISION_VERSION
+ARG TORCH_BUNDLED_NCCL_VERSION
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 RUN python -m venv /opt/venv
 
 ENV VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:${PATH}"
+    PATH="/opt/venv/bin:${PATH}" \
+    LOCAL_INFERENCE_TORCH_VERSION=${TORCH_VERSION}
+
+COPY scripts/install-patched-nccl.sh /usr/local/bin/install-patched-nccl
+RUN chmod 0755 /usr/local/bin/install-patched-nccl
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade "pip<26" setuptools wheel \
  && python -m pip install \
       --index-url https://download.pytorch.org/whl/cu132 \
       --extra-index-url https://pypi.org/simple \
-      "torch==2.12.0+cu132" \
-      "torchvision==0.27.0+cu132" \
+      "torch==${TORCH_VERSION}" \
+      "torchvision==${TORCHVISION_VERSION}" \
+      "cuda-bindings==13.2.0" \
+      "nvidia-nvjitlink==13.2.78" \
  && python -m pip install \
       "cuda-tile>=1.4.0" \
+      cuda-python==13.2.0 \
+      cuda-bindings==13.2.0 \
       nvidia-cuda-tileiras==13.2.78 \
+      nvidia-cuda-nvcc==13.2.78 \
+      nvidia-cuda-crt==13.2.78 \
+      nvidia-nvvm==13.2.78 \
       "nvidia-cutlass-dsl[cu13]==${CUTLASS_DSL_VERSION}" \
  && python -m pip install --force-reinstall --no-deps \
       "nvidia-cutlass-dsl-libs-cu13==${CUTLASS_DSL_VERSION}" \
  && python -m pip check
 
-RUN torch_nccl=/opt/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2 \
- && local_nccl=/opt/libnccl-local-inference.so.2.30.4 \
- && normal_nccl=/opt/libnccl.so.2.30.4 \
- && test -e "${torch_nccl}" \
- && test -e "${local_nccl}" \
- && if [[ ! -e "${normal_nccl}" ]]; then cp -aL "${local_nccl}" "${normal_nccl}"; fi \
- && if [[ ! -e "${local_nccl}.orig" ]]; then cp -aL "${local_nccl}" "${local_nccl}.orig"; fi \
- && if [[ ! -e "${torch_nccl}.torch-bundled-2.29.7" ]]; then cp -aL "${torch_nccl}" "${torch_nccl}.torch-bundled-2.29.7"; fi \
- && readelf -d "${normal_nccl}" | grep -F 'Library soname: [libnccl.so.2]' \
- && ln -sfn "${normal_nccl}" "${local_nccl}" \
- && ln -sfn "${normal_nccl}" /opt/libnccl.so.2 \
- && ln -sfn "${normal_nccl}" "${torch_nccl}" \
- && ldconfig \
- && python - <<'PY'
-import torch
-
-paths = []
-with open("/proc/self/maps", encoding="utf-8") as maps:
-    for line in maps:
-        if "libnccl" in line:
-            paths.append(line.split()[-1])
-
-unique = sorted(set(paths))
-print("torch nccl api", torch.cuda.nccl.version())
-print("mapped libnccl paths", unique)
-assert unique == ["/opt/libnccl.so.2.30.4"], unique
-PY
+RUN TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION}" \
+    /usr/local/bin/install-patched-nccl
 
 RUN python - <<'PY'
+import os
 import torch
 print("torch", torch.__version__)
 print("torch cuda", torch.version.cuda)
 print("torch nccl", torch.cuda.nccl.version())
-assert torch.__version__.startswith("2.12.0+cu132")
+assert torch.__version__ == os.environ["LOCAL_INFERENCE_TORCH_VERSION"]
 assert torch.version.cuda == "13.2"
 PY
 
@@ -308,8 +304,8 @@ ENV CCACHE_DIR=/root/.ccache \
     FLASHINFER_DISABLE_VERSION_CHECK=1 \
     AOT_MAX_JOBS_CAP=8
 
-LABEL org.opencontainers.image.description="Reusable CUDA 13.2.1 vLLM+B12X build base with PyTorch 2.12 cu132 and CUTLASS DSL" \
-      local-inference.torch.version="2.12.0+cu132" \
+LABEL org.opencontainers.image.description="Reusable CUDA 13.2.1 vLLM+B12X build base with configurable PyTorch and CUTLASS DSL" \
+      local-inference.torch.version="${TORCH_VERSION}" \
       local-inference.cutlass_dsl.version="${CUTLASS_DSL_VERSION}"
 
 # =============================================================================
@@ -320,23 +316,30 @@ FROM ${VLLM_B12X_CU132_BUILD_BASE_IMAGE} AS base
 ARG MAX_JOBS
 ARG NVCC_THREADS
 ARG CUTLASS_DSL_VERSION
+ARG TORCH_VERSION
 
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 ENV MAX_JOBS=${MAX_JOBS} \
-    NVCC_THREADS=${NVCC_THREADS}
+    NVCC_THREADS=${NVCC_THREADS} \
+    LOCAL_INFERENCE_TORCH_VERSION=${TORCH_VERSION}
 
-# The reusable build base remains pinned for old image recipes. Upgrade it in
-# this derived stage when a newer vLLM revision requires a newer CuTe DSL.
+# The reusable build base preserves its declared CuTe DSL contract. This
+# derived stage selects the CuTe DSL version required by the vLLM manifest.
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade \
+      cuda-python==13.2.0 \
+      cuda-bindings==13.2.0 \
+      nvidia-cuda-nvcc==13.2.78 \
+      nvidia-cuda-crt==13.2.78 \
+      nvidia-nvvm==13.2.78 \
       "nvidia-cutlass-dsl[cu13]==${CUTLASS_DSL_VERSION}" \
  && python -m pip install --force-reinstall --no-deps \
       "nvidia-cutlass-dsl-libs-cu13==${CUTLASS_DSL_VERSION}" \
  && python -m pip check
 
-# CUDA 13.x headers can be laid out under cccl/. Keep both old and new include
-# paths usable for third-party build scripts.
+# CUDA 13.x packages can expose CUDA C++ headers under cccl/. Provide the
+# canonical include alias expected by third-party build scripts.
 RUN if [[ -d /usr/local/cuda/targets/x86_64-linux/include/cccl/cuda && ! -e /usr/local/cuda/include/cuda ]]; then \
       ln -sf /usr/local/cuda/targets/x86_64-linux/include/cccl/cuda /usr/local/cuda/include/cuda; \
     fi
@@ -409,14 +412,9 @@ ARG CUTLASS_COMMIT
 
 WORKDIR /build
 
-RUN if [[ "${CUTLASS_REF}" =~ ^[0-9a-f]{40}$ ]]; then \
-      git clone --filter=blob:none "${CUTLASS_REPO}" /build/cutlass; \
-      cd /build/cutlass; \
-      git checkout "${CUTLASS_REF}"; \
-    else \
-      git clone --depth 1 --branch "${CUTLASS_REF}" "${CUTLASS_REPO}" /build/cutlass; \
-      cd /build/cutlass; \
-    fi \
+RUN git clone --filter=blob:none "${CUTLASS_REPO}" /build/cutlass \
+ && cd /build/cutlass \
+ && git checkout "${CUTLASS_REF}" \
  && if [[ -n "${CUTLASS_COMMIT}" ]]; then [[ "$(git rev-parse HEAD)" = "${CUTLASS_COMMIT}" ]] || { echo "ERROR: CUTLASS_COMMIT mismatch: HEAD=$(git rev-parse HEAD) expected=${CUTLASS_COMMIT}" >&2; exit 1; }; fi \
  && grep "CUTLASS_MAJOR\\|CUTLASS_MINOR\\|CUTLASS_PATCH" include/cutlass/version.h | head -3
 
@@ -550,7 +548,7 @@ RUN git clone --filter=blob:none "${B12X_REPO}" /tmp/b12x-src \
       if [[ -n "${B12X_PATCH_SHA256}" ]]; then \
         echo "${B12X_PATCH_SHA256}  ${b12x_patch}" | sha256sum -c -; \
       fi; \
-      git apply --verbose "${b12x_patch}"; \
+      if [[ -s "${b12x_patch}" ]]; then git apply --verbose "${b12x_patch}"; fi; \
       git diff --check; \
     fi \
  && if [[ -n "${B12X_INTEGRATION_TREE}" ]]; then \
@@ -607,6 +605,7 @@ ARG TRITON_KERNELS_REPO
 ARG TRITON_KERNELS_REF
 ARG TRITON_KERNELS_COMMIT
 ARG CUTLASS_DSL_VERSION
+ARG TORCH_VERSION
 ARG XGRAMMAR_REPO
 ARG XGRAMMAR_REF
 ARG XGRAMMAR_COMMIT
@@ -627,7 +626,7 @@ RUN git clone --recursive --filter=blob:none "${VLLM_REPO}" /opt/vllm \
       if [[ -n "${VLLM_PATCH_SHA256}" ]]; then \
         echo "${VLLM_PATCH_SHA256}  ${vllm_patch}" | sha256sum -c -; \
       fi; \
-      git apply --verbose "${vllm_patch}"; \
+      if [[ -s "${vllm_patch}" ]]; then git apply --verbose "${vllm_patch}"; fi; \
       git diff --check; \
     fi \
  && if [[ -n "${VLLM_PATCH_URL}" ]]; then \
@@ -692,9 +691,8 @@ print("vLLM FlashInfer requirements:", versions)
 print("vLLM CUTLASS DSL requirement:", cutlass_dsl_version)
 PY
 
-# The GG source and its tests must use the current B12X package name. Keeping
-# this at image composition time catches later PRs that reintroduce a legacy
-# import after the standalone package-port PR has already been applied.
+# The vLLM source and its tests must use the canonical B12X package name. Image
+# composition rejects legacy imports before compiling the runtime.
 RUN python - <<'PY'
 from pathlib import Path
 
@@ -868,6 +866,9 @@ RUN launcher_root=/opt/vllm \
  && for script in /tmp/build-launchers/glm52-*.sh; do \
       if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
     done \
+ && for script in /tmp/build-launchers/lmcache-*.sh; do \
+      if [[ -f "${script}" ]]; then install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; fi; \
+    done \
  && if [[ -f /tmp/build-launchers/glm52-pcie-calibration.py ]]; then \
        install -m 0755 /tmp/build-launchers/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py; \
      fi \
@@ -917,13 +918,14 @@ done
 python - <<'PY'
 import importlib.metadata as md
 import importlib.util
+import os
 from pathlib import Path
 import torch
 import flashinfer
 import deep_gemm
 import vllm
 
-assert torch.__version__.startswith("2.12.0+cu132"), torch.__version__
+assert torch.__version__ == os.environ["LOCAL_INFERENCE_TORCH_VERSION"], torch.__version__
 assert torch.version.cuda == "13.2", torch.version.cuda
 print("torch", torch.__version__, torch.version.cuda)
 print("torch nccl", torch.cuda.nccl.version())
@@ -998,8 +1000,10 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
         echo "ERROR: LMCACHE_PATCH_SHA256 mismatch: actual=${actual_patch_sha256} expected=${LMCACHE_PATCH_SHA256}" >&2; \
         exit 1; \
       }; \
-      git apply --check "${patch_path}"; \
-      git apply "${patch_path}"; \
+      if [[ -s "${patch_path}" ]]; then \
+        git apply --check "${patch_path}"; \
+        git apply "${patch_path}"; \
+      fi; \
     fi \
  && git diff --check \
  && if [[ -n "${LMCACHE_INTEGRATION_TREE}" ]]; then \
@@ -1056,6 +1060,8 @@ RUN git clone --filter=blob:none "${LMCACHE_REPO}" /tmp/lmcache-src \
 # =============================================================================
 FROM ${VLLM_B12X_CU132_SYSTEM_BASE_IMAGE} AS final
 
+ARG TORCH_BUNDLED_NCCL_VERSION
+
 SHELL ["/bin/bash", "-euxo", "pipefail", "-c"]
 
 COPY --from=vllm-build /opt/venv /opt/venv
@@ -1064,8 +1070,10 @@ COPY --from=vllm-build /usr/local/bin/run-glm51-vllm /usr/local/bin/run-glm51-vl
 COPY --from=vllm-build /usr/local/bin/run-kimi26-vllm /usr/local/bin/run-kimi26-vllm
 COPY --from=vllm-build /usr/local/bin/serve-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-*.sh /usr/local/bin/
+COPY --from=vllm-build /usr/local/bin/lmcache-*.sh /usr/local/bin/
 COPY --from=vllm-build /usr/local/bin/glm52-pcie-calibration.py /usr/local/bin/glm52-pcie-calibration.py
 COPY --from=vllm-build /usr/local/bin/verify-vllm-b12x-cu132 /usr/local/bin/verify-vllm-b12x-cu132
+COPY --from=vllm-build /usr/local/bin/install-patched-nccl /usr/local/bin/install-patched-nccl
 COPY --from=exllamav3-build /opt/exllamav3 /opt/exllamav3
 COPY --from=exllamav3-build /opt/exllamav3-python /opt/exllamav3-python
 ARG HUMMING_KERNELS_SPEC="humming-kernels[cu13]==0.1.4"
@@ -1076,12 +1084,24 @@ ARG INSTANTTENSOR_COMMIT
 ARG CUTLASS_DSL_VERSION
 ARG TOKENSPEED_MLA_VERSION
 ARG TVM_FFI_VERSION
+ARG TILELANG_VERSION
+ARG QUACK_KERNELS_SPEC
+ARG FASTSAFETENSORS_SPEC
+ARG TORCH_VERSION
+ARG TORCHVISION_VERSION
 ARG LMCACHE_BUILD_VERSION
+
+ENV LOCAL_INFERENCE_TORCH_VERSION=${TORCH_VERSION}
+
+# Runtime dependency installation imports Torch before the final image checks.
+# Establish the canonical NCCL target before any package can import Torch.
+RUN TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION}" \
+    /usr/local/bin/install-patched-nccl
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     printf '%s\n' \
-      'torch==2.12.0+cu132' \
-      'torchvision==0.27.0+cu132' \
+      "torch==${TORCH_VERSION}" \
+      "torchvision==${TORCHVISION_VERSION}" \
       'cuda-bindings==13.2.0' \
       'cuda-python==13.2.0' \
       'nvidia-cuda-cccl==13.2.75' \
@@ -1101,17 +1121,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       "cuda-bindings==13.2.0" \
       "cuda-python==13.2.0" \
       "numba==0.65.0" \
-      "quack-kernels>=0.3.3" \
+      "${QUACK_KERNELS_SPEC}" \
       "${HUMMING_KERNELS_SPEC}" \
       "nvidia-cuda-tileiras==13.2.78" \
       "nvidia-nvjitlink==13.2.78" \
       "cuda-tile>=1.4.0" \
-      "tilelang==0.1.9" \
+      "tilelang==${TILELANG_VERSION}" \
       "tokenspeed-mla==${TOKENSPEED_MLA_VERSION}" \
       "nvidia-cutlass-dsl[cu13]==${CUTLASS_DSL_VERSION}" \
       "transformers>=5.5.1" \
       "apache-tvm-ffi==${TVM_FFI_VERSION}" \
-      "fastsafetensors>=0.3.2" \
+      "${FASTSAFETENSORS_SPEC}" \
       "pytest==8.4.1" \
       "tblib==3.2.2" \
  && if [[ -n "${VLLM_RUNTIME_EXTRA_PACKAGES}" ]]; then \
@@ -1209,33 +1229,8 @@ if version == "4.5.3":
 print("CUTLASS DSL CUDA 13 overlay: PASS", mma)
 PY
 
-RUN torch_nccl=/opt/venv/lib/python3.12/site-packages/nvidia/nccl/lib/libnccl.so.2 \
- && local_nccl=/opt/libnccl-local-inference.so.2.30.4 \
- && normal_nccl=/opt/libnccl.so.2.30.4 \
- && test -e "${torch_nccl}" \
- && test -e "${local_nccl}" \
- && if [[ ! -e "${normal_nccl}" ]]; then cp -aL "${local_nccl}" "${normal_nccl}"; fi \
- && if [[ ! -e "${local_nccl}.orig" ]]; then cp -aL "${local_nccl}" "${local_nccl}.orig"; fi \
- && if [[ ! -e "${torch_nccl}.torch-bundled-2.29.7" ]]; then cp -aL "${torch_nccl}" "${torch_nccl}.torch-bundled-2.29.7"; fi \
- && readelf -d "${normal_nccl}" | grep -F 'Library soname: [libnccl.so.2]' \
- && ln -sfn "${normal_nccl}" "${local_nccl}" \
- && ln -sfn "${normal_nccl}" /opt/libnccl.so.2 \
- && ln -sfn "${normal_nccl}" "${torch_nccl}" \
- && ldconfig \
- && /opt/venv/bin/python - <<'PY'
-import torch
-
-paths = []
-with open("/proc/self/maps", encoding="utf-8") as maps:
-    for line in maps:
-        if "libnccl" in line:
-            paths.append(line.split()[-1])
-
-unique = sorted(set(paths))
-print("torch nccl api", torch.cuda.nccl.version())
-print("mapped libnccl paths", unique)
-assert unique == ["/opt/libnccl.so.2.30.4"], unique
-PY
+RUN TORCH_BUNDLED_NCCL_VERSION="${TORCH_BUNDLED_NCCL_VERSION}" \
+    /usr/local/bin/install-patched-nccl
 
 RUN cublas="$(readlink -f /usr/lib/x86_64-linux-gnu/libcublas/13/libcublas.so.13)" \
  && cublas_lt="$(readlink -f /usr/lib/x86_64-linux-gnu/libcublas/13/libcublasLt.so.13)" \
@@ -1341,6 +1336,7 @@ RUN mkdir -p \
  && strings /opt/libnccl-local-inference.so.2.30.4 | grep -F "NCCL version 2.30.4 compiled with CUDA 13.2" \
  && /usr/local/bin/verify-vllm-b12x-cu132 /opt/vllm \
  && python - <<'PY'
+import os
 import torch, flashinfer, vllm
 import deep_gemm
 print("torch", torch.__version__, torch.version.cuda)
@@ -1348,7 +1344,7 @@ print("torch nccl", torch.cuda.nccl.version())
 print("flashinfer", getattr(flashinfer, "__version__", "unknown"))
 print("deep_gemm", getattr(deep_gemm, "__version__", "unknown"))
 print("vllm", getattr(vllm, "__version__", "unknown"))
-assert torch.__version__.startswith("2.12.0+cu132")
+assert torch.__version__ == os.environ["LOCAL_INFERENCE_TORCH_VERSION"]
 assert torch.version.cuda == "13.2"
 PY
 
@@ -1390,6 +1386,7 @@ ARG CUBLAS_CUDA13_VERSION
 ARG CUDNN_CUDA13_VERSION
 ARG CUDA_COMPAT_13_2_VERSION
 ARG CUTLASS_DSL_VERSION
+ARG TORCH_VERSION
 ARG TOKENSPEED_MLA_VERSION
 ARG TVM_FFI_VERSION
 ARG EXLLAMAV3_REPO
@@ -1410,12 +1407,12 @@ ARG XGRAMMAR_COMMIT
 ARG XGRAMMAR_VERSION
 ARG XGRAMMAR_TRANSFORMERS5_COMPAT
 
-LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image with PyTorch 2.12 cu132, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, B12X and selected vLLM branch" \
+LABEL org.opencontainers.image.description="Clean CUDA 13.2.1 vLLM+B12X image with a pinned PyTorch runtime, patched NCCL 2.30.4, FlashInfer git, DeepGEMM, B12X and selected vLLM branch" \
       local-inference.cuda.version="13.2.1" \
       local-inference.cuda.compat.version="${CUDA_COMPAT_13_2_VERSION}" \
       local-inference.cublas.version="${CUBLAS_CUDA13_VERSION}" \
       local-inference.cudnn.version="${CUDNN_CUDA13_VERSION}" \
-      local-inference.torch.version="2.12.0+cu132" \
+      local-inference.torch.version="${TORCH_VERSION}" \
       local-inference.cutlass_dsl.version="${CUTLASS_DSL_VERSION}" \
       local-inference.tokenspeed_mla.version="${TOKENSPEED_MLA_VERSION}" \
       local-inference.tvm_ffi.version="${TVM_FFI_VERSION}" \

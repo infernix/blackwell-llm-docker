@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Immutable qualification receipt for DeepSeek-V4-Flash-0731 serving with the Infernal Invocation r2 source composition",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm344438d-b12x1584743-fi1ac6942-cu132-20260812-r2",
+  "image_id": "sha256:b80779ca73bebb6de11f7611f204112e81ad16ee155feeeed61ee3aa7779a1d5",
+  "registry_digest": "sha256:2fc077dc7d790d6d27f76e8f7d32ffdc278ff4eb47c927b94d26a7d17d9313cc",
+  "image_size_bytes": 24559695537,
+  "validated_at": "2026-08-12T08:21:04Z",
+  "source_composition": {
+    "vllm": {
+      "repository": "https://github.com/local-inference-lab/vllm.git",
+      "base_ref": "dev/infernal-invocation",
+      "base_commit": "c8d04a543e0e8b0896e60b8b11bec0bb2d780860",
+      "tree": "344438d742b3cb3f3bd1851a0e9f33f4ebac64e0",
+      "patch_sha256": "bc0efb49e7b5e482d8471fa944555cb3b9b004ad63a4f0f0e08876c00425ab68",
+      "pull_requests": [285, 286, 287, 288, 289, 290, 291, 292, 293],
+      "source_patches": []
+    },
+    "b12x": {
+      "repository": "https://github.com/local-inference-lab/b12x.git",
+      "base_ref": "master",
+      "base_commit": "184d7d52ad630841d0c6caf962f8b9d36f38992a",
+      "tree": "1584743fd972ead81619e8f8934cb7bca61571db",
+      "patch_sha256": "76961d880e3858d7be3b5594ccd68bd5f32dcf2bb576d235b27f6a7204a2a28b",
+      "pull_requests": [145, 146],
+      "source_patches": []
+    },
+    "lmcache": {
+      "repository": "https://github.com/local-inference-lab/LMCache.git",
+      "base_ref": "release/v0.5.2-glm52-dcp-base",
+      "base_commit": "9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "ccccdfc37f108ab674ac0418b5ac5fc1c8b0857e",
+      "patch_sha256": "8863a04936596adb43ccb9badb19ddbe281201ee37591fbff8303a62446d0fd8",
+      "pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22],
+      "source_patches": []
+    },
+    "flashinfer": "1ac6942776b383c6b03c7a5805a22e72a3e3349f",
+    "instanttensor": "49b4010afc1cae0441e71fe0b0bffc24fa05e932"
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.r2.vllm344438d.b12x1584743.fi1ac6942.cu132.20260812",
+    "b12x": "1.2.3",
+    "torch": "2.13.0+cu132",
+    "cuda": "13.2.1",
+    "cudnn": "9.22.0.52",
+    "cublas": "13.4.1.2",
+    "nccl": "2.30.4",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu132",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "tokenizer_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "validation_environment": {
+    "host": "192.168.0.69",
+    "gpu_ids": [4, 5, 6, 7],
+    "topology": "Four RTX PRO 6000 Blackwell GPUs attached through independent CPU root ports",
+    "parallelism": "TP4/DCP1",
+    "attention_backend": "B12X MLA sparse",
+    "moe_backend": "B12X W4A8",
+    "kv_cache": "FP8 compressed MLA",
+    "load_format": "InstantTensor BUFFERED",
+    "scheduler": "MAX_NUM_SEQS=8, max model length 131072, max batched tokens 8192",
+    "comparison_policy": "Performance results are valid for the recorded host and GPU set; switched-PCIe-host measurements are not interchangeable."
+  },
+  "tests": {
+    "release_composition": "pass: 9 tests",
+    "lmcache_suite": "pass: 222 tests; 131 skipped",
+    "docker_helper_contracts": "pass: shell helper, Compose, source-composition, patched-NCCL, and 14 focused Python tests",
+    "runtime_imports": "pass: vLLM, B12X, FlashInfer, InstantTensor, LMCache, XGrammar, CUDA libraries, and patched NCCL",
+    "fixed_k5": "pass: startup, arithmetic correctness, C1/C8 sustained decode, uncached 64k prefill, target FULL CUDA graphs, and DSpark FULL CUDA graphs",
+    "fixed_k7": "pass: startup, arithmetic correctness, eight target FULL CUDA graph sizes, and eight DSpark FULL CUDA graph sizes",
+    "dynamic_k7": "pass: startup, arithmetic correctness, compact varlen capacity verification, 30 target FULL CUDA graphs, and 56 DSpark FULL CUDA graphs",
+    "lmcache_tiered_kv": "pass: four LMCache workers, bounded L1, filesystem L2, local prefix reset, L1 eviction, and L2 replay",
+    "native_tiered_kv": "pass: native CPU cache, filesystem L2, local prefix reset, eviction, and L2 replay",
+    "runtime_error_scan": "pass: no traceback, engine initialization failure, CUDA runtime error, or GPU fault signature in qualified logs"
+  },
+  "evidence": {
+    "fixed_probabilistic_k5": {
+      "graph_cap": 48,
+      "gpu_memory_utilization": 0.95,
+      "decode_seconds_per_cell": 15,
+      "decode_warmup_seconds": 5,
+      "decode_tps": {
+        "c1": 234.574483401571,
+        "c8": 781.5577391413915
+      },
+      "strict_draft_acceptance": {
+        "c1": 0.4186046511627907,
+        "c8": 0.35986842105263156
+      },
+      "uncached_prefill_64k": {
+        "prompt_tokens": 63988,
+        "samples": 7,
+        "median_ttft_seconds": 4.203,
+        "client_tokens_per_second": 15225.0
+      },
+      "correctness": "pass: 317 * 253 + 34 returned 80235"
+    },
+    "fixed_probabilistic_k7": {
+      "graph_cap": 64,
+      "correctness": "pass: 317 * 253 + 34 returned 80235",
+      "cuda_graphs": "Target and DSpark execution each captured eight FULL graph sizes."
+    },
+    "dynamic_probabilistic_k7": {
+      "graph_cap": 64,
+      "correctness": "pass: 317 * 253 + 34 returned 80235",
+      "capacity_verification": "compact varlen",
+      "cuda_graphs": "Target execution captured 30 FULL graphs and DSpark execution captured 56 FULL graphs across scheduler rows and draft depths."
+    },
+    "lmcache_tiered_kv": {
+      "conditions": "TP4/DCP1, MTP0, 4 GiB aggregate L1, 8 GiB filesystem L2, 512-token chunks, six churn requests, and a 15-second writeback interval",
+      "seed_prompt_tokens": 13571,
+      "seed_elapsed_seconds": 1.179295252004522,
+      "replay_cached_tokens": 13312,
+      "replay_elapsed_seconds": 0.30559872699086554,
+      "loaded_chunks_per_worker": 52,
+      "workers": 4,
+      "l2_usage_bytes": 3582699264,
+      "http_port": 8099
+    },
+    "native_tiered_kv": {
+      "conditions": "TP4/DCP1, MTP0, 1 GiB CPU cache, 8 GiB filesystem L2, six churn requests, and a 15-second writeback interval",
+      "gpu_kv_cache_tokens": 969193,
+      "seed_prompt_tokens": 13571,
+      "seed_elapsed_seconds": 0.8845664410036989,
+      "replay_cached_tokens": 13568,
+      "replay_elapsed_seconds": 0.4004854960076045,
+      "cpu_to_gpu_bytes": 300672000,
+      "gpu_to_cpu_bytes": 4125219840,
+      "filesystem_read_bytes": 565407744,
+      "filesystem_write_bytes": 4126273536
+    }
+  },
+  "limitations": [
+    "K5 performance was measured on one four-GPU root-port host; the receipt does not claim identical throughput on a PCIe-switch topology.",
+    "Fixed K7 and dynamic K7 are functionally and graph qualified. Their workload-specific throughput and quality are not promoted over fixed probabilistic K5 by this receipt.",
+    "The dynamic K7 request exercised compact varlen verification at depth seven. It does not prove that every confidence profile transitions through every supported draft depth.",
+    "LMCache and native KV offload were qualified with speculative decoding disabled so cache movement and draft acceptance remained independent variables.",
+    "VLLM_SERVER_DEV_MODE was enabled only for validation-time local prefix reset. The published Compose profile leaves it disabled."
+  ],
+  "artifacts": {
+    "patches/releases/infernal-invocation-r2/vllm/integration.lock.json": "b5f0aec89491813b077323189f1dd909aa5288ce0ae4b77bcb6c48571d05e5c1",
+    "patches/releases/infernal-invocation-r2/b12x/integration.lock.json": "a481a620c98d2567e4e9c46ab7f9dc8645784111d50b09640b4287a02ca51829",
+    "patches/releases/infernal-invocation-r2/lmcache/integration.lock.json": "f34d62f6c16848bcc6c0d3c8aa19833e4f7a6d89383e1af88255016614f7ac97",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-correctness.json": "2286f0634e08a65b8fb2c816e03ff8781e000cdbb60ac9eaab4731b614b3f790",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-tp4-dcp1-k5-decode.json": "a62ead1790ec9e6b9ddda53324c6f808a35591ee8f49bd88c8e1ca79d5391a2f",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-tp4-dcp1-k5-prefill-64k.json": "002bb58ecac69f9747c744646c687b01b8271d1ae6e9f4e78b2cbc81046c1c00",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-k5.log": "aa9ed7e5dc5f1411a5367b4008a141d610f9e917ce2187952c4ef6670e397b62",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-k7-correctness.json": "1a64012ac4ac3aeed12d37a679ec82682509c8b581f446144599277e9c20fdda",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-k7.log": "30452156e02c7aa5a8933f8c813ae8c1ac2aaa6558ea09db8bc8f49f0bdd8dba",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-dynamic-k7-correctness.json": "e99573882842408b8f9dc13fe1dde1c18e7fa61a7a5765d67ae082c3935b0475",
+    "validation/infernal-invocation-r2/ii-r2-exact-image-dynamic-k7.log": "d6265a2b2a655c57d4334704e58dcb54910f4daa55029911d4a01f9dcb8470fc",
+    "validation/infernal-invocation-r2/lmcache-tiered-kv-qualified.json": "3f0be06a226ca547ab98baf91e7729fdfb290c92f0dbc7549664fcbb6779ffba",
+    "validation/infernal-invocation-r2/lmcache-tiered-kv-qualified.log": "2a4de5795557ea50528fc4a177208b240936d9a6ef641bf9401f692e2ffc9721",
+    "validation/infernal-invocation-r2/native-tiered-kv-qualified.json": "de3a7c17800504e420313877bec5fa31f02bf0946a340212ed4bec63473a789f",
+    "validation/infernal-invocation-r2/native-tiered-kv-qualified.log": "bd149be3ae14cfcb42bb1225fc9762cdbc785ec782fdb0c549c24a6e4d4078cb"
+  }
+}

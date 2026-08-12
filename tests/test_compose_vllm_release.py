@@ -60,7 +60,12 @@ def _create_pr(
     return head
 
 
-def _manifest(path: Path, remote: Path, prs: list[tuple[int, str]]) -> Path:
+def _manifest(
+    path: Path,
+    remote: Path,
+    prs: list[tuple[int, str]],
+    source_patches: list[dict[str, str]] | None = None,
+) -> Path:
     path.write_text(
         json.dumps(
             {
@@ -71,34 +76,40 @@ def _manifest(path: Path, remote: Path, prs: list[tuple[int, str]]) -> Path:
                 "pull_requests": [
                     {"number": number, "head": head} for number, head in prs
                 ],
+                "source_patches": source_patches or [],
             }
         )
     )
     return path
 
 
-def test_composition_uses_latest_clean_base_and_replays_patch(tmp_path: Path) -> None:
-    source, remote, old_base = _repositories(tmp_path)
+def test_composition_resolves_branch_head_and_replays_patch(tmp_path: Path) -> None:
+    source, remote, initial_base = _repositories(tmp_path)
     pr_head = _create_pr(source, remote, 1, "feature.py", "feature\n")
 
-    new_base = _commit(source, "base-update.py", "new base\n", "advance base")
+    advanced_base = _commit(
+        source,
+        "base-update.py",
+        "advanced base\n",
+        "advance base",
+    )
     _git(source, "push", "--quiet", "origin", "dev/gilded-gnosis")
-    assert new_base != old_base
+    assert advanced_base != initial_base
 
     manifest = _manifest(tmp_path / "manifest.json", remote, [(1, pr_head)])
     output = tmp_path / "output"
     lock = compose(manifest, output)
 
-    assert lock["base"]["commit"] == new_base
+    assert lock["base"]["commit"] == advanced_base
     assert lock["pull_requests"][0]["disposition"] == "merged"
     assert (output / "integration.patch").is_file()
 
     replay = tmp_path / "replay"
     _git(tmp_path, "clone", "--quiet", str(remote), str(replay))
-    _git(replay, "checkout", "--quiet", "--detach", new_base)
+    _git(replay, "checkout", "--quiet", "--detach", advanced_base)
     _git(replay, "apply", "--index", str(output / "integration.patch"))
     assert _git(replay, "write-tree") == lock["result"]["tree"]
-    assert (replay / "base-update.py").read_text() == "new base\n"
+    assert (replay / "base-update.py").read_text() == "advanced base\n"
     assert (replay / "feature.py").read_text() == "feature\n"
 
 
@@ -115,6 +126,84 @@ def test_composition_lock_is_reproducible(tmp_path: Path) -> None:
     assert (first / "integration.lock.json").read_bytes() == (
         second / "integration.lock.json"
     ).read_bytes()
+
+
+def test_composition_supports_a_base_without_pull_requests(tmp_path: Path) -> None:
+    _, remote, base = _repositories(tmp_path)
+    manifest = _manifest(tmp_path / "manifest.json", remote, [])
+    output = tmp_path / "output"
+
+    lock = compose(manifest, output)
+
+    assert lock["base"]["commit"] == base
+    assert lock["pull_requests"] == []
+    assert lock["result"]["tree"] == _git(remote, "rev-parse", f"{base}^{{tree}}")
+    assert (output / "integration.patch").read_bytes() == b""
+
+
+def test_composition_applies_digest_locked_source_patch(tmp_path: Path) -> None:
+    source, remote, base = _repositories(tmp_path)
+    (source / "model.py").write_text("patched runtime\n")
+    source_patch = tmp_path / "runtime.patch"
+    source_patch.write_bytes(
+        subprocess.run(
+            ["git", "diff", "--binary", "--full-index"],
+            cwd=source,
+            check=True,
+            stdout=subprocess.PIPE,
+        ).stdout
+    )
+    _git(source, "restore", "model.py")
+    digest = hashlib.sha256(source_patch.read_bytes()).hexdigest()
+    manifest = _manifest(
+        tmp_path / "manifest.json",
+        remote,
+        [],
+        [
+            {
+                "path": source_patch.name,
+                "sha256": digest,
+                "title": "Patch the runtime fixture",
+            }
+        ],
+    )
+
+    output = tmp_path / "output"
+    lock = compose(manifest, output)
+
+    assert lock["base"]["commit"] == base
+    assert lock["source_patches"] == [
+        {
+            "path": source_patch.name,
+            "sha256": digest,
+            "title": "Patch the runtime fixture",
+        }
+    ]
+    assert lock["result"]["patch_sha256"] == hashlib.sha256(
+        source_patch.read_bytes()
+    ).hexdigest()
+
+    replay = tmp_path / "source-patch-replay"
+    _git(tmp_path, "clone", "--quiet", str(remote), str(replay))
+    _git(replay, "checkout", "--quiet", "--detach", base)
+    _git(replay, "apply", "--index", str(output / "integration.patch"))
+    assert _git(replay, "write-tree") == lock["result"]["tree"]
+    assert (replay / "model.py").read_text() == "patched runtime\n"
+
+
+def test_composition_rejects_source_patch_digest_mismatch(tmp_path: Path) -> None:
+    _, remote, _ = _repositories(tmp_path)
+    source_patch = tmp_path / "runtime.patch"
+    source_patch.write_text("not a patch\n")
+    manifest = _manifest(
+        tmp_path / "manifest.json",
+        remote,
+        [],
+        [{"path": source_patch.name, "sha256": "0" * 64}],
+    )
+
+    with pytest.raises(CompositionError, match="digest mismatch"):
+        compose(manifest, tmp_path / "output")
 
 
 def test_composition_rejects_moved_pr_head(tmp_path: Path) -> None:

@@ -1,0 +1,75 @@
+# DeepSeek-V4-Flash-0731 DSpark profile for Infernal Invocation r2.
+#
+# Status: qualified.
+#
+# GPU qualification used DeepSeek-V4-Flash-0731 on four RTX PRO 6000
+# Blackwell GPUs attached through independent CPU root ports. The packaged
+# image passed TP4/DCP1 fixed probabilistic K5 startup without source mounts,
+# full target and DSpark CUDA graph capture, a correctness request, sustained
+# C1/C8 decode, and an uncached 64k prefill. TP2/TP4 target-only, fixed K7,
+# dynamic K7, B12X W4A8/W4A16, and DeepSeek-V4-Flash MTP0/MTP2/MTP3 were
+# qualified against the same locked vLLM and B12X source trees.
+#
+# The default profile uses fixed probabilistic K5, B12X W4A8, full target and
+# draft CUDA graphs, FP8 compressed MLA cache, and InstantTensor loading.
+# Set MODE=dspark-mtp0 for the 0731 checkpoint without speculative decoding,
+# or MODE=mtp0, MODE=mtp2, or MODE=mtp3 for DeepSeek-V4-Flash.
+services:
+  ds4:
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm344438d-b12x1584743-fi1ac6942-cu132-20260812-r2}
+    container_name: ${NAME:-ds4-infernal-invocation-r2}
+    entrypoint:
+      - /usr/local/bin/lmcache-mp-wrapper.sh
+      - /usr/local/bin/serve-ds4-flash.sh
+    network_mode: host
+    ipc: host
+    init: true
+    shm_size: ${SHM_SIZE:-32gb}
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
+      PORT: ${PORT:-8000}
+      MODE: ${MODE:-dspark}
+      BACKEND: ${BACKEND:-b12x-a8}
+      TP_SIZE: ${TP_SIZE:-2}
+      DCP_SIZE: ${DCP_SIZE:-1}
+      ALLREDUCE_MODE: ${ALLREDUCE_MODE:-auto}
+      DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+      DSPARK_TOKENS: ${DSPARK_TOKENS:-5}
+      # Zero lets the SPS profile select where capacity readback begins.
+      DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE: ${DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE:-0}
+      DRAFT_SAMPLE_METHOD: ${DRAFT_SAMPLE_METHOD:-probabilistic}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      GRAPH: ${GRAPH:-auto}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-131072}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
+      # LMCache is disabled unless ram or disk is selected. Native vLLM KV
+      # offload is enabled independently by setting KV_OFFLOADING_SIZE.
+      LMCACHE_MODE: ${LMCACHE_MODE:-off}
+      LMCACHE_L1_GB: ${LMCACHE_L1_GB:-24}
+      LMCACHE_L2_GB: ${LMCACHE_L2_GB:-256}
+      LMCACHE_L2_PATH: ${LMCACHE_L2_PATH:-/cache/lmcache/8000}
+      # LMCache serves health/control and Prometheus metrics on one HTTP port.
+      LMCACHE_HTTP_PORT: ${LMCACHE_HTTP_PORT:-8099}
+      KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-}
+      NATIVE_L2_GB: ${NATIVE_L2_GB:-0}
+      NATIVE_L2_PATH: ${NATIVE_L2_PATH:-/cache/native-kv/8000}
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
+      PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
+      EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${MODEL_ROOT:-/root/models}:/root/models:ro
+      - ${JIT_CACHE:-./cache/infernal-invocation-r2}:/cache
+      - ${CONTAINER_TMP:-./cache/infernal-invocation-r2/tmp}:/container-tmp

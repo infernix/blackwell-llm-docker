@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "name": "infernal-invocation-b12x",
+  "repository": "https://github.com/local-inference-lab/b12x.git",
+  "base_ref": "refs/heads/master",
+  "pull_requests": [
+    {
+      "number": 145,
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "number": 146,
+      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
+      "title": "Validate the wave-balanced W4A16 FC2 tile"
+    }
+  ],
+  "source_patches": [],
+  "reviewed_exclusions": [
+    {
+      "number": 144,
+      "head": "c8d5f33b4a682a4a0b06e29c816aa24e28313473",
+      "disposition": "unsupported",
+      "reason": "The GLM-5.2 R7 mixed K3/K4/K5 Trellis runtime conflicts with B12X master and is outside the DS4 qualification matrix."
+    },
+    {
+      "number": 140,
+      "head": "50a9fe1e2985bdd2198962a3e3b457093bb53f43",
+      "disposition": "unsupported",
+      "reason": "Per-projection mixed-Trellis tier membership serves GLM-5.2 R7 checkpoints and is not used by DS4."
+    },
+    {
+      "number": 138,
+      "head": "8596afcf10a3c48f2329ee34ce6e310ceeb6d110",
+      "disposition": "unsupported",
+      "reason": "TP16 pair gather and exact top-16 routing serve Kimi K3 and are not used by DS4 TP2 or TP4."
+    },
+    {
+      "number": 137,
+      "head": "850bc0d0c48c626f236b0ee7e8ea41cc44d75d6d",
+      "disposition": "unsupported",
+      "reason": "The mixed-Trellis QSRT ABI correction serves GLM-5.2 R7 checkpoints and is not used by DS4."
+    },
+    {
+      "number": 136,
+      "head": "b3f572da20b7167bdcdf866419dc414d56945ad6",
+      "disposition": "unsupported",
+      "reason": "The K6 small-row dense GEMM route serves online EXL3 quantization and is not used by DS4."
+    },
+    {
+      "number": 135,
+      "head": "0b44e769caa3c38d99d346a3a343a47df68d2e3b",
+      "disposition": "unsupported",
+      "reason": "The dense block-FP8 API compatibility patch is not used by the DS4 FP4 expert and FP8 dense-layer profile."
+    },
+    {
+      "number": 130,
+      "head": "9ead9eaa188c2d36f091c8e5225e196896545721",
+      "disposition": "research-only",
+      "reason": "Persistent mixed-Trellis buffer layouts do not have completed GPU qualification and are not used by DS4."
+    },
+    {
+      "number": 129,
+      "head": "f4064d06f029240040a128388f32c861a535ad68",
+      "disposition": "unsupported",
+      "reason": "Canonical Fruit QSRT atoms serve a different checkpoint family and are not used by DS4."
+    },
+    {
+      "number": 126,
+      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
+      "disposition": "unsupported",
+      "reason": "Mixed-Trellis route-pack prewarm serves GLM-5.2 EXL3 checkpoints and is not used by DS4."
+    },
+    {
+      "number": 124,
+      "head": "5b6a53f7e83413d717c6b797eece9ce079f86954",
+      "disposition": "unsupported",
+      "reason": "TP16 dense MLA and vocabulary argmax serve Kimi K3 and are not used by DS4 TP2 or TP4."
+    },
+    {
+      "number": 66,
+      "head": "680082928e27d68dcd7acee2dc09b8affba3476f",
+      "disposition": "research-only",
+      "reason": "Disposable DCP A2A profiling channels have no production end-to-end qualification."
+    },
+    {
+      "number": 65,
+      "head": "d5c198086037cabd7280183e11ebd8020c6b0a60",
+      "disposition": "research-only",
+      "reason": "Copy-engine selected-record exchange has no qualified end-to-end gain."
+    },
+    {
+      "number": 64,
+      "head": "c70e98b6da1d429bcd57fac1e88f2736a1aab0de",
+      "disposition": "research-only",
+      "reason": "Selected-record PCIe exchange remains an unqualified alternative to full-CKV transport."
+    },
+    {
+      "number": 46,
+      "head": "1bc4f1bf7c54e2b4a30e73ad01632d81729f0b39",
+      "disposition": "research-only",
+      "reason": "Lossy block-INT8 wire formats require explicit quality qualification and are not enabled by the DS4 release profile."
+    },
+    {
+      "number": 39,
+      "head": "adcc6aabcd7e330ee0a7a7d12926ba8de2fd3b91",
+      "disposition": "unsupported",
+      "reason": "The ultra-wide W4A16 FC2 tile is not used by the DS4 checkpoint profiles."
+    }
+  ]
+}
