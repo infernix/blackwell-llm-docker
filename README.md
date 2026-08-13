@@ -189,29 +189,32 @@ between them is unsupported.
 Status: **qualified**. The build script
 `build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
 vLLM, B12X, and LMCache trees recorded under
-`patches/releases/infernal-invocation-r4/`. The runtime uses CUDA 13.3,
+`patches/releases/infernal-invocation-r9/`. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 The default entrypoint serves `deepseek-ai/DeepSeek-V4-Flash-0731` with fixed
-probabilistic K5 and full target and DSpark CUDA graphs. Target-only, fixed K7,
-and confidence-controlled K7 profiles use the same entrypoint and are selected
-through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
+probabilistic K5, `deepseek_v4_fp8` target and draft quantization, and FULL
+target, DSpark proposal, and DSpark context-KV CUDA graphs. Target-only, fixed
+K7, and confidence-controlled K7 profiles use the same entrypoint and are
+selected through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r4.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r9.yml \
   up -d
 ```
 
-The Compose file also exposes mutually exclusive LMCache and native vLLM KV
-offload profiles. The helper requires InstantTensor loading for the qualified
-checkpoint contract.
+Reasoning-aware strict tool schemas activate their structural grammar from
+token zero. Buffered and streaming requests with `auto`, `required`, and named
+tool selection therefore emit one tool call instead of allowing an initial
+tool block to be consumed as unconstrained reasoning. The Compose file also
+exposes mutually exclusive LMCache and native vLLM KV offload profiles. The
+helper requires InstantTensor loading for the qualified checkpoint contract.
 
 The exact image identity, source trees, runtime packages, CUDA-graph coverage,
-160-request long-context correctness result, strict-tool concurrency result,
-and tiered-KV evidence are recorded in
-`validation/infernal-invocation-r4-local-gpu.json`.
+24-case strict-tool matrix, and single warmed CC1 sanity measurement are
+recorded in `validation/infernal-invocation-r9-local-gpu.json`.
 
 ### Clean GG release composition
 

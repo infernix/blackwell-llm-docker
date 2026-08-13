@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Single-request runtime sanity qualification for DeepSeek-V4-Flash-0731 fixed probabilistic DSpark K5 serving",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllm88aafbf-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r9",
+    "host": "aiserver",
+    "gpu_ids": [0, 1],
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB",
+    "topology": "PCIe-switch host",
+    "parallelism": "TP2/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "concurrency": 1,
+    "context_tokens": 0,
+    "measurement_seconds": 20,
+    "warmup_seconds": 5,
+    "max_output_tokens": 4096,
+    "kv_cache": "FP8 compressed MLA",
+    "native_cpu_kv_offload_gib": 40,
+    "load_format": "InstantTensor BUFFERED",
+    "omp_num_threads": 2
+  },
+  "result": {
+    "aggregate_decode_tokens_per_second": 194.01774771521445,
+    "active_user_tokens_per_second": 196.13009806618524,
+    "time_to_first_token_ms": 259.77672600129154,
+    "inter_token_latency_ms": 5.101127930193032,
+    "strict_draft_acceptance_rate": 0.28354430379746837,
+    "request_errors": 0,
+    "queue_fraction": 0.0,
+    "underfilled": false
+  },
+  "runtime_contract": {
+    "target_decode": "FULL CUDA graph for captured all-decode rows",
+    "dspark_proposal": "FULL CUDA graph for captured verifier rows",
+    "dspark_context_kv": "dedicated FULL CUDA graph",
+    "effective_model_quantization": "deepseek_v4_fp8",
+    "vllm_pull_request": "https://github.com/local-inference-lab/vllm/pull/303"
+  },
+  "limitations": [
+    "This receipt contains one warmed concurrency-one measurement, not a throughput sweep.",
+    "Fixed probabilistic DSpark throughput varies with generated content and draft acceptance. The value is a runtime sanity result rather than a stable hardware ceiling.",
+    "The measurement does not characterize higher concurrency, longer context, prefill throughput, or direct-root-port topology."
+  ]
+}

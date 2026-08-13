@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Immutable qualification receipt for DeepSeek-V4-Flash-0731 serving with the Infernal Invocation r9 CUDA 13.3 and PyTorch 2.13 source composition",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm88aafbf-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r9",
+  "image_id": "sha256:a6db729681ee898a0cf8d3e4f381c2c7aaec846ac7f3d75dda151b4493c57992",
+  "registry_digest": "sha256:17a1f7fe09b55e2b0ae05631d6e2248b22d5f91f0fe3d1695bdf9de782b4b5b5",
+  "image_size_bytes": 30753016249,
+  "validated_at": "2026-08-13T15:29:57Z",
+  "source_composition": {
+    "docker_commit": "33bd3c5b273afa51211d6f6b331d65d31154db00",
+    "vllm": {
+      "base": "dev/infernal-invocation@ce5f50f6d01b02336c4207f11277fd7bedacb4d6",
+      "tree": "88aafbfa10cdb73adc50265a129edc0306541288",
+      "pull_requests": [285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 298, 300, 301, 302, 303],
+      "source_patches": []
+    },
+    "b12x": {
+      "base": "master@954fd0174c49502b62547a01f09c404029e6035a",
+      "tree": "5d648d944a047d4fac5c2035309c207b3faebd9c",
+      "pull_requests": [145, 146, 148, 149, 150],
+      "source_patches": []
+    },
+    "lmcache": {
+      "base": "release/v0.5.2-glm52-dcp-base@9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "5fdf59cfa184bc15dc5414df0bd633da9e49aaae",
+      "pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23],
+      "source_patches": []
+    }
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r9.vllm88aafbf.b12x5d648d9",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "tests": {
+    "source_composition": "pass: immutable integration locks with no source patches",
+    "docker_release_contracts": "pass",
+    "model_startup": "pass: target and 97-parameter DSpark draft loaded from the official checkpoint",
+    "dspark_quantization": "pass: effective model quantization is deepseek_v4_fp8",
+    "normal_chat": "pass: exact response ready",
+    "structured_tools": "pass: 24/24 buffered and streaming requests emitted one valid tool call",
+    "cc1_decode": "pass: one warmed 20-second TP2/DCP1 K5 sanity measurement at 194.02 aggregate tok/s",
+    "full_cuda_graph_dispatch": "pass for target, DSpark proposal, and DSpark context-KV capture",
+    "runtime_error_scan": "pass: no request error or response-integrity violation"
+  },
+  "limitations": [
+    "Performance qualification is limited to one warmed concurrency-one decode measurement.",
+    "Prefill, higher concurrency, alternative backends, K7, LMCache replay, and filesystem L2 were not remeasured for this source composition.",
+    "The 40 GiB native CPU KV offload path was enabled, but no eviction or replay workload was executed.",
+    "Performance values describe a PCIe-switch TP2 subset and do not claim identical throughput on direct-root-port or dual-socket topologies."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r9",
+    "compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r9.yml",
+    "structured_tools": "validation/infernal-invocation-r9/strict-tools-summary.json",
+    "cc1": "validation/infernal-invocation-r9/cc1-runtime-summary.json"
+  }
+}

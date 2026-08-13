@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Structured tool-call qualification for reasoning-aware grammar activation in the Infernal Invocation r9 DeepSeek-V4-Flash-0731 runtime",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllm88aafbf-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r9",
+    "image_id": "sha256:a6db729681ee898a0cf8d3e4f381c2c7aaec846ac7f3d75dda151b4493c57992",
+    "parallelism": "TP2/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "tool_schema_strict": true,
+    "parallel_tool_calls_field": "omitted",
+    "tool_choices": [
+      "auto",
+      "required",
+      "named get_weather function"
+    ],
+    "transport_modes": [
+      "buffered",
+      "streaming"
+    ],
+    "repetitions_per_transport_and_tool_choice": 4
+  },
+  "results": {
+    "requests": 24,
+    "successful_requests": 24,
+    "tool_calls_per_response": 1,
+    "duplicate_tool_calls": 0,
+    "wrong_function_names": 0,
+    "wrong_function_arguments": 0,
+    "protocol_token_leaks": 0,
+    "request_errors": 0,
+    "normal_chat_control": "ready"
+  },
+  "source_contract": {
+    "vllm_pull_request": "https://github.com/local-inference-lab/vllm/pull/302",
+    "invariant": "A grammar supplied by the reasoning parser is active from token zero so an unconstrained reasoning prefix cannot consume a complete tool block before the structural grammar requires another one."
+  },
+  "conclusion": "All buffered and streaming responses emitted exactly one valid tool call for auto, required, and named tool selection. The reasoning-aware structural grammar no longer permits duplicate tool calls when parallel_tool_calls is omitted."
+}

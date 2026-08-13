@@ -1,7 +1,7 @@
 # DeepSeek-V4-Flash-0731 serving profile for Infernal Invocation r9.
 #
-# Status: implemented. Runtime qualification covers strict tool calls and
-# warmed single-user decode before publication.
+# Status: qualified. The immutable image passed 24 buffered and streaming
+# strict-tool requests and one warmed TP2/DCP1 fixed-K5 CC1 sanity run.
 #
 # The profile uses fixed probabilistic K5, B12X W4A8, FP8 compressed MLA KV,
 # full target and DSpark CUDA graphs, InstantTensor BUFFERED loading, CUDA 13.3,
