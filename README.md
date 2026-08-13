@@ -184,45 +184,56 @@ Use a distinct `/cache/jit` volume for each entrypoint. The three profiles have
 different graph shapes and generated kernels; sharing a writable JIT directory
 between them is unsupported.
 
-### DeepSeek-V4-Flash-0731 Infernal Invocation CUDA 13.3 runtime
+### Infernal Invocation CUDA 13.3 runtime for DeepSeek-V4-Flash and GLM-5.2
 
-Status: **qualified**. The build script
+Status: **qualified for the profiles listed below**. The build script
 `build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
 vLLM, B12X, and LMCache trees recorded under
-`patches/releases/infernal-invocation-r10/`. The runtime uses CUDA 13.3,
+`patches/releases/infernal-invocation-r11/`. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
-The default entrypoint serves `deepseek-ai/DeepSeek-V4-Flash-0731` with fixed
-probabilistic K5, `deepseek_v4_fp8` target and draft quantization, and FULL
-target, DSpark proposal, and DSpark context-KV CUDA graphs. Target-only, fixed
-K7, and confidence-controlled K7 profiles use the same entrypoint and are
-selected through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
+```text
+voipmonitor/vllm:infernal-invocation-vllm908522a-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r11
+sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971
+```
+
+| Model profile | Qualified configuration | Compose file |
+|---|---|---|
+| DeepSeek-V4-Flash-0731 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8 | `examples/docker-compose-ds4-infernal-invocation-cu133-r11.yml` |
+| GLM-5.2 NVFP4 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
+| GLM-5.2 EXL3 R7 3.5bpw | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
+
+Start one profile with its committed Compose specification:
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r10.yml \
+  -f examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml \
   up -d
 ```
 
-Reasoning-aware strict tool schemas activate their structural grammar from
-token zero. Buffered and streaming requests with `auto`, `required`, and named
-tool selection therefore emit one tool call instead of allowing an initial
-tool block to be consumed as unconstrained reasoning. Native filesystem KV
-blocks are written to private temporary files and published with an atomic
-create-if-absent operation. A competing writer treats an existing immutable
-destination as success and cannot replace its inode. The Compose file also
-exposes mutually exclusive LMCache and native vLLM KV offload profiles. The
-helper requires InstantTensor loading for the qualified checkpoint contract.
+The GLM entrypoint accepts borrowed InstantTensor buffers. A deferred
+layerwise online quantizer takes ownership only of tensors that outlive the
+iterator step, so `INSTANTTENSOR_COPY=0` does not permit staging-buffer reuse
+to alter retained weights. The EXL3 R7 profile loaded its 322 GiB checkpoint,
+prepared all mixed-rate routed-expert layers, captured FULL decode graphs, and
+returned the correct arithmetic result. Two warmed CC1 measurements produced
+127.22 and 131.45 aggregate tok/s. The NVFP4 profile returned the same
+correctness result and produced 182.54 aggregate tok/s in one warmed CC1
+measurement.
 
-The exact image identity, source trees, runtime packages, CUDA-graph coverage,
-native filesystem qualification, and single warmed CC1 sanity measurement are
-recorded in `validation/infernal-invocation-r10-local-gpu.json`. Native
-filesystem publication was qualified with 16 concurrent writers over five
-8 MiB objects and with two concurrent 72,020-token HTTP requests sharing one
-prefix. Both requests completed correctly, replay loaded the stored prefix,
-and no temporary file remained. The filesystem-level qualification ran on
-ext4; btrfs kernel behavior requires validation on a btrfs deployment.
+The DeepSeek entrypoint provides target-only, fixed K5, fixed K7, and
+confidence-controlled K7 serving, plus mutually exclusive LMCache and native
+vLLM KV offload profiles. A 145,553-byte structured-tool request with 33,204
+prompt tokens passed three sequential and two concurrent executions with KV
+offload and LMCache disabled. All nine emitted tool calls contained valid JSON
+arguments, and no request or runtime error was observed.
+
+The exact image identity, source trees, runtime packages, configurations,
+measurements, and qualification limits are recorded in
+`validation/infernal-invocation-r11-local-gpu.json`. GLM prefill, DCP greater
+than one, TP6, higher concurrency, and EXL3 schemas other than R7 remain
+unqualified for this source composition.
 
 ### Clean GG release composition
 
