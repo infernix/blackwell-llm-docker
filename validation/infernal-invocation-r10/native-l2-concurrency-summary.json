@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Exercise native CPU and filesystem KV tiers with concurrent requests sharing a long prefix",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllma7f04eb-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r10",
+    "host": "aiserver",
+    "gpu_ids": [0, 1],
+    "filesystem": "ext4",
+    "parallelism": "TP2/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "prompt_tokens_per_request": 72020,
+    "concurrent_requests": 2,
+    "native_cpu_kv_offload_gib": 5.5,
+    "native_filesystem_l2_gib": 8,
+    "kv_cache": "FP8 compressed MLA"
+  },
+  "result": {
+    "concurrent_elapsed_seconds": [5.746505579008954, 5.745142856991151],
+    "concurrent_responses": ["17", "29"],
+    "replay_elapsed_seconds": 0.5005908599996474,
+    "replay_response": "17",
+    "filesystem_blocks_after_two_prefix_runs": 1390,
+    "temporary_files": 0,
+    "request_errors": 0
+  },
+  "conclusion": "Concurrent long-prefix stores and a filesystem-backed replay complete without replacing published blocks or leaving temporary files.",
+  "limitations": [
+    "The filesystem is ext4; the reported btrfs host lockup requires qualification on a btrfs deployment.",
+    "The measurement validates behavior and does not characterize filesystem-tier throughput."
+  ]
+}

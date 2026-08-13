@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Single-request runtime sanity qualification for DeepSeek-V4-Flash-0731 fixed probabilistic DSpark K5 serving",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllma7f04eb-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r10",
+    "host": "aiserver",
+    "gpu_ids": [0, 1],
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB",
+    "topology": "PCIe-switch host",
+    "parallelism": "TP2/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "concurrency": 1,
+    "context_tokens": 0,
+    "measurement_seconds": 20,
+    "warmup_seconds": 5,
+    "max_output_tokens": 4096,
+    "kv_cache": "FP8 compressed MLA",
+    "native_cpu_kv_offload_gib": 5.5,
+    "native_filesystem_l2_gib": 8,
+    "load_format": "InstantTensor BUFFERED",
+    "omp_num_threads": 16
+  },
+  "result": {
+    "aggregate_decode_tokens_per_second": 194.80915918764805,
+    "active_user_tokens_per_second": 206.52152916758922,
+    "time_to_first_token_ms": 260.79187300638296,
+    "inter_token_latency_ms": 4.8721067232172475,
+    "strict_draft_acceptance_rate": 0.31,
+    "request_errors": 0,
+    "queue_fraction": 0.0,
+    "underfilled": false
+  },
+  "runtime_contract": {
+    "target_decode": "FULL CUDA graph for captured all-decode rows",
+    "dspark_proposal": "FULL CUDA graph for captured verifier rows",
+    "dspark_context_kv": "dedicated FULL CUDA graph",
+    "effective_model_quantization": "deepseek_v4_fp8"
+  },
+  "limitations": [
+    "This receipt contains one warmed concurrency-one measurement, not a throughput sweep.",
+    "Fixed probabilistic DSpark throughput varies with generated content and draft acceptance.",
+    "The measurement does not characterize higher concurrency, longer decode context, or direct-root-port topology."
+  ]
+}

@@ -1,8 +1,9 @@
 # DeepSeek-V4-Flash-0731 serving profile for Infernal Invocation r10.
 #
-# Status: implemented. The source composition adds create-if-absent publication
-# for immutable native filesystem KV blocks. Runtime qualification is recorded
-# in validation/infernal-invocation-r10-local-gpu.json.
+# Status: qualified. Immutable native filesystem KV blocks use
+# create-if-absent publication, so concurrent writers cannot replace an
+# already visible inode. Runtime qualification is recorded in
+# validation/infernal-invocation-r10-local-gpu.json.
 #
 # The profile uses fixed probabilistic K5, B12X W4A8, FP8 compressed MLA KV,
 # full target and DSpark CUDA graphs, InstantTensor BUFFERED loading, CUDA 13.3,

@@ -189,7 +189,7 @@ between them is unsupported.
 Status: **qualified**. The build script
 `build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
 vLLM, B12X, and LMCache trees recorded under
-`patches/releases/infernal-invocation-r9/`. The runtime uses CUDA 13.3,
+`patches/releases/infernal-invocation-r10/`. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
@@ -201,20 +201,28 @@ selected through `MODE`, `DSPARK_TOKENS`, and `DSPARK_DEPTH_MODE`.
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r9.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r10.yml \
   up -d
 ```
 
 Reasoning-aware strict tool schemas activate their structural grammar from
 token zero. Buffered and streaming requests with `auto`, `required`, and named
 tool selection therefore emit one tool call instead of allowing an initial
-tool block to be consumed as unconstrained reasoning. The Compose file also
+tool block to be consumed as unconstrained reasoning. Native filesystem KV
+blocks are written to private temporary files and published with an atomic
+create-if-absent operation. A competing writer treats an existing immutable
+destination as success and cannot replace its inode. The Compose file also
 exposes mutually exclusive LMCache and native vLLM KV offload profiles. The
 helper requires InstantTensor loading for the qualified checkpoint contract.
 
 The exact image identity, source trees, runtime packages, CUDA-graph coverage,
-24-case strict-tool matrix, and single warmed CC1 sanity measurement are
-recorded in `validation/infernal-invocation-r9-local-gpu.json`.
+native filesystem qualification, and single warmed CC1 sanity measurement are
+recorded in `validation/infernal-invocation-r10-local-gpu.json`. Native
+filesystem publication was qualified with 16 concurrent writers over five
+8 MiB objects and with two concurrent 72,020-token HTTP requests sharing one
+prefix. Both requests completed correctly, replay loaded the stored prefix,
+and no temporary file remained. The filesystem-level qualification ran on
+ext4; btrfs kernel behavior requires validation on a btrfs deployment.
 
 ### Clean GG release composition
 

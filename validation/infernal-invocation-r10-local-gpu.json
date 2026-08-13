@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Immutable qualification receipt for DeepSeek-V4-Flash-0731 serving with native filesystem KV publication that preserves an existing destination inode",
+  "image": "voipmonitor/vllm:infernal-invocation-vllma7f04eb-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r10",
+  "image_id": "sha256:9a175e3500b2a0afae875df8773b5a8eaaa66dcaa70a0169a70b1c4400537e70",
+  "registry_digest": "sha256:2cc10f7ffad3bf390329929e8580fdb96fd4b071816d0ac71f2aba7177cc3756",
+  "image_size_bytes": 30754843893,
+  "validated_at": "2026-08-13T16:52:33Z",
+  "source_composition": {
+    "docker_commit": "694a55c77e89fb3ff8ea4e7654df3d90b2d75a23",
+    "vllm": {
+      "base": "dev/infernal-invocation@ce5f50f6d01b02336c4207f11277fd7bedacb4d6",
+      "tree": "a7f04eb1215330d18421c0179e86077be01d9086",
+      "pull_requests": [285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 298, 300, 301, 302, 303, 304],
+      "source_patches": []
+    },
+    "b12x": {
+      "base": "master@954fd0174c49502b62547a01f09c404029e6035a",
+      "tree": "5d648d944a047d4fac5c2035309c207b3faebd9c",
+      "pull_requests": [145, 146, 148, 149, 150],
+      "source_patches": []
+    },
+    "lmcache": {
+      "base": "release/v0.5.2-glm52-dcp-base@9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "5fdf59cfa184bc15dc5414df0bd633da9e49aaae",
+      "pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23],
+      "source_patches": []
+    }
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r10.vllma7f04eb.b12x5d648d9",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "tests": {
+    "source_composition": "pass: immutable integration locks with no source patches",
+    "docker_release_contracts": "pass: 13 tests",
+    "vllm_filesystem_unit_suite": "pass: 49 tests using the compiled fs_io_C extension",
+    "native_publication_probe": "pass: five 16-writer races over 8 MiB objects preserved one visible inode per race",
+    "model_startup": "pass: target and fixed probabilistic DSpark K5 draft loaded from the official checkpoint",
+    "native_l2_concurrency": "pass: two concurrent 72,020-token requests and one replay returned correct responses; 1,390 block files and no temporary files remained",
+    "cc1_decode": "pass: one warmed 20-second TP2/DCP1 K5 sanity measurement at 194.81 aggregate tok/s",
+    "full_cuda_graph_dispatch": "pass for target, DSpark proposal, and DSpark context-KV capture",
+    "runtime_error_scan": "pass: no request or engine errors"
+  },
+  "limitations": [
+    "Performance qualification is limited to one warmed concurrency-one decode measurement.",
+    "Higher concurrency, K7, LMCache replay, and alternate backends were not remeasured for this source composition.",
+    "The filesystem-tier qualification ran on ext4; the reported btrfs kernel lockup requires validation on a btrfs deployment.",
+    "Performance values describe a PCIe-switch TP2 subset and do not claim identical throughput on direct-root-port or dual-socket topologies."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r10",
+    "compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r10.yml",
+    "native_publication": "validation/infernal-invocation-r10/native-fs-publication-summary.json",
+    "native_l2": "validation/infernal-invocation-r10/native-l2-concurrency-summary.json",
+    "cc1": "validation/infernal-invocation-r10/cc1-runtime-summary.json"
+  }
+}

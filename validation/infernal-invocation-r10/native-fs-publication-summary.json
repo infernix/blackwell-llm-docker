@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Validate that concurrent native filesystem KV writers publish one immutable destination inode",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllma7f04eb-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r10",
+    "filesystem": "ext4",
+    "writers": 16,
+    "object_size_mib": 8,
+    "iterations": 5,
+    "implementation": "compiled vllm.fs_io_C production publication primitive"
+  },
+  "result": {
+    "visible_inode_counts": [1, 1, 1, 1, 1],
+    "temporary_files": 0
+  },
+  "conclusion": "Create-if-absent publication preserves the first visible inode when writers race on one content-addressed path.",
+  "limitation": "The test validates the publication invariant on ext4 and does not reproduce btrfs kernel behavior."
+}
