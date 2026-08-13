@@ -8,6 +8,9 @@ import ctypes
 import importlib.metadata as metadata
 import os
 from pathlib import Path
+import select
+import tempfile
+import time
 
 import torch
 
@@ -26,6 +29,47 @@ CUDA_RUNTIME_WHEEL_PREFIXES = (
     "nvidia-nvjitlink-",
 )
 ALLOWED_CUDA_TOOLING_WHEELS = {"nvidia-cudnn-frontend"}
+
+
+def _verify_lmcache_atomic_publication() -> None:
+    """Require duplicate native stores to publish one complete cache object."""
+    from lmcache import lmcache_fs
+
+    with tempfile.TemporaryDirectory() as directory:
+        client = lmcache_fs.LMCacheFSClient(directory, 2)
+        try:
+            payload_size = 8 * 1024 * 1024
+            first = bytearray(b"a" * payload_size)
+            second = bytearray(b"b" * payload_size)
+            key = "model@00000000@runtime-atomic"
+            future_id = client.submit_batch_set(
+                [key, key],
+                [memoryview(first), memoryview(second)],
+            )
+
+            poller = select.poll()
+            poller.register(client.event_fd(), select.POLLIN)
+            deadline = time.monotonic() + 10
+            completions = []
+            while time.monotonic() < deadline and not completions:
+                if poller.poll(50):
+                    completions = client.drain_completions()
+
+            assert len(completions) == 1
+            completed_id, ok, error, results = completions[0]
+            assert completed_id == future_id
+            assert ok, error
+            if results is not None:
+                assert results == [True, True]
+
+            cache_path = Path(directory)
+            published = (
+                cache_path / "model@0x00000000@runtime-atomic.data"
+            ).read_bytes()
+            assert published in (first, second)
+            assert list(cache_path.glob("*.tmp.*")) == []
+        finally:
+            client.close()
 
 
 def _mapped_libraries(fragment: str) -> set[Path]:
@@ -102,6 +146,7 @@ def main() -> None:
     assert Path(vllm.__file__).resolve(strict=True).is_relative_to(vllm_root)
     assert Path(dense_mla.__file__).resolve(strict=True).is_relative_to(b12x_root)
     assert SUPPORTED_WORLD_SIZES == (2, 4, 8, 16)
+    _verify_lmcache_atomic_publication()
 
     strategy = ParallelStrategy(
         use_mla=True,

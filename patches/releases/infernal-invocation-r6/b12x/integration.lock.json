@@ -1,0 +1,41 @@
+{
+  "base": {
+    "commit": "ac07f6746edce4852f01cc11f34dbe7abae1fdaa",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "0ffa17e5bfb187c5a6ace7e6232231586ceb31509728e2c6ab344add266906cd"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "disposition": "merged",
+      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
+      "number": 146,
+      "ref": "refs/pull/146/head",
+      "title": "Validate the wave-balanced W4A16 FC2 tile"
+    },
+    {
+      "disposition": "merged",
+      "head": "3fc1f0d4000879c75db9e91fbe4a3f328286af6f",
+      "number": 148,
+      "ref": "refs/pull/148/head",
+      "title": "Serve projection-mixed EXL3 K3/K4/K5 weights"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "507565e0a4a3143edd6be5b7d15535d067d7e88c30c079fb53d89d01106112b9",
+    "tree": "1bea00c4a759074822e89c60e82414379cf1ecc7"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
