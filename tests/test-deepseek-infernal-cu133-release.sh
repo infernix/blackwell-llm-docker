@@ -5,9 +5,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r9.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r10.yml"
 vllm_manifest="${repo_root}/manifests/vllm/infernal-invocation.json"
-vllm_lock="${repo_root}/patches/releases/infernal-invocation-r9/vllm/integration.lock.json"
+vllm_lock="${repo_root}/patches/releases/infernal-invocation-r10/vllm/integration.lock.json"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -41,10 +41,13 @@ jq -e '
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c") and
   any(.pull_requests[];
     .number == 303 and
-    .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081")
+    .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081") and
+  any(.pull_requests[];
+    .number == 304 and
+    .head == "229de6270e511701045fd73af592620901c7422b")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .result.tree == "88aafbfa10cdb73adc50265a129edc0306541288" and
+  .result.tree == "a7f04eb1215330d18421c0179e86077be01d9086" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -52,14 +55,18 @@ jq -e '
   any(.pull_requests[];
     .number == 303 and
     .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 304 and
+    .head == "229de6270e511701045fd73af592620901c7422b" and
     .disposition == "merged")
 ' "${vllm_lock}" >/dev/null
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r9' <<<"${output}"
+grep -Fxq 'revision=r10' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=88aafbfa10cdb73adc50265a129edc0306541288' <<<"${output}"
+grep -Fxq 'vllm_tree=a7f04eb1215330d18421c0179e86077be01d9086' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=5d648d944a047d4fac5c2035309c207b3faebd9c' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"

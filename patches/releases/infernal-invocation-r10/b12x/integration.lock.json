@@ -1,0 +1,55 @@
+{
+  "base": {
+    "commit": "954fd0174c49502b62547a01f09c404029e6035a",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "13c3bf90a8fcd90ff99b7b09c06b507b706b5b438761774a7bcf6dc534d05725"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "disposition": "merged",
+      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
+      "number": 146,
+      "ref": "refs/pull/146/head",
+      "title": "Validate the wave-balanced W4A16 FC2 tile"
+    },
+    {
+      "disposition": "merged",
+      "head": "3fc1f0d4000879c75db9e91fbe4a3f328286af6f",
+      "number": 148,
+      "ref": "refs/pull/148/head",
+      "title": "Serve projection-mixed EXL3 K3/K4/K5 weights"
+    },
+    {
+      "disposition": "merged",
+      "head": "b6a7672c9dee63f070585c3a5098c6803a1b5762",
+      "number": 149,
+      "ref": "refs/pull/149/head",
+      "title": "Test W4A8 QSRT rate compatibility"
+    },
+    {
+      "disposition": "merged",
+      "head": "a3f06e262a9f351e3b916d90c5e916cde53a5dbe",
+      "number": 150,
+      "ref": "refs/pull/150/head",
+      "title": "Allocate W4A16 route histograms for CUDA graph capture"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "b638d932d10c6bf38e7d7a67ca84ee59bcfa8d8a04e019b736a23bb28952701d",
+    "tree": "5d648d944a047d4fac5c2035309c207b3faebd9c"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
