@@ -48,7 +48,7 @@
   "tests": {
     "source_composition": "pass: immutable integration locks with no source patches",
     "docker_release_contracts": "pass",
-    "model_startup": "pass: target and 97-parameter DSpark draft loaded from the official checkpoint",
+    "model_startup": "pass: target and DSpark draft loaded from the official checkpoint; the loader reported 97 draft parameter entries",
     "dspark_quantization": "pass: effective model quantization is deepseek_v4_fp8",
     "normal_chat": "pass: exact response ready",
     "structured_tools": "pass: 24/24 buffered and streaming requests emitted one valid tool call",
