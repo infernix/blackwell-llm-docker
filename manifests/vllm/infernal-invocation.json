@@ -83,14 +83,25 @@
       "number": 302,
       "head": "7d1c21353cf4563b5344c83cf53acecac1f2f99c",
       "title": "Activate reasoning-aware structural tool grammars"
+    },
+    {
+      "number": 303,
+      "head": "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081",
+      "title": "Restore DeepSeek V4 DSpark quantization"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
     {
+      "number": 284,
+      "head": "881ac39a4fb6c5bbfa14f3944db560e0a27f3ffe",
+      "disposition": "out_of_scope",
+      "reason": "This pull request composes the Kimi-K3 TP16/DCP16 runtime. Kimi-K3 uses a separate release manifest and image; the DeepSeek V4 runtime does not require its model-specific launchers and kernels."
+    },
+    {
       "number": 271,
-      "head": "310c3ac9718f8d28a6d2c6e009ca4376e54f4457",
-      "disposition": "research-only",
+      "head": "163422d593e0d2cbef32139257659312f760dbaa",
+      "disposition": "experimental",
       "reason": "Full-CKV prewarm targets dev/gilded-gnosis and has no completed GPU qualification. DS4 serving does not require it."
     },
     {

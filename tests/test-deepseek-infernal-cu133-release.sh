@@ -38,13 +38,20 @@ docker compose -f "${compose_file}" config --quiet
 jq -e '
   any(.pull_requests[];
     .number == 302 and
-    .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c")
+    .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c") and
+  any(.pull_requests[];
+    .number == 303 and
+    .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .result.tree == "b4b26d831a4190d2894983c05be41684f637f921" and
+  .result.tree == "88aafbfa10cdb73adc50265a129edc0306541288" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 303 and
+    .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081" and
     .disposition == "merged")
 ' "${vllm_lock}" >/dev/null
 
@@ -52,7 +59,7 @@ output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
 grep -Fxq 'revision=r9' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=b4b26d831a4190d2894983c05be41684f637f921' <<<"${output}"
+grep -Fxq 'vllm_tree=88aafbfa10cdb73adc50265a129edc0306541288' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=5d648d944a047d4fac5c2035309c207b3faebd9c' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"

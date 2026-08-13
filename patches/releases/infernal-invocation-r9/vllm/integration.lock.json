@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "acb00cf06318067509aa667a4583acc4c96ec71a1f15b8ec981c19e31764c1a5"
+    "sha256": "00ced1089f21912f9a69305f7391b7ece0e4f3e03e185fc1433630adb24bbe58"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -120,12 +120,19 @@
       "number": 302,
       "ref": "refs/pull/302/head",
       "title": "Activate reasoning-aware structural tool grammars"
+    },
+    {
+      "disposition": "merged",
+      "head": "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081",
+      "number": 303,
+      "ref": "refs/pull/303/head",
+      "title": "Restore DeepSeek V4 DSpark quantization"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "2804e28382f3b7ce1856d4661200c894ea124fa5fff617b98ee37d8d048fee68",
-    "tree": "b4b26d831a4190d2894983c05be41684f637f921"
+    "patch_sha256": "0a9e6e4bd6db9c8caabce9399218fb36840f8211d10d19b87a1014cb6ec9cb70",
+    "tree": "88aafbfa10cdb73adc50265a129edc0306541288"
   },
   "schema_version": 1,
   "source_patches": []
