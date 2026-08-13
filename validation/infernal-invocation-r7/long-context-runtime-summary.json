@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Long-context request classification and native KV offload qualification for DeepSeek-V4-Flash-0731",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r7",
+    "parallelism": "TP4/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "native_vllm_kv_offload": "enabled",
+    "tool_schema_strict": true
+  },
+  "requests": [
+    {
+      "prompt_tokens": 150003,
+      "finish_reason": "tool_calls",
+      "valid_tool_call": true
+    },
+    {
+      "prompt_tokens": 300128,
+      "finish_reason": "tool_calls",
+      "valid_tool_call": true
+    }
+  ],
+  "result": {
+    "http_200_responses": 2,
+    "response_integrity_violations": 0,
+    "server_healthy_after": true
+  }
+}

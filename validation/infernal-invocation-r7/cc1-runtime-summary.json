@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Single-request DeepSeek-V4-Flash-0731 decode qualification for the Infernal Invocation r7 image",
+  "conditions": {
+    "image": "voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r7",
+    "host": "aiserver",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB",
+    "topology": "PCIe-switch host",
+    "parallelism": [
+      "TP2/DCP1",
+      "TP4/DCP1"
+    ],
+    "concurrency": 1,
+    "context_tokens": 0,
+    "attention_backend": "B12X compressed MLA",
+    "kv_cache": "FP8 compressed MLA",
+    "load_format": "InstantTensor BUFFERED",
+    "measured_backends": [
+      "B12X W4A16",
+      "B12X W4A8",
+      "B12X W4A8 with DeepGEMM linear layers"
+    ],
+    "measured_speculative_modes": [
+      "target-only",
+      "fixed probabilistic DSpark K5",
+      "fixed probabilistic DSpark K7",
+      "confidence-controlled probabilistic DSpark K7"
+    ]
+  },
+  "default_backend_results": [
+    {
+      "parallelism": "TP2/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "target-only",
+      "decode_tokens_per_second": 150.49021326841904,
+      "coding_median_tokens_per_second": 152.49100145428505,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP2/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "fixed probabilistic DSpark K5",
+      "decode_tokens_per_second": 216.56834865319303,
+      "coding_median_tokens_per_second": 308.0997040782846,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP2/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "fixed probabilistic DSpark K7",
+      "decode_tokens_per_second": 200.85333993289905,
+      "coding_median_tokens_per_second": 312.53518662603824,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP2/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "confidence-controlled probabilistic DSpark K7",
+      "decode_tokens_per_second": 187.24765068200955,
+      "coding_median_tokens_per_second": 265.7384216503435,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP4/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "target-only",
+      "decode_tokens_per_second": 180.76982501681633,
+      "coding_median_tokens_per_second": 183.7156893319875,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP4/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "fixed probabilistic DSpark K5",
+      "decode_tokens_per_second": 260.23256187373494,
+      "coding_median_tokens_per_second": 423.3998245027443,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP4/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "fixed probabilistic DSpark K7",
+      "decode_tokens_per_second": 231.46142791559157,
+      "coding_median_tokens_per_second": 376.55465248141036,
+      "response_integrity_violations": 0
+    },
+    {
+      "parallelism": "TP4/DCP1",
+      "backend": "B12X W4A8",
+      "mode": "confidence-controlled probabilistic DSpark K7",
+      "decode_tokens_per_second": 248.01769182928652,
+      "coding_median_tokens_per_second": 319.81167271383,
+      "response_integrity_violations": 0
+    }
+  ],
+  "validation": {
+    "qualified_case_count": 24,
+    "runtime_jit_boundary_checks": "24/24 pass",
+    "request_errors": 0,
+    "coding_workload_cjk_runs": 0,
+    "full_cuda_graph_dispatch": "pass for target and DSpark decode rows"
+  },
+  "limitations": [
+    "The throughput values qualify the latency-sensitive concurrency-one path. They do not characterize throughput at higher concurrency.",
+    "DSpark throughput depends on prompt phase and draft acceptance; the fixed prompt and coding workload results are reported separately.",
+    "Performance values describe the recorded PCIe-switch host and do not claim identical throughput on direct-root-port or dual-socket topologies."
+  ]
+}

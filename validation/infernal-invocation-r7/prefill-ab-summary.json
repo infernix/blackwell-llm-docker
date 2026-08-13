@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Paired short-prefill comparison between Infernal Invocation r6 and r7",
+  "conditions": {
+    "host": "aiserver",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887 MiB",
+    "parallelism": "TP4/DCP1",
+    "backend": "B12X W4A8",
+    "speculative_decoding": "fixed probabilistic DSpark K5",
+    "prompt_tokens": 8194,
+    "samples_per_image": 10,
+    "method": "Each prompt was submitted to both servers, submission order alternated by sample, every sample used a unique first prefix block, and one full-shape warmup per server was excluded."
+  },
+  "images": {
+    "r6": {
+      "image": "voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x1bea00c-fi1ac6942-cu133-torch213-20260813-r6",
+      "image_id": "sha256:2d3b1fee72358ee068fd9bfd4a840127f036bdb998176ab263866fdfef4afffa",
+      "median_prompt_tokens_per_second": 12733.642484211763,
+      "minimum_prompt_tokens_per_second": 12543.255843851895,
+      "maximum_prompt_tokens_per_second": 12805.383849619357
+    },
+    "r7": {
+      "image": "voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r7",
+      "image_id": "sha256:d870cbe0d5126972cf2986662525a77c856bdb968031c58ec21abfda4afa6f78",
+      "median_prompt_tokens_per_second": 12822.873266599563,
+      "minimum_prompt_tokens_per_second": 12787.654136571076,
+      "maximum_prompt_tokens_per_second": 12893.524481670005
+    }
+  },
+  "result": {
+    "r7_over_r6_median_ratio": 1.007007482933374,
+    "conclusion": "The paired measurement shows short-prefill parity. The r7 composition does not reproduce the previously suspected short-prefill regression."
+  }
+}
