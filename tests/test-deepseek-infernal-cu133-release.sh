@@ -5,9 +5,11 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r10.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r11.yml"
+glm_nvfp4_compose_file="${repo_root}/examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml"
+glm_exl3_compose_file="${repo_root}/examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml"
 vllm_manifest="${repo_root}/manifests/vllm/infernal-invocation.json"
-vllm_lock="${repo_root}/patches/releases/infernal-invocation-r10/vllm/integration.lock.json"
+vllm_lock="${repo_root}/patches/releases/infernal-invocation-r11/vllm/integration.lock.json"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -35,6 +37,8 @@ grep -Fq 'NCCL_SOCKET_IFNAME: ${NCCL_SOCKET_IFNAME:-lo}' "${compose_file}"
 grep -Fq 'LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}' "${compose_file}"
 grep -Fq 'INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}' "${compose_file}"
 docker compose -f "${compose_file}" config --quiet
+docker compose -f "${glm_nvfp4_compose_file}" config --quiet
+docker compose -f "${glm_exl3_compose_file}" config --quiet
 jq -e '
   any(.pull_requests[];
     .number == 302 and
@@ -44,10 +48,13 @@ jq -e '
     .head == "4b297d1a07bfcc1bf0ab14c1dc25fe59c3e8f081") and
   any(.pull_requests[];
     .number == 304 and
-    .head == "229de6270e511701045fd73af592620901c7422b")
+    .head == "229de6270e511701045fd73af592620901c7422b") and
+  any(.pull_requests[];
+    .number == 305 and
+    .head == "a5389deea51a64727bbca303ecabcd070517479f")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .result.tree == "a7f04eb1215330d18421c0179e86077be01d9086" and
+  .result.tree == "908522a320ecc26582926228c9644af085f5a86c" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -59,14 +66,18 @@ jq -e '
   any(.pull_requests[];
     .number == 304 and
     .head == "229de6270e511701045fd73af592620901c7422b" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 305 and
+    .head == "a5389deea51a64727bbca303ecabcd070517479f" and
     .disposition == "merged")
 ' "${vllm_lock}" >/dev/null
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r10' <<<"${output}"
+grep -Fxq 'revision=r11' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=a7f04eb1215330d18421c0179e86077be01d9086' <<<"${output}"
+grep -Fxq 'vllm_tree=908522a320ecc26582926228c9644af085f5a86c' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=5d648d944a047d4fac5c2035309c207b3faebd9c' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"

@@ -1,0 +1,51 @@
+# GLM-5.2 NVFP4 profile for eight 96 GB SM120 GPUs.
+#
+# The target checkpoint uses serialized NVFP4 routed experts, online MXFP8
+# dense projections, FP8 MLA KV, and B12X sparse attention and MoE kernels.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm908522a-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r11}
+    container_name: ${NAME:-glm52-nvfp4-infernal-r11}
+    entrypoint: ["/usr/local/bin/serve-infernal-invocation.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 32gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52
+      GPUS: ${GPUS:-0,1,2,3,4,5,6,7}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-lukealonso/GLM-5.2-NVFP4}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-NVFP4}
+      TP: ${TP:-8}
+      DCP: ${DCP:-1}
+      MTP: ${MTP:-3}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-32}
+      GRAPH: ${GRAPH:-128}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-262144}
+      MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.95}
+      MOE_MODE: a16
+      MOE_BACKEND: b12x
+      QUANTIZATION: modelopt_fp4
+      ONLINE_QUANT: mxfp8
+      QUANTIZATION_CONFIG_JSON: '{"linear":{"weight":"mxfp8"}}'
+      KV_CACHE_DTYPE: fp8
+      LOAD_FORMAT: instanttensor
+      INSTANTTENSOR_BACKEND: BUFFERED
+      F8_DMA: ring
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-nvfp4-infernal-r11}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-nvfp4-infernal-r11/tmp}:/container-tmp
