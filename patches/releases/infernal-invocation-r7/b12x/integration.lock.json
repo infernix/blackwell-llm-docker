@@ -1,11 +1,11 @@
 {
   "base": {
-    "commit": "33cbfc70033473f85cc378da44fd8feca9c85610",
+    "commit": "954fd0174c49502b62547a01f09c404029e6035a",
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "manifest": {
-    "sha256": "e9bda2b45c520dad6979c2168747c464a1253feb719f78b1870496e4748fdd4c"
+    "sha256": "13c3bf90a8fcd90ff99b7b09c06b507b706b5b438761774a7bcf6dc534d05725"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -36,12 +36,19 @@
       "number": 149,
       "ref": "refs/pull/149/head",
       "title": "Test W4A8 QSRT rate compatibility"
+    },
+    {
+      "disposition": "merged",
+      "head": "a3f06e262a9f351e3b916d90c5e916cde53a5dbe",
+      "number": 150,
+      "ref": "refs/pull/150/head",
+      "title": "Allocate W4A16 route histograms for CUDA graph capture"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "93d00a281b56ccdb3ca52f58b8af016823ce20cebdec59a503f892fc270e3e4c",
-    "tree": "7cc1e11f1ce608f2769f316773b5b75c65be4766"
+    "patch_sha256": "b638d932d10c6bf38e7d7a67ca84ee59bcfa8d8a04e019b736a23bb28952701d",
+    "tree": "5d648d944a047d4fac5c2035309c207b3faebd9c"
   },
   "schema_version": 1,
   "source_patches": []

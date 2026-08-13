@@ -9,7 +9,7 @@
 # DSPARK_DEPTH_MODE=fixed or dynamic, respectively.
 services:
   ds4:
-    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x7cc1e11-fi1ac6942-cu133-torch213-20260813-r7}
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm7ed814e-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r7}
     container_name: ${NAME:-ds4-infernal-invocation-cu133-r7}
     entrypoint:
       - /usr/local/bin/lmcache-mp-wrapper.sh

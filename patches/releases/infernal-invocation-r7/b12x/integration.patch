@@ -57,7 +57,7 @@ index e2eb4d579aa1d1a87bbace0f94bdd9ae93c3bc80..831db31e0190c80300bbdafda8bc1a2b
      "unswizzle_block_scale",
      "unswizzle_expert_scales",
 diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels/w4a16/kernel.py
-index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a86120704f9d 100644
+index 96581c5b6de2c799dd2145c854af54cf8b221e55..46938eb1abed8dd21140ab1f34d464cfa9f7b1b7 100644
 --- a/b12x/moe/_shared/kernels/w4a16/kernel.py
 +++ b/b12x/moe/_shared/kernels/w4a16/kernel.py
 @@ -199,6 +199,7 @@ def _trellis256_execution_lut(
@@ -605,7 +605,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
                  c00, c10, c20, c30 = self._had4_normalized(h00, h10, h20, h30)
                  c01, c11, c21, c31 = self._had4_normalized(h01, h11, h21, h31)
                  c02, c12, c22, c32 = self._had4_normalized(h02, h12, h22, h32)
-@@ -7609,9 +7549,7 @@ class W4A16FusedMoeKernel:
+@@ -7616,9 +7556,7 @@ class W4A16FusedMoeKernel:
              route_pos = unit // nblk
              post_block = unit - route_pos * nblk
              row = packed_route_indices[route_pos].to(Int32)
@@ -616,7 +616,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
              if cutlass.const_expr(self.direct_topk_routes):
                  row = route_pos
                  expert = packed_route_indices[route_pos].to(Int32)
-@@ -8186,8 +8124,6 @@ class W4A16FusedMoeKernel:
+@@ -8193,8 +8131,6 @@ class W4A16FusedMoeKernel:
              idx += stride
  
  
@@ -625,7 +625,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
  class W4A16ActivationKernel:
      def __init__(
          self,
-@@ -8493,9 +8429,7 @@ class W4A16TopKSumKernel:
+@@ -8500,9 +8436,7 @@ class W4A16TopKSumKernel:
      ):
          tidx, _, _ = cute.arch.thread_idx()
          bidx, _, _ = cute.arch.block_idx()
@@ -636,7 +636,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
              # The output scale is shared by every expert.  Linearity therefore
              # permits route reduction before the ordinary H128 cancellation:
              #
-@@ -8515,9 +8449,7 @@ class W4A16TopKSumKernel:
+@@ -8522,9 +8456,7 @@ class W4A16TopKSumKernel:
                  blk = unit - token * nblk
                  block_col = blk * Int32(512)
                  reduced_ptr = cute.arch.alloc_smem(cutlass.Float32, 512)
@@ -647,7 +647,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
  
                  if warp < Int32(4):
                      sub = warp
-@@ -8540,20 +8472,16 @@ class W4A16TopKSumKernel:
+@@ -8547,20 +8479,16 @@ class W4A16TopKSumKernel:
                              weight = topk_weights_flat[row].to(cutlass.Float32)
                              base = row * Int32(self.hidden_size) + col0
                              acc0 += (
@@ -672,7 +672,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
                              )
                      acc0, acc1, acc2, acc3 = self._had128_quad(
                          acc0, acc1, acc2, acc3, lane
-@@ -8677,7 +8605,9 @@ class W4A16TopKSumKernel:
+@@ -8684,7 +8612,9 @@ class W4A16TopKSumKernel:
                      acc2 = cutlass.Float32(0.0)
                      acc3 = cutlass.Float32(0.0)
                      for route in cutlass.range_constexpr(self.topk):
@@ -683,7 +683,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
                          weight = route_weights[Int32(route)]
                          acc0 += route_values[value_base + Int32(0)] * weight
                          acc1 += route_values[value_base + Int32(1)] * weight
-@@ -9926,28 +9856,27 @@ def compile_w4a16_fused_moe(
+@@ -9933,28 +9863,27 @@ def compile_w4a16_fused_moe(
          and fc1_mn_after <= int(sms)
      ):
          ultra_fc2_tile_k = 32
@@ -722,7 +722,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
          fc1_tile_k, fc1_tile_n, fc2_tile_k, fc2_tile_n = (
              int(v) for v in force_tile_config
          )
-@@ -9974,6 +9903,7 @@ def compile_w4a16_fused_moe(
+@@ -9981,6 +9910,7 @@ def compile_w4a16_fused_moe(
                  weight_layout=weight_layout,
                  weight_bits=weight_bits,
                  allow_logical_tail=allow_native_logical_tail,
@@ -730,7 +730,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
              ):
                  raise ValueError(
                      f"force_tile_config {name} tile "
-@@ -10117,9 +10047,7 @@ def compile_w4a16_fused_moe(
+@@ -10124,9 +10054,7 @@ def compile_w4a16_fused_moe(
          assumed_align=16,
      )
      pair_metadata_cutlass_dtype = (
@@ -741,7 +741,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
      )
      w13_scales_fake = make_ptr(
          pair_metadata_cutlass_dtype, 16, cute.AddressSpace.gmem, assumed_align=16
-@@ -10296,8 +10224,6 @@ def compile_w4a16_fused_moe(
+@@ -10303,8 +10231,6 @@ def compile_w4a16_fused_moe(
      return result
  
  
@@ -750,7 +750,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
  def _query_w4a16_kernel_resources(compiled: object) -> tuple[str, int, int] | None:
      """Return (symbol, registers/thread, local bytes/thread) for a one-kernel
      CUDA-dialect compile result, or None when the object does not expose the
-@@ -10351,8 +10277,6 @@ def _w4a16_weight_flat_elements(
+@@ -10358,8 +10284,6 @@ def _w4a16_weight_flat_elements(
      return int(num_experts) * (int(size_k) // 16) * (int(size_n) // 16 * 32)
  
  
@@ -759,7 +759,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
  def clear_w4a16_kernel_cache() -> None:
      _CACHE.clear()
      _FUSED_CACHE.clear()
-@@ -10957,11 +10881,26 @@ def _w4a16_fused_moe_launch_flat(
+@@ -10964,11 +10888,26 @@ def _w4a16_fused_moe_launch_flat(
              )
          suh_gate_arg = suh_gate_table.reshape(-1)
          suh_up_arg = suh_up_table.reshape(-1)
@@ -788,7 +788,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
          rotation_input_dtype = _normalize_element_dtype(rotation_input.dtype)
      else:
          suh_gate_arg = _rot_scales_dummy(w13_global_scale.device)
-@@ -11014,9 +10953,7 @@ def _w4a16_fused_moe_launch_flat(
+@@ -11021,9 +10960,7 @@ def _w4a16_fused_moe_launch_flat(
      )
      route_num_experts = 0 if expert_map is None else int(expert_map.numel())
      if weight_layout == "trellis3_t256":
@@ -799,7 +799,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
          fc1_trellis_lut_addr = trellis_rank_lut.data_ptr()
          fc2_trellis_lut_addr = trellis_rank_lut.data_ptr()
      else:
-@@ -11060,17 +10997,13 @@ def _w4a16_fused_moe_launch_flat(
+@@ -11067,17 +11004,13 @@ def _w4a16_fused_moe_launch_flat(
          activated,
          fc2_out,
          make_ptr(
@@ -819,7 +819,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
              w2_scale_i32.data_ptr(),
              cute.AddressSpace.gmem,
              assumed_align=16,
-@@ -11565,9 +11498,7 @@ def _w4a16_topk_sum_launch_flat(
+@@ -11572,9 +11505,7 @@ def _w4a16_topk_sum_launch_flat(
      )
      route_num_experts = 0 if expert_map is None else int(expert_map.numel())
      broadcast_svh = (
@@ -830,7 +830,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
      )
      sum_kernel = compile_w4a16_topk_sum(
          m=m,
-@@ -12078,6 +12009,30 @@ def _trellis_dense_buffer(
+@@ -12085,6 +12016,30 @@ def _trellis_dense_buffer(
      return buffer
  
  
@@ -861,7 +861,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
  def _run_trellis256_dense_current_device(
      x: torch.Tensor,
      prepared_dense,
-@@ -12092,7 +12047,7 @@ def _run_trellis256_dense_current_device(
+@@ -12099,7 +12054,7 @@ def _run_trellis256_dense_current_device(
      output_f16: torch.Tensor | None = None,
      hadamard_128=None,
      stream: cuda.CUstream | None = None,
@@ -870,7 +870,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
      _force_tile_config: tuple[int, int] | None = None,
  ) -> torch.Tensor:
      """Run one native EXL3 linear on the already-selected CUDA device.
-@@ -12106,13 +12061,10 @@ def _run_trellis256_dense_current_device(
+@@ -12113,13 +12068,10 @@ def _run_trellis256_dense_current_device(
          raise ValueError("run_trellis256_dense requires prepared trellis3_t256 weights")
      if int(getattr(prepared_dense, "num_experts", 0)) != 1:
          raise ValueError("run_trellis256_dense requires an honest E=1 prepared weight")
@@ -886,7 +886,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
          )
      trellis_bits = int(getattr(prepared_dense, "trellis_bits", 0))
      if trellis_bits not in _TRELLIS256_BITS:
-@@ -12161,6 +12113,73 @@ def _run_trellis256_dense_current_device(
+@@ -12168,6 +12120,73 @@ def _run_trellis256_dense_current_device(
          None if hadamard_128 is None else _resolve_exl3_hadamard_128(hadamard_128)
      )
  
@@ -960,7 +960,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
      gemm_output = _trellis_dense_buffer(
          "gemm_output",
          gemm_output,
-@@ -12213,8 +12232,8 @@ def _run_trellis256_dense_current_device(
+@@ -12220,8 +12239,8 @@ def _run_trellis256_dense_current_device(
      max_shared_mem = int(
          getattr(props, "shared_memory_per_block_optin", _DEFAULT_MAX_SHARED_MEM)
      )
@@ -971,7 +971,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
          moe_block_size, (tile_k, tile_n) = _trellis256_dense_launch_geometry(
              size_m=m,
              size_k=size_k,
-@@ -12355,7 +12374,7 @@ def run_trellis256_dense(
+@@ -12362,7 +12381,7 @@ def run_trellis256_dense(
      output_f16: torch.Tensor | None = None,
      hadamard_128=None,
      stream: cuda.CUstream | None = None,
@@ -980,7 +980,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
      _force_tile_config: tuple[int, int] | None = None,
  ) -> torch.Tensor:
      """Run one native or compact P24/P33 EXL3 linear through the t256 GEMM.
-@@ -12547,14 +12566,11 @@ def run_w4a16_moe(
+@@ -12554,14 +12573,11 @@ def run_w4a16_moe(
              ):
                  raise ValueError("unsupported prepared static trellis pair kind")
              pair_metadata_dtype = (
@@ -997,7 +997,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
                  )
              if dynamic_pairs:
                  for name, modes in (
-@@ -13004,9 +13020,7 @@ def run_w4a16_moe(
+@@ -13011,9 +13027,7 @@ def run_w4a16_moe(
              prepared.w13_scale,
              prepared.w2_scale,
              expert_map=expert_map if use_direct_topk_routes else None,
@@ -1008,7 +1008,7 @@ index d8974e4024ee9d1c0c35af15a75b3191e105d75a..7748ffdfa297f8f88b7ea6f70a88a861
              expert_ids_unique=bool(use_direct_topk_routes and m == 1),
              stream=stream,
          )
-@@ -13583,18 +13597,6 @@ def build_w4a16_tier_local_map(
+@@ -13590,18 +13604,6 @@ def build_w4a16_tier_local_map(
      return table.contiguous()
  
  
@@ -3806,7 +3806,7 @@ index a97ee2e62b57463012fd2aaa64edb59cbdd452ab..fc3c30cf278036c754f4f353106974f6
 +    "run_mixed_trellis3",
  ]
 diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
-index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e33c777965 100644
+index ffbce0d1c56c764b3e011532c924c5263dc15e6e..72b29a82a1184ab0b87c08b828f2405379fe8835 100644
 --- a/b12x/moe/fused_moe/_impl.py
 +++ b/b12x/moe/fused_moe/_impl.py
 @@ -92,8 +92,7 @@ from b12x._lib.scratch import (
@@ -3830,6 +3830,20 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
              if qsrt_storage_format == "qsrt_atoms_v2":
                  if int(trellis_bits) == 3 and int(n) != 256:
                      raise ValueError(
+@@ -2783,12 +2780,12 @@ def _plan_core_workspace(
+             _TensorAllocSpec("block_expert_ids", (route_blocks_capacity,), torch.int32),
+             _TensorAllocSpec("packed_route_count", (1,), torch.int32),
+             _TensorAllocSpec("expert_offsets", (route_E + 1,), torch.int32),
++            _TensorAllocSpec("expert_counts", (route_E,), torch.int32),
+         ]
+         if full_rotation:
+             max_tokens = max(routed_capacity // max(int(num_topk), 1), 1)
+             tensor_specs.extend(
+                 (
+-                    _TensorAllocSpec("expert_counts", (route_E,), torch.int32),
+                     _TensorAllocSpec(
+                         "full_rotation_output",
+                         (max_tokens, int(k)),
 @@ -5143,9 +5140,7 @@ def prepare_b12x_fp4_moe_weights(
              # the unit activation-scale placeholders colocated with the
              # prepared weights so later binding and validation never inherit
@@ -3925,14 +3939,14 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
 -            packed_route_count = torch.empty(
 -                1,
 -                dtype=torch.int32,
-+                dtype=route_ids_dtype,
-                 device=core_plan.device,
-             )
+-                device=core_plan.device,
+-            )
 -            expert_offsets = torch.empty(
 -                core_plan.route_E + 1,
 -                dtype=torch.int32,
--                device=core_plan.device,
--            )
++                dtype=route_ids_dtype,
+                 device=core_plan.device,
+             )
 -            expert_counts = torch.empty(
 -                core_plan.route_E,
 -                dtype=torch.int32,
@@ -4045,7 +4059,18 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
                                  else 3
                              )
                              * self._n,
-@@ -9334,9 +9335,7 @@ def _get_dynamic_kernel(
+@@ -9303,7 +9304,9 @@ def _get_dynamic_kernel(
+         *(
+             (
+                 make_ptr(cutlass.Uint8, 16, cute.AddressSpace.gmem, assumed_align=16),
+-                make_ptr(cutlass.Uint8, 16, cute.AddressSpace.gmem, assumed_align=16),
++                make_ptr(
++                    cutlass.Uint8, 16, cute.AddressSpace.gmem, assumed_align=16
++                ),
+                 make_ptr(cutlass.Uint8, 16, cute.AddressSpace.gmem, assumed_align=16),
+                 make_ptr(cutlass.Uint8, 16, cute.AddressSpace.gmem, assumed_align=16),
+                 make_ptr(cutlass.Uint32, 16, cute.AddressSpace.gmem, assumed_align=16),
+@@ -9334,9 +9337,7 @@ def _get_dynamic_kernel(
          current_cuda_stream(),
          *(
              (
@@ -4056,7 +4081,7 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
                  make_ptr(
                      cutlass.Float16,
                      16,
-@@ -9432,9 +9431,7 @@ def _launch_dynamic_flat(
+@@ -9432,9 +9433,7 @@ def _launch_dynamic_flat(
      # A trellis-native w4a8 binding carries the fp16 boundary rotations in
      # the sfb slot (the QMMA repack stores int32 scale words there); the
      # trellis geometry is recovered from the operand extents.
@@ -4067,7 +4092,7 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
      trellis_bits = 0
      trellis_coupled = False
      trellis_lut_tensor = None
-@@ -9443,16 +9440,11 @@ def _launch_dynamic_flat(
+@@ -9443,16 +9442,11 @@ def _launch_dynamic_flat(
              _trellis256_execution_lut,
          )
  
@@ -4086,7 +4111,7 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
              raise RuntimeError(
                  "w4a8 trellis payload extent does not match the launch "
                  f"shape (E={E}, k={k}, n={n}, payload_u32={payload_u32})"
-@@ -10594,9 +10586,7 @@ def _launch_micro(
+@@ -10594,9 +10588,7 @@ def _launch_micro(
      # activation wrappers such as SiTU keep is_supported False to hold the
      # nvfp4-family compact path closed while serving the trellis arm.
      shape_supported = (
@@ -4097,7 +4122,20 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
      )
      use_micro_direct = (
          quant_mode == "nvfp4" or _is_w4a8_quant_mode(quant_mode)
-@@ -11023,8 +11013,7 @@ def b12x_moe_fp4(*, binding: TPMoEFP4Binding) -> torch.Tensor:
+@@ -10948,11 +10940,7 @@ def b12x_moe_fp4(*, binding: TPMoEFP4Binding) -> torch.Tensor:
+             block_expert_ids=block_expert_ids,
+             packed_route_count=packed_route_count,
+             expert_offsets=expert_offsets,
+-            expert_counts=(
+-                _require_binding_field(binding, "expert_counts")
+-                if full_rotation
+-                else None
+-            ),
++            expert_counts=_require_binding_field(binding, "expert_counts"),
+             expert_map=binding.route_expert_map,
+             output_expert_map=binding.output_expert_map,
+             activation_amax=activation_amax,
+@@ -11023,8 +11011,7 @@ def b12x_moe_fp4(*, binding: TPMoEFP4Binding) -> torch.Tensor:
  
          micro_w4a8_trellis = (
              quant_mode == "w4a8_mx"
@@ -4107,7 +4145,7 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
          )
          if micro_w4a8_trellis:
              wv = _w4a8_trellis_weight_views(
-@@ -11214,8 +11203,7 @@ def b12x_moe_fp4(*, binding: TPMoEFP4Binding) -> torch.Tensor:
+@@ -11214,8 +11201,7 @@ def b12x_moe_fp4(*, binding: TPMoEFP4Binding) -> torch.Tensor:
                  activation in ("relu2", "silu")
                  and m == 1
                  and a1_gscale.numel() == 1
@@ -4117,7 +4155,7 @@ index ffbce0d1c56c764b3e011532c924c5263dc15e6e..9ba1e418846b5b5c9e64d95acd7140e3
              ),
              share_expert_scales=(
                  activation in ("relu2", "silu")
-@@ -11574,9 +11562,7 @@ def _select_experts_reference(
+@@ -11574,9 +11560,7 @@ def _select_experts_reference(
      )
  
  
@@ -4563,6 +4601,27 @@ index 0000000000000000000000000000000000000000..b88f37fe73b39e58001d52bf186fa8bf
 +        "0",
 +        "2 if cutlass.const_expr(self.trellis_pair_compact_offsets) else 1",
 +    }
+diff --git a/tests/moe/test_tp_moe_scratch_bindings.py b/tests/moe/test_tp_moe_scratch_bindings.py
+index 3c1a7c3fa7888f6aac5b7f781bc1c73839e8ba63..da44612ada067a3a2528ee1bcef7d01041ae52aa 100644
+--- a/tests/moe/test_tp_moe_scratch_bindings.py
++++ b/tests/moe/test_tp_moe_scratch_bindings.py
+@@ -893,6 +893,8 @@ def test_w4a16_scratch_binding_carries_activation_amax_to_kernel(
+         activation_amax=activation_amax,
+         layer_idx=2,
+     )
++    assert binding.expert_counts is not None
++    assert tuple(binding.expert_counts.shape) == (8,)
+     calls = {}
+ 
+     import b12x.moe._shared.kernels.w4a16.kernel as w4a16_kernel
+@@ -908,6 +910,7 @@ def test_w4a16_scratch_binding_carries_activation_amax_to_kernel(
+     assert result is output
+     assert calls["activation_amax"] is activation_amax
+     assert calls["layer_idx"] == 2
++    assert calls["expert_counts"] is binding.expert_counts
+ 
+ 
+ def test_activation_amax_is_w4a16_only() -> None:
 diff --git a/tests/moe/test_w4a16_mixed_trellis.py b/tests/moe/test_w4a16_mixed_trellis.py
 index d31c34f295ac3660de59dd27ba10e2014d4e47a2..1631a0be788c9b294caaee126e942efcac3b7319 100644
 --- a/tests/moe/test_w4a16_mixed_trellis.py
