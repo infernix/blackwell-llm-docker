@@ -195,7 +195,7 @@ docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
 if [[ "${RUN_NCCL_SMOKE:-0}" == 1 ]]; then
   smoke_gpus=${NCCL_SMOKE_GPUS:-0,1,2,3}
   smoke_ranks=${NCCL_SMOKE_RANKS:-4}
-  docker run --rm --gpus "device=${smoke_gpus}" --ipc=host \
+  docker run --rm --gpus "\"device=${smoke_gpus}\"" --ipc=host \
     --ulimit memlock=-1 --ulimit stack=67108864 \
     --entrypoint torchrun "${image}" \
     --standalone --nproc-per-node="${smoke_ranks}" \

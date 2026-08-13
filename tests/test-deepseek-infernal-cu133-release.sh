@@ -31,6 +31,7 @@ grep -Fq 'ENTRYPOINT ["/usr/local/bin/lmcache-mp-wrapper.sh", "/usr/local/bin/se
 grep -Fq -- '--build-arg "INSTANTTENSOR_COMMIT=${instanttensor_commit}"' "${builder}"
 grep -Fq -- '--build-arg "INSTANTTENSOR_LIBAIO_TREE=${instanttensor_libaio_tree}"' "${builder}"
 grep -Fq 'Process-group interfaces: GLOO_SOCKET_IFNAME=lo NCCL_SOCKET_IFNAME=lo' "${builder}"
+grep -Fq 'docker run --rm --gpus "\"device=${smoke_gpus}\"" --ipc=host' "${builder}"
 grep -Fq 'SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-DeepSeek-V4-Flash-0731}' "${compose_file}"
 grep -Fq 'GLOO_SOCKET_IFNAME: ${GLOO_SOCKET_IFNAME:-lo}' "${compose_file}"
 grep -Fq 'NCCL_SOCKET_IFNAME: ${NCCL_SOCKET_IFNAME:-lo}' "${compose_file}"
