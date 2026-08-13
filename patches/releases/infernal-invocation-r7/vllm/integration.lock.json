@@ -1,0 +1,118 @@
+{
+  "base": {
+    "commit": "ce5f50f6d01b02336c4207f11277fd7bedacb4d6",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "6eb81385a819272474c22967f76af38ee2bcdd7a5b8e2829e932e0302903c40e"
+  },
+  "name": "infernal-invocation-vllm",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "d6b7377cbf27836241d04c9dd08725b7426d88eb",
+      "number": 285,
+      "ref": "refs/pull/285/head",
+      "title": "Preserve resolved Hugging Face revisions across worker spawn"
+    },
+    {
+      "disposition": "merged",
+      "head": "9dbec23e2b2ad5f788838ee3dafc3f6623b500b5",
+      "number": 286,
+      "ref": "refs/pull/286/head",
+      "title": "Inherit target identity for in-checkpoint speculative drafts"
+    },
+    {
+      "disposition": "merged",
+      "head": "a5e76352ba295bf1bbc80c9bce52b2b7e280c24e",
+      "number": 287,
+      "ref": "refs/pull/287/head",
+      "title": "Make DS4 launch identity and capacity explicit"
+    },
+    {
+      "disposition": "merged",
+      "head": "29f13ebc717d10d4aef5f728598c9ab0f75b082e",
+      "number": 288,
+      "ref": "refs/pull/288/head",
+      "title": "Enforce the B12X mHC input-shape contract for DeepSeek V4 MTP"
+    },
+    {
+      "disposition": "merged",
+      "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
+      "number": 289,
+      "ref": "refs/pull/289/head",
+      "title": "Bound DeepSeek V4 sparse metadata to active context"
+    },
+    {
+      "disposition": "merged",
+      "head": "c13a214bd70319938136fa38757a9ea739569639",
+      "number": 290,
+      "ref": "refs/pull/290/head",
+      "title": "Profile serving-reachable shapes before KV cache sizing"
+    },
+    {
+      "disposition": "merged",
+      "head": "164d52e85dad7ca2f4b7eda2124abe4235edb547",
+      "number": 291,
+      "ref": "refs/pull/291/head",
+      "title": "Normalize padded B12X MoE routes without allocation"
+    },
+    {
+      "disposition": "merged",
+      "head": "fb8d983acd642f059e5f3d3466e0f1c13e48b083",
+      "number": 292,
+      "ref": "refs/pull/292/head",
+      "title": "Enforce canonical B12X package identifiers"
+    },
+    {
+      "disposition": "merged",
+      "head": "0e41faa811ce46df77acce3e9e7c6887954925de",
+      "number": 293,
+      "ref": "refs/pull/293/head",
+      "title": "Recover hybrid KV cache load failures across cache groups"
+    },
+    {
+      "disposition": "merged",
+      "head": "826bb4088f4671fe79e01183e0301f79134662c1",
+      "number": 294,
+      "ref": "refs/pull/294/head",
+      "title": "Preserve grammar bitmask source widths after draft trimming"
+    },
+    {
+      "disposition": "merged",
+      "head": "71b93dc6f3d59e004c18535cf08b8fe750b64c19",
+      "number": 295,
+      "ref": "refs/pull/295/head",
+      "title": "Stop XGrammar draft validation at grammar termination"
+    },
+    {
+      "disposition": "merged",
+      "head": "31472fd994f99802006a6297557d641b88652ceb",
+      "number": 296,
+      "ref": "refs/pull/296/head",
+      "title": "Absorb duplicate DeepSeek V4 tool-call closers"
+    },
+    {
+      "disposition": "merged",
+      "head": "b8d92cb5d26e1c6fc4c5ad513b806dae961a4afd",
+      "number": 298,
+      "ref": "refs/pull/298/head",
+      "title": "Require decode state for FULL CUDA graph dispatch"
+    },
+    {
+      "disposition": "merged",
+      "head": "c6b4fa5ec0dfa7fb62d1ba81da11071b95948be2",
+      "number": 300,
+      "ref": "refs/pull/300/head",
+      "title": "Load projection-mixed EXL3 R7 checkpoints"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "47889eb9547e7f8226bb3728891c94b52dc0728cb011de14e76097efc3c15861",
+    "tree": "7ed814e29c18c0b9580a8b09e707d377d10af847"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

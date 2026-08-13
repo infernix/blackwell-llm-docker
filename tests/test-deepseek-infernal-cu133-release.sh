@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r6.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r7.yml"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -36,11 +36,11 @@ docker compose -f "${compose_file}" config --quiet
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r6' <<<"${output}"
+grep -Fxq 'revision=r7' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
 grep -Fxq 'vllm_tree=7ed814e29c18c0b9580a8b09e707d377d10af847' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
-grep -Fxq 'b12x_tree=1bea00c4a759074822e89c60e82414379cf1ecc7' <<<"${output}"
+grep -Fxq 'b12x_tree=7cc1e11f1ce608f2769f316773b5b75c65be4766' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
 grep -Fxq 'lmcache_tree=5fdf59cfa184bc15dc5414df0bd633da9e49aaae' <<<"${output}"
 grep -Fxq 'torch=2.13.0' <<<"${output}"

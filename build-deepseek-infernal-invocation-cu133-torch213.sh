@@ -9,8 +9,8 @@ cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
 release_date=${RELEASE_DATE:-20260813}
-revision=${REVISION:-r6}
-composition_root=patches/releases/infernal-invocation-r6
+revision=${REVISION:-r7}
+composition_root=patches/releases/infernal-invocation-r7
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
