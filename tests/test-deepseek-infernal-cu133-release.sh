@@ -5,7 +5,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r7.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r8.yml"
+vllm_manifest="${repo_root}/manifests/vllm/infernal-invocation.json"
+vllm_lock="${repo_root}/patches/releases/infernal-invocation-r8/vllm/integration.lock.json"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -33,12 +35,24 @@ grep -Fq 'NCCL_SOCKET_IFNAME: ${NCCL_SOCKET_IFNAME:-lo}' "${compose_file}"
 grep -Fq 'LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}' "${compose_file}"
 grep -Fq 'INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}' "${compose_file}"
 docker compose -f "${compose_file}" config --quiet
+jq -e '
+  any(.pull_requests[];
+    .number == 301 and
+    .head == "2255f632485c0f8a4e6cc81bc052a818b52a38a8")
+' "${vllm_manifest}" >/dev/null
+jq -e '
+  .result.tree == "fb60774d00967b251732f9ba12f2c4cc4784d27b" and
+  any(.pull_requests[];
+    .number == 301 and
+    .head == "2255f632485c0f8a4e6cc81bc052a818b52a38a8" and
+    .disposition == "merged")
+' "${vllm_lock}" >/dev/null
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r7' <<<"${output}"
+grep -Fxq 'revision=r8' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=7ed814e29c18c0b9580a8b09e707d377d10af847' <<<"${output}"
+grep -Fxq 'vllm_tree=fb60774d00967b251732f9ba12f2c4cc4784d27b' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=5d648d944a047d4fac5c2035309c207b3faebd9c' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
