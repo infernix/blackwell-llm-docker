@@ -193,12 +193,13 @@ PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllmdc2934e-b12xd48c62b-fi1ac6942-cu133-torch213-20260814-r12
-sha256:7bb6994afe2b9b2307afb87f926ffe2fdc938254dc98f45692f836bc85654849
+voipmonitor/vllm:infernal-invocation-vllm0af7310-b12xec2f97d-fi1ac6942-cu133-torch213-20260814-r13
+sha256:a9059b81458167ffd27df77c17e928af81650404eff3e7f90ad528a16c96b10b
 ```
 
 | Model profile | Qualified image | Qualified configuration | Compose file |
 |---|---|---|---|
+| GLM-5.2 SQG W4A8 | r13 | TP4/DCP1/MTP0, B12X routed W4A8, native SQG K3/K4/K6 decode, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml` |
 | DeepSeek-V4-Flash-0731 | r12 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8 | `examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml` |
 | GLM-5.2 NVFP4 | r11 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
 | GLM-5.2 EXL3 R7 3.5bpw | r11 | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
@@ -207,9 +208,25 @@ Start one profile with its committed Compose specification:
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml \
+  -f examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml \
   up -d
 ```
+
+The GLM-5.2 SQG profile executes the checkpoint's independent K3/K4 routed
+matrices and K6 non-routed matrices directly from their quantized storage.
+B12X reconstructs E4M3 values inside the SM120 kernels; it does not retain a
+BF16 copy of the quantized weights. The qualified TP4 runtime loaded 86.22 GiB
+of model state per GPU, allocated 1.62 GiB of KV cache, and exposed 47,360 KV
+tokens with `MAX_MODEL_LEN=32768` and `GPU_MEMORY_UTILIZATION=0.96`.
+
+All four ranks recorded the routed layers 3 through 77 as loaded and executed
+through the full-W4A8 activation endpoint with A16 fallback disabled. The
+runtime captured PIECEWISE rows 1 through 6 and a FULL CUDA graph. Two warmed
+512-token CC1 runs measured 31.02 and 31.26 tok/s on four direct-root-port
+RTX PRO 6000 Blackwell GPUs. Three uncached 8,192-token prefills measured
+3,040.9, 3,025.3, and 3,043.7 tok/s. These measurements qualify
+TP4/DCP1/MTP0 only; DCP, MTP, higher concurrency, and other SQG geometries are
+unsupported by this profile.
 
 DeepSeek-V4-Flash combines an FP8 target MLA cache with an FP32 sliding-window
 compressor cache. When the scheduler recycles physical blocks, r12 records the
@@ -244,10 +261,11 @@ produced 182.54 aggregate tok/s in one warmed CC1 measurement.
 
 The exact image identity, source trees, runtime packages, configurations,
 measurements, and qualification limits are recorded in
-`validation/infernal-invocation-r12-remote-gpu.json` for DeepSeek r12 and
-`validation/infernal-invocation-r11-local-gpu.json` for the GLM r11 profiles.
-GLM r12, GLM prefill, DCP greater than one, TP6, higher concurrency, and EXL3
-schemas other than R7 are not qualified by the r12 receipt.
+`validation/infernal-invocation-r13-glm52-sqg-remote-gpu.json` for GLM-5.2 SQG,
+`validation/infernal-invocation-r12-remote-gpu.json` for DeepSeek-V4-Flash,
+and `validation/infernal-invocation-r11-local-gpu.json` for the GLM NVFP4 and
+EXL3 R7 profiles. A profile is qualified only on the image and geometry named
+by its receipt.
 
 ### Clean GG release composition
 

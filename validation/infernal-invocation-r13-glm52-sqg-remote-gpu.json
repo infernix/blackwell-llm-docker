@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Qualification receipt for native GLM-5.2 SQG W4A8 execution on four SM120 GPUs",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm0af7310-b12xec2f97d-fi1ac6942-cu133-torch213-20260814-r13",
+  "image_id": "sha256:e0141dd509e8ba70a045b31e7aa05b691959d905a22340e2623db4e79aa6a4d2",
+  "registry_digest": "sha256:a9059b81458167ffd27df77c17e928af81650404eff3e7f90ad528a16c96b10b",
+  "image_size_bytes": 30760389588,
+  "validated_at": "2026-08-14T20:35:38Z",
+  "source_composition": {
+    "docker_commit": "341164907a8410479ddadda7441858e7b02c7ae2",
+    "vllm": {
+      "base": "dev/infernal-invocation@ad848fc4141f201489db18d5453c50b312245a0a",
+      "tree": "0af7310227b44f210db77f91749df06d8c40ebf0",
+      "pull_requests": [
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        298,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        308,
+        315
+      ],
+      "source_patches": []
+    },
+    "b12x": {
+      "base": "master@195e26c5b67eb9c162f00fd8907d06e0fe27c569",
+      "tree": "ec2f97d2fec10dc93e5bf4e7675821016f5419ff",
+      "pull_requests": [
+        145,
+        146,
+        148,
+        149,
+        150,
+        197
+      ],
+      "source_patches": []
+    },
+    "lmcache": {
+      "base": "release/v0.5.2-glm52-dcp-base@9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "5fdf59cfa184bc15dc5414df0bd633da9e49aaae",
+      "pull_requests": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        22,
+        23
+      ],
+      "source_patches": []
+    }
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r13.vllm0af7310.b12xec2f97d",
+    "b12x": "1.2.3",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "checkpoint": {
+    "repository": "brandonmusic/GLM-5.2-SQG-W4A8",
+    "revision": "593dd0d2de6f79ce4e65303930c22c75e1359d44",
+    "quantization": {
+      "algorithm": "SQG",
+      "format": "glm52_sqg_atoms_v2",
+      "codebook": "sqg_xor_cheb_t12",
+      "routed_matrices_per_layer": {
+        "k3": 384,
+        "k4": 384
+      },
+      "non_routed_k6_matrices": 380,
+      "physical_permutation": false,
+      "indexed_tensor_bytes": 343012670960,
+      "effective_bits_per_original_parameter": 3.64
+    }
+  },
+  "profile": {
+    "hardware": "four 96 GB RTX PRO 6000 Blackwell GPUs attached to independent PCIe root ports",
+    "configuration": {
+      "tp": 4,
+      "dcp": 1,
+      "mtp": 0,
+      "max_num_seqs": 1,
+      "max_cuda_graph_rows": 6,
+      "max_model_len": 32768,
+      "max_num_batched_tokens": 2048,
+      "gpu_memory_utilization": 0.96,
+      "attention": "B12X MLA sparse",
+      "moe": "B12X routed W4A8",
+      "non_routed_sqg": "B12X native K6",
+      "kv_cache": "NVFP4 DS-MLA",
+      "all_reduce": "pynccl with custom all-reduce disabled",
+      "model_loading": "InstantTensor BUFFERED with borrowed-buffer consumption",
+      "cuda_graph_mode": "FULL_AND_PIECEWISE"
+    },
+    "model_memory_gib_per_gpu": 86.22,
+    "available_kv_cache_gib": 1.62,
+    "kv_capacity_tokens": 47360,
+    "maximum_context_concurrency": 1.45
+  },
+  "runtime_validation": {
+    "startup": {
+      "engine_initialization_seconds": 224.47,
+      "torch_compile_seconds": 68.97,
+      "piecewise_graph_rows": [1, 2, 3, 4, 5, 6],
+      "full_cuda_graph_captured": true
+    },
+    "rank_evidence": {
+      "schema": "glm52-native-sqg-w4a8-rank-evidence-v1",
+      "rank_count": 4,
+      "complete_rank_count": 4,
+      "loaded_routed_layers": "3-77",
+      "executed_routed_layers": "3-77",
+      "activation_endpoint": "full-w4a8",
+      "activation_endpoint_scope": "routed_experts",
+      "a16_fallback_allowed": false
+    },
+    "correctness_smoke": {
+      "request": "Compute 137 + 286",
+      "observed_result": 423,
+      "coherent_reasoning": true,
+      "server_healthy_after": true
+    },
+    "forced_decode_cc1": {
+      "warmup_completion_tokens": 128,
+      "measurement_completion_tokens": 512,
+      "aggregate_tokens_per_second": [31.023449318448556, 31.264017110649334],
+      "mean_tokens_per_second": 31.143733214548945
+    },
+    "uncached_prefill_8192": {
+      "cached_tokens_per_sample": [0, 0, 0],
+      "tokens_per_second": [3040.9085916309095, 3025.3413421723562, 3043.6881425620454],
+      "median_tokens_per_second": 3040.9085916309095
+    },
+    "runtime_log_errors": 0
+  },
+  "quality_evidence": {
+    "status": "qualified for the measured checkpoint and runtime settings",
+    "mean_kld_sqg_with_bf16_equivalent_kv": 0.07864773273468018,
+    "mean_kld_sqg_with_fp8_kv": 0.08100861310958862,
+    "mean_kld_sqg_with_nvfp4_kv": 0.12374550104141235,
+    "bf16_equivalent_kv_method": "diagnostic TRITON_MLA run with index_topk=0",
+    "comparison_exl3_r7_runtime_k6_fp8_kv": 0.0779491588,
+    "comparison_exl3_r7_runtime_k6_nvfp4_kv": 0.1088282838
+  },
+  "source_validation": {
+    "b12x_cpu_and_source_tests": "pass: 60 passed, 34 skipped",
+    "b12x_sm120_tests": "pass: 94 passed, including all 65,536 K6 codewords, independent decode oracles, scratch bounds, and CUDA graph replay",
+    "vllm_loader_and_environment_tests": "pass: 144 passed, 16 warnings",
+    "docker_python_tests": "pass: 13 passed",
+    "docker_shell_contracts": "pass: source composition, launcher, and release contracts",
+    "source_composition": "pass: immutable integration locks with empty source_patches arrays",
+    "runtime_package_contract": "pass"
+  },
+  "result": "The checkpoint loads through the EXL3-compatible SQG schema, executes every routed layer through the native B12X W4A8 endpoint, decodes K6 non-routed matrices without persistent BF16 reconstruction, captures FULL decode graphs, and serves coherent output without runtime errors.",
+  "limitations": [
+    "Runtime qualification covers TP4/DCP1/MTP0, MAX_NUM_SEQS=1, graph rows through 6, NVFP4 DS-MLA KV, and the pinned checkpoint revision only.",
+    "DCP greater than one, MTP, higher concurrency, TP6, TP8, and checkpoints with a different SQG schema are unsupported by this receipt.",
+    "The BF16-equivalent KV KLD value is a diagnostic dense-attention reference, not the production sparse-attention profile.",
+    "The qualified path uses the immutable global SQG rank table. The unqualified shared-table branch is not exercised by this checkpoint profile.",
+    "Performance was measured on direct-root-port GPUs and must not be compared directly with switched-PCIe measurements."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r13",
+    "compose": "examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml",
+    "vllm_support": "https://github.com/local-inference-lab/vllm/pull/315",
+    "b12x_support": "https://github.com/local-inference-lab/b12x/pull/197",
+    "source_merge_contract": "https://github.com/local-inference-lab/rtx6kpro/issues/67"
+  }
+}
