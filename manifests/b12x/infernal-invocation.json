@@ -28,6 +28,11 @@
       "number": 150,
       "head": "a3f06e262a9f351e3b916d90c5e916cde53a5dbe",
       "title": "Allocate W4A16 route histograms for CUDA graph capture"
+    },
+    {
+      "number": 197,
+      "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",
+      "title": "Execute Brandon GLM-5.2 SQG W4A8"
     }
   ],
   "source_patches": [],
