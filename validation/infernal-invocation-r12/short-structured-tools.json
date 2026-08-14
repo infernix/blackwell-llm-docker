@@ -1,0 +1,174 @@
+{
+  "agent_control": {
+    "content": "Request state is inherently per-request data\u2014headers, bodies, sessions, and correlation identifiers\u2014that defines a single interaction's context, so sharing it between concurrent agents creates race conditions where one agent's mutation corrupts another's view. Isolating state per agent preserves correctness, security, and independence, ensuring each request is processed against its own consistent snapshot rather than a mutable, shared global.",
+    "content_indicators": {
+      "characters": 446,
+      "cjk_characters": 0,
+      "cjk_fraction": 0.0,
+      "forbidden_marker_count": 0,
+      "max_cjk_run": 0,
+      "non_ascii_fraction": 0.004484304932735426,
+      "non_printable_characters": 0,
+      "raw_token_pattern_counts": {
+        "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+        "</?\uff5c[^>\\n]{1,120}>": 0,
+        "<\\|[^>\\n]{1,80}\\|>": 0,
+        "token_id:\\d+": 0
+      },
+      "replacement_characters": 0
+    },
+    "elapsed_seconds": 2.277837025001645,
+    "reasoning_prefix": "The user asks me to inspect a project conceptually and explain in two sentences why request state must not be shared between concurrent agents. They explicitly say \"Do not call a tool.\" So I should just answer directly.\n\nLet me think about this conceptually. Request state is per-request data (like headers, body, session, correlation IDs). If shared between concurrent agents, one agent's mutation could affect another's request, causing data corruption, race conditions, and incorrect routing/responses. Each agent needs isolated state to maintain correctness and independence.\n\nTwo sentences. No tool call.",
+    "tool_calls": [],
+    "usage": {
+      "completion_tokens": 195,
+      "prompt_tokens": 569,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 512,
+        "multimodal_tokens": null
+      },
+      "total_tokens": 764
+    }
+  },
+  "base_url": "http://127.0.0.1:5814",
+  "corpus_salt": "r12-smoke-20260814",
+  "ignore_eos": false,
+  "integrity_violations": {},
+  "model": "DeepSeek-V4",
+  "requests": [
+    {
+      "content_indicators": {
+        "characters": 0,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "content_prefix": "",
+      "content_suffix": "",
+      "elapsed_seconds": 2.360782142030075,
+      "finish_reason": "tool_calls",
+      "identity": "AGENT_ALPHA",
+      "integrity_violations": [],
+      "measured_prompt_tokens": 721,
+      "reasoning_indicators": {
+        "characters": 415,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "reasoning_prefix": "The user wants me to analyze concurrency invariants of a project. The document is cryptic: \"AGENT_ALPHA record 0000000; checksum ...; component module_957ad1b7cc63; invariant 56fc70c37bf1265c; the implementation must preserve request ownership, tensor shape, stream order, and deterministic result attribution.\"\n\nI need to explore the project to find relevant code. Let me start by looking at the project structure.",
+      "requested_output_tokens": 128,
+      "requested_prompt_tokens": 512,
+      "returned_token_ids": 128,
+      "stream_chunks": 27,
+      "time_to_first_chunk_seconds": 1.5257397089153528,
+      "time_to_first_content_seconds": null,
+      "tool_call_delta_count": 2,
+      "usage": {
+        "completion_tokens": 128,
+        "prompt_tokens": 721,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 512
+        },
+        "total_tokens": 849
+      }
+    },
+    {
+      "content_indicators": {
+        "characters": 0,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "content_prefix": "",
+      "content_suffix": "",
+      "elapsed_seconds": 1.5739884318318218,
+      "finish_reason": "tool_calls",
+      "identity": "AGENT_BETA",
+      "integrity_violations": [],
+      "measured_prompt_tokens": 1098,
+      "reasoning_indicators": {
+        "characters": 421,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "reasoning_prefix": "The user wants me to analyze concurrency invariants of a project and produce a detailed technical report. The document is a list of AGENT_BETA records with checksums and component names. I need to look at the project to understand what's going on. Let me start by exploring the project structure.\n\nThe request identity is BETA-731. I should begin final answer with 'BETA-731 REPORT'. Let me investigate the project files.",
+      "requested_output_tokens": 128,
+      "requested_prompt_tokens": 1024,
+      "returned_token_ids": 128,
+      "stream_chunks": 38,
+      "time_to_first_chunk_seconds": 0.5258614579215646,
+      "time_to_first_content_seconds": null,
+      "tool_call_delta_count": 4,
+      "usage": {
+        "completion_tokens": 128,
+        "prompt_tokens": 1098,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 1024
+        },
+        "total_tokens": 1226
+      }
+    }
+  ],
+  "server_healthy_after": true,
+  "short_control": {
+    "content": "DS4",
+    "elapsed_seconds": 0.5496382198762149,
+    "usage": {
+      "completion_tokens": 32,
+      "prompt_tokens": 107,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 0,
+        "multimodal_tokens": null
+      },
+      "total_tokens": 139
+    }
+  },
+  "strict_tools": true,
+  "without_tools": false
+}

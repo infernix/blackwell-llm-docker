@@ -186,54 +186,68 @@ between them is unsupported.
 
 ### Infernal Invocation CUDA 13.3 runtime for DeepSeek-V4-Flash and GLM-5.2
 
-Status: **qualified for the profiles listed below**. The build script
-`build-deepseek-infernal-invocation-cu133-torch213.sh` composes the immutable
-vLLM, B12X, and LMCache trees recorded under
-`patches/releases/infernal-invocation-r11/`. The runtime uses CUDA 13.3,
+Status: **qualified for the exact image and model-profile pairs listed below**.
+The build script `build-deepseek-infernal-invocation-cu133-torch213.sh`
+composes immutable vLLM, B12X, and LMCache trees. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllm908522a-b12x5d648d9-fi1ac6942-cu133-torch213-20260813-r11
-sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971
+voipmonitor/vllm:infernal-invocation-vllmdc2934e-b12xd48c62b-fi1ac6942-cu133-torch213-20260814-r12
+sha256:7bb6994afe2b9b2307afb87f926ffe2fdc938254dc98f45692f836bc85654849
 ```
 
-| Model profile | Qualified configuration | Compose file |
-|---|---|---|
-| DeepSeek-V4-Flash-0731 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8 | `examples/docker-compose-ds4-infernal-invocation-cu133-r11.yml` |
-| GLM-5.2 NVFP4 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
-| GLM-5.2 EXL3 R7 3.5bpw | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
+| Model profile | Qualified image | Qualified configuration | Compose file |
+|---|---|---|---|
+| DeepSeek-V4-Flash-0731 | r12 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8 | `examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml` |
+| GLM-5.2 NVFP4 | r11 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
+| GLM-5.2 EXL3 R7 3.5bpw | r11 | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
 
 Start one profile with its committed Compose specification:
 
 ```bash
 docker compose \
-  -f examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml \
   up -d
 ```
 
-The GLM entrypoint accepts borrowed InstantTensor buffers. A deferred
-layerwise online quantizer takes ownership only of tensors that outlive the
-iterator step, so `INSTANTTENSOR_COPY=0` does not permit staging-buffer reuse
-to alter retained weights. The EXL3 R7 profile loaded its 322 GiB checkpoint,
-prepared all mixed-rate routed-expert layers, captured FULL decode graphs, and
-returned the correct arithmetic result. Two warmed CC1 measurements produced
-127.22 and 131.45 aggregate tok/s. The NVFP4 profile returned the same
-correctness result and produced 182.54 aggregate tok/s in one warmed CC1
-measurement.
+DeepSeek-V4-Flash combines an FP8 target MLA cache with an FP32 sliding-window
+compressor cache. When the scheduler recycles physical blocks, r12 records the
+blocks for every `AttentionSpec` cache group and zeroes every corresponding
+cache tensor. The CUDA zeroing kernel uses a bounded grid over physical
+blocks, cache tensors, and 1024-element page chunks. This prevents a recycled
+compressor page from retaining data owned by an earlier request. The source
+change and focused tests are in
+[vLLM PR #308](https://github.com/local-inference-lab/vllm/pull/308).
 
-The DeepSeek entrypoint provides target-only, fixed K5, fixed K7, and
-confidence-controlled K7 serving, plus mutually exclusive LMCache and native
-vLLM KV offload profiles. A 145,553-byte structured-tool request with 33,204
-prompt tokens passed three sequential and two concurrent executions with KV
-offload and LMCache disabled. All nine emitted tool calls contained valid JSON
-arguments, and no request or runtime error was observed.
+The r12 DeepSeek qualification used TP2/DCP1, fixed probabilistic DSpark K5,
+FP8 compressed MLA KV, prefix caching, and no native or LMCache offload. It
+passed concurrent 150k/300k structured-tool requests, concurrent 150k/300k
+plain requests forced to generate 4096 tokens, and concurrent 480k/500k plain
+requests forced to generate 1024 tokens. All runs completed without detected
+cross-request markers, raw-token patterns, replacement characters, sustained
+CJK runs, request errors, or runtime errors; the server remained healthy.
+
+The reported multi-hour token corruption was not reproduced on unmodified r11,
+Gilded Gnosis r33, or r12 during finite deterministic tests. The r12 evidence
+therefore qualifies the recycled-block zeroing contract; it does not claim
+that every long-horizon corruption report has the same cause.
+
+The GLM r11 entrypoint accepts borrowed InstantTensor buffers. Its deferred
+layerwise online quantizer owns tensors that outlive the iterator step, so
+`INSTANTTENSOR_COPY=0` cannot expose retained weights to staging-buffer reuse.
+The EXL3 R7 profile loaded its 322 GiB checkpoint, prepared all mixed-rate
+routed-expert layers, captured FULL decode graphs, and returned the expected
+arithmetic result. Two warmed CC1 measurements produced 127.22 and 131.45
+aggregate tok/s. The NVFP4 profile returned the same arithmetic result and
+produced 182.54 aggregate tok/s in one warmed CC1 measurement.
 
 The exact image identity, source trees, runtime packages, configurations,
 measurements, and qualification limits are recorded in
-`validation/infernal-invocation-r11-local-gpu.json`. GLM prefill, DCP greater
-than one, TP6, higher concurrency, and EXL3 schemas other than R7 remain
-unqualified for this source composition.
+`validation/infernal-invocation-r12-remote-gpu.json` for DeepSeek r12 and
+`validation/infernal-invocation-r11-local-gpu.json` for the GLM r11 profiles.
+GLM r12, GLM prefill, DCP greater than one, TP6, higher concurrency, and EXL3
+schemas other than R7 are not qualified by the r12 receipt.
 
 ### Clean GG release composition
 

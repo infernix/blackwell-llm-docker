@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Qualification receipt for recycled-block zeroing in the heterogeneous DeepSeek-V4-Flash attention cache and concurrent long-context DSpark serving",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmdc2934e-b12xd48c62b-fi1ac6942-cu133-torch213-20260814-r12",
+  "image_id": "sha256:f65f357adf5c880a7fc5f121d37e912d150568d320fbe0e5b8b0be7a169bf76f",
+  "registry_digest": "sha256:7bb6994afe2b9b2307afb87f926ffe2fdc938254dc98f45692f836bc85654849",
+  "image_size_bytes": 30757564093,
+  "validated_at": "2026-08-14T08:20:00Z",
+  "source_composition": {
+    "docker_commit": "1401571754a7633582904f9d885d1139f643b432",
+    "vllm": {
+      "base": "dev/infernal-invocation@ad848fc4141f201489db18d5453c50b312245a0a",
+      "tree": "dc2934ef69de7dc4d35c2ec13e088db47ce1d7d7",
+      "pull_requests": [
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        298,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        308
+      ],
+      "source_patches": []
+    },
+    "b12x": {
+      "base": "master@195e26c5b67eb9c162f00fd8907d06e0fe27c569",
+      "tree": "d48c62bbbdcac90ae5a9e85888ee0be3f8abeafb",
+      "pull_requests": [145, 146, 148, 149, 150],
+      "source_patches": []
+    },
+    "lmcache": {
+      "base": "release/v0.5.2-glm52-dcp-base@9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "5fdf59cfa184bc15dc5414df0bd633da9e49aaae",
+      "pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23],
+      "source_patches": []
+    }
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r12.vllmdc2934e.b12xd48c62b",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "profile": {
+    "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "configuration": {
+      "tp": 2,
+      "dcp": 1,
+      "dspark": "fixed probabilistic K5",
+      "max_num_seqs": 8,
+      "max_cuda_graph_rows": 48,
+      "max_model_len": 1048576,
+      "max_num_batched_tokens": 4096,
+      "gpu_memory_utilization": 0.975,
+      "attention": "B12X compressed MLA",
+      "moe_and_linear": "B12X W4A8",
+      "kv_cache": "FP8 compressed MLA",
+      "prefix_cache": true,
+      "native_cpu_kv_offload_gib": 0,
+      "native_filesystem_l2_gib": 0,
+      "lmcache": "disabled",
+      "model_loading": "InstantTensor BUFFERED",
+      "cuda_graph_mode": "FULL_AND_PIECEWISE"
+    },
+    "available_kv_cache_gib": 8.18,
+    "kv_capacity_tokens": 1232956
+  },
+  "runtime_validation": {
+    "short_structured_tool_smoke": {
+      "prompt_tokens": [721, 1098],
+      "requested_completion_tokens": 128,
+      "integrity_violations": 0,
+      "server_healthy_after": true,
+      "artifact": "validation/infernal-invocation-r12/short-structured-tools.json"
+    },
+    "concurrent_structured_tools": {
+      "prompt_tokens": [150117, 300125],
+      "completion_tokens": [447, 236],
+      "finish_reasons": ["tool_calls", "tool_calls"],
+      "integrity_violations": 0,
+      "server_healthy_after": true,
+      "artifact": "validation/infernal-invocation-r12/concurrent-structured-tools-150k-300k.json"
+    },
+    "concurrent_forced_decode": {
+      "prompt_tokens": [150089, 299991],
+      "completion_tokens": [4096, 4096],
+      "finish_reasons": ["length", "length"],
+      "ignore_eos": true,
+      "integrity_violations": 0,
+      "server_healthy_after": true,
+      "artifact": "validation/infernal-invocation-r12/concurrent-plain-4096-150k-300k.json"
+    },
+    "concurrent_near_capacity": {
+      "prompt_tokens": [479950, 499946],
+      "completion_tokens": [1024, 1024],
+      "finish_reasons": ["length", "length"],
+      "ignore_eos": true,
+      "peak_reported_kv_cache_usage_percent": 79.6,
+      "integrity_violations": 0,
+      "server_healthy_after": true,
+      "artifact": "validation/infernal-invocation-r12/concurrent-plain-1024-480k-500k.json"
+    },
+    "runtime_log_errors": 0
+  },
+  "source_validation": {
+    "scheduler_and_cache_manager_tests": "pass: 13 focused CPU tests",
+    "cuda_zeroing_tests": "pass: 9 focused GPU tests",
+    "pre_fix_discriminator": "fail as expected: three scheduler tests and three CUDA zeroing tests expose the missing heterogeneous AttentionSpec behavior",
+    "ruff_check_and_format": "pass",
+    "source_composition": "pass: immutable integration locks with empty source_patches arrays",
+    "docker_release_contracts": "pass",
+    "runtime_package_contract": "pass"
+  },
+  "result": "The worker zeroes recycled blocks for every AttentionSpec cache tensor, including the FP32 sliding-window compressor cache used with the FP8 DeepSeek-V4 target cache. The CUDA launch bounds work by physical blocks, cache tensors, and 1024-element page chunks. Repeated concurrent requests completed without cross-request markers, raw-token patterns, replacement characters, sustained CJK runs, request errors, or runtime errors.",
+  "limitations": [
+    "The reported multi-hour token corruption was not reproduced on unmodified Infernal Invocation r11, Gilded Gnosis r33, or Infernal Invocation r12 during finite deterministic tests. The qualification proves the recycled-block zeroing contract and does not establish that every long-horizon corruption report has the same cause.",
+    "Runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5 with native KV offload and LMCache disabled.",
+    "The near-capacity run exercised two concurrent requests for approximately 130 seconds; it is not a multi-hour agent workload.",
+    "No performance sweep was performed. Throughput values in server logs are diagnostic and are not a release benchmark.",
+    "The validation host uses four direct-root-port GPUs, with GPU 6 and GPU 7 assigned to this TP2 runtime."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r12",
+    "deepseek_compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml",
+    "vllm_fix": "https://github.com/local-inference-lab/vllm/pull/308",
+    "source_merge_contract": "https://github.com/local-inference-lab/rtx6kpro/issues/67"
+  }
+}

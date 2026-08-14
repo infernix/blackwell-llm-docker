@@ -1,0 +1,174 @@
+{
+  "agent_control": {
+    "content": "",
+    "content_indicators": {
+      "characters": 0,
+      "cjk_characters": 0,
+      "cjk_fraction": 0.0,
+      "forbidden_marker_count": 0,
+      "max_cjk_run": 0,
+      "non_ascii_fraction": 0.0,
+      "non_printable_characters": 0,
+      "raw_token_pattern_counts": {
+        "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+        "</?\uff5c[^>\\n]{1,120}>": 0,
+        "<\\|[^>\\n]{1,80}\\|>": 0,
+        "token_id:\\d+": 0
+      },
+      "replacement_characters": 0
+    },
+    "elapsed_seconds": 1.3117530948948115,
+    "reasoning_prefix": "1.  **Analyze the User's Request**:\n    *   Task: Inspect a project conceptually.\n    *   Specific question: Explain in two sentences why request state must not be shared between concurrent agents.\n    *   Constraint: Do not call a tool.\n    *   Constraint: Exactly two sentences.\n\n2.  **Deconstruct the Core Concept**:\n    *   \"Request state\" refers to the mutable data, context, or progress associated with a specific incoming request (e.g., headers, body, session variables, processing steps).\n    *   \"Concurrent agents\" means multiple threads, processes, or async tasks handling different requests simultaneously.\n    *   Why must it not be shared? Because sharing mutable state across concurrent agents leads to race conditions, data corruption, and cross-request contamination. Each agent needs an isolated, consistent view of its own request to ensure correctness and security.\n\n3.  **Drafting the Two Sentences**:\n    *   *Sentence 1*: Sharing request state between concurrent agents introdu",
+    "tool_calls": [],
+    "usage": {
+      "completion_tokens": 256,
+      "prompt_tokens": 123,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 0,
+        "multimodal_tokens": null
+      },
+      "total_tokens": 379
+    }
+  },
+  "base_url": "http://127.0.0.1:5814",
+  "corpus_salt": "r12-plain-20260814-a",
+  "ignore_eos": true,
+  "integrity_violations": {},
+  "model": "DeepSeek-V4",
+  "requests": [
+    {
+      "content_indicators": {
+        "characters": 12224,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0015543193717277486,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "content_prefix": "ALPHA-731 REPORT\n\n## 1. Scope and Document Summary\n\nThe analyzed document is an append-only ledger of 1,595 `AGENT_ALPHA` records, indexed contiguously from `0000000` to `0001594`. Each record contains four fields:\n\n- `record` \u2014 a zero-padded sequential index.\n- `checksum` \u2014 a 64-character hexadecimal digest.\n- `component module` \u2014 a 12-character hexadecimal module identifier, equal to the first 12 characters of the record\u2019s checksum.\n- `invariant` \u2014 a 16-character hexadecimal invariant identifier, equal to the next 16 characters of the record\u2019s checksum.\n- `invariant text` \u2014 identical for every record:  \n  *\u201cthe implementation must preserve request ownership, tensor shape, stream order, and deterministic result attribution.\u201d*\n\nNo implementation code, scheduling policy, or synchronization primitives are present in the document. The analysis below therefore treats the document as a formal invariant specification and examines what the stated invariants require of any conforming concurren",
+      "content_suffix": "must be explicit and atomic.\\n- No two concurrent tasks may assume ownership of the same request.\\n- A request must not be released, retired, or garbage-collected while still owned by an active task.\\n- Ownership metadata must be protected against races, or made immutable after assignment.\\n\\n**Failure modes:**\\n\\n- Double ownership leading to concurrent mutation and corrupted request state.\\n- Lost ownership causing a request to stall indefinitely.\\n- Premature release causing use-after-free or result misattribution.\\n\\n### 2.2 Tensor Shape\\n\\n**Statement:** Tensor shape metadata must remain consistent and correct across all concurrent operations.\\n\\n**Required properties:**\\n\\n- Shape descriptors must be immutable once published, or accessed only under synchronization.\\n- Shape propagation through a graph of operations must be deterministic regardless of thread interleaving.\\n- Concurrent kernels operating on the same tensor must agree on its shape, rank, strides, and element type.\\n",
+      "elapsed_seconds": 74.959757149918,
+      "finish_reason": "length",
+      "identity": "AGENT_ALPHA",
+      "integrity_violations": [],
+      "measured_prompt_tokens": 150089,
+      "reasoning_indicators": {
+        "characters": 7955,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "reasoning_prefix": "The user asks to analyze concurrency invariants of the document and produce a detailed technical report. The document is a long list of AGENT_ALPHA records, each with a checksum, component module, invariant, and a repeated invariant text: \"the implementation must preserve request ownership, tensor shape, stream order, and deterministic result attribution.\"\n\nI need to begin final answer with exactly 'ALPHA-731 REPORT'. Do not mention any other request identity. The request identity is ALPHA-731ikuha. I need to analyze concurrency invariants. The document is essentially a ledger of records, all with the same invariant text. I should produce a detailed technical report about the concurrency invariants implied by this record set.\n\nI should not mention other request identities. I can mention ALPHA-731 since that's the request identity. The instruction says \"Do not mention any other request identity.\" So I can mention ALPHA-731.\n\nI need to analyze the concurrency invariants: request ownershi",
+      "requested_output_tokens": 4096,
+      "requested_prompt_tokens": 150000,
+      "returned_token_ids": 4096,
+      "stream_chunks": 1268,
+      "time_to_first_chunk_seconds": 14.528598451986909,
+      "time_to_first_content_seconds": 57.881367278052494,
+      "tool_call_delta_count": 0,
+      "usage": {
+        "completion_tokens": 4096,
+        "prompt_tokens": 150089,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 150016
+        },
+        "total_tokens": 154185
+      }
+    },
+    {
+      "content_indicators": {
+        "characters": 15917,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "content_prefix": "BETA-731 REPORT\n\n1. Executive Summary\n\nThis report analyzes the concurrency invariants declared in the BETA-731 document. The document is a ledger of 3,260 records (0000000 through 0003259), each binding a unique component module to a single, repeated invariant statement: \"the implementation must preserve request ownership, tensor shape, stream order, and deterministic result attribution.\" Although each record carries a distinct checksum and module identifier, the invariant text is identical across all records, indicating a system-wide contract. The four invariants are not independent; they interact through the lifecycle of a request as it flows through modules, is transformed into tensors, is scheduled on streams, and produces results that must be attributed back to the originating request.\n\n2. Document Structure and Scope\n\nEach record has the form:\n\nAGENT_BETA record <N>; checksum <H>; component module_<C>; invariant <I>; the implementation must preserve request ownership, tensor sha",
+      "content_suffix": "an be used to verify the integrity of the record itself.\n- The invariant ID can be used to look up the formal specification of the invariant.\n- The module ID can be used to verify that the module's implementation has been audited against the invariant.\n\nRecommended verification techniques:\n\n- Static analysis: Check that ownership is transferred via move semantics, not copies.\n- Runtime assertions: Verify tensor shape at every API boundary.\n- Model checking: Verify per-stream order using a sequential consistency model.\n- Differential testing: Run the same request through multiple schedules and compare results.\n\n6. Risks and Recommendations\n\nRisk 1: Ownership violation due to exception safety. If an exception is thrown during transfer, the request may be lost.\n\nRecommendation: Use RAII guards and noexcept move operations for ownership transfer.\n\nRisk 2: Shape metadata race. If shape is updated in place, concurrent readers may see a torn shape.\n\nRecommendation: Use immutable shape objects",
+      "elapsed_seconds": 74.16085763508454,
+      "finish_reason": "length",
+      "identity": "AGENT_BETA",
+      "integrity_violations": [],
+      "measured_prompt_tokens": 299991,
+      "reasoning_indicators": {
+        "characters": 5169,
+        "cjk_characters": 0,
+        "cjk_fraction": 0.0,
+        "forbidden_marker_count": 0,
+        "max_cjk_run": 0,
+        "non_ascii_fraction": 0.0,
+        "non_printable_characters": 0,
+        "raw_token_pattern_counts": {
+          "(?:^|\\s)\\d{5,}(?:\\s+\\d{5,}){3,}(?:$|\\s)": 0,
+          "</?\uff5c[^>\\n]{1,120}>": 0,
+          "<\\|[^>\\n]{1,80}\\|>": 0,
+          "token_id:\\d+": 0
+        },
+        "replacement_characters": 0
+      },
+      "reasoning_prefix": "The user wants a detailed technical report on concurrency invariants for request BETA-731, based on the provided document. The document is a long list of AGENT_BETA records, each with a checksum, component module, invariant, and the same invariant text: \"the implementation must preserve request ownership, tensor shape, stream order, and deterministic result attribution.\"\n\nI need to analyze the concurrency invariants from this document and produce a detailed technical report. The final answer must begin with exactly 'BETA-731 REPORT'. I should not mention any other request identity. I should keep the two request identities separate: the user says \"Request identity: BETA-731. The document below belongs only to this request. Analyze its concurrency invariants and produce a detailed technical report. Begin the final answer with exactly 'BETA-731 REPORT'. Do not mention any other request identity.\" So I will only discuss BETA-731 and the document.\n\nThe document is essentially a ledger of re",
+      "requested_output_tokens": 4096,
+      "requested_prompt_tokens": 300000,
+      "returned_token_ids": 4096,
+      "stream_chunks": 1205,
+      "time_to_first_chunk_seconds": 45.793522055028006,
+      "time_to_first_content_seconds": 53.76713360496797,
+      "tool_call_delta_count": 0,
+      "usage": {
+        "completion_tokens": 4096,
+        "prompt_tokens": 299991,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 299776
+        },
+        "total_tokens": 304087
+      }
+    }
+  ],
+  "server_healthy_after": true,
+  "short_control": {
+    "content": "",
+    "elapsed_seconds": 0.4081213108729571,
+    "usage": {
+      "completion_tokens": 32,
+      "prompt_tokens": 107,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "created_cache_tokens": 0,
+        "multimodal_tokens": null
+      },
+      "total_tokens": 139
+    }
+  },
+  "strict_tools": false,
+  "without_tools": true
+}
