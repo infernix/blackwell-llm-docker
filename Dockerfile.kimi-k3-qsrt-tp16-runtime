@@ -1,0 +1,160 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE=voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971
+FROM ${BASE_IMAGE}
+
+ARG BASE_IMAGE
+ARG BASE_IMAGE_ID
+ARG VLLM_REPO
+ARG VLLM_REF
+ARG VLLM_COMMIT
+ARG VLLM_PATCH_FILE
+ARG VLLM_PATCH_SHA256
+ARG VLLM_INTEGRATION_TREE
+ARG VLLM_INTEGRATION_LOCK_SHA256
+ARG VLLM_PRS
+ARG B12X_REPO
+ARG B12X_REF
+ARG B12X_COMMIT
+ARG B12X_PATCH_FILE
+ARG B12X_PATCH_SHA256
+ARG B12X_INTEGRATION_TREE
+ARG B12X_INTEGRATION_LOCK_SHA256
+ARG B12X_PRS
+ARG CACHE_FINGERPRINT
+ARG SOURCE_OVERLAY_SHA256
+ARG RELEASE_NAME
+ARG RELEASE_DATE
+ARG DOCKER_COMMIT
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ENV VLLM_SOURCE_OVERLAY_ROOT=/opt/kimi-k3-qsrt/vllm \
+    VLLM_BINARY_PACKAGE_DIR=/opt/infernal-invocation/vllm/vllm \
+    SPARKINFER_DIR=/opt/kimi-k3-qsrt/b12x \
+    PYTHONPATH=/opt/kimi-k3-qsrt/b12x:/opt/kimi-k3-qsrt/source-overlay:/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+ENV LOCAL_INFERENCE_CACHE_FINGERPRINT=${CACHE_FINGERPRINT} \
+    XDG_CACHE_HOME=/cache/jit/${CACHE_FINGERPRINT} \
+    VLLM_CACHE_ROOT=/cache/jit/${CACHE_FINGERPRINT}/vllm \
+    VLLM_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/vllm \
+    TRITON_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/triton \
+    TORCH_EXTENSIONS_DIR=/cache/jit/${CACHE_FINGERPRINT}/torch-extensions \
+    TORCHINDUCTOR_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/torchinductor \
+    VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/flashinfer-autotune \
+    CUTE_DSL_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cute-dsl \
+    B12X_CUTE_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x/cute \
+    B12X_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x/compile \
+    SPARKINFER_COMPILE_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/b12x/compile \
+    NUMBA_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/numba \
+    CUDA_CACHE_PATH=/cache/jit/${CACHE_FINGERPRINT}/cuda \
+    CUPY_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cupy
+
+COPY patches/releases/kimi-k3-qsrt-ii-r1 /tmp/kimi-k3-qsrt-release
+
+# Each source directory is reconstructed from an immutable base commit and a
+# hash-verified aggregate patch. The resulting Git tree is the runtime source
+# identity used by image labels and qualification receipts.
+RUN set -eux; \
+    mkdir -p /opt/kimi-k3-qsrt; \
+    compose_source() { \
+      destination="$1"; repository="$2"; reference="$3"; commit="$4"; \
+      patch_file="$5"; patch_sha256="$6"; expected_tree="$7"; \
+      git clone --filter=blob:none --no-checkout "${repository}" "${destination}"; \
+      git -C "${destination}" fetch --filter=blob:none origin "${reference}"; \
+      git -C "${destination}" checkout --detach "${commit}"; \
+      test "$(git -C "${destination}" rev-parse HEAD)" = "${commit}"; \
+      echo "${patch_sha256}  ${patch_file}" | sha256sum -c -; \
+      if test -s "${patch_file}"; then git -C "${destination}" apply "${patch_file}"; fi; \
+      git -C "${destination}" add -A; \
+      actual_tree="$(git -C "${destination}" write-tree)"; \
+      test "${actual_tree}" = "${expected_tree}" || { \
+        printf 'Composed source tree %s does not match %s\n' \
+          "${actual_tree}" "${expected_tree}" >&2; \
+        exit 1; \
+      }; \
+    }; \
+    compose_source /opt/kimi-k3-qsrt/vllm \
+      "${VLLM_REPO}" "${VLLM_REF}" "${VLLM_COMMIT}" \
+      "/tmp/kimi-k3-qsrt-release/vllm/integration.patch" \
+      "${VLLM_PATCH_SHA256}" "${VLLM_INTEGRATION_TREE}"; \
+    compose_source /opt/kimi-k3-qsrt/b12x \
+      "${B12X_REPO}" "${B12X_REF}" "${B12X_COMMIT}" \
+      "/tmp/kimi-k3-qsrt-release/b12x/integration.patch" \
+      "${B12X_PATCH_SHA256}" "${B12X_INTEGRATION_TREE}"; \
+    rm -rf /tmp/kimi-k3-qsrt-release
+
+COPY runtime/kimi-k3-qsrt/source-overlay /opt/kimi-k3-qsrt/source-overlay
+
+# vLLM pins flash-attention before the SM80/SM120 FA4 dynamic-causal fix.
+# Apply the source-locked backport and install the transformed wrapper in the
+# binary package that owns generated CuTeDSL modules.
+RUN set -eux; \
+    echo "${SOURCE_OVERLAY_SHA256}  /opt/kimi-k3-qsrt/source-overlay/sitecustomize.py" \
+      | sha256sum -c -; \
+    git clone --filter=blob:none --no-checkout \
+      https://github.com/vllm-project/flash-attention.git /tmp/vllm-flash-attention; \
+    git -C /tmp/vllm-flash-attention fetch --depth=1 origin \
+      f3e1a4f74c99145c0717709860bf765de1703779; \
+    git -C /tmp/vllm-flash-attention checkout --detach \
+      f3e1a4f74c99145c0717709860bf765de1703779; \
+    git -C /tmp/vllm-flash-attention apply --unidiff-zero \
+      /opt/kimi-k3-qsrt/vllm/cmake/patches/vllm_flash_attn_fa4_dynamic_causal.patch; \
+    sed -i 's/from flash_attn\.cute/from vllm.vllm_flash_attn.cute/g' \
+      /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py; \
+    echo "80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479  /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py" \
+      | sha256sum -c -; \
+    install -m 0644 /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py \
+      /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py; \
+    rm -rf /tmp/vllm-flash-attention
+
+COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-nospec /usr/local/bin/serve-kimi-k3-qsrt-nospec
+COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-dspark /usr/local/bin/serve-kimi-k3-qsrt-dspark
+COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-nospec-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii
+COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dspark-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii
+COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
+
+RUN set -eux; \
+    test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
+    test "$(git -C /opt/kimi-k3-qsrt/b12x write-tree)" = "${B12X_INTEGRATION_TREE}"; \
+    test "$(sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py | cut -d' ' -f1)" = \
+      80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479; \
+    /opt/venv/bin/python -c 'import pathlib, vllm; assert pathlib.Path(vllm.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/vllm"))'; \
+    /opt/venv/bin/python -c 'import b12x, pathlib; assert pathlib.Path(b12x.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/b12x"))'; \
+    for launcher in \
+      /usr/local/bin/serve-kimi-k3-qsrt-nospec \
+      /usr/local/bin/serve-kimi-k3-qsrt-dspark \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii; do \
+      bash -n "${launcher}"; \
+    done
+
+LABEL org.opencontainers.image.title="Kimi-K3 QSRT TP16/DCP8 Infernal Invocation runtime" \
+      org.opencontainers.image.description="Source-locked Kimi-K3 QSRT and official-MXFP4 serving profiles on CUDA 13.3 and PyTorch 2.13" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
+      org.opencontainers.image.version="${RELEASE_DATE}" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference.release.name="${RELEASE_NAME}" \
+      local-inference.docker.commit="${DOCKER_COMMIT}" \
+      local-inference.runtime.base-image="${BASE_IMAGE}" \
+      local-inference.runtime.base-id="${BASE_IMAGE_ID}" \
+      local-inference.cache.fingerprint="${CACHE_FINGERPRINT}" \
+      local-inference.vllm.repo="${VLLM_REPO}" \
+      local-inference.vllm.branch="${VLLM_REF}" \
+      local-inference.vllm.commit="${VLLM_COMMIT}" \
+      local-inference.vllm.integration.prs="${VLLM_PRS}" \
+      local-inference.vllm.integration.tree="${VLLM_INTEGRATION_TREE}" \
+      local-inference.vllm.patch.sha256="${VLLM_PATCH_SHA256}" \
+      local-inference.vllm.lock.sha256="${VLLM_INTEGRATION_LOCK_SHA256}" \
+      local-inference.b12x.repo="${B12X_REPO}" \
+      local-inference.b12x.branch="${B12X_REF}" \
+      local-inference.b12x.commit="${B12X_COMMIT}" \
+      local-inference.b12x.integration.prs="${B12X_PRS}" \
+      local-inference.b12x.integration.tree="${B12X_INTEGRATION_TREE}" \
+      local-inference.b12x.patch.sha256="${B12X_PATCH_SHA256}" \
+      local-inference.b12x.lock.sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
+      local-inference.flash-attention.forward.sha256="80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479"
+
+ENTRYPOINT ["/usr/local/bin/serve-kimi-k3-qsrt-dspark"]

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-qsrt-tp16-b12x",
+  "repository": "https://github.com/local-inference-lab/b12x.git",
+  "base_ref": "refs/heads/master",
+  "pull_requests": [
+    {
+      "number": 198,
+      "head": "ddf4ee4a24f09e5eadcedf1ad43992d51d931ddc",
+      "title": "Accelerate Kimi-K3 TP16 QSRT decode"
+    }
+  ]
+}

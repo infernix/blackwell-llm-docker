@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-qsrt-tp16-vllm",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/infernal-invocation",
+  "pull_requests": [
+    {
+      "number": 317,
+      "head": "ede072baa8e771c3de765226548e7916fb350a2f",
+      "title": "Serve Kimi-K3 QSRT on TP16 with DCP"
+    }
+  ]
+}
