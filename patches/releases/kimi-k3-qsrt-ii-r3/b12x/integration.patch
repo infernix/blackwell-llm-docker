@@ -1958,6 +1958,28 @@ index 1b95e550c593ef3e0bca216809d829de0db3933b..5b140f3178058f87a8cacd0e322ea8d3
      )[:, :, 0]
  
  
+diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels/w4a16/kernel.py
+index 1674b3dec1311af11c8d3398dd8c39eb7a60bf9f..abf0ecc96efa40e2745e0df2f6a9187f51cb4741 100644
+--- a/b12x/moe/_shared/kernels/w4a16/kernel.py
++++ b/b12x/moe/_shared/kernels/w4a16/kernel.py
+@@ -4885,7 +4885,7 @@ class W4A16GemmKernel:
+                     scale_bf2 = ld_shared_u32(
+                         smem_base
+                         + Int32(self.sh_topk_off * 16)
+-                        + metadata_row * Int32(4)
++                        + row * Int32(4)
+                     )
+                     q0 = self._elem2_mul(q0, scale_bf2)
+                     q1 = self._elem2_mul(q1, scale_bf2)
+@@ -4952,7 +4952,7 @@ class W4A16GemmKernel:
+                     scale_bf2 = ld_shared_u32(
+                         smem_base
+                         + Int32(self.sh_topk_off * 16)
+-                        + metadata_row * Int32(4)
++                        + row * Int32(4)
+                     )
+                     q0 = self._elem2_mul(q0, scale_bf2)
+                     q1 = self._elem2_mul(q1, scale_bf2)
 diff --git a/benchmarks/benchmark_kimi_k3_pair_topk.py b/benchmarks/benchmark_kimi_k3_pair_topk.py
 index 8e22170e4734ed549a75ee376012f5a035c3b377..005e8cb567547df6304a5738873eda1c87e5eb80 100644
 --- a/benchmarks/benchmark_kimi_k3_pair_topk.py

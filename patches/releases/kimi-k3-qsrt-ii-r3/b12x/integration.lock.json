@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "composition": {
-    "commit": "39562cea2c0a438e94cc321d7d6967262d8feb8a",
+    "commit": "1903ead618da8395b61248fc8a9616d7ccdb8808",
     "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "3d3b8bdc505eaa7adc3a218e845ea13eb637c2794dcc52b69702330fbcbf6a9f"
+    "sha256": "f99fe44d893175a3f475b7f3d1ee75ccfc1d4a3b8ad6f3e0c111b183bd4117e4"
   },
   "name": "kimi-k3-tp16-b12x",
   "pull_requests": [
@@ -55,12 +55,22 @@
       "number": 218,
       "ref": "refs/pull/218/head",
       "title": "Unify B12X all-reduce channel ownership"
+    },
+    {
+      "commits": [
+        "8a83e51631ea81ef939c87c3003aeaa7c05047a8"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "8a83e51631ea81ef939c87c3003aeaa7c05047a8",
+      "number": 219,
+      "ref": "refs/pull/219/head",
+      "title": "Fix route-packed W4A16 top-k scaling"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "78dcdd209a3cda31d84c36e17d925c86e0580365667ad0a8c4df162fece155be",
-    "tree": "cd27d9d91b19535aa09ff00c460066f9e61c8983"
+    "patch_sha256": "81eafba02de0a1410867c47e83661318fa1b4ca6acf3509f3426872b24d28ca4",
+    "tree": "ec2dcaae7cbff59daa8d6d70de0d1cb759523332"
   },
   "schema_version": 1,
   "source_patches": []
