@@ -193,14 +193,14 @@ PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllm0af7310-b12xec2f97d-fi1ac6942-cu133-torch213-20260814-r13
-sha256:a9059b81458167ffd27df77c17e928af81650404eff3e7f90ad528a16c96b10b
+voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15
+sha256:f1b13c8604b274212e1164def7d4ed7a4cac9e4f7fa06fa1739730195eca4e18
 ```
 
 | Model profile | Qualified image | Qualified configuration | Compose file |
 |---|---|---|---|
 | GLM-5.2 SQG W4A8 | r13 | TP4/DCP1/MTP0, B12X routed W4A8, native SQG K3/K4/K6 decode, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml` |
-| DeepSeek-V4-Flash-0731 | r12 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8 | `examples/docker-compose-ds4-infernal-invocation-cu133-r12.yml` |
+| DeepSeek-V4-Flash-0731 | r15 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8, inactive padded routes | `examples/docker-compose-ds4-infernal-invocation-cu133-r15.yml` |
 | GLM-5.2 NVFP4 | r11 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
 | GLM-5.2 EXL3 R7 3.5bpw | r11 | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
 
@@ -208,7 +208,7 @@ Start one profile with its committed Compose specification:
 
 ```bash
 docker compose \
-  -f examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r15.yml \
   up -d
 ```
 
@@ -228,27 +228,30 @@ RTX PRO 6000 Blackwell GPUs. Three uncached 8,192-token prefills measured
 TP4/DCP1/MTP0 only; DCP, MTP, higher concurrency, and other SQG geometries are
 unsupported by this profile.
 
-DeepSeek-V4-Flash combines an FP8 target MLA cache with an FP32 sliding-window
-compressor cache. When the scheduler recycles physical blocks, r12 records the
-blocks for every `AttentionSpec` cache group and zeroes every corresponding
-cache tensor. The CUDA zeroing kernel uses a bounded grid over physical
-blocks, cache tensors, and 1024-element page chunks. This prevents a recycled
-compressor page from retaining data owned by an earlier request. The source
-change and focused tests are in
-[vLLM PR #308](https://github.com/local-inference-lab/vllm/pull/308).
+DeepSeek-V4-Flash uses negative expert identifiers for scheduler padding when
+`VLLM_MOE_SKIP_PADDING=1`. The B12X dynamic MoE kernels in pull request #214
+exclude those identifiers from route histograms, expert input storage, weight
+loads, and output accumulation. Tokens without an active route also skip
+producer-side BF16-to-MXFP8 quantization and packed-row fanout. Valid expert
+routes retain their arithmetic. The vLLM expert-zero normalization from pull
+request #291 is not part of r15 because it preserves correctness by executing
+work that B12X can omit.
 
-The r12 DeepSeek qualification used TP2/DCP1, fixed probabilistic DSpark K5,
-FP8 compressed MLA KV, prefix caching, and no native or LMCache offload. It
-passed concurrent 150k/300k structured-tool requests, concurrent 150k/300k
-plain requests forced to generate 4096 tokens, and concurrent 480k/500k plain
-requests forced to generate 1024 tokens. All runs completed without detected
-cross-request markers, raw-token patterns, replacement characters, sustained
-CJK runs, request errors, or runtime errors; the server remained healthy.
+The r15 DeepSeek qualification used TP2/DCP1, B12X W4A8, FP8 compressed MLA
+KV, prefix caching, InstantTensor BUFFERED loading, and no native or LMCache
+offload. Target-only and fixed probabilistic DSpark K5 modes captured FULL
+CUDA graphs and completed sustained C1 decode without runtime errors.
+Target-only decode measured 125.7 tok/s. DSpark K5 measured 191.3 tok/s and
+returned the expected arithmetic JSON object. DSpark throughput is dependent
+on the generated trajectory and draft acceptance, so the measurement is a
+runtime sanity gate rather than a fixed model-speed constant.
 
-The reported multi-hour token corruption was not reproduced on unmodified r11,
-Gilded Gnosis r33, or r12 during finite deterministic tests. The r12 evidence
-therefore qualifies the recycled-block zeroing contract; it does not claim
-that every long-horizon corruption report has the same cause.
+The same source composition retains heterogeneous attention-cache recycling
+from [vLLM PR #308](https://github.com/local-inference-lab/vllm/pull/308) and
+complete speculative grammar-prefix validation from
+[vLLM PR #320](https://github.com/local-inference-lab/vllm/pull/320). The r15
+runtime receipt qualifies TP2/DCP1 at 131,072 model tokens. It does not qualify
+DCP, TP4, TP8, native KV offload, LMCache, or the 1,048,576-token profile.
 
 The GLM r11 entrypoint accepts borrowed InstantTensor buffers. Its deferred
 layerwise online quantizer owns tensors that outlive the iterator step, so
@@ -262,7 +265,7 @@ produced 182.54 aggregate tok/s in one warmed CC1 measurement.
 The exact image identity, source trees, runtime packages, configurations,
 measurements, and qualification limits are recorded in
 `validation/infernal-invocation-r13-glm52-sqg-remote-gpu.json` for GLM-5.2 SQG,
-`validation/infernal-invocation-r12-remote-gpu.json` for DeepSeek-V4-Flash,
+`validation/infernal-invocation-r15-remote-gpu.json` for DeepSeek-V4-Flash,
 and `validation/infernal-invocation-r11-local-gpu.json` for the GLM NVFP4 and
 EXL3 R7 profiles. A profile is qualified only on the image and geometry named
 by its receipt.

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Runtime evidence for inactive-route handling in DeepSeek-V4-Flash target-only and fixed probabilistic DSpark K5 serving",
+  "validated_at": "2026-08-15T19:42:00Z",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "hardware": "2x RTX PRO 6000 Blackwell on direct PCIe root ports",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15",
+  "registry_digest": "sha256:f1b13c8604b274212e1164def7d4ed7a4cac9e4f7fa06fa1739730195eca4e18",
+  "configuration": {
+    "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "tensor_parallel_size": 2,
+    "decode_context_parallel_size": 1,
+    "max_num_seqs": 8,
+    "max_num_batched_tokens": 4096,
+    "max_model_len": 131072,
+    "gpu_memory_utilization": 0.975,
+    "attention_backend": "B12X compressed MLA",
+    "moe_and_linear_backend": "B12X W4A8",
+    "kv_cache": "FP8 compressed MLA",
+    "model_loading": "InstantTensor BUFFERED",
+    "cuda_graph_mode": "FULL_AND_PIECEWISE",
+    "inactive_route_policy": "VLLM_MOE_SKIP_PADDING=1"
+  },
+  "target_only": {
+    "mode": "dspark-mtp0",
+    "full_cuda_graph_capture": true,
+    "kv_capacity_tokens": 557886,
+    "sustained_decode": {
+      "concurrency": 1,
+      "context_tokens": 0,
+      "measurement_seconds": 20,
+      "aggregate_tokens_per_second": 125.7
+    }
+  },
+  "dspark": {
+    "mode": "fixed probabilistic K5",
+    "target_full_cuda_graph_capture": true,
+    "draft_full_cuda_graph_capture": true,
+    "sustained_decode": {
+      "concurrency": 1,
+      "context_tokens": 0,
+      "measurement_seconds": 20,
+      "aggregate_tokens_per_second": 191.3,
+      "active_user_tokens_per_second": 184.8
+    },
+    "correctness_probe": {
+      "prompt_contract": "Return one JSON object containing a=6*7 and b=3*a.",
+      "assistant_content": "{\"a\":42,\"b\":126}",
+      "result": "pass"
+    }
+  },
+  "runtime_errors": 0,
+  "conclusion": "The published image executes inactive padded MoE routes without assigning them to expert zero. Target-only and DSpark K5 serving completed full CUDA graph capture, sustained decode, and an arithmetic content check without runtime errors.",
+  "limitations": [
+    "The published-image runtime gate covers TP2/DCP1 on physical GPUs 6 and 7 of the named host.",
+    "The runtime gate does not qualify DCP greater than one, TP4, TP8, native KV offload, or LMCache.",
+    "DSpark aggregate token throughput depends on the generated trajectory and draft acceptance; the value is a runtime sanity result, not a fixed model-speed constant.",
+    "The 131072-token validation profile does not qualify the 1048576-token serving profile."
+  ]
+}
