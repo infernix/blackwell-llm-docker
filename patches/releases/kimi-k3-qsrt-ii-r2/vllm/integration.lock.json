@@ -1,0 +1,27 @@
+{
+  "base": {
+    "commit": "ad848fc4141f201489db18d5453c50b312245a0a",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "manifest": {
+    "sha256": "f040b4e4cf7f83f8a78183763f6284453945ed56ef55d2a8da22a212bdcff29e"
+  },
+  "name": "kimi-k3-qsrt-tp16-vllm",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "3a50cc050cf70ad3be0f862d361e5fc0a3ec730a",
+      "number": 317,
+      "ref": "refs/pull/317/head",
+      "title": "Serve Kimi-K3 QSRT on TP16 with DCP"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "f6b17ae65a4c37e116d73912edab8fc506eec368eac2755ef4d035e3305016ce",
+    "tree": "735952bd5d9703b7fe966fe94f9e570f13169e92"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
