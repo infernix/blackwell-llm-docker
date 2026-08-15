@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Eight concurrent strict tool calls with approximately 225k prompt tokens per request",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm91e2adf-b12xec2f97d-fi1ac6942-cu133-torch213-20260815-r14",
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 8,
+    "max_model_len": 524288,
+    "max_num_batched_tokens": 4096,
+    "gpu_ids": [
+      6,
+      7
+    ]
+  },
+  "results": [
+    {
+      "slot": 0,
+      "request_bytes": 677256,
+      "request_sha256": "67dde12f35fd95e1bd6b4519e5035ea8e58abce007084b053ee4fc25746d2d91",
+      "response_sha256": "57c8b397d337b6ff47983e6bf710201c00f59ec94baf161f6a2656efe053c161",
+      "http_status": 200,
+      "prompt_tokens": 225330,
+      "completion_tokens": 70,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 1,
+      "request_bytes": 677163,
+      "request_sha256": "4454ba33bb8011b0ee288a9604b2cfdc7dba2775bd1c560be94e672522a7a53a",
+      "response_sha256": "6588d4916a9878b3ceadcbc61ab2092725f66ed82083b8a629f35c293fbff20b",
+      "http_status": 200,
+      "prompt_tokens": 225603,
+      "completion_tokens": 71,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 2,
+      "request_bytes": 677318,
+      "request_sha256": "aa907150499a86f4bd39311b757cbfe2df38eb0f3edc02c290b5888bf3a4a15e",
+      "response_sha256": "87cd08ff284d41d3532350111463d61b5ad2184e642d189240f47a30dfc6bc5b",
+      "http_status": 200,
+      "prompt_tokens": 225400,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 3,
+      "request_bytes": 677318,
+      "request_sha256": "67a9d6d7c24ec3eebeb535c2f4b918cad9a067ae2a4c0a4e5d73a45a2de9e2cb",
+      "response_sha256": "cdb7393304f700cdfb8a5adf77ab7a692aabdb70ba9e399ede6157700743f1ec",
+      "http_status": 200,
+      "prompt_tokens": 225408,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 4,
+      "request_bytes": 677318,
+      "request_sha256": "4319c36e860560ce577b6085abb66422f53815ee970ef9a27c591fd3e0ebe454",
+      "response_sha256": "56c72960a6daa8d99315f2b0e2a5c67d7c7de20b58b22d16d23a6cc50f304e54",
+      "http_status": 200,
+      "prompt_tokens": 225634,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 5,
+      "request_bytes": 677318,
+      "request_sha256": "07df8032d70b653be1fbf279c5383f7a41932d277cf174bf85593b93ff6c1b13",
+      "response_sha256": "1fad571eb1df8b1bf122f670d70bce60cce713efad42e2ea07921d8685a21c0e",
+      "http_status": 200,
+      "prompt_tokens": 225544,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 6,
+      "request_bytes": 677318,
+      "request_sha256": "5cd1898154d7d31ce8407c185ff73f9f89d750b44fade42caac2641b7470d9c8",
+      "response_sha256": "e910a8b87f5486eaced1f948918c8ffe9e2b24b1571caab592c31e5ae14a3ab2",
+      "http_status": 200,
+      "prompt_tokens": 225330,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    },
+    {
+      "slot": 7,
+      "request_bytes": 677318,
+      "request_sha256": "dfb551260f7676c18fb87980f10f3dd968006a40eda5a23daad190ce8788211c",
+      "response_sha256": "7a94c0df6a900f31636b8433883c8e69f5df7c74d3ddda1c905f7ae848229871",
+      "http_status": 200,
+      "prompt_tokens": 225422,
+      "completion_tokens": 72,
+      "finish_reason": "tool_calls",
+      "tool_call_count": 1,
+      "tool_arguments_valid_json": true,
+      "assistant_content_empty": true
+    }
+  ]
+}

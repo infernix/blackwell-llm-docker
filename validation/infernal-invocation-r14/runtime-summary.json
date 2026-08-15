@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Runtime startup, CUDA graph, log-health, and no-tools decode qualification",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm91e2adf-b12xec2f97d-fi1ac6942-cu133-torch213-20260815-r14",
+  "startup": {
+    "target_graph_mode": "FULL_AND_PIECEWISE",
+    "target_full_capture": true,
+    "dspark_full_capture": true,
+    "kv_capacity_tokens": 921240
+  },
+  "log_scan": {
+    "runtime_error_count": 0,
+    "matches": []
+  },
+  "decode": {
+    "gpu_ids_6_7_first": {
+      "aggregate_tps": 191.20587902143922,
+      "output_tps_per_user_avg": 195.60647051707872,
+      "server_steps_per_s": 63.168460686392294,
+      "server_spec_accept_rate": 0.4055423594615994,
+      "server_accept_len_effective": 3.0269200316706253,
+      "chunk_inter_token_latency_avg": 0.015491807733959409,
+      "ttft_p50": 0.26182452915236354,
+      "inter_token_latency_p50": 0.005169520932986294
+    },
+    "gpu_ids_6_7_repeat": {
+      "aggregate_tps": 188.94645338207624,
+      "output_tps_per_user_avg": 194.98086664977708,
+      "server_steps_per_s": 63.24881278865479,
+      "server_spec_accept_rate": 0.3977848101265823,
+      "server_accept_len_effective": 2.9873517786561266,
+      "chunk_inter_token_latency_avg": 0.01542103759703009,
+      "ttft_p50": 0.2600101660937071,
+      "inter_token_latency_p50": 0.005173048586300272
+    },
+    "gpu_ids_4_5_warm": {
+      "aggregate_tps": 164.67013343223135,
+      "output_tps_per_user_avg": 193.67685720820404,
+      "server_steps_per_s": 63.0577097655766,
+      "server_spec_accept_rate": 0.3225396825396825,
+      "server_accept_len_effective": 2.611419508326725,
+      "chunk_inter_token_latency_avg": 0.015518621615707945,
+      "ttft_p50": 0.2653336529619992,
+      "inter_token_latency_p50": 0.005721023561829691
+    },
+    "reference_source_fix_gpu_ids_4_5": {
+      "aggregate_tps": 194.26859696067027,
+      "output_tps_per_user_avg": 201.00088560661698,
+      "server_steps_per_s": null,
+      "server_spec_accept_rate": 0.4303030303030303,
+      "server_accept_len_effective": null,
+      "chunk_inter_token_latency_avg": 0.01565080406868729,
+      "ttft_p50": 0.26999419811181724,
+      "inter_token_latency_p50": 0.005022926792924615
+    },
+    "interpretation": "DSpark acceptance varies by generated trajectory. Engine steps per second and chunk inter-token latency are the runtime-speed controls."
+  }
+}

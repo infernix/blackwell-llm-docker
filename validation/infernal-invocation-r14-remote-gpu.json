@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Qualification receipt for speculative structured-output commit validation in DeepSeek-V4-Flash DSpark serving",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm91e2adf-b12xec2f97d-fi1ac6942-cu133-torch213-20260815-r14",
+  "image_id": "sha256:e53afda79ad5133b583d3594e5f825c8ecacd4f8444748b0000a818854696a38",
+  "registry_digest": "sha256:9fe1d1b0e8370df578f92c6431af41a9fc36076ccbebac18c77a8ae99a3454e3",
+  "image_size_bytes": 30761073813,
+  "validated_at": "2026-08-15T12:21:19Z",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "vllm_tree": "91e2adf75b271a88bd4d18a081f40fa65e82d469",
+  "b12x_tree": "ec2f97d2fec10dc93e5bf4e7675821016f5419ff",
+  "source_composition": {
+    "docker_composition_commit": "945205e00dc7b28900f75b01e919c1bf849b0071",
+    "vllm": {
+      "base": "dev/infernal-invocation@ad848fc4141f201489db18d5453c50b312245a0a",
+      "tree": "91e2adf75b271a88bd4d18a081f40fa65e82d469",
+      "pull_requests": [
+        285,
+        286,
+        287,
+        288,
+        289,
+        290,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        298,
+        300,
+        301,
+        302,
+        303,
+        304,
+        305,
+        308,
+        309,
+        315,
+        320
+      ],
+      "source_patches": []
+    },
+    "b12x": {
+      "base": "master@195e26c5b67eb9c162f00fd8907d06e0fe27c569",
+      "tree": "ec2f97d2fec10dc93e5bf4e7675821016f5419ff",
+      "pull_requests": [145, 146, 148, 149, 150, 197],
+      "source_patches": []
+    },
+    "lmcache": {
+      "base": "release/v0.5.2-glm52-dcp-base@9cebd405d0caf4bebe01d694b5a8bf4e3e354314",
+      "tree": "5fdf59cfa184bc15dc5414df0bd633da9e49aaae",
+      "pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23],
+      "source_patches": []
+    }
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r14.vllm91e2adf.b12xec2f97d",
+    "b12x": "1.2.3",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "cudnn": "9.24.0.43",
+    "cublas": "13.6.0.2",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "instanttensor": "0.1.9",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5"
+  },
+  "profile": {
+    "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+    "configuration": {
+      "tp": 2,
+      "dcp": 1,
+      "dspark": "fixed probabilistic K5",
+      "max_num_seqs": 8,
+      "max_cuda_graph_rows": 48,
+      "max_model_len": 524288,
+      "max_num_batched_tokens": 4096,
+      "gpu_memory_utilization": 0.975,
+      "attention": "B12X compressed MLA",
+      "moe_and_linear": "B12X W4A8",
+      "kv_cache": "FP8 compressed MLA",
+      "prefix_cache": true,
+      "native_cpu_kv_offload_gib": 0,
+      "native_filesystem_l2_gib": 0,
+      "lmcache": "disabled",
+      "model_loading": "InstantTensor BUFFERED",
+      "cuda_graph_mode": "FULL_AND_PIECEWISE"
+    },
+    "kv_capacity_tokens": 921240
+  },
+  "runtime_validation": {
+    "strict_tools_c1": {
+      "requests": 8,
+      "modes": ["buffered", "streaming"],
+      "valid_single_tool_calls": 8,
+      "violations": 0,
+      "artifact": "validation/infernal-invocation-r14/strict-tools-c1.json"
+    },
+    "strict_tools_c8": {
+      "requests": 16,
+      "concurrency": 8,
+      "modes": ["buffered", "streaming"],
+      "valid_single_tool_calls": 16,
+      "violations": 0,
+      "artifact": "validation/infernal-invocation-r14/strict-tools-c8.json"
+    },
+    "long_context_strict_tools_c8": {
+      "requests": 8,
+      "concurrency": 8,
+      "prompt_tokens_min": 225330,
+      "prompt_tokens_max": 225634,
+      "prompt_tokens_total": 1803671,
+      "http_200": 8,
+      "valid_single_tool_calls": 8,
+      "violations": 0,
+      "artifact": "validation/infernal-invocation-r14/strict-tools-225k-c8.json"
+    },
+    "no_tools_decode": {
+      "gpu_ids": [6, 7],
+      "duration_seconds_per_run": 20,
+      "aggregate_tokens_per_second": [191.21, 188.95],
+      "engine_steps_per_second": [63.17, 63.25],
+      "mean_acceptance_length": [3.03, 2.99],
+      "interpretation": "Engine step rate was stable. Aggregate token rate changed with the generated trajectory and DSpark acceptance.",
+      "artifact": "validation/infernal-invocation-r14/runtime-summary.json"
+    },
+    "cuda_graphs": {
+      "target_full_capture": true,
+      "dspark_full_capture": true,
+      "runtime_error_count": 0,
+      "artifact": "validation/infernal-invocation-r14/runtime-summary.json"
+    }
+  },
+  "source_validation": {
+    "vllm_focused_tests": "pass: 30 tests",
+    "docker_python_tests": "pass: 43 tests",
+    "ruff_check_and_format": "pass",
+    "source_composition": "pass: immutable integration locks with empty source_patches arrays",
+    "deepseek_release_contract": "pass",
+    "glm_launcher_contract": "pass",
+    "runtime_package_contract": "pass"
+  },
+  "tests": {
+    "source_contracts": "pass",
+    "runtime_contracts": "pass",
+    "model_startup": "pass",
+    "correctness": "pass",
+    "decode": "pass",
+    "prefill": "pass"
+  },
+  "result": "The scheduler validates every accepted speculative token against the active structured-output grammar before committing the block. Rejected suffix tokens are removed from scheduler state and metrics. Buffered, streaming, concurrent, and 225k-token strict tool requests completed without malformed tool arguments, protocol-token leakage, or runtime errors.",
+  "limitations": [
+    "Runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5 with native KV offload and LMCache disabled.",
+    "The long-context gate used MAX_MODEL_LEN=524288 and prompts between 225330 and 225634 tokens; it does not qualify the 1048576-token profile.",
+    "The release qualification does not replace model-quality evaluation. It validates protocol structure and serving-state consistency.",
+    "DSpark aggregate token throughput is trajectory-dependent. Engine steps per second are included as the runtime-speed control.",
+    "GLM launch contracts passed without loading GLM checkpoints on the remote validation host."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r14",
+    "deepseek_compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r14.yml",
+    "vllm_fix": "https://github.com/local-inference-lab/vllm/pull/320",
+    "source_merge_contract": "https://github.com/local-inference-lab/rtx6kpro/issues/67"
+  }
+}

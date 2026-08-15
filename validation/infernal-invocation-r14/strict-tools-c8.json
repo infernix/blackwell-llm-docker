@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Concurrent buffered and streaming strict tool-call validation",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm91e2adf-b12xec2f97d-fi1ac6942-cu133-torch213-20260815-r14",
+  "concurrency": 8,
+  "requests": 16,
+  "results": [
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 65,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 465
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 65,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 465
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      }
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "tool_call_count": 1,
+      "violations": [],
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      }
+    }
+  ]
+}

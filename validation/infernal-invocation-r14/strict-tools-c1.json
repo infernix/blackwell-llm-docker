@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Sequential buffered and streaming strict tool-call validation",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm91e2adf-b12xec2f97d-fi1ac6942-cu133-torch213-20260815-r14",
+  "request_contract": {
+    "arguments": {
+      "city": "Prague"
+    },
+    "calls": 1,
+    "parallel_tool_calls": null,
+    "strict": true,
+    "tool": "get_weather",
+    "tool_choice": "named"
+  },
+  "requests": 8,
+  "results": [
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "created_cache_tokens": 256,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "b0f0b807d85960631be8533b6edb68aee3650f36b1da905b7086315595b2a631"
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "5a5223b6ad914f6d32be13137f4ec1414e1f1374d5cd9e177a76d089362da23c"
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "2d7451227a55691c146733b594edba8d82e64c10ab801353157d1f5ed7b583f0"
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "149a182dc54520e5d46aeee5244f95ea65074a061227da968b2038060e0d2b3a"
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "7b7e3c65ca2cf02af5ee206c30ee5f97ddb0473d71b6be543cda632de04f9e1b"
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "d48e263d4039b6d74e5d779cdd95f1f0c05af7d202cb983b902c48fa3377a90f"
+    },
+    {
+      "mode": "buffered",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0,
+          "multimodal_tokens": null
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "4ea847aebf99e6d5613f8bd1322a32cfdf5b6fe8fe8c6dc4bc5407f9d2c70f30"
+    },
+    {
+      "mode": "streaming",
+      "finish_reason": "stop",
+      "assistant_content_empty": true,
+      "reasoning_protocol_tokens_absent": true,
+      "tool_call_count": 1,
+      "tool_name": "get_weather",
+      "tool_arguments": "{\"city\": \"Prague\"}",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 400,
+        "prompt_tokens_details": {
+          "cached_tokens": 256,
+          "created_cache_tokens": 0
+        },
+        "total_tokens": 470
+      },
+      "violations": [],
+      "response_sha256": "99b653642445447b015c69354519a5a4ccbe5f9fd17ab02b513db78804824b4d"
+    }
+  ]
+}
