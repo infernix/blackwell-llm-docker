@@ -5,594 +5,104 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "c8ac998fedeccc03d567b0674a20b82034d1cd88",
-    "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
+    "commit": "adb43ae9b44641033931dd33de446b73064351f5",
+    "ref": "refs/heads/agent/ii-kimi-dspark-sharded-sampling-runtime"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "ef488869ce76a3a4558b5ddbb8f72543516065e9c02620ba234e2b3966af9db8"
+    "sha256": "0bd574099c5bcb6c26c0577cd1bec1273ce8c1352983b4d92fa898821b508503"
   },
   "name": "kimi-k3-tp16-vllm",
   "pull_requests": [
     {
       "commits": [
-        "49ccf74e342816da7d18fdbfec6d43da2747ed52"
+        "c160e226b0f4fb4ef5818340ec80e3a1e62c2107"
       ],
       "disposition": "recorded_in_composition",
-      "head": "49ccf74e342816da7d18fdbfec6d43da2747ed52",
-      "number": 322,
-      "ref": "refs/pull/322/head",
-      "title": "Bound MLA prefill projection workspace"
+      "head": "c160e226b0f4fb4ef5818340ec80e3a1e62c2107",
+      "number": 382,
+      "ref": "refs/pull/382/head",
+      "title": "Load Kimi checkpoints with bounded staging"
     },
     {
       "commits": [
-        "d7a6e865ea922bfbf5225201c63e27138be65d17"
+        "1c4a2348f7615582369743a7bd9fa32b7d00b99e"
       ],
       "disposition": "recorded_in_composition",
-      "head": "d7a6e865ea922bfbf5225201c63e27138be65d17",
-      "number": 324,
-      "ref": "refs/pull/324/head",
-      "title": "Bind B12X TP pools to CUDA graph owners"
+      "head": "1c4a2348f7615582369743a7bd9fa32b7d00b99e",
+      "number": 383,
+      "ref": "refs/pull/383/head",
+      "title": "Define Kimi hybrid cache geometry"
     },
     {
       "commits": [
-        "69c5803dbba7730f26bf1832ffb96d0300ac6d95"
+        "ac9c60f0d1ef4f9f6927652281c922f1b2771736"
       ],
       "disposition": "recorded_in_composition",
-      "head": "69c5803dbba7730f26bf1832ffb96d0300ac6d95",
-      "number": 325,
-      "ref": "refs/pull/325/head",
-      "title": "Define inactive Kimi MLA graph rows"
+      "head": "ac9c60f0d1ef4f9f6927652281c922f1b2771736",
+      "number": 384,
+      "ref": "refs/pull/384/head",
+      "title": "Run TP16 DCP collectives through B12X"
     },
     {
       "commits": [
-        "1bd693b05b341b03c0a94018a358bbb46ace0920"
+        "b4f0414ebbf9e22317e8bb969d10b573ec91b551"
       ],
       "disposition": "recorded_in_composition",
-      "head": "1bd693b05b341b03c0a94018a358bbb46ace0920",
-      "number": 326,
-      "ref": "refs/pull/326/head",
-      "title": "Bound InstantTensor staging for oversized tensors"
+      "head": "b4f0414ebbf9e22317e8bb969d10b573ec91b551",
+      "number": 385,
+      "ref": "refs/pull/385/head",
+      "title": "Shard Kimi projections without padding checkpoint weights"
     },
     {
       "commits": [
-        "2ef2ee2b6c9e186f58e41206430b2b3697820bd0"
+        "ae6b996ec5bb766dfab448a0817bea68c3e30ab1"
       ],
       "disposition": "recorded_in_composition",
-      "head": "2ef2ee2b6c9e186f58e41206430b2b3697820bd0",
-      "number": 327,
-      "ref": "refs/pull/327/head",
-      "title": "Own deferred accelerator weight tensors"
+      "head": "ae6b996ec5bb766dfab448a0817bea68c3e30ab1",
+      "number": 386,
+      "ref": "refs/pull/386/head",
+      "title": "Fuse Kimi routed-MoE projection transport"
     },
     {
       "commits": [
-        "1bf41a47e40ea16ee82b07e8f08cd832f93090a7"
+        "bbe91b5cd879f144b8faadd7c8ad89a53a3dcd2d"
       ],
       "disposition": "recorded_in_composition",
-      "head": "1bf41a47e40ea16ee82b07e8f08cd832f93090a7",
-      "number": 328,
-      "ref": "refs/pull/328/head",
-      "title": "Stream online quantization into TP-local parameters"
+      "head": "bbe91b5cd879f144b8faadd7c8ad89a53a3dcd2d",
+      "number": 387,
+      "ref": "refs/pull/387/head",
+      "title": "Execute Kimi dense MLA with decode context parallelism"
     },
     {
       "commits": [
-        "c6567d02ba8019d83e676f0f5a1b6165ae3e8544"
+        "785618861c9b5e812415ed3d6d4535d1e06a2708"
       ],
       "disposition": "recorded_in_composition",
-      "head": "c6567d02ba8019d83e676f0f5a1b6165ae3e8544",
-      "number": 329,
-      "ref": "refs/pull/329/head",
-      "title": "Account for checkpoint-omitted projection rows"
+      "head": "785618861c9b5e812415ed3d6d4535d1e06a2708",
+      "number": 388,
+      "ref": "refs/pull/388/head",
+      "title": "Support external Kimi speculative draft runtimes"
     },
     {
       "commits": [
-        "254ec0b8bf555745feb1dd53d495fcfdefdbb2e0"
+        "bf8400f63f30df1ae183fb68a18a30c71b0975f0"
       ],
       "disposition": "recorded_in_composition",
-      "head": "254ec0b8bf555745feb1dd53d495fcfdefdbb2e0",
-      "number": 381,
-      "ref": "refs/pull/381/head",
-      "title": "Release deferred online-quant sources before repack"
+      "head": "bf8400f63f30df1ae183fb68a18a30c71b0975f0",
+      "number": 389,
+      "ref": "refs/pull/389/head",
+      "title": "Bound and shard Kimi DSpark state"
     },
     {
       "commits": [
-        "2033c87255f7f34f83d548f912322be7ef3e2ca2"
+        "adb43ae9b44641033931dd33de446b73064351f5"
       ],
       "disposition": "recorded_in_composition",
-      "head": "2033c87255f7f34f83d548f912322be7ef3e2ca2",
-      "number": 331,
-      "ref": "refs/pull/331/head",
-      "title": "Propagate external draft online quantization"
-    },
-    {
-      "commits": [
-        "5124d78f8021c639ae31e525105088f923a06fbb"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "5124d78f8021c639ae31e525105088f923a06fbb",
-      "number": 332,
-      "ref": "refs/pull/332/head",
-      "title": "Expose explicit in-place tensor-parallel all-reduce"
-    },
-    {
-      "commits": [
-        "66fb594282fb545dc47c87cd88103f3ee5107ec1"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "66fb594282fb545dc47c87cd88103f3ee5107ec1",
-      "number": 333,
-      "ref": "refs/pull/333/head",
-      "title": "Dispatch B12X all-reduce through TP16"
-    },
-    {
-      "commits": [
-        "6570d38c2b4400af9795d8deaf27b1a116844010"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "6570d38c2b4400af9795d8deaf27b1a116844010",
-      "number": 334,
-      "ref": "refs/pull/334/head",
-      "title": "Keep MLA cache groups causally uniform"
-    },
-    {
-      "commits": [
-        "4c56464c8384415e1e0d350ecb30d6bf9bdd10cf"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "4c56464c8384415e1e0d350ecb30d6bf9bdd10cf",
-      "number": 335,
-      "ref": "refs/pull/335/head",
-      "title": "Keep recurrent state on the hybrid cache planner"
-    },
-    {
-      "commits": [
-        "8ab408c838b72b0af926e91f988256c5ec4d4633"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "8ab408c838b72b0af926e91f988256c5ec4d4633",
-      "number": 336,
-      "ref": "refs/pull/336/head",
-      "title": "Bound Kimi hybrid cache group width"
-    },
-    {
-      "commits": [
-        "385e5cfef1332fa77c139fd7dcceb9fd482629c1"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "385e5cfef1332fa77c139fd7dcceb9fd482629c1",
-      "number": 337,
-      "ref": "refs/pull/337/head",
-      "title": "Bind lazy B12X DCP pools to graph channels"
-    },
-    {
-      "commits": [
-        "db4765b5e1ffbb58b96b05c3dde954976a931e62"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "db4765b5e1ffbb58b96b05c3dde954976a931e62",
-      "number": 338,
-      "ref": "refs/pull/338/head",
-      "title": "Enable B12X DCP collectives at world size 16"
-    },
-    {
-      "commits": [
-        "148cd2ef04552f8192c838723d3e908162880e68"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "148cd2ef04552f8192c838723d3e908162880e68",
-      "number": 339,
-      "ref": "refs/pull/339/head",
-      "title": "Pack DCP attention LSE as FP32"
-    },
-    {
-      "commits": [
-        "119c849dfd2cf73529638f20177e6e3ced38f3e3"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "119c849dfd2cf73529638f20177e6e3ced38f3e3",
-      "number": 340,
-      "ref": "refs/pull/340/head",
-      "title": "Route oversized B12X DCP batches through AG/RS"
-    },
-    {
-      "commits": [
-        "2319414c99c917fd0d2eeed1fa5d09a7ff1bbd04"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "2319414c99c917fd0d2eeed1fa5d09a7ff1bbd04",
-      "number": 341,
-      "ref": "refs/pull/341/head",
-      "title": "Support FP8 B12X gathers into caller storage"
-    },
-    {
-      "commits": [
-        "28463907ac3810a4aec96e53595ed43f3f5ff938"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "28463907ac3810a4aec96e53595ed43f3f5ff938",
-      "number": 342,
-      "ref": "refs/pull/342/head",
-      "title": "Gather paired DCP projections behind one barrier"
-    },
-    {
-      "commits": [
-        "033924ea49b61c56763e5a3c052fa45ac4340c2b"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "033924ea49b61c56763e5a3c052fa45ac4340c2b",
-      "number": 343,
-      "ref": "refs/pull/343/head",
-      "title": "Bind fused Kimi projection routing transport"
-    },
-    {
-      "commits": [
-        "c1a26c92a6dd65fc7002fcc42426d59ac3cc9043"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "c1a26c92a6dd65fc7002fcc42426d59ac3cc9043",
-      "number": 344,
-      "ref": "refs/pull/344/head",
-      "title": "Preserve Kimi MXFP4 MoE shard width"
-    },
-    {
-      "commits": [
-        "bd25a51db95d2ecc5292c81c5d1cb0f6618acb82"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "bd25a51db95d2ecc5292c81c5d1cb0f6618acb82",
-      "number": 345,
-      "ref": "refs/pull/345/head",
-      "title": "TP-shard Kimi MLA latent projections"
-    },
-    {
-      "commits": [
-        "483bcb0ab2266a413c2d610d71622e669a6c5962"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "483bcb0ab2266a413c2d610d71622e669a6c5962",
-      "number": 346,
-      "ref": "refs/pull/346/head",
-      "title": "Gather sharded Kimi projections through B12X"
-    },
-    {
-      "commits": [
-        "aacbca6342f36e8a15db87fbba0dcc4ade68c78e"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "aacbca6342f36e8a15db87fbba0dcc4ade68c78e",
-      "number": 347,
-      "ref": "refs/pull/347/head",
-      "title": "Make Kimi KDA f_a sharding opt-in"
-    },
-    {
-      "commits": [
-        "13a9bf7f79f663e50a1df95f3c62de0b696f4bad"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "13a9bf7f79f663e50a1df95f3c62de0b696f4bad",
-      "number": 348,
-      "ref": "refs/pull/348/head",
-      "title": "Declare omitted Kimi KDA padding rows"
-    },
-    {
-      "commits": [
-        "0ab2f3d42d40f3ee2697c59aae15b8ea072e810d"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "0ab2f3d42d40f3ee2697c59aae15b8ea072e810d",
-      "number": 349,
-      "ref": "refs/pull/349/head",
-      "title": "Preserve FP32 and FP8 Kimi projection payloads"
-    },
-    {
-      "commits": [
-        "61b15c5fde7a8ea075c22d6e0437afd46ddace6c"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "61b15c5fde7a8ea075c22d6e0437afd46ddace6c",
-      "number": 350,
-      "ref": "refs/pull/350/head",
-      "title": "Gather paired Kimi projections through B12X"
-    },
-    {
-      "commits": [
-        "838a88b80353f47e019008f8b57d16e7ed7f40d5"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "838a88b80353f47e019008f8b57d16e7ed7f40d5",
-      "number": 351,
-      "ref": "refs/pull/351/head",
-      "title": "Expose rank-local Kimi projection outputs"
-    },
-    {
-      "commits": [
-        "ed8bb8f89bfc3d430fc84d2f56b28c7b15e429b8"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "ed8bb8f89bfc3d430fc84d2f56b28c7b15e429b8",
-      "number": 352,
-      "ref": "refs/pull/352/head",
-      "title": "Bind fused Kimi projection routing in model code"
-    },
-    {
-      "commits": [
-        "38a16a984e927317c93e334b1ffb434f30859bc9"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "38a16a984e927317c93e334b1ffb434f30859bc9",
-      "number": 353,
-      "ref": "refs/pull/353/head",
-      "title": "Accept compact Kimi expert routing payloads"
-    },
-    {
-      "commits": [
-        "27ead94a3a7f0f77d0ad91ae0fe7ba04e030c9d1"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "27ead94a3a7f0f77d0ad91ae0fe7ba04e030c9d1",
-      "number": 354,
-      "ref": "refs/pull/354/head",
-      "title": "Combine Kimi latent and router projection transport"
-    },
-    {
-      "commits": [
-        "9ce62a0c4dcdc7ee7970fceea1f3bec1d81624ce"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "9ce62a0c4dcdc7ee7970fceea1f3bec1d81624ce",
-      "number": 355,
-      "ref": "refs/pull/355/head",
-      "title": "Warm Kimi projection graph operations eagerly"
-    },
-    {
-      "commits": [
-        "d41a4824347af978d37655a9ae6fab4a6f0bcca9"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "d41a4824347af978d37655a9ae6fab4a6f0bcca9",
-      "number": 356,
-      "ref": "refs/pull/356/head",
-      "title": "Keep B12X dense MLA scratch caller-owned"
-    },
-    {
-      "commits": [
-        "65eb9a37e49947753c0f2ce58d267503719963f5"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "65eb9a37e49947753c0f2ce58d267503719963f5",
-      "number": 357,
-      "ref": "refs/pull/357/head",
-      "title": "Pad B12X dense MLA query-head tiles"
-    },
-    {
-      "commits": [
-        "4804a215624bf1535ad5540232a79effd73444f5"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "4804a215624bf1535ad5540232a79effd73444f5",
-      "number": 358,
-      "ref": "refs/pull/358/head",
-      "title": "Support backend-owned MLA decode DCP"
-    },
-    {
-      "commits": [
-        "733f680c1091a0bf9d99bb5b4091d61d07d00af9"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "733f680c1091a0bf9d99bb5b4091d61d07d00af9",
-      "number": 359,
-      "ref": "refs/pull/359/head",
-      "title": "Implement B12X dense MLA DCP execution"
-    },
-    {
-      "commits": [
-        "a0b051791d5486c973c719014637d47b8592511e"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "a0b051791d5486c973c719014637d47b8592511e",
-      "number": 360,
-      "ref": "refs/pull/360/head",
-      "title": "Select backend-owned Kimi dense MLA DCP"
-    },
-    {
-      "commits": [
-        "6d87a9c0221b38149a475896f13ec614d7714131"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "6d87a9c0221b38149a475896f13ec614d7714131",
-      "number": 361,
-      "ref": "refs/pull/361/head",
-      "title": "Bind B12X MLA DCP query output storage"
-    },
-    {
-      "commits": [
-        "551da04f7c2953e4cec1d851e859e4c22ed5d199"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "551da04f7c2953e4cec1d851e859e4c22ed5d199",
-      "number": 362,
-      "ref": "refs/pull/362/head",
-      "title": "Limit B12X MLA work to active cache splits"
-    },
-    {
-      "commits": [
-        "109427c14c4df19e514ad2624b06e4ef7c02efc2"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "109427c14c4df19e514ad2624b06e4ef7c02efc2",
-      "number": 377,
-      "ref": "refs/pull/377/head",
-      "title": "Prepare B12X MLA speculative decode rows"
-    },
-    {
-      "commits": [
-        "23c2a82bb797547e5eb726076c792b7daeb01249"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "23c2a82bb797547e5eb726076c792b7daeb01249",
-      "number": 363,
-      "ref": "refs/pull/363/head",
-      "title": "Isolate external draft attention geometry"
-    },
-    {
-      "commits": [
-        "35cab713aab683a9af9bf5bb4a0642d27b57cfa1"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "35cab713aab683a9af9bf5bb4a0642d27b57cfa1",
-      "number": 364,
-      "ref": "refs/pull/364/head",
-      "title": "Replicate Kimi DSpark cache under target DCP"
-    },
-    {
-      "commits": [
-        "199c120057a12acee54a9bcf8acc1776d881b43c"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "199c120057a12acee54a9bcf8acc1776d881b43c",
-      "number": 365,
-      "ref": "refs/pull/365/head",
-      "title": "Bound Kimi DSpark draft KV state"
-    },
-    {
-      "commits": [
-        "0f024f9f17c311cb7521d3aa89cad59aca931fa4"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "0f024f9f17c311cb7521d3aa89cad59aca931fa4",
-      "number": 366,
-      "ref": "refs/pull/366/head",
-      "title": "Compact Kimi DSpark rotary state"
-    },
-    {
-      "commits": [
-        "c044b1fa952517d03045ba53a57e32cd05bebdb8"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "c044b1fa952517d03045ba53a57e32cd05bebdb8",
-      "number": 367,
-      "ref": "refs/pull/367/head",
-      "title": "Shard Kimi DSpark context projection"
-    },
-    {
-      "commits": [
-        "51e6f65a38c5008adf6cedafc7e1d6598187a97e"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "51e6f65a38c5008adf6cedafc7e1d6598187a97e",
-      "number": 368,
-      "ref": "refs/pull/368/head",
-      "title": "Shard DSpark Markov vocabulary state"
-    },
-    {
-      "commits": [
-        "2af97ee8e93b6fbf36f384a6d9b3f8bb513c24bc"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "2af97ee8e93b6fbf36f384a6d9b3f8bb513c24bc",
-      "number": 369,
-      "ref": "refs/pull/369/head",
-      "title": "Select Kimi-K3 DSpark tokens from vocabulary shards"
-    },
-    {
-      "commits": [
-        "ef04b10f01e7ecdd8702c479db74d228d8f69bc6"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "ef04b10f01e7ecdd8702c479db74d228d8f69bc6",
-      "number": 370,
-      "ref": "refs/pull/370/head",
-      "title": "Sample DSpark proposals from local vocabulary shards"
-    },
-    {
-      "commits": [
-        "e69b143d4e43e4d2b93dc74ee042ff8ad2222fd1"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "e69b143d4e43e4d2b93dc74ee042ff8ad2222fd1",
-      "number": 371,
-      "ref": "refs/pull/371/head",
-      "title": "Support draft work outside CUDA graph replay"
-    },
-    {
-      "commits": [
-        "c516a3e0bde94ecec157ff6e107177e27569eac8"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "c516a3e0bde94ecec157ff6e107177e27569eac8",
-      "number": 372,
-      "ref": "refs/pull/372/head",
-      "title": "Run sharded DSpark Markov tail after graph replay"
-    },
-    {
-      "commits": [
-        "86102b5983feff54a356395f307f38155d990d8f"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "86102b5983feff54a356395f307f38155d990d8f",
-      "number": 373,
-      "ref": "refs/pull/373/head",
-      "title": "Expose the active B12X TP all-reduce runtime"
-    },
-    {
-      "commits": [
-        "f1c8ebbed4313ab9d57d51a68c05f00426a2e118"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "f1c8ebbed4313ab9d57d51a68c05f00426a2e118",
-      "number": 374,
-      "ref": "refs/pull/374/head",
-      "title": "Capture DSpark sharded Markov sampling with B12X"
-    },
-    {
-      "commits": [
-        "4cf53068b7b8301fdb6b575c28719ca10f3b88f2"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "4cf53068b7b8301fdb6b575c28719ca10f3b88f2",
-      "number": 375,
-      "ref": "refs/pull/375/head",
-      "title": "Own retained DFlash streaming weights"
-    },
-    {
-      "commits": [
-        "68db4dc2f89d9ae5367e2e13ee1924209b36fc93"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "68db4dc2f89d9ae5367e2e13ee1924209b36fc93",
-      "number": 376,
-      "ref": "refs/pull/376/head",
-      "title": "Pin the FlashAttention FA4 dynamic-causal fix"
-    },
-    {
-      "commits": [
-        "e15eef9806d3b6e97d2aa8b6aa10a45ff14de4a3"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "e15eef9806d3b6e97d2aa8b6aa10a45ff14de4a3",
-      "number": 378,
-      "ref": "refs/pull/378/head",
-      "title": "Allow disabling fused-MoE output aliasing"
-    },
-    {
-      "commits": [
-        "54722f03348886bbb87e21a5a62e19a04c9eef90"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "54722f03348886bbb87e21a5a62e19a04c9eef90",
-      "number": 379,
-      "ref": "refs/pull/379/head",
-      "title": "Warm Kimi B12X MLA DCP transport"
-    },
-    {
-      "commits": [
-        "648ca18e6e536aba9c4ccb213b00f7a005dc5c78"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "648ca18e6e536aba9c4ccb213b00f7a005dc5c78",
-      "number": 380,
-      "ref": "refs/pull/380/head",
-      "title": "Warm speculative KDA before KV-cache binding"
+      "head": "adb43ae9b44641033931dd33de446b73064351f5",
+      "number": 390,
+      "ref": "refs/pull/390/head",
+      "title": "Sample Kimi DSpark proposals from vocabulary shards"
     }
   ],
   "result": {
