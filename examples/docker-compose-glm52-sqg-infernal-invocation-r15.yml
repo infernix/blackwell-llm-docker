@@ -1,0 +1,68 @@
+# GLM-5.2 SQG W4A8 profile for four 96 GB SM120 GPUs.
+#
+# The checkpoint stores independent K3/K4 routed matrices and K6 non-routed
+# matrices with the SQG-XOR-Cheb-T12 codebook. B12X executes both forms without
+# reconstructing persistent BF16 weights. TP4/DCP1/MTP0 with NVFP4 DS-MLA KV is
+# the qualified serving geometry; other parallelism and speculation settings
+# are unsupported by this profile.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15}
+    container_name: ${NAME:-glm52-sqg-infernal-r15}
+    entrypoint: ["/usr/local/bin/serve-infernal-invocation.sh"]
+    command:
+      - --disable-custom-all-reduce
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 32gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52-exl3
+      GPUS: ${GPUS:-0,1,2,3}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-brandonmusic/GLM-5.2-SQG-W4A8}
+      MODEL_REVISION: ${MODEL_REVISION:-593dd0d2de6f79ce4e65303930c22c75e1359d44}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-SQG-W4A8}
+      TP: 4
+      DCP: 1
+      MTP: 0
+      MAX_NUM_SEQS: 1
+      GRAPH: 6
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-32768}
+      MAX_BATCHED_TOKENS: 2048
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.96}
+      MOE_MODE: a8
+      MOE_BACKEND: b12x
+      QUANTIZATION: exl3
+      ONLINE_QUANT: none
+      KV_CACHE_DTYPE: nvfp4_ds_mla
+      DCP_QUERY_SPLIT: 0
+      DCP_CKV_GATHER: 0
+      B12X_PCIE_DMA: 0
+      PCIE_CALIBRATION: off
+      VLLM_ENABLE_PCIE_ALLREDUCE: 0
+      VLLM_ALLREDUCE_USE_SYMM_MEM: 0
+      VLLM_GLM_SQG_W4A8_EVIDENCE_DIR: /cache/evidence/glm52-sqg-r15
+      LOAD_FORMAT: instanttensor
+      INSTANTTENSOR_BACKEND: BUFFERED
+      INSTANTTENSOR_COPY: 0
+      INSTANTTENSOR_BUFFER_SIZE: 536870912
+      INSTANTTENSOR_MAX_FREE_MEM_USAGE: 0.05
+      ASYNC_SCHEDULING: 0
+      F8_DMA: 0
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-sqg-infernal-r15}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-sqg-infernal-r15/tmp}:/container-tmp

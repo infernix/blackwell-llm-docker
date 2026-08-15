@@ -1,0 +1,67 @@
+# DeepSeek-V4-Flash-0731 serving profile for Infernal Invocation r15.
+#
+# The profile uses fixed probabilistic K5, B12X W4A8, FP8 compressed MLA KV,
+# full target and DSpark CUDA graphs, InstantTensor BUFFERED loading, CUDA 13.3,
+# PyTorch 2.13.0, and NCCL 2.31.2. Set MODE=dspark-mtp0 for target-only
+# serving. Fixed and confidence-controlled K7 use DSPARK_TOKENS=7 with
+# DSPARK_DEPTH_MODE=fixed or dynamic, respectively.
+services:
+  ds4:
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15}
+    container_name: ${NAME:-ds4-infernal-invocation-cu133-r15}
+    entrypoint:
+      - /usr/local/bin/lmcache-mp-wrapper.sh
+      - /usr/local/bin/serve-ds4-flash.sh
+    network_mode: host
+    ipc: host
+    init: true
+    shm_size: ${SHM_SIZE:-32gb}
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      CUDA_VISIBLE_DEVICES: ${GPUS:-0,1}
+      GLOO_SOCKET_IFNAME: ${GLOO_SOCKET_IFNAME:-lo}
+      NCCL_SOCKET_IFNAME: ${NCCL_SOCKET_IFNAME:-lo}
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-2}
+      PORT: ${PORT:-8000}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-DeepSeek-V4-Flash-0731}
+      MODE: ${MODE:-dspark}
+      BACKEND: ${BACKEND:-b12x-a8}
+      TP_SIZE: ${TP_SIZE:-2}
+      DCP_SIZE: ${DCP_SIZE:-1}
+      ALLREDUCE_MODE: ${ALLREDUCE_MODE:-auto}
+      DSPARK_DEPTH_MODE: ${DSPARK_DEPTH_MODE:-fixed}
+      DSPARK_TOKENS: ${DSPARK_TOKENS:-5}
+      DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE: ${DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE:-0}
+      DRAFT_SAMPLE_METHOD: ${DRAFT_SAMPLE_METHOD:-probabilistic}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-16}
+      GRAPH: ${GRAPH:-auto}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-131072}
+      MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-8192}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
+      # LMCache and native vLLM offload use independent ownership models.
+      LMCACHE_MODE: ${LMCACHE_MODE:-off}
+      LMCACHE_L1_GB: ${LMCACHE_L1_GB:-24}
+      LMCACHE_L2_GB: ${LMCACHE_L2_GB:-256}
+      LMCACHE_L2_PATH: ${LMCACHE_L2_PATH:-/cache/lmcache/8000}
+      LMCACHE_HTTP_PORT: ${LMCACHE_HTTP_PORT:-8099}
+      KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-}
+      NATIVE_L2_GB: ${NATIVE_L2_GB:-0}
+      NATIVE_L2_PATH: ${NATIVE_L2_PATH:-/cache/native-kv/8000}
+      LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
+      INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
+      PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
+      EXTRA_VLLM_ARGS: ${EXTRA_VLLM_ARGS:-}
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${MODEL_ROOT:-/root/models}:/root/models:ro
+      - ${JIT_CACHE:-./cache/infernal-invocation-cu133-r15}:/cache
+      - ${CONTAINER_TMP:-./cache/infernal-invocation-cu133-r15/tmp}:/container-tmp

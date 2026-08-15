@@ -35,11 +35,6 @@
       "title": "Profile serving-reachable shapes before KV cache sizing"
     },
     {
-      "number": 291,
-      "head": "164d52e85dad7ca2f4b7eda2124abe4235edb547",
-      "title": "Normalize padded B12X MoE routes without allocation"
-    },
-    {
       "number": 292,
       "head": "fb8d983acd642f059e5f3d3466e0f1c13e48b083",
       "title": "Enforce canonical B12X package identifiers"
@@ -116,12 +111,102 @@
     },
     {
       "number": 320,
-      "head": "b33319edbbe1daa03a14bee6acd896aa32e0a6df",
+      "head": "e9534672129b961399b1625d33d83c79eacded30",
       "title": "Validate speculative structured output before commit"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 341,
+      "head": "2319414c99c917fd0d2eeed1fa5d09a7ff1bbd04",
+      "disposition": "research-only",
+      "reason": "Caller-owned FP8 DCP gather storage has no GLM DCP end-to-end qualification. The DeepSeek TP2/DCP1 profile does not execute this path."
+    },
+    {
+      "number": 340,
+      "head": "119c849dfd2cf73529638f20177e6e3ced38f3e3",
+      "disposition": "research-only",
+      "reason": "Oversized B12X DCP AG/RS dispatch has no GLM DCP end-to-end qualification. The DeepSeek TP2/DCP1 profile does not execute this path."
+    },
+    {
+      "number": 339,
+      "head": "148cd2ef04552f8192c838723d3e908162880e68",
+      "disposition": "research-only",
+      "reason": "FP32 log-sum-exp packing changes DCP transport and requires GLM DCP numerical and throughput qualification. The DeepSeek TP2/DCP1 profile does not execute this path."
+    },
+    {
+      "number": 338,
+      "head": "7ac5a6b76a88456f1eeaf8efbfa6624ccc66968d",
+      "disposition": "out_of_scope",
+      "reason": "DCP world size 16 serves the Kimi-K3 TP16/DCP16 runtime. The DeepSeek and GLM profiles qualified by this manifest do not use DCP16."
+    },
+    {
+      "number": 335,
+      "head": "4c56464c8384415e1e0d350ecb30d6bf9bdd10cf",
+      "disposition": "out_of_scope",
+      "reason": "Recurrent Mamba cache planning serves model architectures with recurrent state. DeepSeek V4 and GLM-5.2 do not use Mamba cache specifications."
+    },
+    {
+      "number": 334,
+      "head": "6570d38c2b4400af9795d8deaf27b1a116844010",
+      "disposition": "research-only",
+      "reason": "Causal-mode cache-group validation has focused tests but no DeepSeek V4 or GLM-5.2 end-to-end qualification against this source composition."
+    },
+    {
+      "number": 333,
+      "head": "66fb594282fb545dc47c87cd88103f3ee5107ec1",
+      "disposition": "out_of_scope",
+      "reason": "TP12 and TP16 B12X all-reduce dispatch serves the Kimi-K3 runtime. The qualified DeepSeek profile uses TP2 and the qualified GLM profiles use TP4 or TP8."
+    },
+    {
+      "number": 332,
+      "head": "5124d78f8021c639ae31e525105088f923a06fbb",
+      "disposition": "research-only",
+      "reason": "The explicit in-place tensor-parallel all-reduce API has no DeepSeek V4 or GLM-5.2 end-to-end qualification against this source composition."
+    },
+    {
+      "number": 331,
+      "head": "2033c87255f7f34f83d548f912322be7ef3e2ca2",
+      "disposition": "out_of_scope",
+      "reason": "External draft online quantization serves separately loaded speculative checkpoints. DeepSeek-V4-Flash uses its in-checkpoint DSpark draft."
+    },
+    {
+      "number": 327,
+      "head": "2ef2ee2b6c9e186f58e41206430b2b3697820bd0",
+      "disposition": "research-only",
+      "reason": "The broader deferred accelerator-tensor ownership rule has no GLM EXL3 end-to-end qualification. Pull request #305 retains the profile-qualified InstantTensor borrowed-view ownership contract."
+    },
+    {
+      "number": 326,
+      "head": "1bd693b05b341b03c0a94018a358bbb46ace0920",
+      "disposition": "research-only",
+      "reason": "Oversized-tensor CPU fallback changes checkpoint loading and has no DeepSeek V4 or GLM-5.2 load qualification against this source composition."
+    },
+    {
+      "number": 325,
+      "head": "69c5803dbba7730f26bf1832ffb96d0300ac6d95",
+      "disposition": "out_of_scope",
+      "reason": "Inactive Kimi-K3 MLA graph rows belong to the separate Kimi-K3 serving runtime."
+    },
+    {
+      "number": 324,
+      "head": "d7a6e865ea922bfbf5225201c63e27138be65d17",
+      "disposition": "research-only",
+      "reason": "B12X tensor-parallel pool graph ownership has no DeepSeek V4 or GLM-5.2 graph-replay qualification against this source composition."
+    },
+    {
+      "number": 322,
+      "head": "49ccf74e342816da7d18fdbfec6d43da2747ed52",
+      "disposition": "research-only",
+      "reason": "Configurable MLA chunked-prefill workspace capacity has no GLM DCP memory and throughput qualification. Existing automatic workspace sizing remains qualified."
+    },
+    {
+      "number": 291,
+      "head": "164d52e85dad7ca2f4b7eda2124abe4235edb547",
+      "disposition": "superseded",
+      "reason": "B12X pull request #214 consumes inactive MoE routes without assigning padding rows to expert zero. The vLLM normalization in pull request #291 would preserve correctness but execute unnecessary expert-zero work."
+    },
     {
       "number": 284,
       "head": "881ac39a4fb6c5bbfa14f3944db560e0a27f3ffe",

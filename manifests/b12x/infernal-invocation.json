@@ -33,10 +33,39 @@
       "number": 197,
       "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",
       "title": "Execute Brandon GLM-5.2 SQG W4A8"
+    },
+    {
+      "number": 214,
+      "head": "321c24a7ef60174cd6131d932f43bb84a4f3a60f",
+      "title": "Ignore inactive routes in dynamic MoE kernels"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 218,
+      "head": "b1270f4d3462ad0b11ced1117915adaa93bef415",
+      "disposition": "research-only",
+      "reason": "Unified all-reduce channel ownership has no DeepSeek V4 or GLM-5.2 end-to-end qualification against this source composition."
+    },
+    {
+      "number": 217,
+      "head": "4493e9d76c11161a89d21a6a28bfa5401b04490e",
+      "disposition": "out_of_scope",
+      "reason": "Vocabulary-parallel argmax serves sharded Kimi-K3 draft sampling and is not used by the qualified DeepSeek or GLM profiles."
+    },
+    {
+      "number": 216,
+      "head": "47be314dac648cdd2f093238579d1f19ff170cd1",
+      "disposition": "out_of_scope",
+      "reason": "Fused Kimi-K3 projection gather and expert selection belongs to the separate Kimi-K3 TP16/DCP16 runtime."
+    },
+    {
+      "number": 215,
+      "head": "d49080ffeac2fa0090f0bdfcc4a8ead1111c2684",
+      "disposition": "research-only",
+      "reason": "Unaligned narrow FP8 output handling has no applicable DeepSeek V4 or GLM-5.2 model-shape qualification against this source composition."
+    },
     {
       "number": 213,
       "head": "a2ce57141bd031d0808c7ac74e50b0531eb47569",

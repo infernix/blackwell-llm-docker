@@ -1,0 +1,59 @@
+# GLM-5.2 R7 mixed-K3/K4/K5 EXL3 profile for four 96 GB SM120 GPUs.
+#
+# Routed experts execute directly from checkpoint-native Trellis payloads.
+# Eligible BF16 dense and shared projections are encoded as K6 during model
+# loading and persisted below /cache for the same checkpoint revision.
+services:
+  glm52:
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15}
+    container_name: ${NAME:-glm52-exl3-infernal-r15}
+    entrypoint: ["/usr/local/bin/serve-infernal-invocation.sh"]
+    network_mode: host
+    ipc: host
+    privileged: true
+    init: true
+    shm_size: 32gb
+    gpus: all
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+      stack: 67108864
+    environment:
+      MODEL_FAMILY: glm52-exl3
+      GPUS: ${GPUS:-0,1,2,3}
+      PORT: ${PORT:-8000}
+      MODEL: ${MODEL:-brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78}
+      MODEL_REVISION: ${MODEL_REVISION:-9ab9579774cc432df91567a36f6e9e863e0d4c9f}
+      SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-GLM-5.2-EXL3-R7-3.5bpw}
+      TP: 4
+      DCP: ${DCP:-1}
+      MTP: ${MTP:-3}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
+      GRAPH: ${GRAPH:-32}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-65536}
+      MAX_BATCHED_TOKENS: ${MAX_BATCHED_TOKENS:-2048}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.98}
+      MOE_MODE: a16
+      MOE_BACKEND: b12x
+      MTP_MOE_BACKEND: triton
+      MTP_DRAFT_SAMPLE_METHOD: greedy
+      QUANTIZATION: exl3
+      ONLINE_QUANT: ${ONLINE_QUANT:-exl3-b6}
+      KV_CACHE_DTYPE: ${KV_CACHE_DTYPE:-nvfp4_ds_mla}
+      VLLM_EXL3_PREFILL_CAPACITY: ${VLLM_EXL3_PREFILL_CAPACITY:-2048}
+      LOAD_FORMAT: instanttensor
+      INSTANTTENSOR_BACKEND: BUFFERED
+      INSTANTTENSOR_COPY: ${INSTANTTENSOR_COPY:-0}
+      INSTANTTENSOR_BUFFER_SIZE: ${INSTANTTENSOR_BUFFER_SIZE:-536870912}
+      INSTANTTENSOR_MAX_FREE_MEM_USAGE: ${INSTANTTENSOR_MAX_FREE_MEM_USAGE:-0.05}
+      ASYNC_SCHEDULING: 0
+      F8_DMA: 0
+    volumes:
+      - ${HF_CACHE:-/root/.cache/huggingface}:/root/.cache/huggingface
+      - ${JIT_CACHE:-./cache/glm52-exl3-infernal-r15}:/cache
+      - ${CONTAINER_TMP:-./cache/glm52-exl3-infernal-r15/tmp}:/container-tmp

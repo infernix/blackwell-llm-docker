@@ -1,0 +1,69 @@
+{
+  "base": {
+    "commit": "d3fc4bdbc797f6094e12c2009958cd3939c51668",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "b5e7d495f4d8d2884eb9092b0dce33a71e6acca06d5097c865714c6b7cfcb1b7"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "disposition": "merged",
+      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
+      "number": 146,
+      "ref": "refs/pull/146/head",
+      "title": "Validate the wave-balanced W4A16 FC2 tile"
+    },
+    {
+      "disposition": "merged",
+      "head": "3fc1f0d4000879c75db9e91fbe4a3f328286af6f",
+      "number": 148,
+      "ref": "refs/pull/148/head",
+      "title": "Serve projection-mixed EXL3 K3/K4/K5 weights"
+    },
+    {
+      "disposition": "merged",
+      "head": "b6a7672c9dee63f070585c3a5098c6803a1b5762",
+      "number": 149,
+      "ref": "refs/pull/149/head",
+      "title": "Test W4A8 QSRT rate compatibility"
+    },
+    {
+      "disposition": "merged",
+      "head": "a3f06e262a9f351e3b916d90c5e916cde53a5dbe",
+      "number": 150,
+      "ref": "refs/pull/150/head",
+      "title": "Allocate W4A16 route histograms for CUDA graph capture"
+    },
+    {
+      "disposition": "merged",
+      "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",
+      "number": 197,
+      "ref": "refs/pull/197/head",
+      "title": "Execute Brandon GLM-5.2 SQG W4A8"
+    },
+    {
+      "disposition": "merged",
+      "head": "321c24a7ef60174cd6131d932f43bb84a4f3a60f",
+      "number": 214,
+      "ref": "refs/pull/214/head",
+      "title": "Ignore inactive routes in dynamic MoE kernels"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "763a230d9ebb9f0d35278dd319886556acb9566e44067ee4cf0faa117e2e8dce",
+    "tree": "96e5d3d5c2057fa5d4f542e2368951ddbdcb5b42"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
