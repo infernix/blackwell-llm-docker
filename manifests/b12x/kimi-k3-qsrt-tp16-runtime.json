@@ -6,7 +6,7 @@
   "pull_requests": [
     {
       "number": 198,
-      "head": "ddf4ee4a24f09e5eadcedf1ad43992d51d931ddc",
+      "head": "a257723e1b7d6ffde949a1f7fea1b5126c665407",
       "title": "Accelerate Kimi-K3 TP16 QSRT decode"
     }
   ]

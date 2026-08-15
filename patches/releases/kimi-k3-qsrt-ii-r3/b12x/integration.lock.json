@@ -1,0 +1,27 @@
+{
+  "base": {
+    "commit": "195e26c5b67eb9c162f00fd8907d06e0fe27c569",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "b79c7161eb1300cfab1a4fc98768442b934455aba281d20fceea149eb711e212"
+  },
+  "name": "kimi-k3-qsrt-tp16-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "a257723e1b7d6ffde949a1f7fea1b5126c665407",
+      "number": 198,
+      "ref": "refs/pull/198/head",
+      "title": "Accelerate Kimi-K3 TP16 QSRT decode"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "a24736fc170a650d649715182f3ff44c75a341148f7cfefeed571bf51a17f2e8",
+    "tree": "180ccabf28eaac9c18e40c5e09a22a5a773227e5"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

@@ -51,7 +51,7 @@ ENV LOCAL_INFERENCE_CACHE_FINGERPRINT=${CACHE_FINGERPRINT} \
     CUDA_CACHE_PATH=/cache/jit/${CACHE_FINGERPRINT}/cuda \
     CUPY_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cupy
 
-COPY patches/releases/kimi-k3-qsrt-ii-r2 /tmp/kimi-k3-qsrt-release
+COPY patches/releases/kimi-k3-qsrt-ii-r3 /tmp/kimi-k3-qsrt-release
 
 # Each source directory is reconstructed from an immutable base commit and a
 # hash-verified aggregate patch. The resulting Git tree is the runtime source

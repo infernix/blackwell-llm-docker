@@ -1,0 +1,2268 @@
+diff --git a/b12x/_lib/dense_gemm.py b/b12x/_lib/dense_gemm.py
+index 4cbc902..107d80f 100644
+--- a/b12x/_lib/dense_gemm.py
++++ b/b12x/_lib/dense_gemm.py
+@@ -7335,6 +7335,17 @@ def dense_gemm(
+             swap_ab = default_plan.swap_ab if mma_tiler_mn[1] < 64 else False
+     assert load_path is not None
+     assert swap_ab is not None
++    c_row_stride_bytes = n * c_cutlass_dtype.width // 8
++    if (
++        (m > 1 or l > 1)
++        and not swap_ab
++        and c_row_stride_bytes % 16 != 0
++    ):
++        raise ValueError(
++            "the unswapped dense_gemm TMA epilogue requires a 16-byte-aligned "
++            f"C row stride, but N={n} and c_dtype={c_dtype!r} produce "
++            f"{c_row_stride_bytes} bytes; use swap_ab=True or pad N"
++        )
+     if is_mxfp6:
+         # Only the unswapped single-slice TMA mainloop is wired for the FP6
+         # byte-container path; fail loudly instead of silently miscomputing.
+diff --git a/b12x/comm/pcie/__init__.py b/b12x/comm/pcie/__init__.py
+index 216310e..6dbcdf4 100644
+--- a/b12x/comm/pcie/__init__.py
++++ b/b12x/comm/pcie/__init__.py
+@@ -15,10 +15,11 @@ pools via ``<Class>Pool``.
+   per-token FP8-e4m3 transport.
+ - ``DcpAllToAll``: DCP attention exchange with fused LSE reduce-scatter.
+ - ``DcpTopKOwnerExchange``: exact DCP candidate owner staging.
++- ``VocabParallelArgmax``: TP16 fused BF16 add and exact global greedy argmax.
+ 
+-Every device kernel is authored in Python with CuTe DSL.  Host-side CUDA
+-Runtime/Driver calls are also made from Python; this package contains no
+-repo-authored C++ or CUDA source and never invokes a native extension build.
++Most device kernels are authored in Python with CuTe DSL. Vocabulary-parallel
++argmax JIT-builds the bundled ``pcie_vocab_argmax.cu`` extension on first use.
++Host-side CUDA Runtime and Driver calls are made from Python.
+ """
+ 
+ from __future__ import annotations
+@@ -40,13 +41,14 @@ META = OpMeta(
+         "DcpAllToAll",
+         "DcpAllToAllPool",
+         "DcpTopKOwnerExchange",
++        "VocabParallelArgmax",
+         "autotune_dma_crossovers",
+         "parse_oneshot_max_size",
+         "lse_reduce_scatter_reference",
+         "owner_stage_reference",
+         "is_supported",
+     ),
+-    dtypes=("bf16", "fp32", "fp8_e4m3", "int32"),
++    dtypes=("bf16", "fp32", "fp8_e4m3", "int32", "int64"),
+     requires=("multi_gpu",),
+     provenance=Provenance(
+         repo="https://github.com/lukealonso/b12x",
+@@ -68,6 +70,7 @@ if TYPE_CHECKING:  # static analysis only; runtime resolution is lazy
+         OneshotAllReduce,
+         OneshotAllReducePool,
+         TwoShotReduceScatter,
++        VocabParallelArgmax,
+         autotune_dma_crossovers,
+         is_supported,
+         lse_reduce_scatter_reference,
+diff --git a/b12x/comm/pcie/_cute_intrinsics.py b/b12x/comm/pcie/_cute_intrinsics.py
+index 6f2daab..f65c602 100644
+--- a/b12x/comm/pcie/_cute_intrinsics.py
++++ b/b12x/comm/pcie/_cute_intrinsics.py
+@@ -501,3 +501,57 @@ def rsqrt_approx_f32(value: Float32, *, loc=None, ip=None) -> Float32:
+             ip=ip,
+         )
+     )
++
++
++@dsl_user_op
++def float_order_key(value: Float32, *, loc=None, ip=None) -> Uint32:
++    """Map a float onto a u32 whose unsigned order matches float order.
++
++    Lets a (score, expert) pair be packed into one integer key, so "better
++    candidate" becomes a plain integer max and the tie-break stops costing a
++    second comparison.
++    """
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Float32(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .u32 bits, mask;
++                mov.b32 bits, $1;
++                shr.u32 mask, bits, 31;
++                mul.lo.u32 mask, mask, 0x7fffffff;
++                or.b32 mask, mask, 0x80000000;
++                xor.b32 $0, bits, mask;
++            }
++            """,
++            "=r,f",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def redux_max_u32(value: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Warp-wide unsigned max in one instruction.
++
++    ``cute.arch.warp_redux_sync`` exposes the float variant, which libNVVM
++    rejects for sm_120a; the integer one is what the kernel actually needs.
++    """
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Uint32(value).ir_value(loc=loc, ip=ip)],
++            "redux.sync.max.u32 $0, $1, 0xffffffff;",
++            "=r,r",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
+diff --git a/b12x/comm/pcie/_dcp_a2a_cute.py b/b12x/comm/pcie/_dcp_a2a_cute.py
+index 0dea260..070526c 100644
+--- a/b12x/comm/pcie/_dcp_a2a_cute.py
++++ b/b12x/comm/pcie/_dcp_a2a_cute.py
+@@ -17,12 +17,15 @@ from b12x._lib.intrinsics import (
+     fmax_f32,
+     ld_global_v4_u32,
+     st_global_v4_u32,
++    u32_as_f32,
+ )
+ from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
+ from b12x._lib.utils import current_cuda_stream, make_ptr
+ 
+ from ._dcp_cute_common import block_pair_barrier
+ from ._cute_intrinsics import (
++    float_order_key,
++    redux_max_u32,
+     ld_generic_f32,
+     ld_relaxed_gpu_u32,
+     pack_f32x2_to_bf16x2,
+@@ -106,6 +109,89 @@ def _copy_16b(source: cute.Pointer, destination: cute.Pointer) -> None:
+     st_global_v4_u32(destination.toint(), *values)
+ 
+ 
++@dsl_user_op
++def _select_if_eq_u32(
++    lhs: Uint32,
++    rhs: Uint32,
++    on_equal: Uint32,
++    otherwise: Uint32,
++    *,
++    loc=None,
++    ip=None,
++) -> Uint32:
++    """``lhs == rhs ? on_equal : otherwise`` as one predicated select."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Uint32(lhs).ir_value(loc=loc, ip=ip),
++                Uint32(rhs).ir_value(loc=loc, ip=ip),
++                Uint32(on_equal).ir_value(loc=loc, ip=ip),
++                Uint32(otherwise).ir_value(loc=loc, ip=ip),
++            ],
++            "{ .reg .pred p; setp.eq.u32 p, $1, $2; selp.b32 $0, $3, $4, p; }",
++            "=r,r,r,r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _select_if_eq_u64(
++    lhs: cutlass.Uint64,
++    rhs: cutlass.Uint64,
++    on_equal: cutlass.Uint64,
++    otherwise: cutlass.Uint64,
++    *,
++    loc=None,
++    ip=None,
++) -> cutlass.Uint64:
++    """``lhs == rhs ? on_equal : otherwise`` as one predicated select.
++
++    A Python ``if`` on a runtime condition becomes a branch region. The top-16
++    rounds update a register-held key array, so a divergent branch can spill the
++    array to local memory. A ternary chain emits straight-line predicated code
++    and lets ptxas fold repeated ``setp`` operations.
++    """
++
++    return cutlass.Uint64(
++        llvm.inline_asm(
++            T.i64(),
++            [
++                cutlass.Uint64(lhs).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(rhs).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(on_equal).ir_value(loc=loc, ip=ip),
++                cutlass.Uint64(otherwise).ir_value(loc=loc, ip=ip),
++            ],
++            "{ .reg .pred p; setp.eq.u64 p, $1, $2; selp.b64 $0, $3, $4, p; }",
++            "=l,l,l,l,l",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@cute.jit
++def _copy_16b_addr(source: Int64, destination: Int64) -> None:
++    """Copy 16B between two byte addresses already resolved by the caller.
++
++    The gather loops pick their source rank at runtime.  Selecting the address
++    first and issuing one copy keeps a single load in flight per thread; cloning
++    the copy once per peer inside a constexpr chain makes a warp that straddles
++    two source ranks issue its loads in two serialised batches.
++    """
++    values = ld_global_v4_u32(source)
++    st_global_v4_u32(destination, *values)
++
++
+ @dsl_user_op
+ def _fma_rn_f32(
+     a: Float32,
+@@ -168,7 +254,7 @@ def _add_u64_opaque(
+     loc=None,
+     ip=None,
+ ) -> Int64:
+-    """Add a payload offset without CSE into the earlier LSE address phase."""
++    """Add a payload offset without CSE into the LSE-address calculation."""
+ 
+     return Int64(
+         llvm.inline_asm(
+@@ -188,6 +274,70 @@ def _add_u64_opaque(
+     )
+ 
+ 
++
++_KIMI_NEG_INF = float("-inf")
++
++
++@cute.jit
++def _kimi_pack_key(score: Float32, expert: Int32) -> cutlass.Uint64:
++    """Pack (score, expert) so that a plain integer max picks the winner.
++
++    The expert index goes in complemented, so a tie on score resolves to the
++    lower index -- the same order the native reference produces, without a
++    second comparison at every step.
++    """
++    return (cutlass.Uint64(float_order_key(score)) << cutlass.Uint64(32)) | (
++        cutlass.Uint64(0xFFFF) - cutlass.Uint64(expert)
++    )
++
++
++@cute.jit
++def _kimi_key_expert(key: cutlass.Uint64) -> Int32:
++    return Int32(cutlass.Uint64(0xFFFF) - (key & cutlass.Uint64(0xFFFF)))
++
++
++@cute.jit
++def _kimi_warp_max_key(key: cutlass.Uint64) -> cutlass.Uint64:
++    """Warp-wide max of a 64-bit key in two instructions.
++
++    Reduces the high words, then only the low words of the lanes that tied on
++    the high word, which is cheaper than carrying a 64-bit value through a
++    shuffle chain.
++    """
++    hi = cutlass.Uint32(key >> cutlass.Uint64(32))
++    lo = cutlass.Uint32(key & cutlass.Uint64(0xFFFFFFFF))
++    max_hi = redux_max_u32(hi)
++    contribution = _select_if_eq_u32(hi, max_hi, lo, Uint32(0))
++    max_lo = redux_max_u32(contribution)
++    return (cutlass.Uint64(max_hi) << cutlass.Uint64(32)) | cutlass.Uint64(max_lo)
++
++
++def _kimi_sort_desc(keys, count: int) -> None:
++    """Descending bitonic sort over a compile-time number of packed keys.
++
++    Every index is a Python constant, so the whole network unrolls and the
++    per-round selection can just read ``keys[0]``.
++    """
++    width = 2
++    while width <= count:
++        stride = width // 2
++        while stride > 0:
++            for index in range(count):
++                peer = index ^ stride
++                if peer <= index:
++                    continue
++                descending = (index & width) == 0
++                lower = keys[index]
++                upper = keys[peer]
++                if descending:
++                    keys[index] = cutlass.max(lower, upper)
++                    keys[peer] = cutlass.min(lower, upper)
++                else:
++                    keys[index] = cutlass.min(lower, upper)
++                    keys[peer] = cutlass.max(lower, upper)
++            stride //= 2
++        width *= 2
++
+ class _DCPA2ABase:
+     def __init__(
+         self,
+@@ -902,23 +1052,31 @@ class _AllGatherHeadsLaunch(_DCPA2ABase):
+                 * Int64(packs_per_head)
+             )
+             output_base = Int64(row) * Int64(packs_per_head)
++            # Resolve the peer's base address first and copy once. Cloning the
++            # whole pack loop into all sixteen arms of the constexpr chain
++            # bloats the kernel and pays the chain on every row.
++            source_address = Int64(
++                (local_input + source_base * Int64(4)).toint()
++            )
+             for source in cutlass.range_constexpr(self._world_size):
+                 if source_rank == Int32(source):
+                     if cutlass.const_expr(source == self._rank):
+                         source_words = local_input
+                     else:
+                         source_words = self._staging_words(staging[source])
+-                    pack = lane
+-                    while pack < packs_per_head:
+-                        _copy_16b(
+-                            source_words
+-                            + source_base * Int64(4)
+-                            + Int64(pack) * Int64(4),
+-                            output
+-                            + output_base * Int64(4)
+-                            + Int64(pack) * Int64(4),
+-                        )
+-                        pack += Int32(32)
++                    source_address = Int64(
++                        (source_words + source_base * Int64(4)).toint()
++                    )
++            output_address = Int64(
++                (output + output_base * Int64(4)).toint()
++            )
++            pack = lane
++            while pack < packs_per_head:
++                _copy_16b_addr(
++                    source_address + Int64(pack) * Int64(16),
++                    output_address + Int64(pack) * Int64(16),
++                )
++                pack += Int32(32)
+             row += warp_stride
+ 
+         if cutlass.const_expr(self._device_slot_selection):
+@@ -1188,6 +1346,19 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+             )
+             source_rank = row_pack // first_packs
+             pack = row_pack - source_rank * first_packs
++            # Default to this rank's own slice so the address is always
++            # mappable; the chain below always overwrites it, because
++            # source_rank is derived from row_pack and is in range.
++            source_address = Int64(
++                (
++                    local_first
++                    + (
++                        Int64(batch_index) * Int64(first_packs)
++                        + Int64(pack)
++                    )
++                    * Int64(4)
++                ).toint()
++            )
+             for source in cutlass.range_constexpr(self._world_size):
+                 if source_rank == Int32(source):
+                     if cutlass.const_expr(source == self._rank):
+@@ -1200,11 +1371,16 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                         source_base = (
+                             Int64(batch_index) * Int64(combined_packs)
+                         )
+-                    _copy_16b(
+-                        source_words
+-                        + (source_base + Int64(pack)) * Int64(4),
+-                        output_first + Int64(linear) * Int64(4),
++                    source_address = Int64(
++                        (
++                            source_words
++                            + (source_base + Int64(pack)) * Int64(4)
++                        ).toint()
+                     )
++            _copy_16b_addr(
++                source_address,
++                Int64((output_first + Int64(linear) * Int64(4)).toint()),
++            )
+             linear += Int32(self._threads)
+ 
+         if cutlass.const_expr(not self._kimi_topk):
+@@ -1221,6 +1397,16 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 )
+                 source_rank = row_pack // second_packs
+                 pack = row_pack - source_rank * second_packs
++                source_address = Int64(
++                    (
++                        local_second
++                        + (
++                            Int64(batch_index) * Int64(second_packs)
++                            + Int64(pack)
++                        )
++                        * Int64(4)
++                    ).toint()
++                )
+                 for source in cutlass.range_constexpr(self._world_size):
+                     if source_rank == Int32(source):
+                         if cutlass.const_expr(source == self._rank):
+@@ -1236,11 +1422,18 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                                 Int64(batch_index) * Int64(combined_packs)
+                                 + Int64(first_packs)
+                             )
+-                        _copy_16b(
+-                            source_words
+-                            + (source_base + Int64(pack)) * Int64(4),
+-                            output_second + Int64(linear) * Int64(4),
++                        source_address = Int64(
++                            (
++                                source_words
++                                + (source_base + Int64(pack)) * Int64(4)
++                            ).toint()
+                         )
++                _copy_16b_addr(
++                    source_address,
++                    Int64(
++                        (output_second + Int64(linear) * Int64(4)).toint()
++                    ),
++                )
+                 linear += Int32(self._threads)
+         else:
+             smem_alloc = cutlass.utils.SmemAllocator()
+@@ -1253,6 +1446,10 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 unbiased_scores: cute.struct.Align[
+                     cute.struct.MemRange[Float32, 896], 16
+                 ]
++                # The 64 survivors of the warp-local rounds, as packed keys.
++                reduce_keys: cute.struct.Align[
++                    cute.struct.MemRange[cutlass.Uint64, 64], 16
++                ]
+ 
+             storage = smem_alloc.allocate(SharedStorage)
+             selection_scores = storage.selection_scores.get_tensor(
+@@ -1261,30 +1458,51 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+             unbiased_scores = storage.unbiased_scores.get_tensor(
+                 cute.make_layout((896,), stride=(1,))
+             )
++            reduce_keys = storage.reduce_keys.get_tensor(
++                cute.make_layout((64,), stride=(1,))
++            )
+ 
+-            expert = Int32(tidx)
+-            while expert < Int32(896):
+-                source_rank = expert // Int32(56)
+-                local_expert = expert - source_rank * Int32(56)
+-                router_value = Float32(0.0)
++            # Pull the 3,584-byte router row in 16-byte packs. This uses 224
++            # peer transactions instead of 896 scalar transactions; PCIe
++            # transaction count dominates router-row transfer time.
++            router_pack = Int32(tidx)
++            router_packs_total = Int32(self._world_size) * second_packs
++            while router_pack < router_packs_total:
++                source_rank = router_pack // second_packs
++                pack = router_pack - source_rank * second_packs
++                source_address = Int64(
++                    (local_second + Int64(pack) * Int64(4)).toint()
++                )
+                 for source in cutlass.range_constexpr(self._world_size):
+                     if source_rank == Int32(source):
+                         if cutlass.const_expr(source == self._rank):
+-                            source_router = cute.recast_ptr(
+-                                local_second.align(4), dtype=Float32
+-                            )
++                            source_words = local_second
++                            source_base = Int64(0)
+                         else:
+-                            source_router = cute.recast_ptr(
+-                                (
+-                                    staging[source]
+-                                    + slot_offset
+-                                    + Int64(first_packs) * Int64(16)
+-                                ).align(4),
+-                                dtype=Float32,
++                            source_words = self._staging_words(
++                                staging[source] + slot_offset
+                             )
+-                        router_value = cute.arch.load(
+-                            source_router + Int64(local_expert), Float32
++                            source_base = Int64(first_packs)
++                        source_address = Int64(
++                            (
++                                source_words
++                                + (source_base + Int64(pack)) * Int64(4)
++                            ).toint()
+                         )
++                word0, word1, word2, word3 = ld_global_v4_u32(source_address)
++                # linear pack index * 4 is exactly rank * 56 + 4 * pack, so the
++                # four floats land on their own global expert indices.
++                base_expert = router_pack * Int32(4)
++                selection_scores[base_expert] = u32_as_f32(word0)
++                selection_scores[base_expert + Int32(1)] = u32_as_f32(word1)
++                selection_scores[base_expert + Int32(2)] = u32_as_f32(word2)
++                selection_scores[base_expert + Int32(3)] = u32_as_f32(word3)
++                router_pack += Int32(self._threads)
++            cute.arch.sync_threads()
++
++            expert = Int32(tidx)
++            while expert < Int32(896):
++                router_value = selection_scores[expert]
+                 bias = cute.arch.load(
+                     correction_bias + Int64(expert), Float32
+                 )
+@@ -1306,43 +1524,89 @@ class _AllGatherPairLaunch(_DCPA2ABase):
+                 expert += Int32(self._threads)
+             cute.arch.sync_threads()
+ 
+-            if Int32(tidx) == Int32(0):
+-                selected_ids = cute.make_rmem_tensor((16,), Int32)
+-                selected_weights = cute.make_rmem_tensor((16,), Float32)
++            # Two-level top-16 over packed (score, expert) keys. Four warps each
++            # reduce 256 experts held in registers (8 per lane); warp 0 then
++            # merges the 64 survivors.
++            # A round costs one warp reduction -- two instructions -- because the
++            # tie-break lives in the key rather than in a second comparison.
++            lane = Int32(tidx) % Int32(32)
++            warp = Int32(tidx) // Int32(32)
++            lane_key = cutlass.Uint64(0)
++            keys = cute.make_rmem_tensor((8,), cutlass.Uint64)
++            if warp < Int32(4):
++                for item in cutlass.range_constexpr(8):
++                    expert_id = warp * Int32(256) + Int32(item * 32) + lane
++                    value = Float32(_KIMI_NEG_INF)
++                    if expert_id < Int32(896):
++                        value = selection_scores[expert_id]
++                    keys[item] = _kimi_pack_key(value, expert_id)
++                _kimi_sort_desc(keys, 8)
++                previous = cutlass.Uint64(0)
+                 for selected in cutlass.range_constexpr(16):
+-                    selected_ids[selected] = Int32(-1)
+-                    selected_weights[selected] = Float32(0.0)
+-                weight_sum = Float32(0.0)
++                    if cutlass.const_expr(selected > 0):
++                        # Hold the head before the shift overwrites it, so
++                        # every element selects on the same condition.
++                        head = keys[0]
++                        tail_key = _kimi_pack_key(
++                            Float32(_KIMI_NEG_INF), _kimi_key_expert(keys[7])
++                        )
++                        for item in cutlass.range_constexpr(7):
++                            keys[item] = _select_if_eq_u64(
++                                previous, head, keys[item + 1], keys[item]
++                            )
++                        keys[7] = _select_if_eq_u64(
++                            previous, head, tail_key, keys[7]
++                        )
++                    previous = _kimi_warp_max_key(keys[0])
++                    lane_key = _select_if_eq_u64(
++                        cutlass.Uint64(lane),
++                        cutlass.Uint64(selected),
++                        previous,
++                        lane_key,
++                    )
++                if lane < Int32(16):
++                    reduce_keys[warp * Int32(16) + lane] = lane_key
++            cute.arch.sync_threads()
++            selected_ids = cute.make_rmem_tensor((16,), Int32)
++            selected_weights = cute.make_rmem_tensor((16,), Float32)
++            weight_sum = Float32(0.0)
++            if warp == Int32(0):
++                merge_keys = cute.make_rmem_tensor((2,), cutlass.Uint64)
++                for item in cutlass.range_constexpr(2):
++                    merge_keys[item] = reduce_keys[Int32(item * 32) + lane]
++                _kimi_sort_desc(merge_keys, 2)
++                previous = cutlass.Uint64(0)
+                 for selected in cutlass.range_constexpr(16):
+-                    best_score = Float32(float("-inf"))
+-                    best_expert = Int32(-1)
+-                    candidate = Int32(0)
+-                    while candidate < Int32(896):
+-                        already_selected = False
+-                        for prior in cutlass.range_constexpr(selected):
+-                            if selected_ids[prior] == candidate:
+-                                already_selected = True
+-                        score = selection_scores[candidate]
+-                        if not already_selected:
+-                            if (
+-                                score > best_score
+-                                or (
+-                                    score == best_score
+-                                    and (
+-                                        best_expert < Int32(0)
+-                                        or candidate < best_expert
+-                                    )
+-                                )
+-                            ):
+-                                best_score = score
+-                                best_expert = candidate
+-                        candidate += Int32(1)
+-                    selected_ids[selected] = best_expert
+-                    weight = Float32(0.0)
+-                    if best_expert >= Int32(0):
+-                        weight = unbiased_scores[best_expert]
++                    if cutlass.const_expr(selected > 0):
++                        head = merge_keys[0]
++                        tail_key = _kimi_pack_key(
++                            Float32(_KIMI_NEG_INF),
++                            _kimi_key_expert(merge_keys[1]),
++                        )
++                        merge_keys[0] = _select_if_eq_u64(
++                            previous, head, merge_keys[1], merge_keys[0]
++                        )
++                        merge_keys[1] = _select_if_eq_u64(
++                            previous, head, tail_key, merge_keys[1]
++                        )
++                    previous = _kimi_warp_max_key(merge_keys[0])
++                    # The reduction broadcasts, so every lane agrees here.
++                    final_expert = _kimi_key_expert(previous)
++                    selected_ids[selected] = final_expert
++                    weight = unbiased_scores[final_expert]
+                     selected_weights[selected] = weight
+-                    weight_sum += weight
++                # The native kernel renormalises with cg::reduce over the warp,
++                # which folds by halves (lane l adds lane l+stride, stride
++                # halving from 16). Summing left to right instead lands a ULP
++                # away, so fold in the same order. Same fifteen adds.
++                eight = [
++                    selected_weights[item] + selected_weights[item + 8]
++                    for item in range(8)
++                ]
++                four = [eight[item] + eight[item + 4] for item in range(4)]
++                two = [four[item] + four[item + 2] for item in range(2)]
++                weight_sum = two[0] + two[1]
++            if Int32(tidx) == Int32(0):
+                 scale = Float32(1.0) / (weight_sum + Float32(1.0e-20))
+                 for selected in cutlass.range_constexpr(16):
+                     cute.arch.store(
+diff --git a/b12x/comm/pcie/api.py b/b12x/comm/pcie/api.py
+index 098d100..3a57f4f 100644
+--- a/b12x/comm/pcie/api.py
++++ b/b12x/comm/pcie/api.py
+@@ -37,13 +37,16 @@ from .pcie_oneshot import (
+ from .pcie_twoshot import (
+     PCIeTwoShotSP as TwoShotReduceScatter,
+ )
++from .pcie_vocab_argmax import (
++    PCIeVocabParallelArgmax as VocabParallelArgmax,
++)
+ 
+ 
+ def is_supported(device=None) -> bool:
+     """True on SM120/SM121 with >= 2 visible CUDA devices.
+ 
+-    Device kernels are compiled from the Python CuTe DSL sources on first use;
+-    no repo-authored C++/CUDA extension or runtime nvcc build is involved.
++    CuTe device kernels compile from Python sources. ``VocabParallelArgmax``
++    JIT-builds its bundled CUDA extension on first use.
+     """
+     import torch
+ 
+@@ -59,6 +62,7 @@ __all__ = [
+     "DcpAllToAll",
+     "DcpAllToAllPool",
+     "DcpTopKOwnerExchange",
++    "VocabParallelArgmax",
+     "autotune_dma_crossovers",
+     "parse_oneshot_max_size",
+     "lse_reduce_scatter_reference",
+diff --git a/b12x/comm/pcie/pcie_vocab_argmax.cu b/b12x/comm/pcie/pcie_vocab_argmax.cu
+new file mode 100644
+index 0000000..3e4e294
+--- /dev/null
++++ b/b12x/comm/pcie/pcie_vocab_argmax.cu
+@@ -0,0 +1,347 @@
++// Bounded-degree TP16 fused BF16 add + global greedy argmax.
++
++#include <ATen/cuda/Exceptions.h>
++#include <c10/cuda/CUDAGuard.h>
++#include <c10/cuda/CUDAStream.h>
++#include <cuda_bf16.h>
++#include <cuda_runtime.h>
++#include <math_constants.h>
++#include <torch/extension.h>
++
++#include <climits>
++#include <cmath>
++#include <cstdint>
++#include <memory>
++#include <stdexcept>
++#include <vector>
++
++#ifndef B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES
++#define B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES 24
++#endif
++
++static_assert(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES >= 0);
++
++namespace pcie_vocab_argmax {
++
++constexpr int kWorldSize = 16;
++constexpr int kIslandSize = 4;
++constexpr int kNumIslands = 4;
++constexpr int kSlots = 2;
++constexpr int kMaxBatch = 8;
++constexpr int kThreads = 512;
++
++struct Pair {
++  float value;
++  int32_t index;
++};
++
++struct alignas(128) Flag {
++  uint32_t value;
++  uint32_t padding[31];
++};
++
++struct alignas(256) Header {
++  uint32_t generation[kMaxBatch];
++  uint32_t generation_padding[64 - kMaxBatch];
++  Flag local_ready[kSlots][kMaxBatch][kIslandSize];
++  Flag island_ready[kSlots][kMaxBatch][kNumIslands];
++  Pair local_pair[kSlots][kMaxBatch];
++  Pair island_pair[kSlots][kMaxBatch];
++};
++
++static_assert(sizeof(Flag) == 128);
++static_assert(sizeof(Header) % 256 == 0);
++
++struct Runtime {
++  Header* slabs[kWorldSize] = {};
++  int rank;
++  int64_t local_elements;
++  int max_batch;
++};
++
++__device__ __forceinline__ uint32_t load_acquire(const uint32_t* ptr) {
++  uint32_t value;
++  asm volatile("ld.acquire.sys.global.u32 %0, [%1];"
++               : "=r"(value)
++               : "l"(ptr)
++               : "memory");
++  return value;
++}
++
++__device__ __forceinline__ void store_release(
++    uint32_t* ptr, uint32_t value) {
++  asm volatile("st.release.sys.global.u32 [%0], %1;"
++               :
++               : "l"(ptr), "r"(value)
++               : "memory");
++}
++
++__device__ __forceinline__ void wait_for(
++    const uint32_t* ptr, uint32_t generation) {
++  while (load_acquire(ptr) < generation) {
++#if __CUDA_ARCH__ >= 700 && \
++    B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES > 0
++    __nanosleep(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES);
++#endif
++  }
++}
++
++__device__ __forceinline__ Pair better(Pair lhs, Pair rhs) {
++  const bool lhs_nan = isnan(lhs.value);
++  const bool rhs_nan = isnan(rhs.value);
++  if (lhs_nan != rhs_nan) {
++    return rhs_nan ? rhs : lhs;
++  }
++  if (rhs.value > lhs.value ||
++      (rhs.value == lhs.value && rhs.index < lhs.index)) {
++    return rhs;
++  }
++  return lhs;
++}
++
++__device__ __forceinline__ Pair warp_reduce(Pair value) {
++  constexpr unsigned mask = 0xffffffffU;
++#pragma unroll
++  for (int offset = 16; offset > 0; offset >>= 1) {
++    Pair other{
++        __shfl_down_sync(mask, value.value, offset),
++        __shfl_down_sync(mask, value.index, offset),
++    };
++    if ((threadIdx.x & 31) + offset < 32) {
++      value = better(value, other);
++    }
++  }
++  return value;
++}
++
++__global__ void fused_add_argmax_tp16(
++    Runtime runtime,
++    const nv_bfloat16* base,
++    const nv_bfloat16* bias,
++    int64_t base_row_stride,
++    int64_t bias_row_stride,
++    int64_t* output) {
++  __shared__ Pair warp_pairs[32];
++  __shared__ Pair block_pair;
++  __shared__ uint32_t generation;
++
++  const int tid = threadIdx.x;
++  const int row = blockIdx.x;
++  const int lane = tid & 31;
++  const int warp = tid >> 5;
++  const int warps = blockDim.x >> 5;
++  const int64_t base_row_offset =
++      static_cast<int64_t>(row) * base_row_stride;
++  const int64_t bias_row_offset =
++      static_cast<int64_t>(row) * bias_row_stride;
++
++  Pair best{-CUDART_INF_F, INT_MAX};
++  for (int64_t index = tid; index < runtime.local_elements;
++       index += blockDim.x) {
++    const float sum = __bfloat162float(base[base_row_offset + index]) +
++                      __bfloat162float(bias[bias_row_offset + index]);
++    const nv_bfloat16 rounded = __float2bfloat16_rn(sum);
++    const Pair candidate{
++        __bfloat162float(rounded),
++        static_cast<int32_t>(runtime.rank * runtime.local_elements + index),
++    };
++    best = better(best, candidate);
++  }
++  best = warp_reduce(best);
++  if (lane == 0) {
++    warp_pairs[warp] = best;
++  }
++  __syncthreads();
++
++  if (warp == 0) {
++    Pair warp_best = lane < warps
++                         ? warp_pairs[lane]
++                         : Pair{-CUDART_INF_F, INT_MAX};
++    warp_best = warp_reduce(warp_best);
++    if (lane == 0) {
++      block_pair = warp_best;
++    }
++  }
++  __syncthreads();
++  if (tid != 0) {
++    return;
++  }
++
++  Header* self = runtime.slabs[runtime.rank];
++  generation = atomicAdd(&self->generation[row], 1U) + 1U;
++  const int slot = static_cast<int>(generation & 1U);
++  const int island = runtime.rank / kIslandSize;
++  const int local_rank = runtime.rank % kIslandSize;
++  const int island_base = island * kIslandSize;
++
++  self->local_pair[slot][row] = block_pair;
++  __threadfence_system();
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    if (peer_local == local_rank) {
++      continue;
++    }
++    Header* peer = runtime.slabs[island_base + peer_local];
++    store_release(
++        &peer->local_ready[slot][row][local_rank].value,
++        generation);
++  }
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    if (peer_local == local_rank) {
++      continue;
++    }
++    wait_for(
++        &self->local_ready[slot][row][peer_local].value,
++        generation);
++  }
++
++  Pair island_best{-CUDART_INF_F, INT_MAX};
++#pragma unroll
++  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
++    island_best = better(
++        island_best,
++        runtime.slabs[island_base + peer_local]->local_pair[slot][row]);
++  }
++  self->island_pair[slot][row] = island_best;
++  __threadfence_system();
++
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    if (peer_island == island) {
++      continue;
++    }
++    Header* peer =
++        runtime.slabs[peer_island * kIslandSize + local_rank];
++    store_release(
++        &peer->island_ready[slot][row][island].value,
++        generation);
++  }
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    if (peer_island == island) {
++      continue;
++    }
++    wait_for(
++        &self->island_ready[slot][row][peer_island].value,
++        generation);
++  }
++
++  Pair global_best{-CUDART_INF_F, INT_MAX};
++#pragma unroll
++  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
++    global_best = better(
++        global_best,
++        runtime.slabs[peer_island * kIslandSize + local_rank]
++            ->island_pair[slot][row]);
++  }
++  output[row] = static_cast<int64_t>(global_best.index);
++}
++
++}  // namespace pcie_vocab_argmax
++
++using Runtime = pcie_vocab_argmax::Runtime;
++
++static int64_t slab_bytes() {
++  return static_cast<int64_t>(sizeof(pcie_vocab_argmax::Header));
++}
++
++static int64_t init_runtime(
++    const std::vector<int64_t>& slab_ptrs,
++    int64_t rank,
++    int64_t local_elements,
++    int64_t max_batch) {
++  if (slab_ptrs.size() != pcie_vocab_argmax::kWorldSize) {
++    throw std::invalid_argument("vocabulary argmax requires TP16");
++  }
++  if (rank < 0 || rank >= pcie_vocab_argmax::kWorldSize ||
++      local_elements <= 0 ||
++      local_elements * pcie_vocab_argmax::kWorldSize >= (int64_t(1) << 31) ||
++      max_batch <= 0 || max_batch > pcie_vocab_argmax::kMaxBatch) {
++    throw std::invalid_argument("invalid vocabulary argmax geometry");
++  }
++  auto runtime = std::make_unique<Runtime>();
++  runtime->rank = static_cast<int>(rank);
++  runtime->local_elements = local_elements;
++  runtime->max_batch = static_cast<int>(max_batch);
++  for (int index = 0; index < pcie_vocab_argmax::kWorldSize; ++index) {
++    runtime->slabs[index] =
++        reinterpret_cast<pcie_vocab_argmax::Header*>(slab_ptrs[index]);
++  }
++
++  const int island = runtime->rank / pcie_vocab_argmax::kIslandSize;
++  const int local_rank = runtime->rank % pcie_vocab_argmax::kIslandSize;
++  for (int peer_local = 0; peer_local < pcie_vocab_argmax::kIslandSize;
++       ++peer_local) {
++    const int peer_rank = island * pcie_vocab_argmax::kIslandSize + peer_local;
++    if (runtime->slabs[peer_rank] == nullptr) {
++      throw std::invalid_argument("missing local-island slab");
++    }
++  }
++  for (int peer_island = 0; peer_island < pcie_vocab_argmax::kNumIslands;
++       ++peer_island) {
++    const int peer_rank =
++        peer_island * pcie_vocab_argmax::kIslandSize + local_rank;
++    if (runtime->slabs[peer_rank] == nullptr) {
++      throw std::invalid_argument("missing cross-island lane slab");
++    }
++  }
++  return reinterpret_cast<int64_t>(runtime.release());
++}
++
++static void fused_add_argmax(
++    int64_t runtime_handle,
++    torch::Tensor base,
++    torch::Tensor bias,
++    torch::Tensor output) {
++  auto* runtime = reinterpret_cast<Runtime*>(runtime_handle);
++  TORCH_CHECK(runtime != nullptr, "vocabulary argmax runtime is closed");
++  TORCH_CHECK(base.is_cuda() && bias.is_cuda() && output.is_cuda(),
++              "tensors must be CUDA");
++  TORCH_CHECK(base.scalar_type() == torch::kBFloat16 &&
++                  bias.scalar_type() == torch::kBFloat16,
++              "base and bias must be BF16");
++  TORCH_CHECK(output.scalar_type() == torch::kInt64,
++              "output must be int64");
++  TORCH_CHECK(base.device() == bias.device() &&
++                  base.device() == output.device(),
++              "tensors must be on the same CUDA device");
++  TORCH_CHECK(base.dim() == 2 && bias.dim() == 2,
++              "base and bias must be two-dimensional");
++  TORCH_CHECK(base.stride(1) == 1 && bias.stride(1) == 1,
++              "input last dimensions must be contiguous");
++  TORCH_CHECK(base.stride(0) > 0 && bias.stride(0) > 0,
++              "input row strides must be positive");
++  TORCH_CHECK(output.is_contiguous(), "output must be contiguous");
++  TORCH_CHECK(base.sizes() == bias.sizes(),
++              "base and bias shapes must match");
++  TORCH_CHECK(base.dim() == 2 && base.size(1) == runtime->local_elements,
++              "inputs must be [batch, local_vocab]");
++  TORCH_CHECK(base.size(0) > 0 && base.size(0) <= runtime->max_batch,
++              "batch exceeds vocabulary argmax capacity");
++  TORCH_CHECK(output.dim() == 1 && output.size(0) == base.size(0),
++              "output must be [batch]");
++
++  const c10::cuda::CUDAGuard guard(base.device());
++  const cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
++  pcie_vocab_argmax::fused_add_argmax_tp16
++      <<<static_cast<int>(base.size(0)), pcie_vocab_argmax::kThreads, 0, stream>>>(
++          *runtime,
++          reinterpret_cast<const nv_bfloat16*>(base.data_ptr()),
++          reinterpret_cast<const nv_bfloat16*>(bias.data_ptr()),
++          base.stride(0),
++          bias.stride(0),
++          reinterpret_cast<int64_t*>(output.data_ptr()));
++  C10_CUDA_KERNEL_LAUNCH_CHECK();
++}
++
++static void destroy_runtime(int64_t runtime_handle) {
++  delete reinterpret_cast<Runtime*>(runtime_handle);
++}
++
++PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
++  module.def("slab_bytes", &slab_bytes);
++  module.def("init_runtime", &init_runtime);
++  module.def("fused_add_argmax", &fused_add_argmax);
++  module.def("destroy_runtime", &destroy_runtime);
++}
+diff --git a/b12x/comm/pcie/pcie_vocab_argmax.py b/b12x/comm/pcie/pcie_vocab_argmax.py
+new file mode 100644
+index 0000000..8b54257
+--- /dev/null
++++ b/b12x/comm/pcie/pcie_vocab_argmax.py
+@@ -0,0 +1,381 @@
++"""Bounded-degree TP16 vocabulary argmax runtime."""
++
++from __future__ import annotations
++
++import os
++from contextlib import contextmanager, suppress
++from functools import lru_cache
++from pathlib import Path
++from typing import Iterator, Optional
++from warnings import warn
++
++import torch
++import torch.distributed as dist
++from torch.distributed import ProcessGroup
++from torch.utils.cpp_extension import load
++
++from ._cuda_ipc import CudaRTLibrary
++from .pcie_oneshot import _broadcast_gather_object
++
++
++WORLD_SIZE = 16
++ISLAND_SIZE = 4
++MAX_BATCH_SIZE = 8
++
++
++def _exchange_ipc_handles(
++    local_handle: object,
++    group: ProcessGroup,
++) -> list[object]:
++    """Exchange CUDA IPC handles over NCCL or a metadata-only Gloo group."""
++
++    backend = str(dist.get_backend(group=group)).lower()
++    if "nccl" in backend:
++        return _broadcast_gather_object(local_handle, group)
++    if "gloo" not in backend:
++        raise ValueError(
++            "vocabulary argmax IPC exchange requires an NCCL or Gloo group, "
++            f"got {backend}"
++        )
++
++    world_size = dist.get_world_size(group=group)
++    handles: list[object | None] = [None] * world_size
++    dist.all_gather_object(handles, local_handle, group=group)
++    if any(handle is None for handle in handles):
++        raise RuntimeError("vocabulary argmax IPC exchange returned an empty handle")
++    return list(handles)
++
++
++def _require_uniform_geometry(
++    local_vocab_size: int,
++    max_batch_size: int,
++    group: ProcessGroup,
++) -> None:
++    """Reject rank-local geometry before allocating collective resources."""
++    geometry = (int(local_vocab_size), int(max_batch_size))
++    # vLLM supplies its metadata-only Gloo TP group here so initialization does
++    # not allocate an NCCL object-collective workspace.  Geometry validation
++    # must preserve the same NCCL-or-Gloo contract as CUDA IPC handle exchange.
++    peer_geometry = _exchange_ipc_handles(geometry, group)
++    if any(candidate != geometry for candidate in peer_geometry):
++        raise RuntimeError(
++            f"vocabulary argmax geometry differs across ranks: {peer_geometry}"
++        )
++
++
++def _wait_nanosleep_cycles_from_env() -> int:
++    raw = os.getenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", "24")
++    try:
++        cycles = int(raw)
++    except ValueError as exc:
++        raise ValueError(
++            "B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES must be an integer"
++        ) from exc
++    if not 0 <= cycles <= 1024:
++        raise ValueError("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES must be in [0, 1024]")
++    return cycles
++
++
++@lru_cache(maxsize=1)
++def _load_extension():
++    source = Path(__file__).with_name("pcie_vocab_argmax.cu")
++    wait_cycles = _wait_nanosleep_cycles_from_env()
++    return load(
++        name=f"b12x_pcie_vocab_argmax_ext_ns{wait_cycles}",
++        sources=[str(source)],
++        extra_cuda_cflags=[
++            "-O3",
++            f"-DB12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES={wait_cycles}",
++        ],
++        extra_ldflags=["-lcuda"],
++        verbose=(os.getenv("B12X_PCIE_VOCAB_ARGMAX_VERBOSE_BUILD", "0") == "1"),
++    )
++
++
++def _selected_peers(rank: int, world_size: int = WORLD_SIZE) -> tuple[int, ...]:
++    """Return three island peers plus the same lane in other islands."""
++
++    if world_size != WORLD_SIZE or not 0 <= rank < world_size:
++        raise ValueError(
++            f"vocabulary argmax requires TP{WORLD_SIZE}, got rank={rank}, "
++            f"TP={world_size}"
++        )
++    island = rank // ISLAND_SIZE
++    lane = rank % ISLAND_SIZE
++    local = set(range(island * ISLAND_SIZE, (island + 1) * ISLAND_SIZE))
++    cross_island = set(range(lane, world_size, ISLAND_SIZE))
++    return tuple(sorted((local | cross_island) - {rank}))
++
++
++class PCIeVocabParallelArgmax:
++    """Fuse BF16 add and exact global greedy sampling across TP16 shards.
++
++    Every TP rank must invoke ``fused_add_argmax`` once per logical step with
++    the same batch size. Tensor-parallel schedulers satisfy this collective
++    ordering invariant; callers that cannot guarantee it must not use this
++    runtime. Construction verifies that local vocabulary and capacity geometry
++    match on all ranks.
++    """
++
++    def __init__(
++        self,
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> None:
++        self.group = exchange_group
++        self.rank = dist.get_rank(group=exchange_group)
++        self.world_size = dist.get_world_size(group=exchange_group)
++        self.device = (
++            device
++            if isinstance(device, torch.device)
++            else torch.device(f"cuda:{device}" if isinstance(device, int) else device)
++        )
++        if self.world_size != WORLD_SIZE:
++            raise ValueError(
++                f"vocabulary argmax requires TP{WORLD_SIZE}, got TP{self.world_size}"
++            )
++        if self.device.type != "cuda":
++            raise ValueError("vocabulary argmax requires a CUDA device")
++        device_index = self.device.index
++        if device_index is None:
++            device_index = torch.cuda.current_device()
++            self.device = torch.device("cuda", device_index)
++        if local_vocab_size <= 0 or local_vocab_size * self.world_size >= 1 << 31:
++            raise ValueError("global vocabulary must fit a positive int32 index")
++        if not 0 < max_batch_size <= MAX_BATCH_SIZE:
++            raise ValueError(f"max_batch_size must be in [1, {MAX_BATCH_SIZE}]")
++
++        self.local_vocab_size = int(local_vocab_size)
++        self.max_batch_size = int(max_batch_size)
++        _require_uniform_geometry(
++            self.local_vocab_size,
++            self.max_batch_size,
++            exchange_group,
++        )
++        self._ext = ext_module or _load_extension()
++        self._ipc = CudaRTLibrary()
++        self._runtime = 0
++        self._local_ptr = 0
++        self._remote_ptrs: list[int] = []
++        self._closed = False
++
++        slab_bytes = int(self._ext.slab_bytes())
++        peer_ptrs = [0] * self.world_size
++        try:
++            with self._cuda_runtime_device():
++                self._local_ptr = self._ipc.cudaMalloc(slab_bytes)
++                self._ipc.cudaMemset(self._local_ptr, 0, slab_bytes)
++                local_handle = self._ipc.cudaIpcGetMemHandleBytes(self._local_ptr)
++                handles = _exchange_ipc_handles(local_handle, exchange_group)
++                peer_ptrs[self.rank] = self._local_ptr
++                for peer in _selected_peers(self.rank, self.world_size):
++                    remote_ptr = self._ipc.cudaIpcOpenMemHandleBytes(handles[peer])
++                    peer_ptrs[peer] = remote_ptr
++                    self._remote_ptrs.append(remote_ptr)
++                self._runtime = int(
++                    self._ext.init_runtime(
++                        peer_ptrs,
++                        self.rank,
++                        self.local_vocab_size,
++                        self.max_batch_size,
++                    )
++                )
++        except Exception:
++            # Construction cleanup is rank-local. Mark the object closed so
++            # garbage collection cannot enter the collective close protocol.
++            self._closed = True
++            with suppress(Exception), self._cuda_runtime_device():
++                for ptr in self._remote_ptrs:
++                    with suppress(Exception):
++                        self._ipc.cudaIpcCloseMemHandle(ptr)
++                self._remote_ptrs.clear()
++                if self._local_ptr:
++                    with suppress(Exception):
++                        self._ipc.cudaFree(self._local_ptr)
++                    self._local_ptr = 0
++            raise
++
++    @classmethod
++    def from_exchange_group(
++        cls,
++        *,
++        exchange_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> "PCIeVocabParallelArgmax":
++        return cls(
++            exchange_group=exchange_group,
++            device=device,
++            local_vocab_size=local_vocab_size,
++            max_batch_size=max_batch_size,
++            ext_module=ext_module,
++        )
++
++    @classmethod
++    def from_process_group(
++        cls,
++        *,
++        process_group: ProcessGroup,
++        device: torch.device | int | str,
++        local_vocab_size: int,
++        max_batch_size: int = MAX_BATCH_SIZE,
++        ext_module=None,
++    ) -> "PCIeVocabParallelArgmax":
++        return cls.from_exchange_group(
++            exchange_group=process_group,
++            device=device,
++            local_vocab_size=local_vocab_size,
++            max_batch_size=max_batch_size,
++            ext_module=ext_module,
++        )
++
++    @property
++    def mapped_peer_count(self) -> int:
++        return len(self._remote_ptrs)
++
++    @contextmanager
++    def _cuda_runtime_device(self) -> Iterator[None]:
++        """Select this runtime's CUDA device and restore the caller's device."""
++        if self.device.type != "cuda" or self.device.index is None:
++            yield
++            return
++        previous_device: int | None
++        try:
++            previous_device = torch.cuda.current_device()
++        except Exception:
++            previous_device = None
++        self._ipc.cudaSetDevice(self.device.index)
++        try:
++            yield
++        finally:
++            if previous_device is not None and previous_device != self.device.index:
++                self._ipc.cudaSetDevice(previous_device)
++
++    def fused_add_argmax(
++        self,
++        base: torch.Tensor,
++        bias: torch.Tensor,
++        out: Optional[torch.Tensor] = None,
++    ) -> torch.Tensor:
++        """Return exact global argmax of the BF16-rounded local sum."""
++
++        if self._closed:
++            raise RuntimeError("vocabulary argmax runtime is closed")
++        if base.device != self.device or bias.device != self.device:
++            raise ValueError("inputs must be on the runtime device")
++        if base.dtype != torch.bfloat16 or bias.dtype != torch.bfloat16:
++            raise ValueError("inputs must be BF16")
++        if base.ndim != 2 or base.shape != bias.shape:
++            raise ValueError("inputs must have matching [batch, local_vocab] shapes")
++        batch, local_vocab = (int(value) for value in base.shape)
++        if not 0 < batch <= self.max_batch_size:
++            raise ValueError(
++                f"batch size {batch} exceeds capacity {self.max_batch_size}"
++            )
++        if local_vocab != self.local_vocab_size:
++            raise ValueError(
++                f"local vocabulary must be {self.local_vocab_size}, got {local_vocab}"
++            )
++        if base.stride(1) != 1 or bias.stride(1) != 1:
++            raise ValueError("input last dimensions must be contiguous")
++        if base.stride(0) <= 0 or bias.stride(0) <= 0:
++            raise ValueError("input row strides must be positive")
++        if out is None:
++            out = torch.empty(batch, dtype=torch.int64, device=self.device)
++        if (
++            out.device != self.device
++            or out.dtype != torch.int64
++            or out.shape != (batch,)
++            or not out.is_contiguous()
++        ):
++            raise ValueError("output must be contiguous int64 [batch] on the device")
++        self._ext.fused_add_argmax(self._runtime, base, bias, out)
++        return out
++
++    def for_stream(self, stream: object = None) -> "PCIeVocabParallelArgmax":
++        del stream
++        return self
++
++    @contextmanager
++    def capture(self, stream: object = None):
++        del stream
++        yield self
++
++    def register_graph_buffers(self) -> None:
++        return None
++
++    def close(self) -> None:
++        if self._closed:
++            return
++        self._closed = True
++        with self._cuda_runtime_device():
++            torch.cuda.synchronize(self.device)
++            dist.barrier(group=self.group)
++            try:
++                if self._runtime:
++                    self._ext.destroy_runtime(self._runtime)
++            finally:
++                self._runtime = 0
++                try:
++                    for ptr in self._remote_ptrs:
++                        self._ipc.cudaIpcCloseMemHandle(ptr)
++                finally:
++                    self._remote_ptrs.clear()
++                    dist.barrier(group=self.group)
++                    try:
++                        if self._local_ptr:
++                            self._ipc.cudaFree(self._local_ptr)
++                    finally:
++                        self._local_ptr = 0
++                        dist.barrier(group=self.group)
++
++    def __enter__(self) -> "PCIeVocabParallelArgmax":
++        return self
++
++    def __exit__(self, *_args) -> None:
++        self.close()
++
++    def __del__(self) -> None:
++        if getattr(self, "_closed", True):
++            return
++
++        # Python garbage collection is not ordered across distributed ranks.
++        # Calling close() here could deadlock on its collective barriers, so
++        # finalization releases only resources owned by this rank. Callers
++        # must use close() or the context manager for coordinated teardown.
++        self._closed = True
++        with suppress(Exception):
++            warn(
++                "PCIeVocabParallelArgmax was garbage-collected without close(); "
++                "releasing rank-local CUDA resources without collective teardown",
++                ResourceWarning,
++                stacklevel=2,
++            )
++
++        with suppress(Exception), self._cuda_runtime_device():
++            runtime = getattr(self, "_runtime", 0)
++            self._runtime = 0
++            if runtime:
++                with suppress(Exception):
++                    self._ext.destroy_runtime(runtime)
++
++            remote_ptrs = list(getattr(self, "_remote_ptrs", ()))
++            self._remote_ptrs = []
++            for ptr in remote_ptrs:
++                with suppress(Exception):
++                    self._ipc.cudaIpcCloseMemHandle(ptr)
++
++            local_ptr = getattr(self, "_local_ptr", 0)
++            self._local_ptr = 0
++            if local_ptr:
++                with suppress(Exception):
++                    self._ipc.cudaFree(local_ptr)
++
++
++__all__ = ["PCIeVocabParallelArgmax"]
+diff --git a/b12x/gemm/mxfp8_linear/_kernel.py b/b12x/gemm/mxfp8_linear/_kernel.py
+index 985d757..b12fb71 100644
+--- a/b12x/gemm/mxfp8_linear/_kernel.py
++++ b/b12x/gemm/mxfp8_linear/_kernel.py
+@@ -86,9 +86,19 @@ def _pad_source_2d_k(source_2d: torch.Tensor, padded_k: int) -> torch.Tensor:
+     return padded.contiguous()
+ 
+ 
+-def _dense_gemm_kwargs_for_n(out_features: int) -> dict[str, object]:
+-    if int(out_features) < 64:
++def _dense_gemm_kwargs_for_shape(
++    tokens: int,
++    out_features: int,
++) -> dict[str, object]:
++    out_features = int(out_features)
++    if out_features < 64:
+         return {"mma_tiler_mn": (64, 32), "swap_ab": True}
++    # The unswapped TMA epilogue requires every outer C stride to be aligned
++    # to 16 bytes.  BF16/FP16 rows with N % 8 != 0 violate that requirement
++    # once the output contains more than one row.  The swapped kernel stores C
++    # directly and therefore supports the logical row stride without padding.
++    if int(tokens) > 1 and out_features % 8 != 0:
++        return {"mma_tiler_mn": (64, 64), "swap_ab": True}
+     return {}
+ 
+ 
+@@ -197,7 +207,7 @@ def _mxfp8_linear_fused_op(
+         sf_vec_size=MXFP8_SCALE_VEC_SIZE,
+         expected_m=expected_m,
+         stream=stream_int,
+-        **_dense_gemm_kwargs_for_n(out_features),
++        **_dense_gemm_kwargs_for_shape(tokens, out_features),
+     )[:, :, 0]
+ 
+ 
+diff --git a/b12x/gemm/tensor_fp8_linear/_kernel.py b/b12x/gemm/tensor_fp8_linear/_kernel.py
+index 1b95e55..5b140f3 100644
+--- a/b12x/gemm/tensor_fp8_linear/_kernel.py
++++ b/b12x/gemm/tensor_fp8_linear/_kernel.py
+@@ -96,9 +96,19 @@ def _activation_scale_mma(
+     )
+ 
+ 
+-def _dense_gemm_kwargs_for_n(out_features: int) -> dict[str, object]:
+-    if int(out_features) < 64:
++def _dense_gemm_kwargs_for_shape(
++    tokens: int,
++    out_features: int,
++) -> dict[str, object]:
++    out_features = int(out_features)
++    if out_features < 64:
+         return {"mma_tiler_mn": (64, 32), "swap_ab": True}
++    # The unswapped TMA epilogue requires every outer C stride to be aligned
++    # to 16 bytes.  BF16/FP16 rows with N % 8 != 0 violate that requirement
++    # once the output contains more than one row.  The swapped kernel stores C
++    # directly and therefore supports the logical row stride without padding.
++    if int(tokens) > 1 and out_features % 8 != 0:
++        return {"mma_tiler_mn": (64, 64), "swap_ab": True}
+     return {}
+ 
+ 
+@@ -195,7 +205,7 @@ def _tensor_fp8_linear_fused_op(
+         expected_m=expected_m,
+         stream=stream_int,
+         plain_fp8=True,
+-        **_dense_gemm_kwargs_for_n(out_features),
++        **_dense_gemm_kwargs_for_shape(tokens, out_features),
+     )[:, :, 0]
+ 
+ 
+diff --git a/benchmarks/benchmark_kimi_k3_pair_topk.py b/benchmarks/benchmark_kimi_k3_pair_topk.py
+index 8e22170..d98fb43 100644
+--- a/benchmarks/benchmark_kimi_k3_pair_topk.py
++++ b/benchmarks/benchmark_kimi_k3_pair_topk.py
+@@ -1,3 +1,12 @@
++"""Validate and benchmark the TP16 Kimi paired projection/top-k collective.
++
++The reference arm gathers both projection rows and applies vLLM ``grouped_topk``.
++The fused arm gathers the projection rows while selecting the same 16 experts.
++Expert IDs and projection data must match exactly. Router weights may differ by
++at most one FP32 rounding step because the implementations use different
++parallel reduction orders.
++"""
++
+ from __future__ import annotations
+ 
+ import argparse
+@@ -88,11 +97,16 @@ def _case(
+ 
+ 
+ def _equal_with_matching_nan(actual: torch.Tensor, expected: torch.Tensor) -> bool:
+-    return bool(
+-        torch.all(
+-            torch.eq(actual, expected) | (torch.isnan(actual) & torch.isnan(expected))
+-        )
++    finite = torch.isfinite(actual) & torch.isfinite(expected)
++    finite_close = torch.where(
++        finite,
++        torch.isclose(actual, expected, rtol=0.0, atol=1e-7),
++        torch.ones_like(finite),
++    )
++    special_equal = torch.eq(actual, expected) | (
++        torch.isnan(actual) & torch.isnan(expected)
+     )
++    return bool(torch.all(finite_close & torch.where(finite, True, special_equal)))
+ 
+ 
+ def _worker(
+@@ -209,7 +223,7 @@ def _worker(
+             )
+             dist.all_reduce(failures)
+             if failures.item() != 0:
+-                raise AssertionError(f"{name} differs from HH native reference")
++                raise AssertionError(f"{name} differs from the grouped_topk reference")
+             if name == "random":
+                 benchmark_router = local_router
+                 benchmark_bias = bias
+diff --git a/benchmarks/probe_mxfp8_linear_narrow_output.py b/benchmarks/probe_mxfp8_linear_narrow_output.py
+new file mode 100644
+index 0000000..289c7bf
+--- /dev/null
++++ b/benchmarks/probe_mxfp8_linear_narrow_output.py
+@@ -0,0 +1,241 @@
++"""Probe dense-MXFP8 plans for narrow output projections on SM120.
++
++The default shape matches a tensor-parallel projection with 7,168 input
++features and 132 output features per rank.  Every plan is checked against a
++dequantized reference after poisoning the output buffer, then timed only when
++the result is finite and all output rows were written.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++from dataclasses import dataclass
++
++import torch
++
++from b12x._lib.dense_gemm import dense_gemm
++from b12x.gemm._shared.block_fp8 import (
++    quantize_block_fp8_linear_input_mxfp8,
++)
++from b12x.gemm._shared.wo_mxfp8 import dequantize_mxfp8_rows_torch
++from b12x.gemm.mxfp8_linear._kernel import pack_mxfp8_linear_weight
++
++
++@dataclass(frozen=True)
++class Plan:
++    name: str
++    tile: tuple[int, int]
++    load_path: str
++    swap_ab: bool
++
++
++PLANS = (
++    Plan("tma-16x64-unswapped", (16, 64), "tma", False),
++    Plan("tma-32x64-unswapped", (32, 64), "tma", False),
++    Plan("tma-64x64-unswapped", (64, 64), "tma", False),
++    Plan("tma-16x128-unswapped", (16, 128), "tma", False),
++    Plan("tma-32x128-unswapped", (32, 128), "tma", False),
++    Plan("tma-64x128-unswapped", (64, 128), "tma", False),
++    Plan("tma-64x32-swapped", (64, 32), "tma", True),
++    Plan("tma-64x64-swapped", (64, 64), "tma", True),
++    Plan("cpasync-64x64-unswapped", (64, 64), "cpasync", False),
++)
++
++
++def _quantize_modelopt_rows(source: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
++    rows, width = map(int, source.shape)
++    blocked = source.float().reshape(rows, width // 32, 32)
++    max_abs = blocked.abs().amax(dim=-1)
++    scale_base = torch.where(max_abs > 0, max_abs / 448.0, torch.ones_like(max_abs))
++    scale_exp = torch.ceil(torch.log2(scale_base)).clamp(-127, 127)
++    scale_u8 = (scale_exp + 127).to(torch.uint8)
++    scale = scale_u8.view(torch.float8_e8m0fnu).float()
++    values = (
++        (blocked / scale[..., None])
++        .clamp(-448.0, 448.0)
++        .to(torch.float8_e4m3fn)
++        .reshape(rows, width)
++        .contiguous()
++    )
++    return values, scale_u8.contiguous()
++
++
++def _launch(
++    plan: Plan,
++    x_q,
++    packed_weight,
++    output: torch.Tensor,
++    *,
++    tokens: int,
++    in_features: int,
++) -> torch.Tensor:
++    return dense_gemm(
++        (
++            x_q.values.reshape(tokens, in_features, 1),
++            x_q.scale_mma,
++        ),
++        (
++            packed_weight.weight.values.reshape(
++                packed_weight.out_features,
++                packed_weight.padded_in_features,
++                1,
++            ),
++            packed_weight.weight.scale_mma,
++        ),
++        out=output,
++        ab_dtype="float8_e4m3fn",
++        sf_dtype="float8_e8m0fnu",
++        c_dtype="bfloat16",
++        sf_vec_size=32,
++        expected_m=tokens,
++        mma_tiler_mn=plan.tile,
++        load_path=plan.load_path,
++        swap_ab=plan.swap_ab,
++    )[:, :, 0]
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--tokens", type=int, default=3)
++    parser.add_argument("--in-features", type=int, default=7168)
++    parser.add_argument("--out-features", type=int, default=132)
++    parser.add_argument("--warmup", type=int, default=10)
++    parser.add_argument("--repeats", type=int, default=200)
++    parser.add_argument(
++        "--plan",
++        action="append",
++        choices=tuple(plan.name for plan in PLANS),
++        help="Run only the named plan; repeat the option to select several plans.",
++    )
++    args = parser.parse_args()
++
++    torch.manual_seed(20260814)
++    source = (
++        torch.randn(
++            (args.tokens, args.in_features),
++            device="cuda",
++            dtype=torch.bfloat16,
++        )
++        / 4
++    ).contiguous()
++    weight_bf16 = (
++        torch.randn(
++            (args.out_features, args.in_features),
++            device="cuda",
++            dtype=torch.bfloat16,
++        )
++        / 8
++    ).contiguous()
++    weight, weight_scale = _quantize_modelopt_rows(weight_bf16)
++    packed_weight = pack_mxfp8_linear_weight(weight, weight_scale)
++    source_q = quantize_block_fp8_linear_input_mxfp8(source)
++    source_dequantized = dequantize_mxfp8_rows_torch(
++        source_q.values, source_q.scale_rows
++    )
++    weight_dequantized = dequantize_mxfp8_rows_torch(
++        packed_weight.weight.values,
++        packed_weight.weight.scale_rows,
++    )
++    reference = (source_dequantized @ weight_dequantized.T).to(torch.bfloat16)
++
++    results: list[dict[str, object]] = []
++    selected_plans = (
++        tuple(plan for plan in PLANS if plan.name in args.plan) if args.plan else PLANS
++    )
++    for plan in selected_plans:
++        output = torch.full(
++            (args.tokens, args.out_features, 1),
++            float("nan"),
++            device="cuda",
++            dtype=torch.bfloat16,
++        )
++        try:
++            actual = _launch(
++                plan,
++                source_q,
++                packed_weight,
++                output,
++                tokens=args.tokens,
++                in_features=packed_weight.padded_in_features,
++            )
++            torch.cuda.synchronize()
++            finite = bool(torch.isfinite(actual).all().item())
++            mismatches = int((actual != reference).sum().item())
++            max_abs_error = float(
++                torch.nan_to_num(
++                    (actual.float() - reference.float()).abs(),
++                    nan=float("inf"),
++                    posinf=float("inf"),
++                    neginf=float("inf"),
++                ).max()
++            )
++            row_mismatches = [
++                int((actual[row] != reference[row]).sum().item())
++                for row in range(args.tokens)
++            ]
++            correctness = {
++                "plan": plan.name,
++                "finite": finite,
++                "mismatches": mismatches,
++                "max_abs_error": max_abs_error,
++                "row_mismatches": row_mismatches,
++                "timing_eligible": finite and mismatches == 0,
++            }
++            if not correctness["timing_eligible"]:
++                results.append(correctness)
++                continue
++
++            for _ in range(args.warmup):
++                _launch(
++                    plan,
++                    source_q,
++                    packed_weight,
++                    output,
++                    tokens=args.tokens,
++                    in_features=packed_weight.padded_in_features,
++                )
++            start = torch.cuda.Event(enable_timing=True)
++            stop = torch.cuda.Event(enable_timing=True)
++            start.record()
++            for _ in range(args.repeats):
++                _launch(
++                    plan,
++                    source_q,
++                    packed_weight,
++                    output,
++                    tokens=args.tokens,
++                    in_features=packed_weight.padded_in_features,
++                )
++            stop.record()
++            stop.synchronize()
++            milliseconds = float(start.elapsed_time(stop) / args.repeats)
++            results.append(
++                {
++                    **correctness,
++                    "milliseconds": milliseconds,
++                }
++            )
++        except Exception as exc:
++            results.append(
++                {
++                    "plan": plan.name,
++                    "error": f"{type(exc).__name__}: {exc}",
++                }
++            )
++
++    print(
++        json.dumps(
++            {
++                "shape": [args.tokens, args.out_features, args.in_features],
++                "warmup": args.warmup,
++                "repeats": args.repeats,
++                "results": results,
++            },
++            indent=2,
++        )
++    )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/comm/test_pcie_dcp_a2a.py b/tests/comm/test_pcie_dcp_a2a.py
+index 85a3bf0..189a865 100644
+--- a/tests/comm/test_pcie_dcp_a2a.py
++++ b/tests/comm/test_pcie_dcp_a2a.py
+@@ -415,7 +415,9 @@ def test_lse_launch_preserves_native_launch_bounds_contract() -> None:
+     assert "min_blocks_per_mp=1," in source
+ 
+ 
+-def test_all_gather_uses_constexpr_direct_source_pointers() -> None:
++def test_all_gather_resolves_one_peer_address_before_each_copy() -> None:
++    """The peer selector must not clone the memory transaction per rank."""
++
+     from b12x.comm.pcie import _dcp_a2a_cute as kernels
+ 
+     kernel_source = inspect.getsource(kernels._AllGatherHeadsLaunch.kernel)
+@@ -425,7 +427,8 @@ def test_all_gather_uses_constexpr_direct_source_pointers() -> None:
+     assert "if cutlass.const_expr(source == self._rank):" in read_phase
+     assert "source_words = local_input" in read_phase
+     assert "source_words = self._staging_words(staging[source])" in read_phase
+-    assert "source_address" not in read_phase
++    assert "source_address = Int64(" in read_phase
++    assert "_copy_16b_addr(" in read_phase
+     assert "source_words = cute.make_ptr(" not in read_phase
+ 
+ 
+diff --git a/tests/comm/test_pcie_vocab_argmax.py b/tests/comm/test_pcie_vocab_argmax.py
+new file mode 100644
+index 0000000..7e93ed9
+--- /dev/null
++++ b/tests/comm/test_pcie_vocab_argmax.py
+@@ -0,0 +1,315 @@
++from __future__ import annotations
++
++from unittest.mock import MagicMock
++
++import pytest
++import torch
++
++from b12x.comm.pcie import pcie_vocab_argmax as vocab_argmax_module
++from b12x.comm.pcie.pcie_hierarchical import (
++    _selected_peers as _allreduce_peers,
++)
++from b12x.comm.pcie.pcie_vocab_argmax import (
++    PCIeVocabParallelArgmax,
++    _exchange_ipc_handles,
++    _require_uniform_geometry,
++    _selected_peers,
++    _wait_nanosleep_cycles_from_env,
++)
++
++
++@pytest.mark.parametrize(
++    ("rank", "expected"),
++    [
++        (0, (1, 2, 3, 4, 8, 12)),
++        (1, (0, 2, 3, 5, 9, 13)),
++        (6, (2, 4, 5, 7, 10, 14)),
++        (15, (3, 7, 11, 12, 13, 14)),
++    ],
++)
++def test_vocab_argmax_uses_bounded_lane_topology(
++    rank: int,
++    expected: tuple[int, ...],
++) -> None:
++    assert _selected_peers(rank) == expected
++
++
++def test_vocab_argmax_and_tp16_allreduce_union_stays_within_peer_limit() -> None:
++    for rank in range(16):
++        peers = set(_selected_peers(rank)) | set(_allreduce_peers(rank, 16))
++        assert len(peers) <= 6
++
++
++def test_vocab_argmax_peer_graph_is_reciprocal_and_connected() -> None:
++    peer_sets = {rank: set(_selected_peers(rank)) for rank in range(16)}
++    for rank, peers in peer_sets.items():
++        for peer in peers:
++            assert rank in peer_sets[peer]
++
++    reached = {0}
++    frontier = [0]
++    while frontier:
++        rank = frontier.pop()
++        for peer in peer_sets[rank] - reached:
++            reached.add(peer)
++            frontier.append(peer)
++    assert reached == set(range(16))
++
++
++def test_vocab_argmax_exchanges_metadata_over_gloo(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 2)
++    exchanges = []
++
++    def fake_all_gather(objects, local_handle, group):
++        exchanges.append((objects, local_handle, group))
++        objects[:] = [b"rank-0", b"rank-1"]
++
++    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather)
++
++    assert _exchange_ipc_handles(b"rank-0", group) == [b"rank-0", b"rank-1"]
++    assert exchanges == [([b"rank-0", b"rank-1"], b"rank-0", group)]
++
++
++def test_vocab_argmax_rejects_missing_gloo_handle(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 2)
++
++    def fake_all_gather(objects, local_handle, group):
++        objects[:] = [local_handle, None]
++
++    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather)
++
++    with pytest.raises(RuntimeError, match="empty handle"):
++        _exchange_ipc_handles(b"rank-0", group)
++
++
++def test_vocab_argmax_rejects_mismatched_rank_geometry(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(
++        vocab_argmax_module,
++        "_exchange_ipc_handles",
++        lambda geometry, group: [geometry] * 15 + [(2048, 4)],
++    )
++
++    with pytest.raises(RuntimeError, match="geometry differs across ranks"):
++        _require_uniform_geometry(1024, 4, group)
++
++
++def test_vocab_argmax_validates_uniform_geometry_over_gloo(monkeypatch) -> None:
++    group = MagicMock()
++    monkeypatch.setattr(torch.distributed, "get_backend", lambda group: "gloo")
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 2)
++
++    def fake_all_gather(objects, geometry, group):
++        objects[:] = [geometry, geometry]
++
++    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather)
++
++    _require_uniform_geometry(1024, 4, group)
++
++
++@pytest.mark.parametrize("rank", [-1, 16])
++def test_vocab_argmax_rejects_invalid_rank(rank: int) -> None:
++    with pytest.raises(ValueError, match="requires TP16"):
++        _selected_peers(rank)
++
++
++@pytest.mark.parametrize("world_size", [1, 8, 12, 32])
++def test_vocab_argmax_rejects_non_tp16_world(world_size: int) -> None:
++    with pytest.raises(ValueError, match="requires TP16"):
++        _selected_peers(0, world_size)
++
++
++@pytest.mark.parametrize("value", ["0", "24", "1024"])
++def test_vocab_argmax_wait_cycles(
++    monkeypatch: pytest.MonkeyPatch,
++    value: str,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", value)
++    assert _wait_nanosleep_cycles_from_env() == int(value)
++
++
++@pytest.mark.parametrize("value", ["-1", "1025", "bad"])
++def test_vocab_argmax_rejects_invalid_wait_cycles(
++    monkeypatch: pytest.MonkeyPatch,
++    value: str,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES", value)
++    with pytest.raises(ValueError):
++        _wait_nanosleep_cycles_from_env()
++
++
++def _fake_runtime() -> PCIeVocabParallelArgmax:
++    runtime = PCIeVocabParallelArgmax.__new__(PCIeVocabParallelArgmax)
++    runtime.device = torch.device("cpu")
++    runtime.local_vocab_size = 16
++    runtime.max_batch_size = 8
++    runtime._closed = False
++    runtime._runtime = 123
++    runtime._ext = MagicMock()
++    runtime._ipc = MagicMock()
++    runtime._remote_ptrs = [456]
++    runtime._local_ptr = 789
++    return runtime
++
++
++def test_vocab_argmax_resolves_implicit_cuda_device(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    group = MagicMock()
++    extension = MagicMock()
++    extension.slab_bytes.return_value = 4096
++    extension.init_runtime.return_value = 123
++    ipc = MagicMock()
++    ipc.cudaMalloc.return_value = 1000
++    ipc.cudaIpcGetMemHandleBytes.return_value = b"local"
++    ipc.cudaIpcOpenMemHandleBytes.side_effect = range(2000, 2006)
++
++    monkeypatch.setattr(torch.distributed, "get_rank", lambda group: 0)
++    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 16)
++    monkeypatch.setattr(torch.cuda, "current_device", lambda: 7)
++    monkeypatch.setattr(vocab_argmax_module, "CudaRTLibrary", lambda: ipc)
++    monkeypatch.setattr(
++        vocab_argmax_module,
++        "_require_uniform_geometry",
++        lambda *args: None,
++    )
++    monkeypatch.setattr(
++        vocab_argmax_module,
++        "_exchange_ipc_handles",
++        lambda local_handle, group: [local_handle] * 16,
++    )
++
++    runtime = PCIeVocabParallelArgmax(
++        exchange_group=group,
++        device="cuda",
++        local_vocab_size=16,
++        ext_module=extension,
++    )
++
++    assert runtime.device == torch.device("cuda:7")
++    ipc.cudaSetDevice.assert_called_once_with(7)
++    runtime._closed = True
++
++
++def test_vocab_argmax_destructor_never_enters_collective_teardown(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    runtime = _fake_runtime()
++    runtime.group = MagicMock()
++    barrier = MagicMock()
++    monkeypatch.setattr(torch.distributed, "barrier", barrier)
++
++    with pytest.warns(ResourceWarning, match="without close"):
++        runtime.__del__()
++
++    barrier.assert_not_called()
++    runtime._ext.destroy_runtime.assert_called_once_with(123)
++    runtime._ipc.cudaIpcCloseMemHandle.assert_called_once_with(456)
++    runtime._ipc.cudaFree.assert_called_once_with(789)
++    assert runtime._closed
++    assert runtime._runtime == 0
++    assert runtime._remote_ptrs == []
++    assert runtime._local_ptr == 0
++
++
++def test_vocab_argmax_close_reaches_all_barriers_after_destroy_failure(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    runtime = _fake_runtime()
++    runtime.group = MagicMock()
++    runtime._ext.destroy_runtime.side_effect = RuntimeError("destroy failed")
++    barrier = MagicMock()
++    monkeypatch.setattr(torch.cuda, "synchronize", MagicMock())
++    monkeypatch.setattr(torch.distributed, "barrier", barrier)
++
++    with pytest.raises(RuntimeError, match="destroy failed"):
++        runtime.close()
++
++    assert barrier.call_count == 3
++    runtime._ipc.cudaIpcCloseMemHandle.assert_called_once_with(456)
++    runtime._ipc.cudaFree.assert_called_once_with(789)
++    assert runtime._runtime == 0
++    assert runtime._remote_ptrs == []
++    assert runtime._local_ptr == 0
++
++
++def test_vocab_argmax_allocates_int64_output_and_dispatches() -> None:
++    runtime = _fake_runtime()
++    base = torch.randn(4, 16, dtype=torch.bfloat16)
++    bias = torch.randn_like(base)
++
++    output = runtime.fused_add_argmax(base, bias)
++
++    assert output.shape == (4,)
++    assert output.dtype == torch.int64
++    runtime._ext.fused_add_argmax.assert_called_once_with(
++        123,
++        base,
++        bias,
++        output,
++    )
++
++
++def test_vocab_argmax_accepts_row_strided_inputs() -> None:
++    runtime = _fake_runtime()
++    base_storage = torch.randn(4, 3, 16, dtype=torch.bfloat16)
++    bias_storage = torch.randn(4, 5, 16, dtype=torch.bfloat16)
++    base = base_storage[:, 1]
++    bias = bias_storage[:, 3]
++
++    assert not base.is_contiguous()
++    assert not bias.is_contiguous()
++    output = runtime.fused_add_argmax(base, bias)
++
++    runtime._ext.fused_add_argmax.assert_called_once_with(
++        123,
++        base,
++        bias,
++        output,
++    )
++
++
++def test_vocab_argmax_rejects_noncontiguous_last_dimension() -> None:
++    base = torch.zeros(1, 32, dtype=torch.bfloat16)[:, ::2]
++    bias = torch.zeros_like(base)
++
++    with pytest.raises(ValueError, match="last dimensions"):
++        _fake_runtime().fused_add_argmax(base, bias)
++
++
++@pytest.mark.parametrize(
++    ("base", "bias", "error"),
++    [
++        (
++            torch.zeros(1, 16, dtype=torch.float32),
++            torch.zeros(1, 16, dtype=torch.float32),
++            "BF16",
++        ),
++        (
++            torch.zeros(1, 15, dtype=torch.bfloat16),
++            torch.zeros(1, 15, dtype=torch.bfloat16),
++            "local vocabulary",
++        ),
++        (
++            torch.zeros(9, 16, dtype=torch.bfloat16),
++            torch.zeros(9, 16, dtype=torch.bfloat16),
++            "capacity",
++        ),
++        (
++            torch.zeros(1, 16, dtype=torch.bfloat16),
++            torch.zeros(2, 16, dtype=torch.bfloat16),
++            "matching",
++        ),
++    ],
++)
++def test_vocab_argmax_validates_inputs(
++    base: torch.Tensor,
++    bias: torch.Tensor,
++    error: str,
++) -> None:
++    with pytest.raises(ValueError, match=error):
++        _fake_runtime().fused_add_argmax(base, bias)
+diff --git a/tests/gemm/test_dense_gemm_expected_m.py b/tests/gemm/test_dense_gemm_expected_m.py
+index 8517549..75d7253 100644
+--- a/tests/gemm/test_dense_gemm_expected_m.py
++++ b/tests/gemm/test_dense_gemm_expected_m.py
+@@ -9,6 +9,7 @@ from __future__ import annotations
+ 
+ import cutlass
+ import pytest
++import torch
+ 
+ import b12x._lib.dense_gemm as dense_module
+ from b12x._lib.dense_gemm import (
+@@ -21,6 +22,7 @@ from b12x._lib.dense_gemm import (
+     _select_default_mma_tiler_mn,
+     _select_mxfp8_tile_k,
+     _validate_mxfp8_bk64_plan,
++    dense_gemm,
+ )
+ 
+ SM = 188  # RTX PRO 6000 Blackwell
+@@ -28,6 +30,31 @@ SPARK_SM = 20  # DGX Spark GB10
+ WIDE_N = 4096  # n > 1536 -> the MXFP8 wide-N regime that the hint tunes
+ 
+ 
++def test_unswapped_tma_epilogue_rejects_unaligned_output_row_stride():
++    lhs = (
++        torch.empty((2, 128, 1), dtype=torch.float8_e4m3fn),
++        torch.empty((1,), dtype=torch.float8_e8m0fnu),
++    )
++    rhs = (
++        torch.empty((132, 128, 1), dtype=torch.float8_e4m3fn),
++        torch.empty((1,), dtype=torch.float8_e8m0fnu),
++    )
++
++    with pytest.raises(ValueError, match="16-byte-aligned C row stride"):
++        dense_gemm(
++            lhs,
++            rhs,
++            ab_dtype="float8_e4m3fn",
++            sf_dtype="float8_e8m0fnu",
++            c_dtype="bfloat16",
++            sf_vec_size=32,
++            sm_count=SM,
++            mma_tiler_mn=(64, 64),
++            load_path="tma",
++            swap_ab=False,
++        )
++
++
+ def _tile(m, *, expected_m=None, n=WIDE_N, k=None, sm_count=SM):
+     return _select_default_mma_tiler_mn(
+         m, n, sm_count, is_mxfp8=True, expected_m=expected_m, k=k
+diff --git a/tests/gemm/test_mxfp8_linear.py b/tests/gemm/test_mxfp8_linear.py
+index ab5ea2b..76b6cd0 100644
+--- a/tests/gemm/test_mxfp8_linear.py
++++ b/tests/gemm/test_mxfp8_linear.py
+@@ -90,6 +90,55 @@ def test_mm_matches_quantized_reference_small_n() -> None:
+     )
+ 
+ 
++@pytest.mark.parametrize("tokens", (2, 3, 8, 15, 16, 17, 32, 99))
++def test_mm_writes_all_rows_for_narrow_uneven_output_width(tokens: int) -> None:
++    """A small-batch GEMM must store every live row when N spans multiple tiles."""
++    require_b12x()
++    require_mxf8_mma()
++    torch.manual_seed(20260814 + tokens)
++
++    source, _, packed = _make_inputs(tokens, 7168, 132)
++    actual = mxfp8_linear.mm(source, packed, expected_m=tokens)
++    expected = _reference_from_packed(source, packed)
++    torch.cuda.synchronize()
++
++    assert actual.shape == (tokens, 132)
++    assert torch.isfinite(actual).all()
++    torch.testing.assert_close(
++        actual.float(),
++        expected.to(actual.dtype).float(),
++        rtol=1e-2,
++        atol=2e-2,
++    )
++
++
++def test_mm_unaligned_output_stride_captures_and_replays() -> None:
++    require_b12x()
++    require_mxf8_mma()
++    torch.manual_seed(20260822)
++
++    source, _, packed = _make_inputs(8, 7168, 132)
++    replacement = torch.randn_like(source).div_(4)
++    mxfp8_linear.mm(source, packed)
++    torch.cuda.synchronize()
++
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        actual = mxfp8_linear.mm(source, packed)
++    source.copy_(replacement)
++    expected = _reference_from_packed(source, packed)
++    graph.replay()
++    torch.cuda.synchronize()
++
++    assert torch.isfinite(actual).all()
++    torch.testing.assert_close(
++        actual.float(),
++        expected.to(actual.dtype).float(),
++        rtol=1e-2,
++        atol=2e-2,
++    )
++
++
+ def test_mm_pads_k32_to_dense_tile() -> None:
+     require_b12x()
+     require_mxf8_mma()
+diff --git a/tests/gemm/test_tensor_fp8_linear.py b/tests/gemm/test_tensor_fp8_linear.py
+index 42a65fc..7f59d83 100644
+--- a/tests/gemm/test_tensor_fp8_linear.py
++++ b/tests/gemm/test_tensor_fp8_linear.py
+@@ -52,6 +52,25 @@ def test_mm_matches_static_tensor_fp8_reference() -> None:
+     )
+ 
+ 
++def test_mm_writes_all_rows_for_unaligned_output_stride() -> None:
++    require_b12x()
++    require_mxf8_mma()
++    torch.manual_seed(20260814)
++
++    source, weight, output_scale, packed = _make_inputs(3, 128, 132)
++    actual = tensor_fp8_linear.mm(source, packed)
++    expected = (source.float() @ weight.float().T) * output_scale
++    torch.cuda.synchronize()
++
++    assert torch.isfinite(actual).all()
++    torch.testing.assert_close(
++        actual.float(),
++        expected.to(actual.dtype).float(),
++        rtol=1e-2,
++        atol=2e-3,
++    )
++
++
+ def test_mm_pads_k32_to_dense_tile() -> None:
+     require_b12x()
+     require_mxf8_mma()

@@ -5,13 +5,13 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-release_root=patches/releases/kimi-k3-qsrt-ii-r2
+release_root=patches/releases/kimi-k3-qsrt-ii-r3
 vllm_lock="${release_root}/vllm/integration.lock.json"
 b12x_lock="${release_root}/b12x/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
 release_name="${RELEASE_NAME:-kimi-k3-qsrt-tp16-infernal-invocation}"
 release_date="${RELEASE_DATE:-20260815}"
-revision="${REVISION:-r2}"
+revision="${REVISION:-r3}"
 
 for path in \
   "${vllm_lock}" \
