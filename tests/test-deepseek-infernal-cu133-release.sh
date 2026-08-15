@@ -5,14 +5,14 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r13.yml"
-glm_nvfp4_compose_file="${repo_root}/examples/docker-compose-glm52-nvfp4-infernal-invocation-r13.yml"
-glm_exl3_compose_file="${repo_root}/examples/docker-compose-glm52-exl3-infernal-invocation-r13.yml"
-glm_sqg_compose_file="${repo_root}/examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r14.yml"
+glm_nvfp4_compose_file="${repo_root}/examples/docker-compose-glm52-nvfp4-infernal-invocation-r14.yml"
+glm_exl3_compose_file="${repo_root}/examples/docker-compose-glm52-exl3-infernal-invocation-r14.yml"
+glm_sqg_compose_file="${repo_root}/examples/docker-compose-glm52-sqg-infernal-invocation-r14.yml"
 vllm_manifest="${repo_root}/manifests/vllm/infernal-invocation.json"
-vllm_lock="${repo_root}/patches/releases/infernal-invocation-r13/vllm/integration.lock.json"
+vllm_lock="${repo_root}/patches/releases/infernal-invocation-r14/vllm/integration.lock.json"
 b12x_manifest="${repo_root}/manifests/b12x/infernal-invocation.json"
-b12x_lock="${repo_root}/patches/releases/infernal-invocation-r13/b12x/integration.lock.json"
+b12x_lock="${repo_root}/patches/releases/infernal-invocation-r14/b12x/integration.lock.json"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -46,7 +46,7 @@ docker compose -f "${glm_exl3_compose_file}" config --quiet
 docker compose -f "${glm_sqg_compose_file}" config --quiet
 grep -Fq 'MODEL: ${MODEL:-brandonmusic/GLM-5.2-SQG-W4A8}' "${glm_sqg_compose_file}"
 grep -Fq 'MODEL_REVISION: ${MODEL_REVISION:-593dd0d2de6f79ce4e65303930c22c75e1359d44}' "${glm_sqg_compose_file}"
-grep -Fq 'VLLM_GLM_SQG_W4A8_EVIDENCE_DIR: /cache/evidence/glm52-sqg-r13' "${glm_sqg_compose_file}"
+grep -Fq 'VLLM_GLM_SQG_W4A8_EVIDENCE_DIR: /cache/evidence/glm52-sqg-r14' "${glm_sqg_compose_file}"
 jq -e '
   any(.pull_requests[];
     .number == 302 and
@@ -64,11 +64,17 @@ jq -e '
     .number == 308 and
     .head == "053e6351d0b3b3e35c969c9e3933db64d30a7164") and
   any(.pull_requests[];
+    .number == 309 and
+    .head == "dc0c026df62448d1bec747d9dd6fb0a01d838f3e") and
+  any(.pull_requests[];
     .number == 315 and
-    .head == "ca9668472dc1dad4b99ac35fb6c34772828b81f7")
+    .head == "ca9668472dc1dad4b99ac35fb6c34772828b81f7") and
+  any(.pull_requests[];
+    .number == 320 and
+    .head == "b33319edbbe1daa03a14bee6acd896aa32e0a6df")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .result.tree == "0af7310227b44f210db77f91749df06d8c40ebf0" and
+  .result.tree == "91e2adf75b271a88bd4d18a081f40fa65e82d469" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -90,8 +96,16 @@ jq -e '
     .head == "053e6351d0b3b3e35c969c9e3933db64d30a7164" and
     .disposition == "merged") and
   any(.pull_requests[];
+    .number == 309 and
+    .head == "dc0c026df62448d1bec747d9dd6fb0a01d838f3e" and
+    .disposition == "merged") and
+  any(.pull_requests[];
     .number == 315 and
     .head == "ca9668472dc1dad4b99ac35fb6c34772828b81f7" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 320 and
+    .head == "b33319edbbe1daa03a14bee6acd896aa32e0a6df" and
     .disposition == "merged")
 ' "${vllm_lock}" >/dev/null
 jq -e '
@@ -109,9 +123,9 @@ jq -e '
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r13' <<<"${output}"
+grep -Fxq 'revision=r14' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=0af7310227b44f210db77f91749df06d8c40ebf0' <<<"${output}"
+grep -Fxq 'vllm_tree=91e2adf75b271a88bd4d18a081f40fa65e82d469' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=ec2f97d2fec10dc93e5bf4e7675821016f5419ff' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"

@@ -37,6 +37,14 @@ def test_audit_accepts_pinned_included_and_excluded_prs() -> None:
     audit_manifest(_manifest(), [_pull(10, "a" * 40), _pull(11, "b" * 40)])
 
 
+@pytest.mark.parametrize("disposition", ["research-only", "unsupported"])
+def test_audit_accepts_release_status_exclusions(disposition: str) -> None:
+    manifest = _manifest()
+    manifest["reviewed_exclusions"][0]["disposition"] = disposition
+
+    audit_manifest(manifest, [_pull(11, "b" * 40)])
+
+
 def test_audit_rejects_unclassified_open_pr() -> None:
     with pytest.raises(AuditError, match="open PR #12 is not classified"):
         audit_manifest(_manifest(), [_pull(12, "c" * 40)])

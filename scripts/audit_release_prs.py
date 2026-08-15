@@ -18,7 +18,9 @@ _EXCLUSION_DISPOSITIONS = {
     "alternative",
     "experimental",
     "out_of_scope",
+    "research-only",
     "superseded",
+    "unsupported",
 }
 
 

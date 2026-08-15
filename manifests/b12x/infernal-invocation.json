@@ -38,6 +38,180 @@
   "source_patches": [],
   "reviewed_exclusions": [
     {
+      "number": 213,
+      "head": "a2ce57141bd031d0808c7ac74e50b0531eb47569",
+      "disposition": "research-only",
+      "reason": "Dense GEMM operand and workspace validation has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 212,
+      "head": "dea3ae4684089860096a9ed56bd8bfb07578e703",
+      "disposition": "research-only",
+      "reason": "Sparse and compressed MLA cache-index validation has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 211,
+      "head": "774358bf7ba9192da86c00d88002159a8a0e7e20",
+      "disposition": "research-only",
+      "reason": "MSA q2k block validation is not used by the qualified DS4F and GLM serving profiles."
+    },
+    {
+      "number": 210,
+      "head": "3738e02466c3636f874bb68aa6277ca6bd246394",
+      "disposition": "research-only",
+      "reason": "DCP Top-K teardown coordination has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 209,
+      "head": "1e0480e7f5292454b854933494182ab427b8ddfd",
+      "disposition": "research-only",
+      "reason": "DMA IPC lifecycle agreement has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 208,
+      "head": "e5a3fd519c6b7f69ff3142a1c111c80d1f06c4ab",
+      "disposition": "out_of_scope",
+      "reason": "Benchmark provenance redaction changes developer tooling and does not alter the Infernal Invocation serving runtime."
+    },
+    {
+      "number": 207,
+      "head": "8d6572404566388653d17d60bab71d3b5789a679",
+      "disposition": "out_of_scope",
+      "reason": "Profiler HTTP and stream bounds change optional profiling tooling and do not alter the qualified serving path."
+    },
+    {
+      "number": 206,
+      "head": "16b220ab19390c5aa22117ad68b57d8fb451b87f",
+      "disposition": "research-only",
+      "reason": "FP6 serving-cache ownership validation has no GLM EXL3 SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 205,
+      "head": "18211ec5497724ee87e54dec835a722e760422ab",
+      "disposition": "research-only",
+      "reason": "W4A16 route-ID normalization has no DS4F or GLM SM120 throughput and correctness qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 204,
+      "head": "01a2611e555819e423c72f7c73e7d1a67ddd0378",
+      "disposition": "research-only",
+      "reason": "DCP Top-K IPC contract agreement has no GLM DCP end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 203,
+      "head": "04f3e70944d4f9f5ad059c1f4cc149446e19ae8c",
+      "disposition": "out_of_scope",
+      "reason": "Package-upload credential scoping changes publication automation and does not alter the Infernal Invocation serving runtime."
+    },
+    {
+      "number": 202,
+      "head": "75a6f329e7143ebb023e77de0c765631c61b8120",
+      "disposition": "research-only",
+      "reason": "IPC setup serialization changes have no DS4F or GLM multi-rank startup qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 201,
+      "head": "7ed1cfe7b4497aaf880d5c72eed337c903b3ca47",
+      "disposition": "research-only",
+      "reason": "Hierarchical IPC contract agreement has no DS4F or GLM multi-rank end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 200,
+      "head": "7c81d1923a86c9459bcca51cab33782b7315944e",
+      "disposition": "research-only",
+      "reason": "FP6 export publication changes have no GLM EXL3 load and runtime qualification against the Infernal Invocation image."
+    },
+    {
+      "number": 199,
+      "head": "766a51e78d73963fc81073999e1d4cb31f75628e",
+      "disposition": "research-only",
+      "reason": "Native cache ownership validation has no DS4F or GLM cache replay qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 198,
+      "head": "a257723e1b7d6ffde949a1f7fea1b5126c665407",
+      "disposition": "out_of_scope",
+      "reason": "The TP16 Kimi-K3 QSRT kernels belong to the separate Kimi-K3 runtime manifest and image."
+    },
+    {
+      "number": 196,
+      "head": "333474d1630cc7c08306a53e62ddffafaa415aff",
+      "disposition": "research-only",
+      "reason": "Variable-length cumulative-offset validation has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 194,
+      "head": "2452b4458c690ebb5d06d21abe7929728d6a0c90",
+      "disposition": "research-only",
+      "reason": "Tensor-FP8 graph admission and stream-lifetime changes have no DS4F or GLM graph-replay qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 193,
+      "head": "09ea9ea88fc85c1ac4b99cac7c1847af8dee78f9",
+      "disposition": "research-only",
+      "reason": "Dense MLA cache-address validation has no model-runtime qualification for the separate Kimi-K3 dense MLA profile."
+    },
+    {
+      "number": 192,
+      "head": "1b6a29e63c13571bc4fc7b07661748148a6dd9e4",
+      "disposition": "research-only",
+      "reason": "NSA paged-indexer cache-address validation has no DS4F or GLM SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 191,
+      "head": "a31df6b7ff47f50a0ab60efd197fc570070287ce",
+      "disposition": "research-only",
+      "reason": "MXFP8 quantizer destination validation has no DS4F or GLM online-quantization qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 190,
+      "head": "5f6f98b2489b44b90083281ea2b244a1e2f34812",
+      "disposition": "research-only",
+      "reason": "FP6 dequantization working-set validation has no GLM EXL3 SM120 end-to-end qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 189,
+      "head": "53c1d3c75dd8771b811c9c92deecbb8081015c13",
+      "disposition": "research-only",
+      "reason": "Dense-kernel stream enforcement has no DS4F or GLM graph-replay qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 188,
+      "head": "cd09d4ae0508747259783156f0bb5071f4d05c04",
+      "disposition": "research-only",
+      "reason": "FP6 artifact validation has no GLM EXL3 load and runtime qualification against the Infernal Invocation image."
+    },
+    {
+      "number": 187,
+      "head": "bb8f48c02973b216588a87a65a42470384b58057",
+      "disposition": "out_of_scope",
+      "reason": "Native-profiler output-directory handling changes optional profiling tooling and does not alter the qualified serving path."
+    },
+    {
+      "number": 186,
+      "head": "721458c13f81ce328f6c738117c572cdb9bac436",
+      "disposition": "research-only",
+      "reason": "Auxiliary artifact path validation has no checkpoint-loading qualification against the Infernal Invocation image."
+    },
+    {
+      "number": 185,
+      "head": "a9933f0e76a75ef0b13fa564ea4fb3619b8679f6",
+      "disposition": "research-only",
+      "reason": "Safetensors index-shard path validation has no InstantTensor and safetensors loading qualification against the Infernal Invocation image."
+    },
+    {
+      "number": 184,
+      "head": "9b361a02d3ff775c60060d817b6ebdc0a3eee9f2",
+      "disposition": "research-only",
+      "reason": "Paged-indexer output-device validation has no DS4F or GLM sparse-indexer qualification against the Infernal Invocation runtime."
+    },
+    {
+      "number": 183,
+      "head": "f5e7a74c6a0c64af1266b5382a25dc4587bf2741",
+      "disposition": "unsupported",
+      "reason": "Transformers 5.3.0 is outside the pinned dependency set; adopting it requires complete DS4F and GLM compatibility qualification."
+    },
+    {
       "number": 144,
       "head": "c8d5f33b4a682a4a0b06e29c816aa24e28313473",
       "disposition": "superseded",
@@ -87,9 +261,9 @@
     },
     {
       "number": 126,
-      "head": "6022e6e7c7ea1199a06a27cf5a777c2804b13cfb",
-      "disposition": "unsupported",
-      "reason": "Mixed-Trellis route-pack prewarm serves GLM-5.2 EXL3 checkpoints and is not used by DS4."
+      "head": "c0a36cec766ce529d203f535fcaaa9c76338a551",
+      "disposition": "research-only",
+      "reason": "Mixed-Trellis route-pack prewarm requires paired vLLM integration and TP4/DCP4 CUDA-graph qualification before GLM EXL3 release promotion."
     },
     {
       "number": 124,
