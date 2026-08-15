@@ -1,5 +1,5 @@
 diff --git a/b12x/_lib/dense_gemm.py b/b12x/_lib/dense_gemm.py
-index 4cbc902..107d80f 100644
+index 4cbc9022c9d23f27ae26411e6c7db77e1945a519..107d80f2d2ab48c12916e9fee35f011a07b790fd 100644
 --- a/b12x/_lib/dense_gemm.py
 +++ b/b12x/_lib/dense_gemm.py
 @@ -7335,6 +7335,17 @@ def dense_gemm(
@@ -21,21 +21,21 @@ index 4cbc902..107d80f 100644
          # Only the unswapped single-slice TMA mainloop is wired for the FP6
          # byte-container path; fail loudly instead of silently miscomputing.
 diff --git a/b12x/comm/pcie/__init__.py b/b12x/comm/pcie/__init__.py
-index 216310e..6dbcdf4 100644
+index 216310e44c775a422d3dec494fac60673b309760..8b19702a6d76164c18d2785d13e28ea6f212f508 100644
 --- a/b12x/comm/pcie/__init__.py
 +++ b/b12x/comm/pcie/__init__.py
 @@ -15,10 +15,11 @@ pools via ``<Class>Pool``.
    per-token FP8-e4m3 transport.
  - ``DcpAllToAll``: DCP attention exchange with fused LSE reduce-scatter.
  - ``DcpTopKOwnerExchange``: exact DCP candidate owner staging.
-+- ``VocabParallelArgmax``: TP16 fused BF16 add and exact global greedy argmax.
++- ``VocabParallelArgmax``: TP8/TP12/TP16 fused BF16 add and exact global
++  greedy argmax.
  
 -Every device kernel is authored in Python with CuTe DSL.  Host-side CUDA
 -Runtime/Driver calls are also made from Python; this package contains no
 -repo-authored C++ or CUDA source and never invokes a native extension build.
-+Most device kernels are authored in Python with CuTe DSL. Vocabulary-parallel
-+argmax JIT-builds the bundled ``pcie_vocab_argmax.cu`` extension on first use.
-+Host-side CUDA Runtime and Driver calls are made from Python.
++Device kernels are authored in Python with CuTe DSL. Host-side CUDA Runtime
++and Driver calls are made from Python.
  """
  
  from __future__ import annotations
@@ -64,7 +64,7 @@ index 216310e..6dbcdf4 100644
          is_supported,
          lse_reduce_scatter_reference,
 diff --git a/b12x/comm/pcie/_cute_intrinsics.py b/b12x/comm/pcie/_cute_intrinsics.py
-index 6f2daab..f65c602 100644
+index 6f2daab78ea857079cdbc74cec904b54aa0688a2..f65c60211700800186d467edc249f43037df3b78 100644
 --- a/b12x/comm/pcie/_cute_intrinsics.py
 +++ b/b12x/comm/pcie/_cute_intrinsics.py
 @@ -501,3 +501,57 @@ def rsqrt_approx_f32(value: Float32, *, loc=None, ip=None) -> Float32:
@@ -126,7 +126,7 @@ index 6f2daab..f65c602 100644
 +        )
 +    )
 diff --git a/b12x/comm/pcie/_dcp_a2a_cute.py b/b12x/comm/pcie/_dcp_a2a_cute.py
-index 0dea260..070526c 100644
+index 0dea2609cbb9a6e337ea54b2be37002c989c405c..ecbf85d0e2690453f80492027d79d993f0b2dab7 100644
 --- a/b12x/comm/pcie/_dcp_a2a_cute.py
 +++ b/b12x/comm/pcie/_dcp_a2a_cute.py
 @@ -17,12 +17,15 @@ from b12x._lib.intrinsics import (
@@ -643,11 +643,700 @@ index 0dea260..070526c 100644
                  scale = Float32(1.0) / (weight_sum + Float32(1.0e-20))
                  for selected in cutlass.range_constexpr(16):
                      cute.arch.store(
+@@ -1928,6 +2192,7 @@ def all_gather_pair(
+ 
+ def all_gather_pair_kimi_topk(
+     *,
++    world_size: int,
+     rank: int,
+     local_down_ptr: int,
+     local_router_ptr: int,
+@@ -1942,14 +2207,16 @@ def all_gather_pair_kimi_topk(
+ ) -> None:
+     slot_delta_256b = _slot_delta_256b(slot_delta_bytes)
+     launcher = _get_compiled_all_gather_pair(
+-        16,
++        world_size,
+         rank,
+         512,
+         device_slot_selection,
+         True,
+     )
+     if not device_slot_selection:
+-        _get_compiled_all_gather_pair(16, rank, 512, True, True)
++        _get_compiled_all_gather_pair(
++            world_size, rank, 512, True, True
++        )
+     launcher(
+         local_down_ptr,
+         local_router_ptr,
+@@ -1960,8 +2227,8 @@ def all_gather_pair_kimi_topk(
+         staging_ptrs,
+         signal_ptrs,
+         1,
+-        28,
+-        14,
++        448 // world_size,
++        224 // world_size,
+         slot_delta_256b,
+     )
+ 
+diff --git a/b12x/comm/pcie/_vocab_argmax_cute.py b/b12x/comm/pcie/_vocab_argmax_cute.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b832645cf88c9eb33ef95b6c8a764ab52344b29
+--- /dev/null
++++ b/b12x/comm/pcie/_vocab_argmax_cute.py
+@@ -0,0 +1,645 @@
++"""CuTeDSL kernel for bounded-degree vocabulary-parallel greedy sampling."""
++
++from __future__ import annotations
++
++import functools
++from collections.abc import Callable, Sequence
++
++import cuda.bindings.driver as cuda
++import cutlass
++import cutlass.cute as cute
++from cutlass import Float32, Int32, Int64, Uint32, Uint64
++from cutlass._mlir.dialects import llvm
++from cutlass.cutlass_dsl import T, dsl_user_op
++
++from b12x._lib.compiler import KernelCompileSpec
++from b12x._lib.compiler import compile as b12x_compile
++from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
++from b12x._lib.utils import current_cuda_stream, make_ptr
++
++
++ISLAND_SIZE = 4
++MAX_ISLANDS = 4
++MAX_WORLD_SIZE = ISLAND_SIZE * MAX_ISLANDS
++MAX_BATCH_SIZE = 8
++THREADS = 512
++SLOTS = 2
++
++# Every protocol flag occupies an independent 128-byte system-scope cache line.
++_GENERATION_OFFSET = 0
++_LOCAL_READY_OFFSET = 256
++_LOCAL_READY_BYTES = SLOTS * MAX_BATCH_SIZE * ISLAND_SIZE * 128
++_ISLAND_READY_OFFSET = _LOCAL_READY_OFFSET + _LOCAL_READY_BYTES
++_ISLAND_READY_BYTES = SLOTS * MAX_BATCH_SIZE * MAX_ISLANDS * 128
++_LOCAL_KEY_OFFSET = _ISLAND_READY_OFFSET + _ISLAND_READY_BYTES
++_ISLAND_KEY_OFFSET = _LOCAL_KEY_OFFSET + SLOTS * MAX_BATCH_SIZE * 8
++SLAB_BYTES = _ISLAND_KEY_OFFSET + SLOTS * MAX_BATCH_SIZE * 8
++
++
++@dsl_user_op
++def _atomic_add_global_u32(
++    address: Int64, value: Uint32, *, loc=None, ip=None
++) -> Uint32:
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Int64(address).ir_value(loc=loc, ip=ip),
++                Uint32(value).ir_value(loc=loc, ip=ip),
++            ],
++            "atom.global.add.u32 $0, [$1], $2;",
++            "=r,l,r",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _load_acquire_sys_u32(address: Int64, *, loc=None, ip=None) -> Uint32:
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Int64(address).ir_value(loc=loc, ip=ip)],
++            "ld.acquire.sys.global.u32 $0, [$1];",
++            "=r,l",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _store_release_sys_u32(
++    address: Int64, value: Uint32, *, loc=None, ip=None
++) -> None:
++    llvm.inline_asm(
++        None,
++        [
++            Int64(address).ir_value(loc=loc, ip=ip),
++            Uint32(value).ir_value(loc=loc, ip=ip),
++        ],
++        "st.release.sys.global.u32 [$0], $1;",
++        "l,r",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def _fence_sc_sys(*, loc=None, ip=None) -> None:
++    llvm.inline_asm(
++        None,
++        [],
++        "fence.sc.sys;",
++        "",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def _nanosleep(cycles: Uint32, *, loc=None, ip=None) -> None:
++    llvm.inline_asm(
++        None,
++        [Uint32(cycles).ir_value(loc=loc, ip=ip)],
++        "nanosleep.u32 $0;",
++        "r",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def _score_order_key(value: Float32, *, loc=None, ip=None) -> Uint32:
++    """Map an FP32 score to the exact greedy-sampling comparison order.
++
++    NaNs dominate finite values, positive and negative zero compare equal, and
++    unsigned integer order matches numeric order for every remaining value.
++    """
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Float32(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .pred is_nan, is_zero;
++                .reg .u32 bits, mask;
++                mov.b32 bits, $1;
++                shr.u32 mask, bits, 31;
++                mul.lo.u32 mask, mask, 0x7fffffff;
++                or.b32 mask, mask, 0x80000000;
++                xor.b32 $0, bits, mask;
++                setp.eq.f32 is_zero, $1, 0f00000000;
++                @is_zero mov.u32 $0, 0x80000000;
++                setp.nan.f32 is_nan, $1, $1;
++                @is_nan mov.u32 $0, 0xffffffff;
++            }
++            """,
++            "=r,f",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def _warp_max_u64(value: Uint64, *, loc=None, ip=None) -> Uint64:
++    """Return the warp-wide unsigned maximum of a packed 64-bit key."""
++
++    return Uint64(
++        llvm.inline_asm(
++            T.i64(),
++            [Uint64(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .pred high_matches;
++                .reg .u32 low, high, max_high, candidate_low, max_low;
++                mov.b64 {low, high}, $1;
++                redux.sync.max.u32 max_high, high, 0xffffffff;
++                setp.eq.u32 high_matches, high, max_high;
++                selp.u32 candidate_low, low, 0, high_matches;
++                redux.sync.max.u32 max_low, candidate_low, 0xffffffff;
++                mov.b64 $0, {max_low, max_high};
++            }
++            """,
++            "=l,l",
++            has_side_effects=True,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@cute.jit
++def _wait_for(address: Int64, generation: Uint32, cycles: int) -> None:
++    observed = _load_acquire_sys_u32(address)
++    while observed < generation:
++        if cutlass.const_expr(cycles > 0):
++            _nanosleep(Uint32(cycles))
++        observed = _load_acquire_sys_u32(address)
++
++
++@cute.jit
++def _flag_address(
++    base: Int64,
++    region: int,
++    slot: Int32,
++    row: Int32,
++    index: Int32,
++) -> Int64:
++    return (
++        base
++        + Int64(region)
++        + (
++            (
++                Int64(slot) * Int64(MAX_BATCH_SIZE)
++                + Int64(row)
++            )
++            * Int64(ISLAND_SIZE)
++            + Int64(index)
++        )
++        * Int64(128)
++    )
++
++
++@cute.jit
++def _key_address(base: Int64, region: int, slot: Int32, row: Int32) -> Int64:
++    return (
++        base
++        + Int64(region)
++        + (
++            Int64(slot) * Int64(MAX_BATCH_SIZE) + Int64(row)
++        )
++        * Int64(8)
++    )
++
++
++@cute.jit
++def _pack_key(score: Float32, global_index: Int32) -> Uint64:
++    return (
++        Uint64(_score_order_key(score)) << Uint64(32)
++    ) | (Uint64(0xFFFFFFFF) - Uint64(global_index))
++
++
++@cute.jit
++def _key_index(key: Uint64) -> Int64:
++    return Int64(Uint64(0xFFFFFFFF) - (key & Uint64(0xFFFFFFFF)))
++
++
++class _VocabArgmaxLaunch:
++    def __init__(
++        self,
++        world_size: int,
++        rank: int,
++        *,
++        wait_nanosleep_cycles: int,
++    ) -> None:
++        self._world_size = int(world_size)
++        self._num_islands = self._world_size // ISLAND_SIZE
++        self._rank = int(rank)
++        self._island = self._rank // ISLAND_SIZE
++        self._local_rank = self._rank % ISLAND_SIZE
++        self._wait_nanosleep_cycles = int(wait_nanosleep_cycles)
++        if self._world_size not in (8, 12, 16):
++            raise ValueError(f"unsupported world size {self._world_size}")
++        if not 0 <= self._rank < self._world_size:
++            raise ValueError(
++                f"invalid rank {self._rank} for world size {self._world_size}"
++            )
++        if not 0 <= self._wait_nanosleep_cycles <= 1024:
++            raise ValueError("wait_nanosleep_cycles must be in [0, 1024]")
++
++    @cute.jit
++    def __call__(
++        self,
++        slab0: cute.Pointer,
++        slab1: cute.Pointer,
++        slab2: cute.Pointer,
++        slab3: cute.Pointer,
++        slab4: cute.Pointer,
++        slab5: cute.Pointer,
++        slab6: cute.Pointer,
++        slab7: cute.Pointer,
++        slab8: cute.Pointer,
++        slab9: cute.Pointer,
++        slab10: cute.Pointer,
++        slab11: cute.Pointer,
++        slab12: cute.Pointer,
++        slab13: cute.Pointer,
++        slab14: cute.Pointer,
++        slab15: cute.Pointer,
++        base: cute.Pointer,
++        bias: cute.Pointer,
++        output: cute.Pointer,
++        local_elements: Int64,
++        base_row_stride: Int64,
++        bias_row_stride: Int64,
++        batch: Int32,
++        stream: cuda.CUstream,
++    ) -> None:
++        self.kernel(
++            slab0,
++            slab1,
++            slab2,
++            slab3,
++            slab4,
++            slab5,
++            slab6,
++            slab7,
++            slab8,
++            slab9,
++            slab10,
++            slab11,
++            slab12,
++            slab13,
++            slab14,
++            slab15,
++            base,
++            bias,
++            output,
++            local_elements,
++            base_row_stride,
++            bias_row_stride,
++        ).launch(
++            grid=(batch, 1, 1),
++            block=(THREADS, 1, 1),
++            cluster=(1, 1, 1),
++            stream=stream,
++        )
++
++    @cute.kernel
++    def kernel(
++        self,
++        slab0: cute.Pointer,
++        slab1: cute.Pointer,
++        slab2: cute.Pointer,
++        slab3: cute.Pointer,
++        slab4: cute.Pointer,
++        slab5: cute.Pointer,
++        slab6: cute.Pointer,
++        slab7: cute.Pointer,
++        slab8: cute.Pointer,
++        slab9: cute.Pointer,
++        slab10: cute.Pointer,
++        slab11: cute.Pointer,
++        slab12: cute.Pointer,
++        slab13: cute.Pointer,
++        slab14: cute.Pointer,
++        slab15: cute.Pointer,
++        base: cute.Pointer,
++        bias: cute.Pointer,
++        output: cute.Pointer,
++        local_elements: Int64,
++        base_row_stride: Int64,
++        bias_row_stride: Int64,
++    ) -> None:
++        slabs = (
++            slab0,
++            slab1,
++            slab2,
++            slab3,
++            slab4,
++            slab5,
++            slab6,
++            slab7,
++            slab8,
++            slab9,
++            slab10,
++            slab11,
++            slab12,
++            slab13,
++            slab14,
++            slab15,
++        )
++        tidx, _, _ = cute.arch.thread_idx()
++        row, _, _ = cute.arch.block_idx()
++        lane = Int32(tidx) % Int32(32)
++        warp = Int32(tidx) // Int32(32)
++
++        initial = Uint64(_score_order_key(Float32(float("-inf")))) << Uint64(32)
++        best = initial
++        index = Int64(tidx)
++        base_offset = Int64(row) * base_row_stride
++        bias_offset = Int64(row) * bias_row_stride
++        while index < local_elements:
++            value = Float32(
++                cutlass.BFloat16(
++                    Float32(base[base_offset + index])
++                    + Float32(bias[bias_offset + index])
++                )
++            )
++            global_index = (
++                Int64(self._rank) * local_elements + index
++            )
++            candidate = _pack_key(value, Int32(global_index))
++            best = cutlass.max(best, candidate)
++            index += Int64(THREADS)
++        best = _warp_max_u64(best)
++
++        allocator = cutlass.utils.SmemAllocator()
++        warp_keys = allocator.allocate_tensor(
++            element_type=Uint64,
++            layout=cute.make_layout((THREADS // 32,)),
++            byte_alignment=16,
++        )
++        shared_generation = allocator.allocate_tensor(
++            element_type=Uint32,
++            layout=cute.make_layout((1,)),
++            byte_alignment=4,
++        )
++        if lane == Int32(0):
++            warp_keys[warp] = best
++        cute.arch.barrier()
++
++        block_key = initial
++        if warp == Int32(0):
++            if lane < Int32(THREADS // 32):
++                block_key = warp_keys[lane]
++            block_key = _warp_max_u64(block_key)
++        self_base = Int64(slabs[self._rank].toint())
++        if tidx == Int32(0):
++            generation = _atomic_add_global_u32(
++                self_base + Int64(row) * Int64(4), Uint32(1)
++            ) + Uint32(1)
++            shared_generation[0] = generation
++        cute.arch.barrier()
++
++        if tidx == Int32(0):
++            generation = Uint32(shared_generation[0])
++            slot = Int32(generation & Uint32(1))
++            local_key_ptr = cute.make_ptr(
++                Uint64,
++                _key_address(self_base, _LOCAL_KEY_OFFSET, slot, Int32(row)),
++                cute.AddressSpace.gmem,
++                assumed_align=8,
++            )
++            local_key_ptr[0] = block_key
++            _fence_sc_sys()
++
++            island_base_rank = self._island * ISLAND_SIZE
++            for peer_local in cutlass.range_constexpr(ISLAND_SIZE):
++                if cutlass.const_expr(peer_local != self._local_rank):
++                    peer_rank = island_base_rank + peer_local
++                    _store_release_sys_u32(
++                        _flag_address(
++                            Int64(slabs[peer_rank].toint()),
++                            _LOCAL_READY_OFFSET,
++                            slot,
++                            Int32(row),
++                            Int32(self._local_rank),
++                        ),
++                        generation,
++                    )
++            for peer_local in cutlass.range_constexpr(ISLAND_SIZE):
++                if cutlass.const_expr(peer_local != self._local_rank):
++                    _wait_for(
++                        _flag_address(
++                            self_base,
++                            _LOCAL_READY_OFFSET,
++                            slot,
++                            Int32(row),
++                            Int32(peer_local),
++                        ),
++                        generation,
++                        self._wait_nanosleep_cycles,
++                    )
++
++            island_key = initial
++            for peer_local in cutlass.range_constexpr(ISLAND_SIZE):
++                peer_rank = island_base_rank + peer_local
++                peer_key_ptr = cute.make_ptr(
++                    Uint64,
++                    _key_address(
++                        Int64(slabs[peer_rank].toint()),
++                        _LOCAL_KEY_OFFSET,
++                        slot,
++                        Int32(row),
++                    ),
++                    cute.AddressSpace.gmem,
++                    assumed_align=8,
++                )
++                island_key = cutlass.max(island_key, peer_key_ptr[0])
++            island_key_ptr = cute.make_ptr(
++                Uint64,
++                _key_address(self_base, _ISLAND_KEY_OFFSET, slot, Int32(row)),
++                cute.AddressSpace.gmem,
++                assumed_align=8,
++            )
++            island_key_ptr[0] = island_key
++            _fence_sc_sys()
++
++            for peer_island in cutlass.range_constexpr(MAX_ISLANDS):
++                if cutlass.const_expr(peer_island < self._num_islands):
++                    if cutlass.const_expr(peer_island != self._island):
++                        peer_rank = peer_island * ISLAND_SIZE + self._local_rank
++                        _store_release_sys_u32(
++                            _flag_address(
++                                Int64(slabs[peer_rank].toint()),
++                                _ISLAND_READY_OFFSET,
++                                slot,
++                                Int32(row),
++                                Int32(self._island),
++                            ),
++                            generation,
++                        )
++            for peer_island in cutlass.range_constexpr(MAX_ISLANDS):
++                if cutlass.const_expr(peer_island < self._num_islands):
++                    if cutlass.const_expr(peer_island != self._island):
++                        _wait_for(
++                            _flag_address(
++                                self_base,
++                                _ISLAND_READY_OFFSET,
++                                slot,
++                                Int32(row),
++                                Int32(peer_island),
++                            ),
++                            generation,
++                            self._wait_nanosleep_cycles,
++                        )
++
++            global_key = initial
++            for peer_island in cutlass.range_constexpr(MAX_ISLANDS):
++                if cutlass.const_expr(peer_island < self._num_islands):
++                    peer_rank = peer_island * ISLAND_SIZE + self._local_rank
++                    peer_key_ptr = cute.make_ptr(
++                        Uint64,
++                        _key_address(
++                            Int64(slabs[peer_rank].toint()),
++                            _ISLAND_KEY_OFFSET,
++                            slot,
++                            Int32(row),
++                        ),
++                        cute.AddressSpace.gmem,
++                        assumed_align=8,
++                    )
++                    global_key = cutlass.max(global_key, peer_key_ptr[0])
++            output[Int64(row)] = _key_index(global_key)
++
++
++@functools.cache
++def get_vocab_argmax_launcher(
++    world_size: int,
++    rank: int,
++    device_index: int,
++    *,
++    wait_nanosleep_cycles: int,
++) -> Callable[..., None]:
++    """Return a rank-specialized launcher for TP8, TP12, or TP16."""
++
++    del device_index  # retained in the process-local cache key
++    launch = _VocabArgmaxLaunch(
++        world_size,
++        rank,
++        wait_nanosleep_cycles=wait_nanosleep_cycles,
++    )
++    cache_key = (
++        int(world_size),
++        int(rank),
++        int(wait_nanosleep_cycles),
++    )
++    raise_if_kernel_resolution_frozen(
++        "cute.compile", target=launch, cache_key=cache_key
++    )
++    slab_placeholder = make_ptr(
++        cutlass.Uint8,
++        256,
++        cute.AddressSpace.gmem,
++        assumed_align=256,
++    )
++    raw = b12x_compile(
++        launch,
++        *(slab_placeholder for _ in range(MAX_WORLD_SIZE)),
++        make_ptr(cutlass.BFloat16, 16, cute.AddressSpace.gmem, assumed_align=2),
++        make_ptr(cutlass.BFloat16, 16, cute.AddressSpace.gmem, assumed_align=2),
++        make_ptr(cutlass.Int64, 16, cute.AddressSpace.gmem, assumed_align=8),
++        1,
++        1,
++        1,
++        1,
++        current_cuda_stream(),
++        compile_spec=KernelCompileSpec.from_key(
++            "comm.pcie.vocab_argmax.bf16",
++            1,
++            cache_key,
++            labels=("world_size", "rank", "wait_nanosleep_cycles"),
++        ),
++    )
++
++    def run(
++        slab_addresses: Sequence[int],
++        base_address: int,
++        bias_address: int,
++        output_address: int,
++        local_elements: int,
++        base_row_stride: int,
++        bias_row_stride: int,
++        batch: int,
++    ) -> None:
++        if len(slab_addresses) != world_size:
++            raise ValueError(
++                f"expected {world_size} slab addresses, got {len(slab_addresses)}"
++            )
++        padded_slabs = tuple(int(address) for address in slab_addresses) + (
++            0,
++        ) * (MAX_WORLD_SIZE - world_size)
++        raw(
++            *(
++                make_ptr(
++                    cutlass.Uint8,
++                    address,
++                    cute.AddressSpace.gmem,
++                    assumed_align=256,
++                )
++                for address in padded_slabs
++            ),
++            make_ptr(
++                cutlass.BFloat16,
++                base_address,
++                cute.AddressSpace.gmem,
++                assumed_align=2,
++            ),
++            make_ptr(
++                cutlass.BFloat16,
++                bias_address,
++                cute.AddressSpace.gmem,
++                assumed_align=2,
++            ),
++            make_ptr(
++                cutlass.Int64,
++                output_address,
++                cute.AddressSpace.gmem,
++                assumed_align=8,
++            ),
++            local_elements,
++            base_row_stride,
++            bias_row_stride,
++            batch,
++            current_cuda_stream(),
++        )
++
++    return run
++
++
++__all__ = ["SLAB_BYTES", "get_vocab_argmax_launcher"]
 diff --git a/b12x/comm/pcie/api.py b/b12x/comm/pcie/api.py
-index 098d100..3a57f4f 100644
+index 098d100320990f7b8bb4bf4ecd228688ccbc2f79..8611f9b31622e4bc5db00be817087cbf8a0da3cd 100644
 --- a/b12x/comm/pcie/api.py
 +++ b/b12x/comm/pcie/api.py
-@@ -37,13 +37,16 @@ from .pcie_oneshot import (
+@@ -37,13 +37,15 @@ from .pcie_oneshot import (
  from .pcie_twoshot import (
      PCIeTwoShotSP as TwoShotReduceScatter,
  )
@@ -661,12 +1350,11 @@ index 098d100..3a57f4f 100644
  
 -    Device kernels are compiled from the Python CuTe DSL sources on first use;
 -    no repo-authored C++/CUDA extension or runtime nvcc build is involved.
-+    CuTe device kernels compile from Python sources. ``VocabParallelArgmax``
-+    JIT-builds its bundled CUDA extension on first use.
++    Device kernels compile from Python CuTeDSL sources.
      """
      import torch
  
-@@ -59,6 +62,7 @@ __all__ = [
+@@ -59,6 +61,7 @@ __all__ = [
      "DcpAllToAll",
      "DcpAllToAllPool",
      "DcpTopKOwnerExchange",
@@ -674,388 +1362,186 @@ index 098d100..3a57f4f 100644
      "autotune_dma_crossovers",
      "parse_oneshot_max_size",
      "lse_reduce_scatter_reference",
-diff --git a/b12x/comm/pcie/pcie_vocab_argmax.cu b/b12x/comm/pcie/pcie_vocab_argmax.cu
-new file mode 100644
-index 0000000..3e4e294
---- /dev/null
-+++ b/b12x/comm/pcie/pcie_vocab_argmax.cu
-@@ -0,0 +1,347 @@
-+// Bounded-degree TP16 fused BF16 add + global greedy argmax.
+diff --git a/b12x/comm/pcie/pcie_allreduce.py b/b12x/comm/pcie/pcie_allreduce.py
+index f97b314af912aae858ee69251bd692ecfeca4127..1440a7892ec5ee1a42575a0682fcbca51ea4b463 100644
+--- a/b12x/comm/pcie/pcie_allreduce.py
++++ b/b12x/comm/pcie/pcie_allreduce.py
+@@ -70,6 +70,7 @@ class PCIeAllReduce:
+         rank_data_bytes: int = DEFAULT_RANK_DATA_BYTES,
+         ext_module=None,
+         single_channel: bool = False,
++        max_concurrent_channels: int = 1,
+     ) -> "PCIeAllReduce":
+         world_size = dist.get_world_size(group=exchange_group)
+         algorithm = _algorithm_for_world_size(world_size)
+@@ -82,6 +83,7 @@ class PCIeAllReduce:
+                 rank_data_bytes=rank_data_bytes,
+                 ext_module=ext_module,
+                 single_channel=single_channel,
++                max_concurrent_channels=max_concurrent_channels,
+             )
+         else:
+             if max_size < torch.bfloat16.itemsize:
+@@ -106,6 +108,7 @@ class PCIeAllReduce:
+         rank_data_bytes: int = DEFAULT_RANK_DATA_BYTES,
+         ext_module=None,
+         single_channel: bool = False,
++        max_concurrent_channels: int = 1,
+     ) -> "PCIeAllReduce":
+         return cls.from_exchange_group(
+             exchange_group=process_group,
+@@ -117,6 +120,7 @@ class PCIeAllReduce:
+             rank_data_bytes=rank_data_bytes,
+             ext_module=ext_module,
+             single_channel=single_channel,
++            max_concurrent_channels=max_concurrent_channels,
+         )
+ 
+     @property
+@@ -125,7 +129,25 @@ class PCIeAllReduce:
+ 
+         return self.algorithm == "oneshot"
+ 
+-    def for_stream(self, stream: object = None):
++    def prepare_channels(self, channel_ids: Sequence[str]) -> None:
++        """Prepare named owners when the selected runtime supports them.
 +
-+#include <ATen/cuda/Exceptions.h>
-+#include <c10/cuda/CUDAGuard.h>
-+#include <c10/cuda/CUDAStream.h>
-+#include <cuda_bf16.h>
-+#include <cuda_runtime.h>
-+#include <math_constants.h>
-+#include <torch/extension.h>
++        The bounded-degree runtime is a single ordered channel whose device
++        generations are graph-capturable, so named owners require no separate
++        allocation.
++        """
++        prepare = getattr(self._runtime, "prepare_channels", None)
++        if prepare is not None:
++            prepare(channel_ids)
 +
-+#include <climits>
-+#include <cmath>
-+#include <cstdint>
-+#include <memory>
-+#include <stdexcept>
-+#include <vector>
-+
-+#ifndef B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES
-+#define B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES 24
-+#endif
-+
-+static_assert(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES >= 0);
-+
-+namespace pcie_vocab_argmax {
-+
-+constexpr int kWorldSize = 16;
-+constexpr int kIslandSize = 4;
-+constexpr int kNumIslands = 4;
-+constexpr int kSlots = 2;
-+constexpr int kMaxBatch = 8;
-+constexpr int kThreads = 512;
-+
-+struct Pair {
-+  float value;
-+  int32_t index;
-+};
-+
-+struct alignas(128) Flag {
-+  uint32_t value;
-+  uint32_t padding[31];
-+};
-+
-+struct alignas(256) Header {
-+  uint32_t generation[kMaxBatch];
-+  uint32_t generation_padding[64 - kMaxBatch];
-+  Flag local_ready[kSlots][kMaxBatch][kIslandSize];
-+  Flag island_ready[kSlots][kMaxBatch][kNumIslands];
-+  Pair local_pair[kSlots][kMaxBatch];
-+  Pair island_pair[kSlots][kMaxBatch];
-+};
-+
-+static_assert(sizeof(Flag) == 128);
-+static_assert(sizeof(Header) % 256 == 0);
-+
-+struct Runtime {
-+  Header* slabs[kWorldSize] = {};
-+  int rank;
-+  int64_t local_elements;
-+  int max_batch;
-+};
-+
-+__device__ __forceinline__ uint32_t load_acquire(const uint32_t* ptr) {
-+  uint32_t value;
-+  asm volatile("ld.acquire.sys.global.u32 %0, [%1];"
-+               : "=r"(value)
-+               : "l"(ptr)
-+               : "memory");
-+  return value;
-+}
-+
-+__device__ __forceinline__ void store_release(
-+    uint32_t* ptr, uint32_t value) {
-+  asm volatile("st.release.sys.global.u32 [%0], %1;"
-+               :
-+               : "l"(ptr), "r"(value)
-+               : "memory");
-+}
-+
-+__device__ __forceinline__ void wait_for(
-+    const uint32_t* ptr, uint32_t generation) {
-+  while (load_acquire(ptr) < generation) {
-+#if __CUDA_ARCH__ >= 700 && \
-+    B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES > 0
-+    __nanosleep(B12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES);
-+#endif
-+  }
-+}
-+
-+__device__ __forceinline__ Pair better(Pair lhs, Pair rhs) {
-+  const bool lhs_nan = isnan(lhs.value);
-+  const bool rhs_nan = isnan(rhs.value);
-+  if (lhs_nan != rhs_nan) {
-+    return rhs_nan ? rhs : lhs;
-+  }
-+  if (rhs.value > lhs.value ||
-+      (rhs.value == lhs.value && rhs.index < lhs.index)) {
-+    return rhs;
-+  }
-+  return lhs;
-+}
-+
-+__device__ __forceinline__ Pair warp_reduce(Pair value) {
-+  constexpr unsigned mask = 0xffffffffU;
-+#pragma unroll
-+  for (int offset = 16; offset > 0; offset >>= 1) {
-+    Pair other{
-+        __shfl_down_sync(mask, value.value, offset),
-+        __shfl_down_sync(mask, value.index, offset),
-+    };
-+    if ((threadIdx.x & 31) + offset < 32) {
-+      value = better(value, other);
-+    }
-+  }
-+  return value;
-+}
-+
-+__global__ void fused_add_argmax_tp16(
-+    Runtime runtime,
-+    const nv_bfloat16* base,
-+    const nv_bfloat16* bias,
-+    int64_t base_row_stride,
-+    int64_t bias_row_stride,
-+    int64_t* output) {
-+  __shared__ Pair warp_pairs[32];
-+  __shared__ Pair block_pair;
-+  __shared__ uint32_t generation;
-+
-+  const int tid = threadIdx.x;
-+  const int row = blockIdx.x;
-+  const int lane = tid & 31;
-+  const int warp = tid >> 5;
-+  const int warps = blockDim.x >> 5;
-+  const int64_t base_row_offset =
-+      static_cast<int64_t>(row) * base_row_stride;
-+  const int64_t bias_row_offset =
-+      static_cast<int64_t>(row) * bias_row_stride;
-+
-+  Pair best{-CUDART_INF_F, INT_MAX};
-+  for (int64_t index = tid; index < runtime.local_elements;
-+       index += blockDim.x) {
-+    const float sum = __bfloat162float(base[base_row_offset + index]) +
-+                      __bfloat162float(bias[bias_row_offset + index]);
-+    const nv_bfloat16 rounded = __float2bfloat16_rn(sum);
-+    const Pair candidate{
-+        __bfloat162float(rounded),
-+        static_cast<int32_t>(runtime.rank * runtime.local_elements + index),
-+    };
-+    best = better(best, candidate);
-+  }
-+  best = warp_reduce(best);
-+  if (lane == 0) {
-+    warp_pairs[warp] = best;
-+  }
-+  __syncthreads();
-+
-+  if (warp == 0) {
-+    Pair warp_best = lane < warps
-+                         ? warp_pairs[lane]
-+                         : Pair{-CUDART_INF_F, INT_MAX};
-+    warp_best = warp_reduce(warp_best);
-+    if (lane == 0) {
-+      block_pair = warp_best;
-+    }
-+  }
-+  __syncthreads();
-+  if (tid != 0) {
-+    return;
-+  }
-+
-+  Header* self = runtime.slabs[runtime.rank];
-+  generation = atomicAdd(&self->generation[row], 1U) + 1U;
-+  const int slot = static_cast<int>(generation & 1U);
-+  const int island = runtime.rank / kIslandSize;
-+  const int local_rank = runtime.rank % kIslandSize;
-+  const int island_base = island * kIslandSize;
-+
-+  self->local_pair[slot][row] = block_pair;
-+  __threadfence_system();
-+#pragma unroll
-+  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
-+    if (peer_local == local_rank) {
-+      continue;
-+    }
-+    Header* peer = runtime.slabs[island_base + peer_local];
-+    store_release(
-+        &peer->local_ready[slot][row][local_rank].value,
-+        generation);
-+  }
-+#pragma unroll
-+  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
-+    if (peer_local == local_rank) {
-+      continue;
-+    }
-+    wait_for(
-+        &self->local_ready[slot][row][peer_local].value,
-+        generation);
-+  }
-+
-+  Pair island_best{-CUDART_INF_F, INT_MAX};
-+#pragma unroll
-+  for (int peer_local = 0; peer_local < kIslandSize; ++peer_local) {
-+    island_best = better(
-+        island_best,
-+        runtime.slabs[island_base + peer_local]->local_pair[slot][row]);
-+  }
-+  self->island_pair[slot][row] = island_best;
-+  __threadfence_system();
-+
-+#pragma unroll
-+  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
-+    if (peer_island == island) {
-+      continue;
-+    }
-+    Header* peer =
-+        runtime.slabs[peer_island * kIslandSize + local_rank];
-+    store_release(
-+        &peer->island_ready[slot][row][island].value,
-+        generation);
-+  }
-+#pragma unroll
-+  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
-+    if (peer_island == island) {
-+      continue;
-+    }
-+    wait_for(
-+        &self->island_ready[slot][row][peer_island].value,
-+        generation);
-+  }
-+
-+  Pair global_best{-CUDART_INF_F, INT_MAX};
-+#pragma unroll
-+  for (int peer_island = 0; peer_island < kNumIslands; ++peer_island) {
-+    global_best = better(
-+        global_best,
-+        runtime.slabs[peer_island * kIslandSize + local_rank]
-+            ->island_pair[slot][row]);
-+  }
-+  output[row] = static_cast<int64_t>(global_best.index);
-+}
-+
-+}  // namespace pcie_vocab_argmax
-+
-+using Runtime = pcie_vocab_argmax::Runtime;
-+
-+static int64_t slab_bytes() {
-+  return static_cast<int64_t>(sizeof(pcie_vocab_argmax::Header));
-+}
-+
-+static int64_t init_runtime(
-+    const std::vector<int64_t>& slab_ptrs,
-+    int64_t rank,
-+    int64_t local_elements,
-+    int64_t max_batch) {
-+  if (slab_ptrs.size() != pcie_vocab_argmax::kWorldSize) {
-+    throw std::invalid_argument("vocabulary argmax requires TP16");
-+  }
-+  if (rank < 0 || rank >= pcie_vocab_argmax::kWorldSize ||
-+      local_elements <= 0 ||
-+      local_elements * pcie_vocab_argmax::kWorldSize >= (int64_t(1) << 31) ||
-+      max_batch <= 0 || max_batch > pcie_vocab_argmax::kMaxBatch) {
-+    throw std::invalid_argument("invalid vocabulary argmax geometry");
-+  }
-+  auto runtime = std::make_unique<Runtime>();
-+  runtime->rank = static_cast<int>(rank);
-+  runtime->local_elements = local_elements;
-+  runtime->max_batch = static_cast<int>(max_batch);
-+  for (int index = 0; index < pcie_vocab_argmax::kWorldSize; ++index) {
-+    runtime->slabs[index] =
-+        reinterpret_cast<pcie_vocab_argmax::Header*>(slab_ptrs[index]);
-+  }
-+
-+  const int island = runtime->rank / pcie_vocab_argmax::kIslandSize;
-+  const int local_rank = runtime->rank % pcie_vocab_argmax::kIslandSize;
-+  for (int peer_local = 0; peer_local < pcie_vocab_argmax::kIslandSize;
-+       ++peer_local) {
-+    const int peer_rank = island * pcie_vocab_argmax::kIslandSize + peer_local;
-+    if (runtime->slabs[peer_rank] == nullptr) {
-+      throw std::invalid_argument("missing local-island slab");
-+    }
-+  }
-+  for (int peer_island = 0; peer_island < pcie_vocab_argmax::kNumIslands;
-+       ++peer_island) {
-+    const int peer_rank =
-+        peer_island * pcie_vocab_argmax::kIslandSize + local_rank;
-+    if (runtime->slabs[peer_rank] == nullptr) {
-+      throw std::invalid_argument("missing cross-island lane slab");
-+    }
-+  }
-+  return reinterpret_cast<int64_t>(runtime.release());
-+}
-+
-+static void fused_add_argmax(
-+    int64_t runtime_handle,
-+    torch::Tensor base,
-+    torch::Tensor bias,
-+    torch::Tensor output) {
-+  auto* runtime = reinterpret_cast<Runtime*>(runtime_handle);
-+  TORCH_CHECK(runtime != nullptr, "vocabulary argmax runtime is closed");
-+  TORCH_CHECK(base.is_cuda() && bias.is_cuda() && output.is_cuda(),
-+              "tensors must be CUDA");
-+  TORCH_CHECK(base.scalar_type() == torch::kBFloat16 &&
-+                  bias.scalar_type() == torch::kBFloat16,
-+              "base and bias must be BF16");
-+  TORCH_CHECK(output.scalar_type() == torch::kInt64,
-+              "output must be int64");
-+  TORCH_CHECK(base.device() == bias.device() &&
-+                  base.device() == output.device(),
-+              "tensors must be on the same CUDA device");
-+  TORCH_CHECK(base.dim() == 2 && bias.dim() == 2,
-+              "base and bias must be two-dimensional");
-+  TORCH_CHECK(base.stride(1) == 1 && bias.stride(1) == 1,
-+              "input last dimensions must be contiguous");
-+  TORCH_CHECK(base.stride(0) > 0 && bias.stride(0) > 0,
-+              "input row strides must be positive");
-+  TORCH_CHECK(output.is_contiguous(), "output must be contiguous");
-+  TORCH_CHECK(base.sizes() == bias.sizes(),
-+              "base and bias shapes must match");
-+  TORCH_CHECK(base.dim() == 2 && base.size(1) == runtime->local_elements,
-+              "inputs must be [batch, local_vocab]");
-+  TORCH_CHECK(base.size(0) > 0 && base.size(0) <= runtime->max_batch,
-+              "batch exceeds vocabulary argmax capacity");
-+  TORCH_CHECK(output.dim() == 1 && output.size(0) == base.size(0),
-+              "output must be [batch]");
-+
-+  const c10::cuda::CUDAGuard guard(base.device());
-+  const cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
-+  pcie_vocab_argmax::fused_add_argmax_tp16
-+      <<<static_cast<int>(base.size(0)), pcie_vocab_argmax::kThreads, 0, stream>>>(
-+          *runtime,
-+          reinterpret_cast<const nv_bfloat16*>(base.data_ptr()),
-+          reinterpret_cast<const nv_bfloat16*>(bias.data_ptr()),
-+          base.stride(0),
-+          bias.stride(0),
-+          reinterpret_cast<int64_t*>(output.data_ptr()));
-+  C10_CUDA_KERNEL_LAUNCH_CHECK();
-+}
-+
-+static void destroy_runtime(int64_t runtime_handle) {
-+  delete reinterpret_cast<Runtime*>(runtime_handle);
-+}
-+
-+PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
-+  module.def("slab_bytes", &slab_bytes);
-+  module.def("init_runtime", &init_runtime);
-+  module.def("fused_add_argmax", &fused_add_argmax);
-+  module.def("destroy_runtime", &destroy_runtime);
-+}
++    def for_stream(
++        self,
++        stream: object = None,
++        *,
++        channel_id: Optional[str] = None,
++    ):
++        if self.algorithm == "oneshot":
++            return self._runtime.for_stream(stream, channel_id=channel_id)
+         return self._runtime.for_stream(stream)
+ 
+     def all_reduce(
+@@ -136,6 +158,7 @@ class PCIeAllReduce:
+         peer_input_ptrs: Optional[Sequence[int]] = None,
+         blocks: Optional[int] = None,
+         stream: object = None,
++        channel_id: Optional[str] = None,
+     ) -> torch.Tensor:
+         if self.algorithm == "hierarchical":
+             if peer_input_ptrs is not None:
+@@ -155,11 +178,22 @@ class PCIeAllReduce:
+             out=out,
+             peer_input_ptrs=peer_input_ptrs,
+             stream=stream,
++            channel_id=channel_id,
+         )
+ 
+     @contextmanager
+-    def capture(self, stream: object = None):
+-        with self._runtime.capture(stream=stream) as runtime:
++    def capture(
++        self,
++        stream: object = None,
++        *,
++        channel_id: Optional[str] = None,
++    ):
++        capture = (
++            self._runtime.capture(stream=stream, channel_id=channel_id)
++            if self.algorithm == "oneshot"
++            else self._runtime.capture(stream=stream)
++        )
++        with capture as runtime:
+             yield runtime
+ 
+     def close(self) -> None:
+diff --git a/b12x/comm/pcie/pcie_dcp_a2a.py b/b12x/comm/pcie/pcie_dcp_a2a.py
+index 7806c18cbd310ed32a52093e928e6d778b709a9b..f3c38b837e0210a6d35fbe672585c87d12f2f5a2 100644
+--- a/b12x/comm/pcie/pcie_dcp_a2a.py
++++ b/b12x/comm/pcie/pcie_dcp_a2a.py
+@@ -1270,15 +1270,30 @@ class PCIeDCPA2A:
+         topk_weights: Optional[torch.Tensor] = None,
+         topk_ids: Optional[torch.Tensor] = None,
+     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+-        """Gather Kimi-K3's TP16 latent row and select its 16 experts."""
++        """Gather Kimi-K3's sharded latent row and select its 16 experts."""
+         self._check_stream()
+         if self._closed:
+             raise RuntimeError("PCIeDCPA2A is closed")
+-        if self.world_size != 16:
+-            raise ValueError("Kimi paired gather+top-k requires TP16")
++        if self.world_size not in SUPPORTED_WORLD_SIZES:
++            raise ValueError(
++                "Kimi paired gather+top-k requires a supported PCIe DCP "
++                f"world size, got TP{self.world_size}"
++            )
++        local_down_width = 3584 // self.world_size
++        local_router_width = 896 // self.world_size
+         expected = (
+-            (local_down, (1, 224), torch.bfloat16, "local_down"),
+-            (local_router, (1, 56), torch.float32, "local_router"),
++            (
++                local_down,
++                (1, local_down_width),
++                torch.bfloat16,
++                "local_down",
++            ),
++            (
++                local_router,
++                (1, local_router_width),
++                torch.float32,
++                "local_router",
++            ),
+             (correction_bias, (896,), torch.float32, "correction_bias"),
+         )
+         for value, shape, dtype, name in expected:
+@@ -1317,7 +1332,7 @@ class PCIeDCPA2A:
+             from ._dcp_a2a_cute import is_all_gather_pair_prepared
+ 
+             if not is_all_gather_pair_prepared(
+-                16,
++                self.world_size,
+                 self.rank,
+                 512,
+                 True,
+@@ -1363,6 +1378,7 @@ class PCIeDCPA2A:
+ 
+         with torch.cuda.device(self.device):
+             all_gather_pair_kimi_topk(
++                world_size=self.world_size,
+                 rank=self.rank,
+                 local_down_ptr=local_down.data_ptr(),
+                 local_router_ptr=local_router.data_ptr(),
 diff --git a/b12x/comm/pcie/pcie_vocab_argmax.py b/b12x/comm/pcie/pcie_vocab_argmax.py
 new file mode 100644
-index 0000000..8b54257
+index 0000000000000000000000000000000000000000..d8cd71b0b11872ec4373fedc0f0c070bede9eeb7
 --- /dev/null
 +++ b/b12x/comm/pcie/pcie_vocab_argmax.py
-@@ -0,0 +1,381 @@
-+"""Bounded-degree TP16 vocabulary argmax runtime."""
+@@ -0,0 +1,367 @@
++"""Bounded-degree vocabulary-parallel argmax runtime."""
 +
 +from __future__ import annotations
 +
 +import os
 +from contextlib import contextmanager, suppress
-+from functools import lru_cache
-+from pathlib import Path
 +from typing import Iterator, Optional
 +from warnings import warn
 +
 +import torch
 +import torch.distributed as dist
 +from torch.distributed import ProcessGroup
-+from torch.utils.cpp_extension import load
 +
 +from ._cuda_ipc import CudaRTLibrary
++from ._vocab_argmax_cute import SLAB_BYTES, get_vocab_argmax_launcher
 +from .pcie_oneshot import _broadcast_gather_object
 +
 +
-+WORLD_SIZE = 16
 +ISLAND_SIZE = 4
 +MAX_BATCH_SIZE = 8
++SUPPORTED_WORLD_SIZES = (8, 12, 16)
 +
 +
 +def _exchange_ipc_handles(
@@ -1111,30 +1597,16 @@ index 0000000..8b54257
 +    return cycles
 +
 +
-+@lru_cache(maxsize=1)
-+def _load_extension():
-+    source = Path(__file__).with_name("pcie_vocab_argmax.cu")
-+    wait_cycles = _wait_nanosleep_cycles_from_env()
-+    return load(
-+        name=f"b12x_pcie_vocab_argmax_ext_ns{wait_cycles}",
-+        sources=[str(source)],
-+        extra_cuda_cflags=[
-+            "-O3",
-+            f"-DB12X_PCIE_VOCAB_ARGMAX_NANOSLEEP_CYCLES={wait_cycles}",
-+        ],
-+        extra_ldflags=["-lcuda"],
-+        verbose=(os.getenv("B12X_PCIE_VOCAB_ARGMAX_VERBOSE_BUILD", "0") == "1"),
-+    )
-+
-+
-+def _selected_peers(rank: int, world_size: int = WORLD_SIZE) -> tuple[int, ...]:
++def _selected_peers(rank: int, world_size: int = 16) -> tuple[int, ...]:
 +    """Return three island peers plus the same lane in other islands."""
 +
-+    if world_size != WORLD_SIZE or not 0 <= rank < world_size:
++    if world_size not in SUPPORTED_WORLD_SIZES:
 +        raise ValueError(
-+            f"vocabulary argmax requires TP{WORLD_SIZE}, got rank={rank}, "
-+            f"TP={world_size}"
++            "vocabulary argmax requires "
++            f"{SUPPORTED_WORLD_SIZES}, got TP{world_size}"
 +        )
++    if not 0 <= rank < world_size:
++        raise ValueError(f"invalid rank {rank} for TP{world_size}")
 +    island = rank // ISLAND_SIZE
 +    lane = rank % ISLAND_SIZE
 +    local = set(range(island * ISLAND_SIZE, (island + 1) * ISLAND_SIZE))
@@ -1143,7 +1615,7 @@ index 0000000..8b54257
 +
 +
 +class PCIeVocabParallelArgmax:
-+    """Fuse BF16 add and exact global greedy sampling across TP16 shards.
++    """Fuse BF16 add and exact global greedy sampling across TP shards.
 +
 +    Every TP rank must invoke ``fused_add_argmax`` once per logical step with
 +    the same batch size. Tensor-parallel schedulers satisfy this collective
@@ -1159,7 +1631,6 @@ index 0000000..8b54257
 +        device: torch.device | int | str,
 +        local_vocab_size: int,
 +        max_batch_size: int = MAX_BATCH_SIZE,
-+        ext_module=None,
 +    ) -> None:
 +        self.group = exchange_group
 +        self.rank = dist.get_rank(group=exchange_group)
@@ -1169,9 +1640,10 @@ index 0000000..8b54257
 +            if isinstance(device, torch.device)
 +            else torch.device(f"cuda:{device}" if isinstance(device, int) else device)
 +        )
-+        if self.world_size != WORLD_SIZE:
++        if self.world_size not in SUPPORTED_WORLD_SIZES:
 +            raise ValueError(
-+                f"vocabulary argmax requires TP{WORLD_SIZE}, got TP{self.world_size}"
++                "vocabulary argmax requires "
++                f"{SUPPORTED_WORLD_SIZES}, got TP{self.world_size}"
 +            )
 +        if self.device.type != "cuda":
 +            raise ValueError("vocabulary argmax requires a CUDA device")
@@ -1191,19 +1663,18 @@ index 0000000..8b54257
 +            self.max_batch_size,
 +            exchange_group,
 +        )
-+        self._ext = ext_module or _load_extension()
 +        self._ipc = CudaRTLibrary()
-+        self._runtime = 0
++        self._slab_ptrs: tuple[int, ...] = ()
++        self._launcher = None
 +        self._local_ptr = 0
 +        self._remote_ptrs: list[int] = []
 +        self._closed = False
 +
-+        slab_bytes = int(self._ext.slab_bytes())
 +        peer_ptrs = [0] * self.world_size
 +        try:
 +            with self._cuda_runtime_device():
-+                self._local_ptr = self._ipc.cudaMalloc(slab_bytes)
-+                self._ipc.cudaMemset(self._local_ptr, 0, slab_bytes)
++                self._local_ptr = self._ipc.cudaMalloc(SLAB_BYTES)
++                self._ipc.cudaMemset(self._local_ptr, 0, SLAB_BYTES)
 +                local_handle = self._ipc.cudaIpcGetMemHandleBytes(self._local_ptr)
 +                handles = _exchange_ipc_handles(local_handle, exchange_group)
 +                peer_ptrs[self.rank] = self._local_ptr
@@ -1211,13 +1682,12 @@ index 0000000..8b54257
 +                    remote_ptr = self._ipc.cudaIpcOpenMemHandleBytes(handles[peer])
 +                    peer_ptrs[peer] = remote_ptr
 +                    self._remote_ptrs.append(remote_ptr)
-+                self._runtime = int(
-+                    self._ext.init_runtime(
-+                        peer_ptrs,
-+                        self.rank,
-+                        self.local_vocab_size,
-+                        self.max_batch_size,
-+                    )
++                self._slab_ptrs = tuple(peer_ptrs)
++                self._launcher = get_vocab_argmax_launcher(
++                    self.world_size,
++                    self.rank,
++                    self.device.index or 0,
++                    wait_nanosleep_cycles=_wait_nanosleep_cycles_from_env(),
 +                )
 +        except Exception:
 +            # Construction cleanup is rank-local. Mark the object closed so
@@ -1242,14 +1712,12 @@ index 0000000..8b54257
 +        device: torch.device | int | str,
 +        local_vocab_size: int,
 +        max_batch_size: int = MAX_BATCH_SIZE,
-+        ext_module=None,
 +    ) -> "PCIeVocabParallelArgmax":
 +        return cls(
 +            exchange_group=exchange_group,
 +            device=device,
 +            local_vocab_size=local_vocab_size,
 +            max_batch_size=max_batch_size,
-+            ext_module=ext_module,
 +        )
 +
 +    @classmethod
@@ -1260,14 +1728,12 @@ index 0000000..8b54257
 +        device: torch.device | int | str,
 +        local_vocab_size: int,
 +        max_batch_size: int = MAX_BATCH_SIZE,
-+        ext_module=None,
 +    ) -> "PCIeVocabParallelArgmax":
 +        return cls.from_exchange_group(
 +            exchange_group=process_group,
 +            device=device,
 +            local_vocab_size=local_vocab_size,
 +            max_batch_size=max_batch_size,
-+            ext_module=ext_module,
 +        )
 +
 +    @property
@@ -1330,7 +1796,19 @@ index 0000000..8b54257
 +            or not out.is_contiguous()
 +        ):
 +            raise ValueError("output must be contiguous int64 [batch] on the device")
-+        self._ext.fused_add_argmax(self._runtime, base, bias, out)
++        if self._launcher is None:
++            raise RuntimeError("vocabulary argmax launcher is unavailable")
++        with self._cuda_runtime_device():
++            self._launcher(
++                self._slab_ptrs,
++                base.data_ptr(),
++                bias.data_ptr(),
++                out.data_ptr(),
++                self.local_vocab_size,
++                base.stride(0),
++                bias.stride(0),
++                batch,
++            )
 +        return out
 +
 +    def for_stream(self, stream: object = None) -> "PCIeVocabParallelArgmax":
@@ -1353,10 +1831,9 @@ index 0000000..8b54257
 +            torch.cuda.synchronize(self.device)
 +            dist.barrier(group=self.group)
 +            try:
-+                if self._runtime:
-+                    self._ext.destroy_runtime(self._runtime)
++                self._launcher = None
++                self._slab_ptrs = ()
 +            finally:
-+                self._runtime = 0
 +                try:
 +                    for ptr in self._remote_ptrs:
 +                        self._ipc.cudaIpcCloseMemHandle(ptr)
@@ -1394,11 +1871,8 @@ index 0000000..8b54257
 +            )
 +
 +        with suppress(Exception), self._cuda_runtime_device():
-+            runtime = getattr(self, "_runtime", 0)
-+            self._runtime = 0
-+            if runtime:
-+                with suppress(Exception):
-+                    self._ext.destroy_runtime(runtime)
++            self._launcher = None
++            self._slab_ptrs = ()
 +
 +            remote_ptrs = list(getattr(self, "_remote_ptrs", ()))
 +            self._remote_ptrs = []
@@ -1415,7 +1889,7 @@ index 0000000..8b54257
 +
 +__all__ = ["PCIeVocabParallelArgmax"]
 diff --git a/b12x/gemm/mxfp8_linear/_kernel.py b/b12x/gemm/mxfp8_linear/_kernel.py
-index 985d757..b12fb71 100644
+index 985d7574b70b6c8e1bfc9ccf27ff2ec0b915c666..b12fb71169981dfbcfe15f374435c9b21597170a 100644
 --- a/b12x/gemm/mxfp8_linear/_kernel.py
 +++ b/b12x/gemm/mxfp8_linear/_kernel.py
 @@ -86,9 +86,19 @@ def _pad_source_2d_k(source_2d: torch.Tensor, padded_k: int) -> torch.Tensor:
@@ -1450,7 +1924,7 @@ index 985d757..b12fb71 100644
  
  
 diff --git a/b12x/gemm/tensor_fp8_linear/_kernel.py b/b12x/gemm/tensor_fp8_linear/_kernel.py
-index 1b95e55..5b140f3 100644
+index 1b95e550c593ef3e0bca216809d829de0db3933b..5b140f3178058f87a8cacd0e322ea8d3b18e1c1c 100644
 --- a/b12x/gemm/tensor_fp8_linear/_kernel.py
 +++ b/b12x/gemm/tensor_fp8_linear/_kernel.py
 @@ -96,9 +96,19 @@ def _activation_scale_mma(
@@ -1485,23 +1959,40 @@ index 1b95e55..5b140f3 100644
  
  
 diff --git a/benchmarks/benchmark_kimi_k3_pair_topk.py b/benchmarks/benchmark_kimi_k3_pair_topk.py
-index 8e22170..d98fb43 100644
+index 8e22170e4734ed549a75ee376012f5a035c3b377..005e8cb567547df6304a5738873eda1c87e5eb80 100644
 --- a/benchmarks/benchmark_kimi_k3_pair_topk.py
 +++ b/benchmarks/benchmark_kimi_k3_pair_topk.py
 @@ -1,3 +1,12 @@
-+"""Validate and benchmark the TP16 Kimi paired projection/top-k collective.
++"""Benchmark Kimi paired projection gathering with fused expert selection.
 +
-+The reference arm gathers both projection rows and applies vLLM ``grouped_topk``.
-+The fused arm gathers the projection rows while selecting the same 16 experts.
-+Expert IDs and projection data must match exactly. Router weights may differ by
-+at most one FP32 rounding step because the implementations use different
-+parallel reduction orders.
++The benchmark covers the PCIe DCP world sizes supported by B12X: TP2, TP4,
++TP8, and TP16. It compares a separate paired gather plus vLLM ``grouped_topk``
++against the fused B12X operation. Expert IDs and projection data must match
++exactly. Router weights may differ by at most one FP32 rounding step because
++the implementations use different parallel reduction orders.
 +"""
 +
  from __future__ import annotations
  
  import argparse
-@@ -88,11 +97,16 @@ def _case(
+@@ -64,6 +73,7 @@ def _case(
+     name: str,
+     *,
+     rank: int,
++    world_size: int,
+     device: torch.device,
+ ) -> tuple[torch.Tensor, torch.Tensor]:
+     if name == "random":
+@@ -83,16 +93,24 @@ def _case(
+         bias[33] = float("inf")
+     else:
+         raise ValueError(name)
+-    local = logits[:, rank * 56 : (rank + 1) * 56].contiguous()
++    local_width = 896 // world_size
++    local = logits[
++        :, rank * local_width : (rank + 1) * local_width
++    ].contiguous()
+     return local, bias.contiguous()
  
  
  def _equal_with_matching_nan(actual: torch.Tensor, expected: torch.Tensor) -> bool:
@@ -1514,15 +2005,71 @@ index 8e22170..d98fb43 100644
 +        finite,
 +        torch.isclose(actual, expected, rtol=0.0, atol=1e-7),
 +        torch.ones_like(finite),
-+    )
+     )
 +    special_equal = torch.eq(actual, expected) | (
 +        torch.isnan(actual) & torch.isnan(expected)
-     )
++    )
 +    return bool(torch.all(finite_close & torch.where(finite, True, special_equal)))
  
  
  def _worker(
-@@ -209,7 +223,7 @@ def _worker(
+@@ -114,32 +132,34 @@ def _worker(
+     reference_pool: PCIeDCPA2APool | None = None
+     fused_pool: PCIeDCPA2APool | None = None
+     try:
++        query_head_dim = 10752 // world_size
+         reference_pool = PCIeDCPA2APool.from_process_group(
+             process_group=dist.group.WORLD,
+             device=device,
+             max_batch_size=1,
+             total_heads=world_size,
+-            head_dim=672,
+-            query_head_dim=672,
++            head_dim=query_head_dim,
++            query_head_dim=query_head_dim,
+         )
+         fused_pool = PCIeDCPA2APool.from_process_group(
+             process_group=dist.group.WORLD,
+             device=device,
+             max_batch_size=1,
+             total_heads=world_size,
+-            head_dim=672,
+-            query_head_dim=672,
++            head_dim=query_head_dim,
++            query_head_dim=query_head_dim,
+         )
+         reference_channel = "k3-pair-topk:reference"
+         fused_channel = "k3-pair-topk:fused"
+         reference_pool.prepare_channels((reference_channel,))
+         fused_pool.prepare_channels((fused_channel,))
+ 
++        local_down_width = 3584 // world_size
+         down_local = (
+-            torch.arange(224, device=device, dtype=torch.float32)
+-            .add_(rank * 224)
++            torch.arange(local_down_width, device=device, dtype=torch.float32)
++            .add_(rank * local_down_width)
+             .to(torch.bfloat16)
+-            .view(1, 224)
++            .view(1, local_down_width)
+         )
+         reference_down = torch.empty((1, 3584), device=device, dtype=torch.bfloat16)
+         reference_router = torch.empty((1, 896), device=device, dtype=torch.float32)
+@@ -164,7 +184,12 @@ def _worker(
+         benchmark_router: torch.Tensor | None = None
+         benchmark_bias: torch.Tensor | None = None
+         for name in ("random", "ties", "near_ties", "wide"):
+-            local_router, bias = _case(name, rank=rank, device=device)
++            local_router, bias = _case(
++                name,
++                rank=rank,
++                world_size=world_size,
++                device=device,
++            )
+             reference_pool.all_gather_pair(
+                 down_local,
+                 local_router,
+@@ -209,7 +234,7 @@ def _worker(
              )
              dist.all_reduce(failures)
              if failures.item() != 0:
@@ -1531,12 +2078,309 @@ index 8e22170..d98fb43 100644
              if name == "random":
                  benchmark_router = local_router
                  benchmark_bias = bias
+@@ -300,8 +325,10 @@ def main() -> None:
+     parser.add_argument("--iterations", type=int, default=1000)
+     parser.add_argument("--samples", type=int, default=5)
+     args = parser.parse_args()
+-    if args.world_size != 16:
+-        raise SystemExit("Kimi paired gather+top-k benchmark requires TP16")
++    if args.world_size not in (2, 4, 8, 16):
++        raise SystemExit(
++            "Kimi paired gather+top-k benchmark requires TP2, TP4, TP8, or TP16"
++        )
+     mp.spawn(
+         _worker,
+         args=(
+diff --git a/benchmarks/benchmark_vocab_parallel_argmax.py b/benchmarks/benchmark_vocab_parallel_argmax.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..11f0618f79b2d8165f38436725fae53bf42e4a9a
+--- /dev/null
++++ b/benchmarks/benchmark_vocab_parallel_argmax.py
+@@ -0,0 +1,278 @@
++"""Validate and benchmark vocabulary-parallel greedy sampling."""
++
++from __future__ import annotations
++
++import argparse
++import socket
++import statistics
++import time
++from contextlib import suppress
++
++import torch
++import torch.distributed as dist
++import torch.multiprocessing as mp
++
++from b12x.comm.pcie.pcie_vocab_argmax import PCIeVocabParallelArgmax
++
++
++def _free_port() -> int:
++    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
++        sock.bind(("127.0.0.1", 0))
++        return int(sock.getsockname()[1])
++
++
++def _inputs(
++    rank: int,
++    world_size: int,
++    local_vocab_size: int,
++    batch: int,
++    device: torch.device,
++) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
++    generator = torch.Generator(device=device).manual_seed(12000 + rank)
++    base = torch.randn(
++        (batch, local_vocab_size),
++        generator=generator,
++        device=device,
++        dtype=torch.bfloat16,
++    )
++    bias = torch.randn(
++        (batch, local_vocab_size),
++        generator=generator,
++        device=device,
++        dtype=torch.bfloat16,
++    ).mul_(0.02)
++
++    if batch > 1:
++        base[1:].fill_(-1.0)
++        bias[1:].zero_()
++    if rank == 0 and batch > 1:
++        base[1, 0] = 0.0
++    if rank == 0 and batch > 2:
++        base[2, 3] = float("nan")
++    if rank == 0 and batch > 3:
++        base[3, 0] = -0.0
++    elif rank != 0 and batch > 1:
++        base[1, 0] = 0.0
++    if rank == world_size - 1 and batch > 2:
++        base[2, local_vocab_size - 1] = float("nan")
++    if rank == world_size - 1 and batch > 3:
++        base[3, local_vocab_size - 1] = 0.0
++
++    local_scores = (base.float() + bias.float()).bfloat16()
++    gathered = [torch.empty_like(local_scores) for _ in range(world_size)]
++    dist.all_gather(gathered, local_scores)
++    expected = torch.cat(gathered, dim=1).argmax(dim=1).to(torch.int64)
++    if batch > 1:
++        expected[1] = 0
++    if batch > 2:
++        expected[2] = 3
++    if batch > 3:
++        expected[3] = 0
++    return base, bias, expected
++
++
++def _measure(
++    graph: torch.cuda.CUDAGraph,
++    *,
++    device: torch.device,
++    warmup: int,
++    iterations: int,
++    samples: int,
++) -> float:
++    timings: list[float] = []
++    for _ in range(samples):
++        dist.barrier()
++        for _ in range(warmup):
++            graph.replay()
++        torch.cuda.synchronize(device)
++        start = time.perf_counter()
++        for _ in range(iterations):
++            graph.replay()
++        torch.cuda.synchronize(device)
++        elapsed_us = (time.perf_counter() - start) * 1e6 / iterations
++        maximum = torch.tensor(elapsed_us, dtype=torch.float64, device=device)
++        dist.all_reduce(maximum, op=dist.ReduceOp.MAX)
++        timings.append(float(maximum.item()))
++    return statistics.median(timings)
++
++
++def _validate_random_inputs(
++    runtime: PCIeVocabParallelArgmax,
++    *,
++    rank: int,
++    world_size: int,
++    local_vocab_size: int,
++    batch: int,
++    cases: int,
++    device: torch.device,
++) -> None:
++    output = torch.empty(batch, dtype=torch.int64, device=device)
++    for case in range(cases):
++        generator = torch.Generator(device=device).manual_seed(
++            20000 + case * world_size + rank
++        )
++        base = torch.randn(
++            (batch, local_vocab_size),
++            generator=generator,
++            device=device,
++            dtype=torch.bfloat16,
++        )
++        bias = torch.randn(
++            (batch, local_vocab_size),
++            generator=generator,
++            device=device,
++            dtype=torch.bfloat16,
++        )
++        local_scores = (base.float() + bias.float()).bfloat16()
++        gathered = [torch.empty_like(local_scores) for _ in range(world_size)]
++        dist.all_gather(gathered, local_scores)
++        expected = torch.cat(gathered, dim=1).argmax(dim=1).to(torch.int64)
++        runtime.fused_add_argmax(base, bias, output)
++        torch.cuda.synchronize(device)
++        if not torch.equal(output, expected):
++            raise AssertionError(
++                f"rank {rank}, random case {case}: expected "
++                f"{expected.tolist()}, got {output.tolist()}"
++            )
++
++
++def _worker(
++    rank: int,
++    world_size: int,
++    local_vocab_size: int,
++    batch: int,
++    port: int,
++    warmup: int,
++    iterations: int,
++    samples: int,
++    random_cases: int,
++) -> None:
++    torch.cuda.set_device(rank)
++    device = torch.device("cuda", rank)
++    dist.init_process_group(
++        "nccl",
++        init_method=f"tcp://127.0.0.1:{port}",
++        rank=rank,
++        world_size=world_size,
++    )
++    runtime: PCIeVocabParallelArgmax | None = None
++    try:
++        runtime = PCIeVocabParallelArgmax.from_process_group(
++            process_group=dist.group.WORLD,
++            device=device,
++            local_vocab_size=local_vocab_size,
++            max_batch_size=batch,
++        )
++        _validate_random_inputs(
++            runtime,
++            rank=rank,
++            world_size=world_size,
++            local_vocab_size=local_vocab_size,
++            batch=batch,
++            cases=random_cases,
++            device=device,
++        )
++        base, bias, expected = _inputs(
++            rank,
++            world_size,
++            local_vocab_size,
++            batch,
++            device,
++        )
++        output = torch.empty(batch, dtype=torch.int64, device=device)
++        for _ in range(3):
++            runtime.fused_add_argmax(base, bias, output)
++        torch.cuda.synchronize(device)
++        if not torch.equal(output, expected):
++            raise AssertionError(
++                f"rank {rank}: expected {expected.tolist()}, got {output.tolist()}"
++            )
++
++        graph = torch.cuda.CUDAGraph()
++        with runtime.capture(), torch.cuda.graph(graph):
++            runtime.fused_add_argmax(base, bias, output)
++        for _ in range(100):
++            graph.replay()
++        torch.cuda.synchronize(device)
++        if not torch.equal(output, expected):
++            raise AssertionError(
++                "CUDA graph replay changed vocabulary argmax output"
++            )
++
++        if batch > 1:
++            one_output = torch.empty(1, dtype=torch.int64, device=device)
++            one_graph = torch.cuda.CUDAGraph()
++            with runtime.capture(), torch.cuda.graph(one_graph):
++                runtime.fused_add_argmax(base[:1], bias[:1], one_output)
++            for _ in range(100):
++                one_graph.replay()
++                graph.replay()
++            torch.cuda.synchronize(device)
++            if not torch.equal(one_output, expected[:1]):
++                raise AssertionError(
++                    "alternating batch-one graph replay changed argmax output"
++                )
++            if not torch.equal(output, expected):
++                raise AssertionError(
++                    "alternating full-batch graph replay changed argmax output"
++                )
++
++        latency_us = _measure(
++            graph,
++            device=device,
++            warmup=warmup,
++            iterations=iterations,
++            samples=samples,
++        )
++        if rank == 0:
++            print(
++                "world_size,batch,local_vocab_size,latency_us\n"
++                f"{world_size},{batch},{local_vocab_size},{latency_us:.6f}",
++                flush=True,
++            )
++    finally:
++        if runtime is not None:
++            with suppress(Exception):
++                runtime.close()
++        if dist.is_initialized():
++            with suppress(Exception):
++                dist.destroy_process_group()
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--world-size", type=int, default=16)
++    parser.add_argument("--local-vocab-size", type=int)
++    parser.add_argument("--batch", type=int, default=4)
++    parser.add_argument("--warmup", type=int, default=100)
++    parser.add_argument("--iterations", type=int, default=1000)
++    parser.add_argument("--samples", type=int, default=5)
++    parser.add_argument("--random-cases", type=int, default=32)
++    args = parser.parse_args()
++    if args.world_size not in (8, 12, 16):
++        raise SystemExit("world size must be 8, 12, or 16")
++    if not 1 <= args.batch <= 8:
++        raise SystemExit("batch must be in [1, 8]")
++    local_vocab_size = args.local_vocab_size
++    if local_vocab_size is None:
++        global_vocab_size = 163840 if args.world_size in (8, 16) else 163968
++        local_vocab_size = global_vocab_size // args.world_size
++    mp.spawn(
++        _worker,
++        args=(
++            args.world_size,
++            local_vocab_size,
++            args.batch,
++            _free_port(),
++            args.warmup,
++            args.iterations,
++            args.samples,
++            args.random_cases,
++        ),
++        nprocs=args.world_size,
++        join=True,
++    )
++
++
++if __name__ == "__main__":
++    main()
 diff --git a/benchmarks/probe_mxfp8_linear_narrow_output.py b/benchmarks/probe_mxfp8_linear_narrow_output.py
 new file mode 100644
-index 0000000..289c7bf
+index 0000000000000000000000000000000000000000..c98ada8476125fcbf40f1a8e3bb67ee0b3cc650d
 --- /dev/null
 +++ b/benchmarks/probe_mxfp8_linear_narrow_output.py
-@@ -0,0 +1,241 @@
+@@ -0,0 +1,234 @@
 +"""Probe dense-MXFP8 plans for narrow output projections on SM120.
 +
 +The default shape matches a tensor-parallel projection with 7,168 input
@@ -1713,17 +2557,6 @@ index 0000000..289c7bf
 +                int((actual[row] != reference[row]).sum().item())
 +                for row in range(args.tokens)
 +            ]
-+            correctness = {
-+                "plan": plan.name,
-+                "finite": finite,
-+                "mismatches": mismatches,
-+                "max_abs_error": max_abs_error,
-+                "row_mismatches": row_mismatches,
-+                "timing_eligible": finite and mismatches == 0,
-+            }
-+            if not correctness["timing_eligible"]:
-+                results.append(correctness)
-+                continue
 +
 +            for _ in range(args.warmup):
 +                _launch(
@@ -1751,7 +2584,11 @@ index 0000000..289c7bf
 +            milliseconds = float(start.elapsed_time(stop) / args.repeats)
 +            results.append(
 +                {
-+                    **correctness,
++                    "plan": plan.name,
++                    "finite": finite,
++                    "mismatches": mismatches,
++                    "max_abs_error": max_abs_error,
++                    "row_mismatches": row_mismatches,
 +                    "milliseconds": milliseconds,
 +                }
 +            )
@@ -1779,10 +2616,48 @@ index 0000000..289c7bf
 +if __name__ == "__main__":
 +    main()
 diff --git a/tests/comm/test_pcie_dcp_a2a.py b/tests/comm/test_pcie_dcp_a2a.py
-index 85a3bf0..189a865 100644
+index 85a3bf044fe19f00e57bbf295ae3582a4bcfaf7d..b77d12849b5e23c3f5fd481375f2bf3ba6a72771 100644
 --- a/tests/comm/test_pcie_dcp_a2a.py
 +++ b/tests/comm/test_pcie_dcp_a2a.py
-@@ -415,7 +415,9 @@ def test_lse_launch_preserves_native_launch_bounds_contract() -> None:
+@@ -131,7 +131,7 @@ class _FakeKimiRuntime(PCIeDCPA2A):
+         device_slot_selection,
+     ):
+         del local_router, correction_bias, slot, device_slot_selection
+-        out_down.copy_(torch.cat((local_down,) * 16, dim=1))
++        out_down.copy_(torch.cat((local_down,) * self.world_size, dim=1))
+         topk_weights.fill_(1.0 / 16.0)
+         topk_ids.copy_(torch.arange(16, dtype=torch.int32).view(1, 16))
+ 
+@@ -139,8 +139,10 @@ def _make_runtime() -> PCIeDCPA2A:
+     return _FakeRuntime()
+ 
+ 
+-def _make_kimi_tp16_runtime(ext: _FakeExt | None = None) -> PCIeDCPA2A:
+-    world_size = 16
++def _make_kimi_runtime(
++    world_size: int, ext: _FakeExt | None = None
++) -> PCIeDCPA2A:
++    query_head_dim = 7168 // world_size + 3584 // world_size
+     return _FakeKimiRuntime(
+         rank=0,
+         world_size=world_size,
+@@ -150,11 +152,11 @@ def _make_kimi_tp16_runtime(ext: _FakeExt | None = None) -> PCIeDCPA2A:
+         staging1_ptrs=tuple(range(300, 300 + world_size)),
+         max_batch_size=1,
+         total_heads=world_size,
+-        head_dim=672,
+-        output_capacity_elems=world_size * 672,
+-        lse_offset=world_size * 672 * 2,
++        head_dim=query_head_dim,
++        output_capacity_elems=world_size * query_head_dim,
++        lse_offset=world_size * query_head_dim * 2,
+         lse_capacity=world_size,
+-        query_head_dim=672,
++        query_head_dim=query_head_dim,
+         ext_module=ext or _FakeExt(),
+     )
+ 
+@@ -415,7 +417,9 @@ def test_lse_launch_preserves_native_launch_bounds_contract() -> None:
      assert "min_blocks_per_mp=1," in source
  
  
@@ -1793,7 +2668,7 @@ index 85a3bf0..189a865 100644
      from b12x.comm.pcie import _dcp_a2a_cute as kernels
  
      kernel_source = inspect.getsource(kernels._AllGatherHeadsLaunch.kernel)
-@@ -425,7 +427,8 @@ def test_all_gather_uses_constexpr_direct_source_pointers() -> None:
+@@ -425,7 +429,8 @@ def test_all_gather_uses_constexpr_direct_source_pointers() -> None:
      assert "if cutlass.const_expr(source == self._rank):" in read_phase
      assert "source_words = local_input" in read_phase
      assert "source_words = self._staging_words(staging[source])" in read_phase
@@ -1803,12 +2678,171 @@ index 85a3bf0..189a865 100644
      assert "source_words = cute.make_ptr(" not in read_phase
  
  
+@@ -629,11 +634,18 @@ def test_runtime_accepts_head_major_input_and_output():
+     torch.testing.assert_close(actual, partial_output[:, :16])
+ 
+ 
+-def test_kimi_tp16_pair_topk_dispatches_compact_outputs() -> None:
++@pytest.mark.parametrize("world_size", (2, 4, 8, 16))
++def test_kimi_pair_topk_dispatches_compact_outputs(world_size: int) -> None:
+     ext = _FakeExt()
+-    runtime = _make_kimi_tp16_runtime(ext)
+-    local_down = torch.arange(224, dtype=torch.bfloat16).view(1, 224)
+-    local_router = torch.arange(56, dtype=torch.float32).view(1, 56)
++    runtime = _make_kimi_runtime(world_size, ext)
++    local_down_width = 3584 // world_size
++    local_router_width = 896 // world_size
++    local_down = torch.arange(
++        local_down_width, dtype=torch.bfloat16
++    ).view(1, local_down_width)
++    local_router = torch.arange(
++        local_router_width, dtype=torch.float32
++    ).view(1, local_router_width)
+     correction_bias = torch.zeros(896, dtype=torch.float32)
+ 
+     down, weights, ids = runtime.all_gather_pair_kimi_topk(
+diff --git a/tests/comm/test_pcie_hierarchical.py b/tests/comm/test_pcie_hierarchical.py
+index c6332d3bcd0072557efe4c6b270a4b3defda758b..a089d56aad187913e9403ca5cb4b85f3a5177771 100644
+--- a/tests/comm/test_pcie_hierarchical.py
++++ b/tests/comm/test_pcie_hierarchical.py
+@@ -69,6 +69,98 @@ def test_allreduce_factory_builds_tp16_hierarchy(
+     )
+ 
+ 
++def test_allreduce_factory_forwards_oneshot_channel_capacity(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    runtime = SimpleNamespace(
++        rank=0,
++        world_size=8,
++        device=torch.device("cuda:0"),
++    )
++    oneshot_factory = MagicMock(return_value=runtime)
++    exchange_group = object()
++    monkeypatch.setattr(pcie_allreduce.dist, "get_world_size", lambda group: 8)
++    monkeypatch.setattr(
++        pcie_allreduce.PCIeOneshotAllReducePool,
++        "from_exchange_group",
++        oneshot_factory,
++    )
++
++    allreduce = PCIeAllReduce.from_exchange_group(
++        exchange_group=exchange_group,  # type: ignore[arg-type]
++        device="cuda:0",
++        max_concurrent_channels=3,
++    )
++
++    assert allreduce.algorithm == "oneshot"
++    oneshot_factory.assert_called_once_with(
++        exchange_group=exchange_group,
++        device="cuda:0",
++        eager_buffer_bytes=8388608,
++        max_size=8388608,
++        rank_data_bytes=8388608,
++        ext_module=None,
++        single_channel=False,
++        max_concurrent_channels=3,
++    )
++
++
++def test_allreduce_oneshot_forwards_named_channel_contract() -> None:
++    runtime = MagicMock()
++    runtime.rank = 0
++    runtime.world_size = 8
++    runtime.device = torch.device("cuda:0")
++    allreduce = PCIeAllReduce(runtime, "oneshot")
++    stream = object()
++    inp = torch.randn(2, 4)
++    out = torch.empty_like(inp)
++
++    allreduce.prepare_channels(("target", "draft"))
++    allreduce.for_stream(stream, channel_id="target")
++    allreduce.all_reduce(inp, out=out, stream=stream, channel_id="target")
++    with allreduce.capture(stream, channel_id="target"):
++        pass
++
++    runtime.prepare_channels.assert_called_once_with(("target", "draft"))
++    runtime.for_stream.assert_called_once_with(stream, channel_id="target")
++    runtime.all_reduce.assert_called_once_with(
++        inp,
++        out=out,
++        peer_input_ptrs=None,
++        stream=stream,
++        channel_id="target",
++    )
++    runtime.capture.assert_called_once_with(stream=stream, channel_id="target")
++
++
++def test_allreduce_hierarchy_accepts_named_channel_contract() -> None:
++    runtime = MagicMock(
++        spec=["rank", "world_size", "device", "for_stream", "all_reduce", "capture"]
++    )
++    runtime.rank = 0
++    runtime.world_size = 16
++    runtime.device = torch.device("cuda:0")
++    allreduce = PCIeAllReduce(runtime, "hierarchical")
++    stream = object()
++    inp = torch.randn(2, 4)
++    out = torch.empty_like(inp)
++
++    allreduce.prepare_channels(("target", "draft"))
++    allreduce.for_stream(stream, channel_id="target")
++    allreduce.all_reduce(inp, out=out, stream=stream, channel_id="target")
++    with allreduce.capture(stream, channel_id="target"):
++        pass
++
++    runtime.for_stream.assert_called_once_with(stream)
++    runtime.all_reduce.assert_called_once_with(
++        inp,
++        out=out,
++        blocks=None,
++        stream=stream,
++    )
++    runtime.capture.assert_called_once_with(stream=stream)
++
++
+ @pytest.mark.parametrize("world_size", [1, 3, 10, 14, 20])
+ def test_allreduce_rejects_unsupported_or_peer_unsafe_worlds(
+     world_size: int,
+@@ -319,19 +411,20 @@ def test_hierarchical_slab_layout_matches_native_alignment(
+     layout = _make_layout(max_elements)
+     assert layout.stage[0] == 69_888
+     for slot in range(2):
+-        assert layout.partial[slot] == (
+-            (layout.stage[slot] + max_elements * 2 + 255) // 256
+-        ) * 256
+-        assert layout.final[slot] == (
+-            (layout.partial[slot] + max_elements * 4 + 255) // 256
+-        ) * 256
++        assert (
++            layout.partial[slot]
++            == ((layout.stage[slot] + max_elements * 2 + 255) // 256) * 256
++        )
++        assert (
++            layout.final[slot]
++            == ((layout.partial[slot] + max_elements * 4 + 255) // 256) * 256
++        )
+         if slot == 0:
+-            assert layout.stage[1] == (
+-                (layout.final[0] + max_elements * 2 + 255) // 256
+-            ) * 256
+-    assert layout.bytes == (
+-        (layout.final[1] + max_elements * 2 + 255) // 256
+-    ) * 256
++            assert (
++                layout.stage[1]
++                == ((layout.final[0] + max_elements * 2 + 255) // 256) * 256
++            )
++    assert layout.bytes == ((layout.final[1] + max_elements * 2 + 255) // 256) * 256
+     assert all(
+         value % 256 == 0
+         for offsets in (layout.stage, layout.partial, layout.final)
 diff --git a/tests/comm/test_pcie_vocab_argmax.py b/tests/comm/test_pcie_vocab_argmax.py
 new file mode 100644
-index 0000000..7e93ed9
+index 0000000000000000000000000000000000000000..40035fd7d08b927a6fa9ebb87ad4f7ee06254313
 --- /dev/null
 +++ b/tests/comm/test_pcie_vocab_argmax.py
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,340 @@
 +from __future__ import annotations
 +
 +from unittest.mock import MagicMock
@@ -1830,29 +2864,42 @@ index 0000000..7e93ed9
 +
 +
 +@pytest.mark.parametrize(
-+    ("rank", "expected"),
++    ("world_size", "rank", "expected"),
 +    [
-+        (0, (1, 2, 3, 4, 8, 12)),
-+        (1, (0, 2, 3, 5, 9, 13)),
-+        (6, (2, 4, 5, 7, 10, 14)),
-+        (15, (3, 7, 11, 12, 13, 14)),
++        (8, 0, (1, 2, 3, 4)),
++        (12, 6, (2, 4, 5, 7, 10)),
++        (16, 0, (1, 2, 3, 4, 8, 12)),
++        (16, 15, (3, 7, 11, 12, 13, 14)),
 +    ],
 +)
 +def test_vocab_argmax_uses_bounded_lane_topology(
++    world_size: int,
 +    rank: int,
 +    expected: tuple[int, ...],
 +) -> None:
-+    assert _selected_peers(rank) == expected
++    assert _selected_peers(rank, world_size) == expected
 +
 +
-+def test_vocab_argmax_and_tp16_allreduce_union_stays_within_peer_limit() -> None:
-+    for rank in range(16):
-+        peers = set(_selected_peers(rank)) | set(_allreduce_peers(rank, 16))
-+        assert len(peers) <= 6
++@pytest.mark.parametrize("world_size", (12, 16))
++def test_vocab_argmax_and_hierarchical_allreduce_union_stays_bounded(
++    world_size: int,
++) -> None:
++    expected_bound = world_size // 4 + 2
++    for rank in range(world_size):
++        peers = set(_selected_peers(rank, world_size)) | set(
++            _allreduce_peers(rank, world_size)
++        )
++        assert len(peers) <= expected_bound
 +
 +
-+def test_vocab_argmax_peer_graph_is_reciprocal_and_connected() -> None:
-+    peer_sets = {rank: set(_selected_peers(rank)) for rank in range(16)}
++@pytest.mark.parametrize("world_size", (8, 12, 16))
++def test_vocab_argmax_peer_graph_is_reciprocal_and_connected(
++    world_size: int,
++) -> None:
++    peer_sets = {
++        rank: set(_selected_peers(rank, world_size))
++        for rank in range(world_size)
++    }
 +    for rank, peers in peer_sets.items():
 +        for peer in peers:
 +            assert rank in peer_sets[peer]
@@ -1864,7 +2911,7 @@ index 0000000..7e93ed9
 +        for peer in peer_sets[rank] - reached:
 +            reached.add(peer)
 +            frontier.append(peer)
-+    assert reached == set(range(16))
++    assert reached == set(range(world_size))
 +
 +
 +def test_vocab_argmax_exchanges_metadata_over_gloo(monkeypatch) -> None:
@@ -1922,15 +2969,15 @@ index 0000000..7e93ed9
 +    _require_uniform_geometry(1024, 4, group)
 +
 +
-+@pytest.mark.parametrize("rank", [-1, 16])
-+def test_vocab_argmax_rejects_invalid_rank(rank: int) -> None:
-+    with pytest.raises(ValueError, match="requires TP16"):
-+        _selected_peers(rank)
++@pytest.mark.parametrize(("rank", "world_size"), [(-1, 8), (8, 8), (16, 16)])
++def test_vocab_argmax_rejects_invalid_rank(rank: int, world_size: int) -> None:
++    with pytest.raises(ValueError, match="invalid rank"):
++        _selected_peers(rank, world_size)
 +
 +
-+@pytest.mark.parametrize("world_size", [1, 8, 12, 32])
-+def test_vocab_argmax_rejects_non_tp16_world(world_size: int) -> None:
-+    with pytest.raises(ValueError, match="requires TP16"):
++@pytest.mark.parametrize("world_size", [1, 2, 4, 20, 32])
++def test_vocab_argmax_rejects_unsupported_world(world_size: int) -> None:
++    with pytest.raises(ValueError, match="requires"):
 +        _selected_peers(0, world_size)
 +
 +
@@ -1959,8 +3006,8 @@ index 0000000..7e93ed9
 +    runtime.local_vocab_size = 16
 +    runtime.max_batch_size = 8
 +    runtime._closed = False
-+    runtime._runtime = 123
-+    runtime._ext = MagicMock()
++    runtime._launcher = MagicMock()
++    runtime._slab_ptrs = tuple(range(16))
 +    runtime._ipc = MagicMock()
 +    runtime._remote_ptrs = [456]
 +    runtime._local_ptr = 789
@@ -1971,9 +3018,7 @@ index 0000000..7e93ed9
 +    monkeypatch: pytest.MonkeyPatch,
 +) -> None:
 +    group = MagicMock()
-+    extension = MagicMock()
-+    extension.slab_bytes.return_value = 4096
-+    extension.init_runtime.return_value = 123
++    launcher = MagicMock()
 +    ipc = MagicMock()
 +    ipc.cudaMalloc.return_value = 1000
 +    ipc.cudaIpcGetMemHandleBytes.return_value = b"local"
@@ -1983,6 +3028,11 @@ index 0000000..7e93ed9
 +    monkeypatch.setattr(torch.distributed, "get_world_size", lambda group: 16)
 +    monkeypatch.setattr(torch.cuda, "current_device", lambda: 7)
 +    monkeypatch.setattr(vocab_argmax_module, "CudaRTLibrary", lambda: ipc)
++    monkeypatch.setattr(
++        vocab_argmax_module,
++        "get_vocab_argmax_launcher",
++        lambda *args, **kwargs: launcher,
++    )
 +    monkeypatch.setattr(
 +        vocab_argmax_module,
 +        "_require_uniform_geometry",
@@ -1998,7 +3048,6 @@ index 0000000..7e93ed9
 +        exchange_group=group,
 +        device="cuda",
 +        local_vocab_size=16,
-+        ext_module=extension,
 +    )
 +
 +    assert runtime.device == torch.device("cuda:7")
@@ -2018,32 +3067,34 @@ index 0000000..7e93ed9
 +        runtime.__del__()
 +
 +    barrier.assert_not_called()
-+    runtime._ext.destroy_runtime.assert_called_once_with(123)
 +    runtime._ipc.cudaIpcCloseMemHandle.assert_called_once_with(456)
 +    runtime._ipc.cudaFree.assert_called_once_with(789)
 +    assert runtime._closed
-+    assert runtime._runtime == 0
++    assert runtime._launcher is None
++    assert runtime._slab_ptrs == ()
 +    assert runtime._remote_ptrs == []
 +    assert runtime._local_ptr == 0
 +
 +
-+def test_vocab_argmax_close_reaches_all_barriers_after_destroy_failure(
++def test_vocab_argmax_close_reaches_all_barriers_after_ipc_close_failure(
 +    monkeypatch: pytest.MonkeyPatch,
 +) -> None:
 +    runtime = _fake_runtime()
 +    runtime.group = MagicMock()
-+    runtime._ext.destroy_runtime.side_effect = RuntimeError("destroy failed")
++    runtime._ipc.cudaIpcCloseMemHandle.side_effect = RuntimeError(
++        "IPC close failed"
++    )
 +    barrier = MagicMock()
 +    monkeypatch.setattr(torch.cuda, "synchronize", MagicMock())
 +    monkeypatch.setattr(torch.distributed, "barrier", barrier)
 +
-+    with pytest.raises(RuntimeError, match="destroy failed"):
++    with pytest.raises(RuntimeError, match="IPC close failed"):
 +        runtime.close()
 +
 +    assert barrier.call_count == 3
-+    runtime._ipc.cudaIpcCloseMemHandle.assert_called_once_with(456)
 +    runtime._ipc.cudaFree.assert_called_once_with(789)
-+    assert runtime._runtime == 0
++    assert runtime._launcher is None
++    assert runtime._slab_ptrs == ()
 +    assert runtime._remote_ptrs == []
 +    assert runtime._local_ptr == 0
 +
@@ -2057,11 +3108,15 @@ index 0000000..7e93ed9
 +
 +    assert output.shape == (4,)
 +    assert output.dtype == torch.int64
-+    runtime._ext.fused_add_argmax.assert_called_once_with(
-+        123,
-+        base,
-+        bias,
-+        output,
++    runtime._launcher.assert_called_once_with(
++        tuple(range(16)),
++        base.data_ptr(),
++        bias.data_ptr(),
++        output.data_ptr(),
++        16,
++        base.stride(0),
++        bias.stride(0),
++        4,
 +    )
 +
 +
@@ -2076,11 +3131,15 @@ index 0000000..7e93ed9
 +    assert not bias.is_contiguous()
 +    output = runtime.fused_add_argmax(base, bias)
 +
-+    runtime._ext.fused_add_argmax.assert_called_once_with(
-+        123,
-+        base,
-+        bias,
-+        output,
++    runtime._launcher.assert_called_once_with(
++        tuple(range(16)),
++        base.data_ptr(),
++        bias.data_ptr(),
++        output.data_ptr(),
++        16,
++        base.stride(0),
++        bias.stride(0),
++        4,
 +    )
 +
 +
@@ -2125,7 +3184,7 @@ index 0000000..7e93ed9
 +    with pytest.raises(ValueError, match=error):
 +        _fake_runtime().fused_add_argmax(base, bias)
 diff --git a/tests/gemm/test_dense_gemm_expected_m.py b/tests/gemm/test_dense_gemm_expected_m.py
-index 8517549..75d7253 100644
+index 8517549d7d4812cf5c4aa2f2069aea0407d29d3e..75d725391492ba7bf42f4300b72d750714b25be1 100644
 --- a/tests/gemm/test_dense_gemm_expected_m.py
 +++ b/tests/gemm/test_dense_gemm_expected_m.py
 @@ -9,6 +9,7 @@ from __future__ import annotations
@@ -2177,7 +3236,7 @@ index 8517549..75d7253 100644
      return _select_default_mma_tiler_mn(
          m, n, sm_count, is_mxfp8=True, expected_m=expected_m, k=k
 diff --git a/tests/gemm/test_mxfp8_linear.py b/tests/gemm/test_mxfp8_linear.py
-index ab5ea2b..76b6cd0 100644
+index ab5ea2b8946e4e918c329c96b3df6a5543c5d70a..76b6cd0e211817adb91797c69099a4a93e9e36b1 100644
 --- a/tests/gemm/test_mxfp8_linear.py
 +++ b/tests/gemm/test_mxfp8_linear.py
 @@ -90,6 +90,55 @@ def test_mm_matches_quantized_reference_small_n() -> None:
@@ -2237,7 +3296,7 @@ index ab5ea2b..76b6cd0 100644
      require_b12x()
      require_mxf8_mma()
 diff --git a/tests/gemm/test_tensor_fp8_linear.py b/tests/gemm/test_tensor_fp8_linear.py
-index 42a65fc..7f59d83 100644
+index 42a65fc86b41a9036db9f1d98ac236b101dab58f..7f59d83663963a13f277eafba43cb25d1968806b 100644
 --- a/tests/gemm/test_tensor_fp8_linear.py
 +++ b/tests/gemm/test_tensor_fp8_linear.py
 @@ -52,6 +52,25 @@ def test_mm_matches_static_tensor_fp8_reference() -> None:

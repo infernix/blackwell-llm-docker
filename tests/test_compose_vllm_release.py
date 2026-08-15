@@ -179,9 +179,10 @@ def test_composition_applies_digest_locked_source_patch(tmp_path: Path) -> None:
             "title": "Patch the runtime fixture",
         }
     ]
-    assert lock["result"]["patch_sha256"] == hashlib.sha256(
-        source_patch.read_bytes()
-    ).hexdigest()
+    assert (
+        lock["result"]["patch_sha256"]
+        == hashlib.sha256(source_patch.read_bytes()).hexdigest()
+    )
 
     replay = tmp_path / "source-patch-replay"
     _git(tmp_path, "clone", "--quiet", str(remote), str(replay))
@@ -226,6 +227,59 @@ def test_composition_identifies_conflicting_pr(tmp_path: Path) -> None:
         compose(manifest, tmp_path / "output")
 
 
+def test_cherry_pick_composition_applies_declared_pr_commits(tmp_path: Path) -> None:
+    source, remote, base = _repositories(tmp_path)
+    pr_head = _create_pr(source, remote, 1, "feature.py", "feature\n")
+    manifest = _manifest(tmp_path / "manifest.json", remote, [(1, pr_head)])
+    manifest_data = json.loads(manifest.read_text())
+    manifest_data["composition_strategy"] = "cherry_pick"
+    manifest.write_text(json.dumps(manifest_data))
+
+    lock = compose(manifest, tmp_path / "output")
+
+    assert lock["composition_strategy"] == "cherry_pick"
+    assert lock["pull_requests"][0]["commits"] == [pr_head]
+    assert lock["pull_requests"][0]["disposition"] == "cherry_picked"
+    assert lock["result"]["tree"] != _git(remote, "rev-parse", f"{base}^{{tree}}")
+
+
+def test_pinned_branch_composition_records_exact_source_tree(tmp_path: Path) -> None:
+    source, remote, base = _repositories(tmp_path)
+    pr_head = _create_pr(source, remote, 1, "feature.py", "feature\n")
+    _git(source, "checkout", "--quiet", "-B", "release-composition", base)
+    _git(source, "cherry-pick", pr_head)
+    composition_commit = _git(source, "rev-parse", "HEAD")
+    composition_tree = _git(source, "rev-parse", "HEAD^{tree}")
+    _git(source, "push", "--quiet", "origin", "release-composition")
+
+    manifest = _manifest(tmp_path / "manifest.json", remote, [(1, pr_head)])
+    manifest_data = json.loads(manifest.read_text())
+    manifest_data.update(
+        {
+            "composition_strategy": "pinned_branch",
+            "composition_ref": "refs/heads/release-composition",
+            "composition_commit": composition_commit,
+        }
+    )
+    manifest.write_text(json.dumps(manifest_data))
+
+    output = tmp_path / "output"
+    lock = compose(manifest, output)
+
+    assert lock["composition"] == {
+        "ref": "refs/heads/release-composition",
+        "commit": composition_commit,
+    }
+    assert lock["pull_requests"][0]["disposition"] == "recorded_in_composition"
+    assert lock["result"]["tree"] == composition_tree
+
+    replay = tmp_path / "pinned-branch-replay"
+    _git(tmp_path, "clone", "--quiet", str(remote), str(replay))
+    _git(replay, "checkout", "--quiet", "--detach", base)
+    _git(replay, "apply", "--index", str(output / "integration.patch"))
+    assert _git(replay, "write-tree") == composition_tree
+
+
 @pytest.mark.parametrize(
     ("component", "lock_sha256", "tree"),
     [
@@ -247,11 +301,7 @@ def test_r5_release_archive_matches_lock(
     tree: str,
 ) -> None:
     release_dir = (
-        REPOSITORY_ROOT
-        / "patches"
-        / "releases"
-        / "gilded-gnosis-v20-r5"
-        / component
+        REPOSITORY_ROOT / "patches" / "releases" / "gilded-gnosis-v20-r5" / component
     )
     lock_bytes = (release_dir / "integration.lock.json").read_bytes()
     lock = json.loads(lock_bytes)

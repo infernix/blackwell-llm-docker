@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the source-locked Kimi-K3 QSRT TP16/DCP8 runtime image.
+# Build the source-locked official Kimi-K3 MXFP4 TP16/DCP16 runtime image.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,9 +9,9 @@ release_root=patches/releases/kimi-k3-qsrt-ii-r3
 vllm_lock="${release_root}/vllm/integration.lock.json"
 b12x_lock="${release_root}/b12x/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
-release_name="${RELEASE_NAME:-kimi-k3-qsrt-tp16-infernal-invocation}"
+release_name="${RELEASE_NAME:-kimi-k3-official-mxfp4-tp16}"
 release_date="${RELEASE_DATE:-20260815}"
-revision="${REVISION:-r3}"
+revision="${REVISION:-r1}"
 
 for path in \
   "${vllm_lock}" \
@@ -45,7 +45,7 @@ read_lock "${b12x_lock}" B12X b12x
 
 source_overlay_sha256="$(sha256sum runtime/kimi-k3-qsrt/source-overlay/sitecustomize.py | cut -d' ' -f1)"
 cache_fingerprint="cu133-torch213-kimi-k3-qsrt-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}"
-image="${IMAGE:-voipmonitor/vllm:kimi-k3-qsrt-ii-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
+image="${IMAGE:-voipmonitor/vllm:kimi-k3-tp16-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
 
 if [[ -n "$(git status --porcelain --untracked-files=all)" ]] \
     && [[ "${ALLOW_DIRTY_BUILD:-0}" != 1 ]]; then
@@ -111,7 +111,7 @@ assert_label local-inference.runtime.base-id "${base_image_id}"
 assert_label local-inference.vllm.integration.tree "${VLLM_INTEGRATION_TREE}"
 assert_label local-inference.b12x.integration.tree "${B12X_INTEGRATION_TREE}"
 assert_label local-inference.flash-attention.forward.sha256 \
-  80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479
+  f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449
 
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
   'import pathlib, vllm; expected=pathlib.Path("/opt/kimi-k3-qsrt/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'

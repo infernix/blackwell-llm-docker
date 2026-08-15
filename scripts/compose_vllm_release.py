@@ -76,6 +76,35 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     if not manifest["base_ref"].startswith("refs/heads/"):
         raise CompositionError("base_ref must be a full refs/heads/... ref")
 
+    strategy = manifest.get("composition_strategy", "merge")
+    if strategy not in {"merge", "cherry_pick", "pinned_branch"}:
+        raise CompositionError(
+            "composition_strategy must be 'merge', 'cherry_pick', or 'pinned_branch'"
+        )
+    manifest["composition_strategy"] = strategy
+
+    composition_ref = manifest.get("composition_ref")
+    composition_commit = manifest.get("composition_commit")
+    if strategy == "pinned_branch":
+        if not isinstance(composition_ref, str) or not composition_ref.startswith(
+            "refs/heads/"
+        ):
+            raise CompositionError(
+                "pinned_branch composition requires a full refs/heads/... "
+                "composition_ref"
+            )
+        if not isinstance(composition_commit, str) or not SHA_RE.fullmatch(
+            composition_commit
+        ):
+            raise CompositionError(
+                "pinned_branch composition requires a 40-character composition_commit"
+            )
+    elif composition_ref is not None or composition_commit is not None:
+        raise CompositionError(
+            "composition_ref and composition_commit require "
+            "composition_strategy='pinned_branch'"
+        )
+
     seen: set[int] = set()
     for entry in manifest["pull_requests"]:
         number = entry.get("number")
@@ -87,7 +116,22 @@ def _load_manifest(path: Path) -> dict[str, Any]:
             raise CompositionError(f"PR #{number} must pin a 40-character head SHA")
         if ref != f"refs/pull/{number}/head":
             raise CompositionError(f"PR #{number} has unexpected ref {ref!r}")
+        commits = entry.get("commits", [head])
+        if not isinstance(commits, list) or not commits:
+            raise CompositionError(f"PR #{number} commits must be a non-empty list")
+        if any(
+            not isinstance(commit, str) or not SHA_RE.fullmatch(commit)
+            for commit in commits
+        ):
+            raise CompositionError(
+                f"PR #{number} commits must contain 40-character commit SHAs"
+            )
+        if strategy == "merge" and commits != [head]:
+            raise CompositionError(
+                f"PR #{number} declares commits but composition_strategy is merge"
+            )
         entry["ref"] = ref
+        entry["commits"] = commits
         seen.add(number)
 
     source_patches = manifest.get("source_patches", [])
@@ -116,6 +160,9 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
     manifest = _load_manifest(manifest_path)
     repository = str(manifest["repository"])
     base_ref = str(manifest["base_ref"])
+    composition_strategy = str(manifest["composition_strategy"])
+    composition_ref = manifest.get("composition_ref")
+    composition_commit = manifest.get("composition_commit")
     base_sha = _remote_sha(repository, base_ref)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -155,25 +202,53 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
 
             local_ref = f"refs/remotes/origin/release-pr-{number}"
             _run(
-                ["git", "fetch", "--quiet", "--no-tags", "origin", f"{ref}:{local_ref}"],
+                [
+                    "git",
+                    "fetch",
+                    "--quiet",
+                    "--no-tags",
+                    "origin",
+                    f"{ref}:{local_ref}",
+                ],
                 cwd=checkout,
             )
-            fetched_head = _run(["git", "rev-parse", local_ref], cwd=checkout).stdout.strip()
+            fetched_head = _run(
+                ["git", "rev-parse", local_ref], cwd=checkout
+            ).stdout.strip()
             if fetched_head != expected_head:
                 raise CompositionError(
                     f"PR #{number} fetch mismatch: expected {expected_head}, got {fetched_head}"
                 )
 
-            already_in_base = (
+            commits = [str(commit) for commit in entry["commits"]]
+            for commit in commits:
+                belongs_to_pr = (
+                    _run(
+                        ["git", "merge-base", "--is-ancestor", commit, expected_head],
+                        cwd=checkout,
+                        check=False,
+                    ).returncode
+                    == 0
+                )
+                if not belongs_to_pr:
+                    raise CompositionError(
+                        f"PR #{number} does not contain declared commit {commit}"
+                    )
+
+            already_in_base = all(
                 _run(
-                    ["git", "merge-base", "--is-ancestor", expected_head, base_sha],
+                    ["git", "merge-base", "--is-ancestor", commit, base_sha],
                     cwd=checkout,
                     check=False,
                 ).returncode
                 == 0
+                for commit in commits
             )
-            disposition = "already_in_base" if already_in_base else "merged"
-            if not already_in_base:
+            if composition_strategy == "pinned_branch":
+                disposition = "recorded_in_composition"
+            elif already_in_base:
+                disposition = "already_in_base"
+            elif composition_strategy == "merge":
                 merge = _run(
                     [
                         "git",
@@ -190,17 +265,88 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
                 )
                 if merge.returncode:
                     detail = merge.stderr.strip() or merge.stdout.strip()
-                    raise CompositionError(f"PR #{number} conflicts with the clean stack: {detail}")
+                    raise CompositionError(
+                        f"PR #{number} conflicts with the clean stack: {detail}"
+                    )
+                disposition = "merged"
+            else:
+                for commit in commits:
+                    cherry_pick = _run(
+                        ["git", "cherry-pick", commit],
+                        cwd=checkout,
+                        env=merge_env,
+                        check=False,
+                    )
+                    if cherry_pick.returncode:
+                        detail = (
+                            cherry_pick.stderr.strip() or cherry_pick.stdout.strip()
+                        )
+                        raise CompositionError(
+                            f"PR #{number} commit {commit} conflicts with the clean "
+                            f"stack: {detail}"
+                        )
+                disposition = "cherry_picked"
 
             resolved_prs.append(
                 {
                     "number": number,
                     "ref": ref,
                     "head": expected_head,
+                    "commits": commits,
                     "title": entry.get("title", ""),
                     "disposition": disposition,
                 }
             )
+
+        resolved_composition: dict[str, str] | None = None
+        if composition_strategy == "pinned_branch":
+            assert isinstance(composition_ref, str)
+            assert isinstance(composition_commit, str)
+            remote_composition = _remote_sha(repository, composition_ref)
+            if remote_composition != composition_commit:
+                raise CompositionError(
+                    f"composition branch moved: manifest pins {composition_commit}, "
+                    f"remote is {remote_composition}; review and update the manifest"
+                )
+            local_composition_ref = "refs/remotes/origin/release-composition"
+            _run(
+                [
+                    "git",
+                    "fetch",
+                    "--quiet",
+                    "--no-tags",
+                    "origin",
+                    f"{composition_ref}:{local_composition_ref}",
+                ],
+                cwd=checkout,
+            )
+            base_is_ancestor = (
+                _run(
+                    [
+                        "git",
+                        "merge-base",
+                        "--is-ancestor",
+                        base_sha,
+                        composition_commit,
+                    ],
+                    cwd=checkout,
+                    check=False,
+                ).returncode
+                == 0
+            )
+            if not base_is_ancestor:
+                raise CompositionError(
+                    f"composition commit {composition_commit} does not descend "
+                    f"from base {base_sha}"
+                )
+            _run(
+                ["git", "checkout", "--quiet", "--detach", composition_commit],
+                cwd=checkout,
+            )
+            resolved_composition = {
+                "ref": composition_ref,
+                "commit": composition_commit,
+            }
 
         resolved_source_patches: list[dict[str, Any]] = []
         for index, entry in enumerate(manifest["source_patches"]):
@@ -267,6 +413,8 @@ def compose(manifest_path: Path, output_dir: Path) -> dict[str, Any]:
             "ref": base_ref,
             "commit": base_sha,
         },
+        "composition_strategy": composition_strategy,
+        "composition": resolved_composition,
         "pull_requests": resolved_prs,
         "source_patches": resolved_source_patches,
         "result": {

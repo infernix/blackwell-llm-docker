@@ -87,30 +87,25 @@ RUN set -eux; \
 
 COPY runtime/kimi-k3-qsrt/source-overlay /opt/kimi-k3-qsrt/source-overlay
 
-# vLLM pins flash-attention before the SM80/SM120 FA4 dynamic-causal fix.
-# Apply the source-locked backport and install the transformed wrapper in the
-# binary package that owns generated CuTeDSL modules.
+# Install the wrapper from the FlashAttention revision pinned by the composed
+# vLLM tree into the binary package that owns generated CuTeDSL modules.
 RUN set -eux; \
     echo "${SOURCE_OVERLAY_SHA256}  /opt/kimi-k3-qsrt/source-overlay/sitecustomize.py" \
       | sha256sum -c -; \
     git clone --filter=blob:none --no-checkout \
       https://github.com/vllm-project/flash-attention.git /tmp/vllm-flash-attention; \
     git -C /tmp/vllm-flash-attention fetch --depth=1 origin \
-      f3e1a4f74c99145c0717709860bf765de1703779; \
+      7484d4751a4569fb30e5c0604581f1b02ae3df71; \
     git -C /tmp/vllm-flash-attention checkout --detach \
-      f3e1a4f74c99145c0717709860bf765de1703779; \
-    git -C /tmp/vllm-flash-attention apply --unidiff-zero \
-      /opt/kimi-k3-qsrt/vllm/cmake/patches/vllm_flash_attn_fa4_dynamic_causal.patch; \
+      7484d4751a4569fb30e5c0604581f1b02ae3df71; \
     sed -i 's/from flash_attn\.cute/from vllm.vllm_flash_attn.cute/g' \
       /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py; \
-    echo "80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479  /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py" \
+    echo "f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449  /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py" \
       | sha256sum -c -; \
     install -m 0644 /tmp/vllm-flash-attention/flash_attn/cute/flash_fwd.py \
       /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py; \
     rm -rf /tmp/vllm-flash-attention
 
-COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-nospec /usr/local/bin/serve-kimi-k3-qsrt-nospec
-COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-dspark /usr/local/bin/serve-kimi-k3-qsrt-dspark
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-nospec-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dspark-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
@@ -119,20 +114,18 @@ RUN set -eux; \
     test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/b12x write-tree)" = "${B12X_INTEGRATION_TREE}"; \
     test "$(sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py | cut -d' ' -f1)" = \
-      80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479; \
+      f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449; \
     /opt/venv/bin/python -c 'import pathlib, vllm; assert pathlib.Path(vllm.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/vllm"))'; \
     /opt/venv/bin/python -c 'import b12x, pathlib; assert pathlib.Path(b12x.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/b12x"))'; \
     for launcher in \
-      /usr/local/bin/serve-kimi-k3-qsrt-nospec \
-      /usr/local/bin/serve-kimi-k3-qsrt-dspark \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii; do \
       bash -n "${launcher}"; \
     done
 
-LABEL org.opencontainers.image.title="Kimi-K3 QSRT TP16/DCP8 Infernal Invocation runtime" \
-      org.opencontainers.image.description="Source-locked Kimi-K3 QSRT and official-MXFP4 serving profiles on CUDA 13.3 and PyTorch 2.13" \
+LABEL org.opencontainers.image.title="Kimi-K3 official MXFP4 TP16/DCP16 runtime" \
+      org.opencontainers.image.description="Source-locked official Kimi-K3 MXFP4 no-speculation, DSpark, and DFlash serving profiles on CUDA 13.3 and PyTorch 2.13" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.version="${RELEASE_DATE}" \
       org.opencontainers.image.revision="${DOCKER_COMMIT}" \
@@ -155,6 +148,6 @@ LABEL org.opencontainers.image.title="Kimi-K3 QSRT TP16/DCP8 Infernal Invocation
       local-inference.b12x.integration.tree="${B12X_INTEGRATION_TREE}" \
       local-inference.b12x.patch.sha256="${B12X_PATCH_SHA256}" \
       local-inference.b12x.lock.sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
-      local-inference.flash-attention.forward.sha256="80058d9ea24fb51eaf1edecf4413d9c2008b0a5538127263a2e2500e8f838479"
+      local-inference.flash-attention.forward.sha256="f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449"
 
-ENTRYPOINT ["/usr/local/bin/serve-kimi-k3-qsrt-dspark"]
+ENTRYPOINT ["/usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii"]

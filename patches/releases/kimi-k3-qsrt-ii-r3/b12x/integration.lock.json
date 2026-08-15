@@ -1,26 +1,66 @@
 {
   "base": {
-    "commit": "195e26c5b67eb9c162f00fd8907d06e0fe27c569",
+    "commit": "a63f07e90fd449b693cafbe6aef1a73309595bf7",
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
-  "manifest": {
-    "sha256": "b79c7161eb1300cfab1a4fc98768442b934455aba281d20fceea149eb711e212"
+  "composition": {
+    "commit": "39562cea2c0a438e94cc321d7d6967262d8feb8a",
+    "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
   },
-  "name": "kimi-k3-qsrt-tp16-b12x",
+  "composition_strategy": "pinned_branch",
+  "manifest": {
+    "sha256": "3d3b8bdc505eaa7adc3a218e845ea13eb637c2794dcc52b69702330fbcbf6a9f"
+  },
+  "name": "kimi-k3-tp16-b12x",
   "pull_requests": [
     {
-      "disposition": "merged",
-      "head": "a257723e1b7d6ffde949a1f7fea1b5126c665407",
-      "number": 198,
-      "ref": "refs/pull/198/head",
-      "title": "Accelerate Kimi-K3 TP16 QSRT decode"
+      "commits": [
+        "db8fa1e8130f4d7e656bc3197938cc2355cd97f2"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "db8fa1e8130f4d7e656bc3197938cc2355cd97f2",
+      "number": 215,
+      "ref": "refs/pull/215/head",
+      "title": "Fix unaligned multi-row FP8 linear outputs"
+    },
+    {
+      "commits": [
+        "56d305398b73538bfe424f1be921225bb4e8b02e",
+        "ef4130d730f3d62ab5c4d76ff71b1a7c9df55921",
+        "075373e9b8f17f5bff8c8729f707e43c582bf06b"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "075373e9b8f17f5bff8c8729f707e43c582bf06b",
+      "number": 216,
+      "ref": "refs/pull/216/head",
+      "title": "Fuse Kimi paired projection gather and expert selection"
+    },
+    {
+      "commits": [
+        "a01cd5634b85405dc55a188f924a14748c1c1183"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "a01cd5634b85405dc55a188f924a14748c1c1183",
+      "number": 217,
+      "ref": "refs/pull/217/head",
+      "title": "Add CuTeDSL vocabulary-parallel argmax"
+    },
+    {
+      "commits": [
+        "cbb5cd82c5adc7406cfa8d14e86fadb55de20b4b"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "cbb5cd82c5adc7406cfa8d14e86fadb55de20b4b",
+      "number": 218,
+      "ref": "refs/pull/218/head",
+      "title": "Unify B12X all-reduce channel ownership"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "a24736fc170a650d649715182f3ff44c75a341148f7cfefeed571bf51a17f2e8",
-    "tree": "180ccabf28eaac9c18e40c5e09a22a5a773227e5"
+    "patch_sha256": "78dcdd209a3cda31d84c36e17d925c86e0580365667ad0a8c4df162fece155be",
+    "tree": "cd27d9d91b19535aa09ff00c460066f9e61c8983"
   },
   "schema_version": 1,
   "source_patches": []
