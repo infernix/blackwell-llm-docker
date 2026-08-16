@@ -4,13 +4,13 @@
   "repository": "https://github.com/local-inference-lab/b12x.git",
   "base_ref": "refs/heads/master",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815",
-  "composition_commit": "1903ead618da8395b61248fc8a9616d7ccdb8808",
+  "composition_ref": "refs/heads/agent/ii-kimi-runtime-composition-20260816",
+  "composition_commit": "8d96e730e5ea81e2fc8a2b823f57e97453eb1306",
   "pull_requests": [
-    {"number": 215, "head": "db8fa1e8130f4d7e656bc3197938cc2355cd97f2", "title": "Fix unaligned multi-row FP8 linear outputs"},
-    {"number": 216, "head": "075373e9b8f17f5bff8c8729f707e43c582bf06b", "commits": ["56d305398b73538bfe424f1be921225bb4e8b02e", "ef4130d730f3d62ab5c4d76ff71b1a7c9df55921", "075373e9b8f17f5bff8c8729f707e43c582bf06b"], "title": "Fuse Kimi paired projection gather and expert selection"},
+    {"number": 215, "head": "673b8c731c439454bd76ad511af8fcc43c2e3df6", "title": "Fix unaligned multi-row FP8 linear outputs"},
+    {"number": 216, "head": "df78ccb7ff48018bc0f4de428dc29450bf3be348", "title": "Fuse Kimi paired projection gather and expert selection"},
     {"number": 217, "head": "a01cd5634b85405dc55a188f924a14748c1c1183", "title": "Add CuTeDSL vocabulary-parallel argmax"},
-    {"number": 218, "head": "cbb5cd82c5adc7406cfa8d14e86fadb55de20b4b", "title": "Unify B12X all-reduce channel ownership"},
+    {"number": 218, "head": "654623ce6db4d3ed78b684d6e10d8f2f3b49df70", "title": "Expose a uniform PCIe all-reduce channel contract"},
     {"number": 219, "head": "8a83e51631ea81ef939c87c3003aeaa7c05047a8", "title": "Fix route-packed W4A16 top-k scaling"}
   ]
 }
