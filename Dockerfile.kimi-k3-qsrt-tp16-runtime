@@ -109,6 +109,8 @@ RUN set -eux; \
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-nospec-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dspark-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
+COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-nospec /usr/local/bin/serve-kimi-k3-qsrt-nospec
+COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-dspark /usr/local/bin/serve-kimi-k3-qsrt-dspark
 
 RUN set -eux; \
     test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
@@ -120,12 +122,14 @@ RUN set -eux; \
     for launcher in \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
-      /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii; do \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii \
+      /usr/local/bin/serve-kimi-k3-qsrt-nospec \
+      /usr/local/bin/serve-kimi-k3-qsrt-dspark; do \
       bash -n "${launcher}"; \
     done
 
-LABEL org.opencontainers.image.title="Kimi-K3 official MXFP4 TP16/DCP16 runtime" \
-      org.opencontainers.image.description="Source-locked official Kimi-K3 MXFP4 no-speculation, DSpark, and DFlash serving profiles on CUDA 13.3 and PyTorch 2.13" \
+LABEL org.opencontainers.image.title="Kimi-K3 official MXFP4 and QSRT-K2 runtime" \
+      org.opencontainers.image.description="Source-locked Kimi-K3 no-speculation, DSpark, and DFlash serving profiles on CUDA 13.3 and PyTorch 2.13" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.version="${RELEASE_DATE}" \
       org.opencontainers.image.revision="${DOCKER_COMMIT}" \

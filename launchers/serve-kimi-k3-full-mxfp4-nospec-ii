@@ -48,7 +48,7 @@ export VLLM_DCP_A2A_MAX_TOKENS="${VLLM_DCP_A2A_MAX_TOKENS:-1}"
 export VLLM_DCP_A2A_LARGE_BACKEND="${VLLM_DCP_A2A_LARGE_BACKEND:-ag_rs}"
 
 export VLLM_ENABLE_PCIE_ALLREDUCE="${VLLM_ENABLE_PCIE_ALLREDUCE:-1}"
-# Kimi-K3 DCP profiles use the bounded-degree B12X all-reduce and must not
+# Kimi-K3 DCP profiles use the topology-aware B12X all-reduce and must not
 # inherit the generic C++ backend configured by the base image.
 export VLLM_PCIE_ALLREDUCE_BACKEND="${KIMI_PCIE_ALLREDUCE_BACKEND:-b12x}"
 export VLLM_PCIE_ONESHOT_SINGLE_CHANNEL="${VLLM_PCIE_ONESHOT_SINGLE_CHANNEL:-1}"

@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
-# Serve lukealonso/Kimi-K3-QSRT-K2 with TP16/DCP8 and no draft model.
+# Serve lukealonso/Kimi-K3-QSRT-K2 without speculative decoding.
+# TP16/DCP8 is the default topology; TP_SIZE and DCP_SIZE select another
+# topology when the checkpoint and B12X kernels support it.
 set -euo pipefail
 
 MODEL="${MODEL:-/root/.cache/huggingface/hub/models--lukealonso--Kimi-K3-QSRT-K2/snapshots/3b98114115f1d41ce7963ba346c3fca19918b0bd}"
 PORT="${PORT:-8000}"
+TP_SIZE="${TP_SIZE:-16}"
+DCP_SIZE="${DCP_SIZE:-8}"
 KV_CACHE_MEMORY_BYTES="${KV_CACHE_MEMORY_BYTES:-1950000000}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-1048576}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-4096}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-8}"
-SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-Kimi-K3-QSRT-K2-NoSpec-TP16-DCP8-1M}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.98}"
+SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-Kimi-K3-QSRT-K2-NoSpec-TP${TP_SIZE}-DCP${DCP_SIZE}}"
+
+if (( TP_SIZE < 1 || DCP_SIZE < 1 || TP_SIZE % DCP_SIZE != 0 )); then
+  printf 'TP_SIZE must be positive and divisible by DCP_SIZE: TP_SIZE=%s DCP_SIZE=%s\n' \
+    "${TP_SIZE}" "${DCP_SIZE}" >&2
+  exit 2
+fi
 
 required=(
   "${MODEL}/model.safetensors.index.json"
@@ -36,7 +47,7 @@ export B12X_MOE_WORKSPACE_TOKEN_LIMIT="${B12X_MOE_WORKSPACE_TOKEN_LIMIT:-2048}"
 export B12X_W4A16_SMALL_M_DIRECT="${B12X_W4A16_SMALL_M_DIRECT:-1}"
 export VLLM_DISABLE_SHARED_EXPERTS_STREAM="${VLLM_DISABLE_SHARED_EXPERTS_STREAM:-0}"
 export VLLM_ENABLE_PCIE_ALLREDUCE="${VLLM_ENABLE_PCIE_ALLREDUCE:-1}"
-# Kimi-K3 DCP profiles use the bounded-degree B12X all-reduce and must not
+# Kimi-K3 DCP profiles use the topology-aware B12X all-reduce and must not
 # inherit the generic C++ backend configured by the base image.
 export VLLM_PCIE_ALLREDUCE_BACKEND="${KIMI_PCIE_ALLREDUCE_BACKEND:-b12x}"
 export VLLM_PCIE_ONESHOT_SINGLE_CHANNEL="${VLLM_PCIE_ONESHOT_SINGLE_CHANNEL:-1}"
@@ -63,6 +74,7 @@ export INSTANTTENSOR_BACKEND="${INSTANTTENSOR_BACKEND:-AIO}"
 export INSTANTTENSOR_BUFFER_SIZE="${INSTANTTENSOR_BUFFER_SIZE:-536870912}"
 export INSTANTTENSOR_MAX_FREE_MEM_USAGE="${INSTANTTENSOR_MAX_FREE_MEM_USAGE:-0.6}"
 export SAFETENSORS_FAST_GPU="${SAFETENSORS_FAST_GPU:-1}"
+unset NCCL_GRAPH_FILE
 
 exec /opt/venv/bin/python -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --served-model-name "${SERVED_MODEL_NAME}" \
@@ -70,8 +82,8 @@ exec /opt/venv/bin/python -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --language-model-only \
   --host 0.0.0.0 \
   --port "${PORT}" \
-  --tensor-parallel-size 16 \
-  --decode-context-parallel-size 8 \
+  --tensor-parallel-size "${TP_SIZE}" \
+  --decode-context-parallel-size "${DCP_SIZE}" \
   --dcp-comm-backend a2a \
   --dcp-kv-cache-interleave-size 1 \
   --load-format instanttensor \
@@ -85,7 +97,7 @@ exec /opt/venv/bin/python -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --max-model-len "${MAX_MODEL_LEN}" \
   --max-num-batched-tokens "${MAX_NUM_BATCHED_TOKENS}" \
   --max-num-seqs "${MAX_NUM_SEQS}" \
-  --gpu-memory-utilization 0.985 \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
   --enable-chunked-prefill \
   --no-enable-prefix-caching \
   --compilation-config '{"mode":0,"cudagraph_mode":"FULL_DECODE_ONLY","custom_ops":["all"],"cudagraph_capture_sizes":[1,8],"pass_config":{"fuse_allreduce_rms":true}}' \
