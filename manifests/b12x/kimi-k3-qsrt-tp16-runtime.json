@@ -1,16 +1,11 @@
 {
   "schema_version": 1,
-  "name": "kimi-k3-tp16-b12x",
+  "name": "kimi-k3-b12x-runtime",
   "repository": "https://github.com/local-inference-lab/b12x.git",
   "base_ref": "refs/heads/master",
-  "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/ii-kimi-runtime-composition-20260816",
-  "composition_commit": "8d96e730e5ea81e2fc8a2b823f57e97453eb1306",
+  "composition_strategy": "merge",
   "pull_requests": [
-    {"number": 215, "head": "673b8c731c439454bd76ad511af8fcc43c2e3df6", "title": "Fix unaligned multi-row FP8 linear outputs"},
-    {"number": 216, "head": "df78ccb7ff48018bc0f4de428dc29450bf3be348", "title": "Fuse Kimi paired projection gather and expert selection"},
-    {"number": 217, "head": "a01cd5634b85405dc55a188f924a14748c1c1183", "title": "Add CuTeDSL vocabulary-parallel argmax"},
-    {"number": 218, "head": "654623ce6db4d3ed78b684d6e10d8f2f3b49df70", "title": "Expose a uniform PCIe all-reduce channel contract"},
-    {"number": 219, "head": "8a83e51631ea81ef939c87c3003aeaa7c05047a8", "title": "Fix route-packed W4A16 top-k scaling"}
+    {"number": 215, "head": "b3c2c162064ea9fab118f08922577aca5912e7e6", "title": "Preserve unaligned multi-row FP8 linear outputs"},
+    {"number": 220, "head": "53dc49f65bce9a91064ac10da7f4a39024a6d3f1", "title": "Add TP16 equal-quarter PCIe all-reduce"}
   ]
 }

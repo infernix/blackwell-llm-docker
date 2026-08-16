@@ -1,74 +1,41 @@
 {
   "base": {
-    "commit": "ed25ced476883a87911709d240e884f5b4af86c1",
+    "commit": "e68f812f15e6b06420cc649eb9caccfa42d1b9c4",
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
-  "composition": {
-    "commit": "8d96e730e5ea81e2fc8a2b823f57e97453eb1306",
-    "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260816"
-  },
-  "composition_strategy": "pinned_branch",
+  "composition": null,
+  "composition_strategy": "merge",
   "manifest": {
-    "sha256": "b3db5e143bbeea8c978795053b8ec78c8bfdfbb227d4d2a79a65c5fde366057a"
+    "sha256": "2053fc5ac506e60f47b75e42986a23cf03d6ddd14abb6c16e93e330ebc9d9168"
   },
-  "name": "kimi-k3-tp16-b12x",
+  "name": "kimi-k3-b12x-runtime",
   "pull_requests": [
     {
       "commits": [
-        "673b8c731c439454bd76ad511af8fcc43c2e3df6"
+        "b3c2c162064ea9fab118f08922577aca5912e7e6"
       ],
-      "disposition": "recorded_in_composition",
-      "head": "673b8c731c439454bd76ad511af8fcc43c2e3df6",
+      "disposition": "merged",
+      "head": "b3c2c162064ea9fab118f08922577aca5912e7e6",
       "number": 215,
       "ref": "refs/pull/215/head",
-      "title": "Fix unaligned multi-row FP8 linear outputs"
+      "title": "Preserve unaligned multi-row FP8 linear outputs"
     },
     {
       "commits": [
-        "df78ccb7ff48018bc0f4de428dc29450bf3be348"
+        "53dc49f65bce9a91064ac10da7f4a39024a6d3f1"
       ],
-      "disposition": "recorded_in_composition",
-      "head": "df78ccb7ff48018bc0f4de428dc29450bf3be348",
-      "number": 216,
-      "ref": "refs/pull/216/head",
-      "title": "Fuse Kimi paired projection gather and expert selection"
-    },
-    {
-      "commits": [
-        "a01cd5634b85405dc55a188f924a14748c1c1183"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "a01cd5634b85405dc55a188f924a14748c1c1183",
-      "number": 217,
-      "ref": "refs/pull/217/head",
-      "title": "Add CuTeDSL vocabulary-parallel argmax"
-    },
-    {
-      "commits": [
-        "654623ce6db4d3ed78b684d6e10d8f2f3b49df70"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "654623ce6db4d3ed78b684d6e10d8f2f3b49df70",
-      "number": 218,
-      "ref": "refs/pull/218/head",
-      "title": "Expose a uniform PCIe all-reduce channel contract"
-    },
-    {
-      "commits": [
-        "8a83e51631ea81ef939c87c3003aeaa7c05047a8"
-      ],
-      "disposition": "recorded_in_composition",
-      "head": "8a83e51631ea81ef939c87c3003aeaa7c05047a8",
-      "number": 219,
-      "ref": "refs/pull/219/head",
-      "title": "Fix route-packed W4A16 top-k scaling"
+      "disposition": "merged",
+      "head": "53dc49f65bce9a91064ac10da7f4a39024a6d3f1",
+      "number": 220,
+      "ref": "refs/pull/220/head",
+      "title": "Add TP16 equal-quarter PCIe all-reduce"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "512e7a737a4b93d2e5978a0f8e53462c171de2fd3d4d6a71916495aa29fae731",
-    "tree": "3bce5d8caa760af1c50718eeb1509c4e9b9bf379"
+    "patch_sha256": "782f0c4feee40c7e2a44466fb638089685daeb1c65a98b998c92ebba3c24439e",
+    "tree": "f8edd788cee5399ede041ee4a5ce85ab88cf37c1"
   },
   "schema_version": 1,
   "source_patches": []

@@ -65,10 +65,29 @@ index 0000000000000000000000000000000000000000..d6d93177a56b3b56146cbbf3c0d493f8
 +
 +    assert get_active_b12x_pcie_allreduce() is None
 diff --git a/tests/distributed/test_b12x_fused_all_reduce.py b/tests/distributed/test_b12x_fused_all_reduce.py
-index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be77372441db8f15 100644
+index cac013c9e105c62d8ad7887a2560fff88e29247b..f0f2068d63f43289e412c987b0c969423eaf44ee 100644
 --- a/tests/distributed/test_b12x_fused_all_reduce.py
 +++ b/tests/distributed/test_b12x_fused_all_reduce.py
-@@ -218,13 +218,35 @@ def test_b12x_oneshot_defaults_to_stream_isolation(
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+ 
++import builtins
+ from types import SimpleNamespace
+ from unittest.mock import MagicMock
+ 
+@@ -29,8 +30,10 @@ from vllm.distributed import tensor_model_parallel_all_reduce
+ from vllm.distributed.device_communicators import custom_all_reduce
+ from vllm.distributed.device_communicators.custom_all_reduce import (
+     CustomAllreduce,
++    _b12x_pcie_allreduce_max_size,
+     _b12x_pcie_dma_min_bytes,
+     _b12x_pcie_oneshot_limits,
++    _load_b12x_pcie_recommended_max_bytes,
+     get_b12x_pcie_allreduce,
+ )
+ from vllm.distributed.parallel_state import get_tp_group, graph_capture
+@@ -218,13 +221,35 @@ def test_b12x_oneshot_defaults_to_stream_isolation(
      assert not envs.environment_variables["VLLM_PCIE_ONESHOT_SINGLE_CHANNEL"]()
  
  
@@ -106,7 +125,7 @@ index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be773724
          @classmethod
          def from_exchange_group(cls, **kwargs):
              captured.update(kwargs)
-@@ -243,10 +265,14 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
+@@ -243,10 +268,14 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
      monkeypatch.setattr(
          custom_all_reduce,
          "in_the_same_node_as",
@@ -123,7 +142,7 @@ index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be773724
      monkeypatch.setattr(custom_all_reduce.dist, "all_gather", fake_all_gather)
      monkeypatch.setattr(
          custom_all_reduce.dist, "all_reduce", lambda *args, **kwargs: None
-@@ -264,13 +290,13 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
+@@ -264,13 +293,13 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
      )
      monkeypatch.setattr(
          custom_all_reduce,
@@ -140,7 +159,7 @@ index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be773724
      )
      monkeypatch.setattr(
          custom_all_reduce.current_platform,
-@@ -310,7 +336,7 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
+@@ -310,7 +339,7 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
      monkeypatch.setattr(
          custom_all_reduce.envs,
          "VLLM_PCIE_ONESHOT_SINGLE_CHANNEL",
@@ -149,7 +168,7 @@ index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be773724
          raising=False,
      )
      monkeypatch.setattr(
-@@ -327,10 +353,18 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
+@@ -327,10 +356,18 @@ def test_b12x_pool_prepares_single_stable_eager_owner(
      )
  
      assert not built.disabled
@@ -172,8 +191,104 @@ index cac013c9e105c62d8ad7887a2560fff88e29247b..91b2a84e706cedee721e2c22be773724
  
  
  def test_b12x_channel_checkpoint_delegates_to_runtime() -> None:
+@@ -391,13 +428,94 @@ def test_b12x_oneshot_buffer_tracks_dispatch_limits(
+         "84KB",
+     )
+ 
+-    assert _b12x_pcie_oneshot_limits() == (
++    assert _b12x_pcie_oneshot_limits(16) == (
+         64 * 1024,
+         84 * 1024,
+         84 * 1024,
+     )
+ 
+ 
++def test_b12x_allreduce_limit_uses_world_size_policy(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.delenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", raising=False)
++    recommender = MagicMock(return_value=160 * 1024)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: recommender,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 160 * 1024
++    assert _b12x_pcie_oneshot_limits(16) == (
++        160 * 1024,
++        84 * 1024,
++        160 * 1024,
++    )
++    recommender.assert_called_with(16, default=84 * 1024)
++
++
++def test_b12x_allreduce_limit_preserves_explicit_operator_value(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", "64KB")
++    recommender = MagicMock(return_value=160 * 1024)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: recommender,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 64 * 1024
++    recommender.assert_not_called()
++
++
++def test_b12x_allreduce_limit_uses_vllm_default_without_b12x_policy(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.delenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", raising=False)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: None,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 84 * 1024
++
++
++def test_b12x_policy_loader_accepts_absent_optional_package(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    original_import = builtins.__import__
++
++    def import_without_b12x(name, *args, **kwargs):
++        if name == "b12x.comm.pcie.pcie_allreduce":
++            raise ModuleNotFoundError("No module named 'b12x'", name="b12x")
++        return original_import(name, *args, **kwargs)
++
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++    monkeypatch.setattr(builtins, "__import__", import_without_b12x)
++    assert _load_b12x_pcie_recommended_max_bytes() is None
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++
++
++def test_b12x_policy_loader_surfaces_broken_dependency(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    original_import = builtins.__import__
++
++    def import_with_broken_dependency(name, *args, **kwargs):
++        if name == "b12x.comm.pcie.pcie_allreduce":
++            raise ModuleNotFoundError("No module named 'cutlass'", name="cutlass")
++        return original_import(name, *args, **kwargs)
++
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++    monkeypatch.setattr(builtins, "__import__", import_with_broken_dependency)
++    with pytest.raises(ModuleNotFoundError, match="cutlass"):
++        _load_b12x_pcie_recommended_max_bytes()
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++
++
+ def test_b12x_dma_min_bytes_is_configurable(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
 diff --git a/tests/distributed/test_dcp_a2a.py b/tests/distributed/test_dcp_a2a.py
-index 909cb93c1bcad23c178209214e57cb78f3b25f77..f75aac077e5c7db1ca9ca051cfbf992d6f26def7 100644
+index 909cb93c1bcad23c178209214e57cb78f3b25f77..6ae4f591d068dc27bdabb11e44444bfbd3cea094 100644
 --- a/tests/distributed/test_dcp_a2a.py
 +++ b/tests/distributed/test_dcp_a2a.py
 @@ -10,7 +10,7 @@ Tests cover:
@@ -1014,6 +1129,16 @@ index 909cb93c1bcad23c178209214e57cb78f3b25f77..f75aac077e5c7db1ca9ca051cfbf992d
          from vllm.v1.attention.ops.dcp_alltoall import _lse_weighted_combine
  
          expected_out, expected_lse = _lse_weighted_combine(
+@@ -1595,9 +2240,6 @@ def test_distributed_packed_a2a_with_workspace_matches_reference():
+     reason="Need two GPUs and b12x.",
+ )
+ def test_distributed_b12x_a2a_eager_and_graph_matches_reference():
+-    from b12x.comm.pcie.pcie_dcp_a2a import _load_extension
+-
+-    _load_extension()
+     _distributed_run(
+         _distributed_b12x_a2a_worker,
+         world_size=2,
 diff --git a/tests/distributed/test_dcp_direct_a2a_lse_reduce.py b/tests/distributed/test_dcp_direct_a2a_lse_reduce.py
 index b05a54825d91fa7f65c9ff887a06a3d699f71d1d..9f6c9c56c282c93deb3f12be6dd8c0c6cbaff1f5 100644
 --- a/tests/distributed/test_dcp_direct_a2a_lse_reduce.py
@@ -4770,7 +4895,7 @@ index 97ba133249fa01688dd285ca270f17c6d1942a2a..32694068b8c37b943269d1ba151b5433
          ca_comm = self.ca_comm
          if ca_comm is None:
 diff --git a/vllm/distributed/device_communicators/custom_all_reduce.py b/vllm/distributed/device_communicators/custom_all_reduce.py
-index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a0029ce05 100644
+index 2cf46337e34c49b6d943cdfa43196536dc02da06..1064180560970a6a5c58024900d18f7edc941d50 100644
 --- a/vllm/distributed/device_communicators/custom_all_reduce.py
 +++ b/vllm/distributed/device_communicators/custom_all_reduce.py
 @@ -41,6 +41,9 @@ logger = init_logger(__name__)
@@ -4783,7 +4908,62 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
  
  
  def _get_pcie_allreduce_backend() -> str:
-@@ -118,14 +121,12 @@ def _b12x_pcie_dma_min_bytes() -> int | None:
+@@ -93,8 +96,52 @@ def _parse_byte_size(value: str) -> int:
+     return int(value)
+ 
+ 
+-def _b12x_pcie_oneshot_limits() -> tuple[int, int, int]:
+-    allreduce_max_size = _parse_byte_size(envs.VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE)
++@lru_cache(maxsize=1)
++def _load_b12x_pcie_recommended_max_bytes() -> Any | None:
++    try:
++        from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes
++    except ModuleNotFoundError as exc:
++        if exc.name != "b12x":
++            raise
++        return None
++    return recommended_max_bytes
++
++
++def _b12x_pcie_allreduce_max_size(world_size: int) -> int:
++    """Resolve the custom all-reduce limit from operator and B12X policy.
++
++    An explicitly configured vLLM limit has priority. Otherwise B12X may
++    enlarge the vLLM default only for tensor-parallel sizes with a qualified
++    implementation for the additional message-size band.
++
++    Args:
++        world_size: Active tensor-parallel world size.
++
++    Returns:
++        Resolved maximum all-reduce size in bytes.
++    """
++
++    configured = os.getenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE")
++    if configured is not None:
++        return _parse_byte_size(configured)
++    default = _parse_byte_size(envs.VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE)
++    recommended_max_bytes = _load_b12x_pcie_recommended_max_bytes()
++    if recommended_max_bytes is None:
++        return default
++    resolved = int(recommended_max_bytes(world_size, default=default))
++    if resolved != default:
++        logger.info(
++            "B12X selected a %d-byte PCIe all-reduce limit for TP%d; "
++            "the vLLM default is %d bytes.",
++            resolved,
++            world_size,
++            default,
++        )
++    return resolved
++
++
++def _b12x_pcie_oneshot_limits(world_size: int) -> tuple[int, int, int]:
++    allreduce_max_size = _b12x_pcie_allreduce_max_size(world_size)
+     fused_max_size = _parse_byte_size(
+         envs.VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE
+     )
+@@ -118,14 +165,12 @@ def _b12x_pcie_dma_min_bytes() -> int | None:
  
  
  @lru_cache(maxsize=1)
@@ -4801,7 +4981,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
  
  
  @lru_cache(maxsize=1)
-@@ -515,12 +516,12 @@ class CustomAllreduce:
+@@ -515,12 +560,12 @@ class CustomAllreduce:
                      physical_device_ids,
                  )
                  return
@@ -4817,7 +4997,16 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
                  logger.warning(
                      "%s PCIe custom allreduce was requested, but its runtime "
                      "is unavailable.",
-@@ -568,13 +569,21 @@ class CustomAllreduce:
+@@ -553,7 +598,7 @@ class CustomAllreduce:
+                 self._pcie_allreduce_max_size,
+                 self._pcie_fused_add_rms_norm_max_size,
+                 pcie_oneshot_buffer_size,
+-            ) = _b12x_pcie_oneshot_limits()
++            ) = _b12x_pcie_oneshot_limits(world_size)
+             if self.nccl_group is None:
+                 logger.warning(
+                     "Custom allreduce is disabled because %s PCIe oneshot "
+@@ -568,13 +613,21 @@ class CustomAllreduce:
              pcie_runtime = None
              pcie_init_error: Exception | None = None
              try:
@@ -4841,7 +5030,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
                  )
                  if not pcie_single_channel:
                      pcie_runtime.prepare_channels((_B12X_PCIE_EAGER_CHANNEL_ID,))
-@@ -614,8 +623,13 @@ class CustomAllreduce:
+@@ -614,8 +667,13 @@ class CustomAllreduce:
              # Prefill-size DMA allreduce alongside the oneshot. A deployment
              # preflight can tune its crossover or disable it when lossless DMA
              # never beats NCCL on the selected PCIe topology.
@@ -4856,7 +5045,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
              )
              dma_cls = None if dma_min_bytes is None else _load_b12x_pcie_dma()
              if pcie_backend != "b12x":
-@@ -623,6 +637,12 @@ class CustomAllreduce:
+@@ -623,6 +681,12 @@ class CustomAllreduce:
                      "FlashInfer PCIe IPC handles only tuned one-shot shapes; "
                      "larger allreduces stay on PyNCCL."
                  )
@@ -4869,7 +5058,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
              elif dma_min_bytes is None:
                  logger.info(
                      "b12x PCIe DMA allreduce disabled by "
-@@ -678,8 +698,9 @@ class CustomAllreduce:
+@@ -678,8 +742,9 @@ class CustomAllreduce:
              if rank == 0:
                  logger.info(
                      "Configured %s PCIe crossovers: "
@@ -4880,7 +5069,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
                      self._pcie_allreduce_max_size,
                      self._pcie_fused_add_rms_norm_max_size,
                      dma_min_bytes if dma_min_bytes is not None else "off",
-@@ -1017,6 +1038,8 @@ class CustomAllreduce:
+@@ -1017,6 +1082,8 @@ class CustomAllreduce:
          if self._pcie_runtime is not None:
              if self._pcie_backend_name == "flashinfer-ipc":
                  return "FLASHINFER_PCIE_IPC"
@@ -4889,7 +5078,7 @@ index 2cf46337e34c49b6d943cdfa43196536dc02da06..a90d153615ed793caa486fcfa018dc6a
              if self._pcie_dma is not None:
                  return "B12X_PCIE_ONESHOT_DMA"
              return "B12X_PCIE_ONESHOT"
-@@ -1368,3 +1391,23 @@ def get_b12x_pcie_allreduce() -> CustomAllreduce | None:
+@@ -1368,3 +1435,23 @@ def get_b12x_pcie_allreduce() -> CustomAllreduce | None:
      ):
          return custom_allreduce
      return None
@@ -8667,7 +8856,7 @@ index bae050d2881af2e4dd4399cd68d37c031fae3945..4361f6b66786270135df79f7ed291be2
  
      send_buffer, recv_buffer = _dcp_a2a_send_recv_buffers(
 diff --git a/vllm/v1/core/kv_cache_utils.py b/vllm/v1/core/kv_cache_utils.py
-index 0317e9ded0f025a54c8b6f8cb01d7589f28977f9..40ac953eb4da97b1df3fcfc698805a6d076f9a70 100644
+index 0317e9ded0f025a54c8b6f8cb01d7589f28977f9..9d7d160c0d941a4375472f556f416b7085eceb4a 100644
 --- a/vllm/v1/core/kv_cache_utils.py
 +++ b/vllm/v1/core/kv_cache_utils.py
 @@ -1181,6 +1181,7 @@ def is_kv_cache_type_attention_free(kv_cache_spec: dict[str, KVCacheSpec]) -> bo
@@ -8724,12 +8913,14 @@ index 0317e9ded0f025a54c8b6f8cb01d7589f28977f9..40ac953eb4da97b1df3fcfc698805a6d
      has_swa = any(
          isinstance(spec, SlidingWindowMLASpec) for spec in kv_cache_spec.values()
      )
-@@ -2064,7 +2085,30 @@ def get_kv_cache_groups(
+@@ -2064,7 +2085,32 @@ def get_kv_cache_groups(
          if fallback_groups is None:
              raise
          return fallback_groups
 -    groups = _get_kv_cache_groups_uniform_page_size(filtered_spec)
-+    model_type = getattr(vllm_config.model_config.hf_config, "model_type", None)
++    model_config = getattr(vllm_config, "model_config", None)
++    hf_config = getattr(model_config, "hf_config", None)
++    model_type = getattr(hf_config, "model_type", None)
 +    k3_group_size = envs.VLLM_K3_KV_GROUP_SIZE
 +    use_k3_group_size_override = (
 +        k3_group_size > 0
