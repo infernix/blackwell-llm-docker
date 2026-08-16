@@ -74,6 +74,11 @@
       "number": 24,
       "head": "31ca93b2240ca61b5ca85549021c268f90f73d29",
       "title": "Preserve replicated Mamba restore geometry"
+    },
+    {
+      "number": 25,
+      "head": "d9a7ae273a4de28cd37a2a122e6852c451e4b889",
+      "title": "Register unified recurrent and subpaged MLA cache pages"
     }
   ]
 }

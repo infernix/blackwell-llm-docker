@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "5810e6d14f24d619cabd9f176c419e669c9efcff5b57337c42ba77eb347d4913"
+    "sha256": "f9d54bf2a7bc193f69b99b0f8396ab36e57fa862ee1fab87a8648dd54d6a62a5"
   },
   "name": "kimi-k3-production-lmcache",
   "pull_requests": [
@@ -150,12 +150,22 @@
       "number": 24,
       "ref": "refs/pull/24/head",
       "title": "Preserve replicated Mamba restore geometry"
+    },
+    {
+      "commits": [
+        "d9a7ae273a4de28cd37a2a122e6852c451e4b889"
+      ],
+      "disposition": "merged",
+      "head": "d9a7ae273a4de28cd37a2a122e6852c451e4b889",
+      "number": 25,
+      "ref": "refs/pull/25/head",
+      "title": "Register unified recurrent and subpaged MLA cache pages"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "7735d32bee7f5910c77a5d582506a9e3a1f9d673531817bdceefcd20313527ea",
-    "tree": "5d45aca6d49d1da08d7de0dada8a99bcbfe78ae4"
+    "patch_sha256": "7cc81bd6d566b3c118fdec59085f45709f5bca0e8202b89219fddded414b9a73",
+    "tree": "805dab1ae3c6b10a7eb624b5f073a5e99a11e9c7"
   },
   "schema_version": 1,
   "source_patches": []

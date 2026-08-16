@@ -120,10 +120,24 @@ case "${ENABLE_PREFIX_CACHING:-0}" in
     exit 2
     ;;
 esac
+case "${ENABLE_VISION:-0}" in
+  0) multimodal_args=(--language-model-only) ;;
+  1)
+    multimodal_args=(
+      --limit-mm-per-prompt "{\"image\":${MAX_IMAGES_PER_PROMPT:-4}}"
+      --mm-processor-cache-gb "${MM_PROCESSOR_CACHE_GB:-1}"
+      --mm-encoder-tp-mode data
+    )
+    ;;
+  *)
+    echo "ENABLE_VISION must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
 exec "${PYTHON_BIN}" -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --served-model-name "${SERVED_MODEL_NAME:-Kimi-K3-MXFP4-DSpark7-DCP16-1M}" \
   --trust-remote-code \
-  --language-model-only \
+  "${multimodal_args[@]}" \
   --host "${HOST:-0.0.0.0}" \
   --port "${PORT:-8000}" \
   --tensor-parallel-size "${TP_SIZE}" \

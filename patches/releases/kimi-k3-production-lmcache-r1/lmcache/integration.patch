@@ -346,6 +346,587 @@ index 685fa4165b188b517a5c0de50753e5ae2e596d6f..0d5109e0dbb5595476806071d62c6ded
  }
  
  void MooncakeConnector::do_batch_exists(WorkerMooncakeConn& conn,
+diff --git a/docs/design/integration/vllm/kv_cache_group_edits.md b/docs/design/integration/vllm/kv_cache_group_edits.md
+index b63a3b51da5958ea2e5fe66b89c061c1b7940f03..df7290a64e0c7ce3856e28583ac48f71e896529c 100644
+--- a/docs/design/integration/vllm/kv_cache_group_edits.md
++++ b/docs/design/integration/vllm/kv_cache_group_edits.md
+@@ -1,150 +1,149 @@
+-# KV Cache Group Edits
+-
+-## Summary
+-
+-`lmcache/integration/vllm/kv_cache_group_edits.py` is the single place where
+-vLLM KV cache groups are re-presented ("edited") before LMCache registration.
+-The connector calls `apply_kv_cache_group_edits(kv_cache_config, kv_caches)`
+-once in `register_kv_caches`, and the edited dict feeds both engine-group-info
+-creation (`kv_cache_groups.py`) and transfer registration.
+-
+-LMCache derives each group's transfer metadata (block size, page layout,
+-dtype) from the registered tensors, and interprets store/retrieve block IDs in
+-vLLM's scheduler-side block-id space (`kv_cache_spec.block_size` units). The
+-edits exist to restore one invariant the raw tensors can violate:
+-
+-> **The registered tensor's paging granularity must equal the block-id
+-> granularity.**
+-
+-## Structure
+-
+-Each case is one `KVCacheGroupEdit` rule in the module's `_EDITS` registry:
+-`matches(spec, kv_cache)` decides **structurally** — from the vLLM spec kind
+-(`get_kv_cache_spec_kind`, which also unwraps `UniformTypeKVCacheSpecs`) and
+-the registered tensor, never from model name or architecture — and
+-`apply(spec, kv_cache)` produces a view over the same storage. First matching
+-rule wins; unmatched layers pass through. Covering a new group kind means
+-adding one rule.
+-
+-Model name/arch is deliberately not an input: the same architecture yields
+-different group structures depending on runtime decisions
+-(`mamba_cache_mode`, attention backend's kernel block size, TP), all of which
+-the config + tensors already resolve.
+-
+-## Edits
+-
+-Both rules apply only to Mamba-hybrid models (the registry is only consulted
+-when `kv_cache_config.has_mamba_layers`).
+-
+-### 1. Mamba state pages
+-
+-A Mamba / linear-attention layer (e.g. Qwen3.5 GDN) registers `[conv_state,
+-ssm_state]` — two tensors with different shapes and dtypes, laid out
+-contiguously in one padded page (`conv | ssm | pad`). The raw pair trips
+-format discovery (the SSM view starts mid-page). The edit reinterprets each
+-page as one bf16 tensor shaped `(num_blocks, 2, block_size, 1, head_size)`
+-over the same storage, where `head_size` is derived so the bytes fill the page
+-exactly.
+-
+-### 2. Sub-paged full attention
+-
+-vLLM unifies page sizes across hybrid groups by inflating the attention
+-*logical* block size (`vllm/platforms/interface.py:_align_hybrid_block_size`;
+-Qwen3.5-0.8B: 544), while the attention backend re-pages the physical tensor
+-at its own *kernel* block size (`vllm/v1/worker/utils.py:
+-prepare_kernel_block_sizes`; FlashAttention on hybrids: 32). Logical block `n`
+-then occupies the `k = logical/kernel` contiguous kernel pages
+-`n*k .. n*k+k-1` (vLLM expands the worker-side block table the same way,
+-`BlockTable.map_to_kernel_blocks`); the scheduler-side block IDs LMCache
+-receives stay logical.
+-
+-Registering the raw kernel-paged tensor makes LMCache discover
+-`block_size == kernel < logical`, and `_derive_compression_metadata`
+-(`lmcache/v1/kv_layer_groups.py`) misclassifies the group as compressed:
+-only `1/k` of each chunk's KV is transferred, addressed against the kernel
+-page space. The edit re-views the tensor as
+-`(num_kernel_pages / k, 2, logical_block_size, 1, head_size)` — a pure
+-`view()`, valid because `k` kernel pages tile each logical page's bytes
+-exactly (enforced; see Invariants).
+-
+-## Startup validation
+-
+-`validate_kv_cache_groups` (called at connector init and again at
+-registration) rejects group specs the transfer path cannot serve correctly,
+-with one aggregated error: `CrossAttentionSpec`, and Mamba with
+-`mamba_cache_mode != "align"` (no reusable snapshots). Declared slot
+-compression (`compress_ratio > 1` / `tq_slot_size > 0`, e.g. DeepSeek-V4) is
+-*not* rejected — those groups are served by the compression path in
+-`lmcache/v1/kv_layer_groups.py` and only skipped by the edits here. Note the
+-compression path still derives per-group ratios from the unified vLLM block
+-size; switching it to per-group block sizes is pending in a separate PR.
+-
+-Reference: vLLM PR #42828 (Mooncake store HMA support) uses the same
+-validate-and-reject-up-front pattern, and is the reference design for the
+-deferred follow-ups (per-group store/load masks; manager-mirroring hit
+-computation). Caveat for the latter: LMCache's lookup doubles as prefetch, so
+-vLLM's lookup-first-then-trim flow does not map directly. See the module
+-docstring for the full check-when list.
+-
+-## Non-edit: declared compression
+-
+-Groups whose spec *declares* slot compression — `MLAAttentionSpec.
+-compress_ratio > 1` (DeepSeek-V4 slot packing, `storage_block_size <
+-block_size`) or `TQFullAttentionSpec.tq_slot_size > 0` — genuinely store fewer
+-physical slots than logical tokens. They must reach the compression path in
+-`lmcache/v1/kv_layer_groups.py` unedited. (DeepSeek-V3.2's `fp8_ds_mla` cache
+-packs *bytes per slot*, not slots per block: its specs keep
+-`block_size == scheduler block size` and `compress_ratio == 1`, so it never
+-needs an edit either.)
+-
+-The sub-paged rule's `matches` excludes declared-compression specs by their
+-own fields (`compress_ratio` / `tq_slot_size`), and its `apply` additionally
+-verifies by byte accounting that `k` kernel pages tile the logical page's
+-bytes exactly — any *undeclared* packed layout fails with a loud `ValueError`
+-rather than being transferred wrongly.
+-
+-## The opaque-page contract
+-
+-An edited view's dims are addressing metadata only (block id → byte range).
+-The named dims are **not** semantic: a Mamba view's "K plane" is conv/ssm
+-bytes, and a sub-paged attention view's "K plane" interleaves true K and V at
+-kernel-page granularity (true K is not contiguous across kernel pages, so no
+-logical-block view can have a pure-K plane). The synthetic head shape
+-`(1, page_bytes / (2 * block_size * elem))` signals this deliberately.
+-
+-Byte transport round-trips correctly because store and retrieve share the same
+-bijective block-id → bytes mapping. Consequences:
+-
+-- **Valid**: store/retrieve through the MP transfer path on the same engine
+-  configuration.
+-- **Not valid** for edited groups: content-aware processing (serde
+-  compression, blending, head resharding, layout conversion), and sharing
+-  cache entries across engines whose attention backends choose different
+-  kernel block sizes (the byte order inside a logical page is
+-  backend-dependent).
+-
+-## Invariants
+-
+-- Edits are pure tensor views over the registered storage — never copies.
+-- A sub-paged view is only produced when `kernel_page_bytes * k ==
+-  spec.page_size_bytes`; any mismatch raises `ValueError` (fail loudly rather
+-  than silently transfer a compressed layout).
+-- After edits, every registered tensor's block dim equals its group's
+-  `kv_cache_spec.block_size`, so the server derives `compress_ratio == 1` for
+-  these groups.
++# vLLM Hybrid KV-Cache Page Normalization
++
++Status: implemented.
++
++`lmcache/integration/vllm/kv_cache_group_edits.py` normalizes registered vLLM
++KV-cache tensors before LMCache derives transfer metadata. The normalization
++preserves storage and bytes while making each tensor's page dimension match
++the logical block identifiers supplied by the vLLM scheduler.
++
++`LMCacheMPConnector.register_kv_caches` calls
++`apply_kv_cache_group_edits(kv_cache_config, kv_caches, layout_hints)` once.
++The resulting views feed both engine-group metadata construction and transfer
++registration. A cache configuration without Mamba-compatible recurrent
++layers bypasses every rule.
++
++## Addressing contract
++
++LMCache store and retrieve operations interpret block identifiers in units of
++`kv_cache_spec.block_size`. An attention backend may instead allocate tensors
++in smaller kernel pages, and a recurrent backend may allocate one opaque state
++page. Registering either layout without normalization can make LMCache derive
++the wrong block size or slot-compression ratio.
++
++Every normalization rule satisfies these invariants:
++
++- The output is a view over the input storage; no cache bytes are copied.
++- One output page contains exactly `kv_cache_spec.page_size_bytes` bytes.
++- The output page dimension uses scheduler-visible logical blocks.
++- Shape dimensions on opaque views provide byte addressing only; they do not
++  imply attention-head, key/value, or recurrent-state semantics.
++- A tensor that cannot satisfy the byte and divisibility checks raises
++  `ValueError` during cache registration.
++
++## Structural rules
++
++Rules match the cache specification and registered tensor structure. Model
++names do not participate in selection. The first matching rule in `_EDITS`
++wins.
++
++### Unified recurrent-state pages
++
++vLLM can register a recurrent layer as a contiguous tensor with shape
++`[num_blocks, 1, 1, page_elements]`. `_MambaUnifiedViewEdit` exposes the same
++bytes as one of these layouts:
++
++- NHD: `[num_blocks, block_size, 1, head_size]`
++- HND: `[num_blocks, 1, block_size, head_size]`
++
++The rule verifies the declared page size and requires `page_elements` to be
++divisible by `block_size`.
++
++### Split recurrent-state pages
++
++A recurrent layer may register `[conv_state, ssm_state]`, where both tensors
++share a padded `conv | ssm | pad` page. `_MambaPageViewEdit` uses the view at
++the page base and exposes the complete page as
++`[num_blocks, 2, block_size, 1, head_size]`.
++
++The rule verifies that the first tensor begins at storage offset zero and that
++its block stride equals the declared page size.
++
++### Kernel-paged MLA storage
++
++An MLA backend may register
++`[num_kernel_pages, kernel_block_size, head_size]` while the scheduler uses a
++larger logical block. `_SubpagedMLAAttentionViewEdit` groups contiguous kernel
++pages into
++`[num_logical_blocks, logical_block_size, head_size]`.
++
++For Kimi-K3, twelve contiguous 64-token kernel pages form one 768-token
++logical page. Selection remains structural and therefore also supports other
++MLA configurations with the same byte-addressing relationship.
++
++### Kernel-paged standard attention storage
++
++A standard attention backend may register
++`[num_kernel_pages, 2, kernel_block_size, num_heads, head_size]` while a hybrid
++cache configuration uses a larger scheduler block.
++`_SubpagedAttentionViewEdit` groups complete kernel pages into
++`[num_logical_blocks, 2, logical_block_size, 1, derived_head_size]`.
++
++The output can interleave physical K and V regions at kernel-page boundaries.
++Store and retrieve remain byte-exact because both operations use the same
++view.
++
++## Declared slot compression
++
++A specification with `compress_ratio > 1` or `tq_slot_size > 0` declares
++physical slot compression. Such a group bypasses page normalization and uses
++the compression logic in `lmcache/v1/kv_layer_groups.py`.
++
++The subpage rules additionally verify that the grouped kernel pages tile one
++logical page exactly. An undeclared packed layout therefore fails
++registration instead of being treated as ordinary paging.
++
++## Unsupported cache specifications
++
++`validate_kv_cache_groups` rejects these specifications with one aggregated
++error:
++
++- cross-attention cache groups;
++- Mamba cache groups whose `mamba_cache_mode` is not `align`.
++
++Non-aligned recurrent caches do not preserve reusable state snapshots at
++logical block boundaries.
++
++## Format discovery
++
++`normalize_and_discover_per_layer_formats` detects each distinct tensor shape
++separately when a hybrid layer list contains more than one physical layout.
++Stride-based normalization also resolves singleton dimensions whose logical
++shape is ambiguous despite `torch.Tensor.is_contiguous()` returning true.
++
++Shared-memory migration applies the normalized shape and stride to the
++caller-owned tensor so the SHM lifetime remains attached to the registered
++object.
++
++## Compatibility limits
++
++Opaque page views support byte transport between store and retrieve paths that
++use the same engine configuration. They do not provide semantic K/V or
++recurrent-state structure for content-aware compression, blending, head
++resharding, or layout conversion. Cache artifacts are not portable between
++attention backends that choose different byte ordering inside a logical page.
++
++## Validation
++
++The unit suites cover:
++
++- zero-copy NHD and HND recurrent-state views;
++- zero-copy logical MLA views;
++- page-size and incomplete-page rejection;
++- mixed-layout format detection;
++- stride-truthful singleton-dimension normalization;
++- caller-owned shared-memory lifetime.
++
++The vLLM integration must also verify a cold store followed by a cache-hit
++retrieve with identical model output under the same cache geometry.
+ 
+ ## Code map
+ 
+-| Area | File |
++| Responsibility | Path |
+ |---|---|
+-| Edits (this doc) | `lmcache/integration/vllm/kv_cache_group_edits.py` |
+-| Caller | `lmcache/integration/vllm/lmcache_mp_connector.py` (`register_kv_caches`) |
+-| Compression-ratio derivation (downstream consumer) | `lmcache/v1/kv_layer_groups.py` |
+-| vLLM block-size inflation | `vllm/platforms/interface.py` (`_align_hybrid_block_size`) |
+-| vLLM kernel-page split + block-table expansion | `vllm/v1/worker/utils.py`, `vllm/v1/worker/block_table.py` |
+-| End-to-end test | `.buildkite/k3_tests/multiprocess/scripts/run-single-test.sh` (`hma_lm_eval_qwen3_5`) |
+-
+-Testing is end-to-end only (the `hma_lm_eval_qwen3_5` store-vs-retrieve gsm8k
+-check): the edit internals are expected to change as more group kinds are
+-covered, so tests pin the observable contract — faithful retrieve — rather
+-than view shapes.
++| Structural rules and validation | `lmcache/integration/vllm/kv_cache_group_edits.py` |
++| Registration caller | `lmcache/integration/vllm/lmcache_mp_connector.py` |
++| Shape and format discovery | `lmcache/v1/gpu_connector/kv_format/` |
++| Per-group transfer metadata | `lmcache/v1/kv_layer_groups.py` |
++| Shared-memory normalization | `lmcache/v1/platform/cpu/shm.py` |
++| Structural rule tests | `tests/v1/test_vllm_kv_cache_group_edits.py` |
+diff --git a/lmcache/integration/vllm/kv_cache_group_edits.py b/lmcache/integration/vllm/kv_cache_group_edits.py
+index c8feb86ed59d325f90e6e99fb5595bd6c7825ca2..f823b6467174cd90b7d5d01fcc2194061f6c834c 100644
+--- a/lmcache/integration/vllm/kv_cache_group_edits.py
++++ b/lmcache/integration/vllm/kv_cache_group_edits.py
+@@ -1,34 +1,14 @@
+ # SPDX-License-Identifier: Apache-2.0
+-"""Centralized edits to vLLM kv cache specs.
+-
+-This is needed to mask out attention-specific details while making sure that
+-LMCache can still store / load KV cache correctly.
+-
+-Currently there are two edits, one per :class:`KVCacheGroupEdit` subclass
+-below. Both are for Mamba-hybrid models; the registry is only consulted when
+-``kv_cache_config.has_mamba_layers``. :func:`validate_kv_cache_groups`
+-additionally rejects, at startup, group specs the transfer path cannot serve
+-correctly yet (see its docstring).
+-
+-Reference design: vLLM PR #42828 ("[KVConnector][DSV4] HMA support for
+-Mooncake store connector") solves the same problem class for an external KV
+-store. Check it again when working on any of the following:
+-
+-- Extending :func:`validate_kv_cache_groups` (its connector validates and
+-  rejects unsupported specs up front, with one aggregated error).
+-- Per-group store/load masks (SWA / Mamba tail-only transfer, the
+-  "sliding-window load-plan trimming" deferred in the hybrid design doc):
+-  its ``MooncakeStoreCoordinator.store_mask`` / ``load_mask`` derive masks
+-  from vLLM's own per-spec managers. Requires per-group objects in LMCache
+-  (``ObjectKey.object_group_id``, LMCache #3608).
+-- Hit-length computation for hybrid models: its ``ExternalCachedBlockPool``
+-  duck-types vLLM's ``BlockPool`` over a ``(group_id, hash)`` existence set
+-  and reuses ``KVCacheSpecRegistry`` manager classes, so promised hits are
+-  consumable by construction. NOTE: LMCache's lookup doubles as prefetch, so
+-  vLLM's lookup-first-then-trim flow does not map directly -- this needs its
+-  own design before borrowing.
+-- Eagle + HMA: see its ``apply_eagle`` notes (the eagle last-block prune must
+-  be applied exactly once between hit-length and mask computation).
++"""Normalize vLLM hybrid KV pages for byte-exact LMCache transfer.
++
++vLLM scheduler block identifiers address logical cache pages, while an
++attention backend can register smaller kernel pages or an opaque recurrent
++state buffer. The rules in this module expose zero-copy tensor views whose
++leading page dimension matches the scheduler identifier space.
++
++The edits apply only to hybrid configurations that contain Mamba-compatible
++recurrent layers. Unsupported cache specifications fail during registration
++instead of entering a transfer path with incompatible addressing semantics.
+ """
+ 
+ # Future
+@@ -51,6 +31,7 @@ import torch
+ 
+ # First Party
+ from lmcache.logging import init_logger
++from lmcache.v1.gpu_connector.utils import LayoutHints
+ 
+ logger = init_logger(__name__)
+ 
+@@ -184,12 +165,18 @@ class KVCacheGroupEdit(ABC):
+         """
+ 
+     @abstractmethod
+-    def apply(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> torch.Tensor:
++    def apply(
++        self,
++        spec: KVCacheSpec,
++        kv_cache: RegisteredKVCache,
++        layout_hints: LayoutHints,
++    ) -> torch.Tensor:
+         """Return the edited view for a layer this rule matched.
+ 
+         Args:
+             spec: The layer's vLLM KV cache spec (from its group).
+             kv_cache: The layer's registered cache value.
++            layout_hints: The layout hints from vLLM (see :class:`LayoutHints`).
+ 
+         Raises:
+             ValueError: If the cache's layout violates the rule's invariants.
+@@ -216,9 +203,16 @@ class _MambaPageViewEdit(KVCacheGroupEdit):
+     name = "mamba-page-view"
+ 
+     def matches(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> bool:
+-        return get_kv_cache_spec_kind(spec) == KVCacheSpecKind.MAMBA
++        return get_kv_cache_spec_kind(spec) == KVCacheSpecKind.MAMBA and isinstance(
++            kv_cache, list
++        )
+ 
+-    def apply(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> torch.Tensor:
++    def apply(
++        self,
++        spec: KVCacheSpec,
++        kv_cache: RegisteredKVCache,
++        _layout_hints: LayoutHints,
++    ) -> torch.Tensor:
+         # vLLM lays out one padded page per block as (conv | ssm | pad), and
+         # the conv state is the view that starts at the page base: its leading
+         # dim is the block count and its per-block stride is one full page.
+@@ -290,7 +284,12 @@ class _SubpagedAttentionViewEdit(KVCacheGroupEdit):
+             and kv_cache.shape[2] != spec.block_size
+         )
+ 
+-    def apply(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> torch.Tensor:
++    def apply(
++        self,
++        spec: KVCacheSpec,
++        kv_cache: RegisteredKVCache,
++        _layout_hints: LayoutHints,
++    ) -> torch.Tensor:
+         """Re-view ``kv_cache`` at logical-block granularity.
+ 
+         The tensor is kernel-paged as ``(num_kernel_pages, 2,
+@@ -349,9 +348,140 @@ class _SubpagedAttentionViewEdit(KVCacheGroupEdit):
+         return kv_cache.view(num_blocks, 2, logical_block_size, num_heads, head_size)
+ 
+ 
++class _MambaUnifiedViewEdit(KVCacheGroupEdit):
++    """Expose a unified recurrent-state page as an attention-shaped view.
++
++    vLLM registers each recurrent layer as one opaque byte tensor with shape
++    ``[num_blocks, 1, 1, page_elements]``. LMCache transfer kernels require a
++    token-block axis, so the edit splits ``page_elements`` across the logical
++    block size without copying or interpreting the recurrent-state bytes.
++
++    NHD produces ``[num_blocks, block_size, 1, head_size]`` and HND produces
++    ``[num_blocks, 1, block_size, head_size]``. The singleton head dimension
++    and derived head size are addressing metadata, not attention semantics.
++    """
++
++    name = "mamba-unified-view"
++
++    def matches(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> bool:
++        """Return whether vLLM registered one unified recurrent-state tensor."""
++        return (
++            get_kv_cache_spec_kind(spec) == KVCacheSpecKind.MAMBA
++            and isinstance(kv_cache, torch.Tensor)
++            and kv_cache.ndim == 4
++        )
++
++    def apply(
++        self,
++        spec: KVCacheSpec,
++        kv_cache: RegisteredKVCache,
++        layout_hints: LayoutHints,
++    ) -> torch.Tensor:
++        """Return a zero-copy logical-block view of the opaque page buffer."""
++        if not isinstance(kv_cache, torch.Tensor):
++            raise ValueError("unified recurrent-state KV cache must be a torch.Tensor")
++        if kv_cache.shape[1:3] != (1, 1):
++            raise ValueError(
++                "unified recurrent-state KV cache must have shape "
++                f"[num_blocks, 1, 1, page_elements], got {tuple(kv_cache.shape)}"
++            )
++        if not kv_cache.is_contiguous():
++            raise ValueError("unified recurrent-state KV cache must be contiguous")
++        page_bytes = kv_cache.shape[1:].numel() * kv_cache.element_size()
++        if page_bytes != spec.page_size_bytes:
++            raise ValueError(
++                f"registered recurrent page is {page_bytes} bytes, but the "
++                f"Mamba spec declares {spec.page_size_bytes} bytes"
++            )
++        page_elements = kv_cache.shape[-1]
++        if page_elements % spec.block_size:
++            raise ValueError(
++                f"recurrent page has {page_elements} elements, which is not "
++                f"divisible by block_size={spec.block_size}"
++            )
++
++        kv_layout = layout_hints.get("kv_layout")
++        if kv_layout == "NHD":
++            return kv_cache.view(kv_cache.shape[0], spec.block_size, 1, -1)
++        if kv_layout == "HND":
++            return kv_cache.view(kv_cache.shape[0], 1, spec.block_size, -1)
++        raise ValueError(
++            f"unsupported vLLM KV layout {kv_layout!r}; expected 'NHD' or 'HND'"
++        )
++
++
++class _SubpagedMLAAttentionViewEdit(KVCacheGroupEdit):
++    """Re-view kernel-paged MLA storage as scheduler-visible blocks.
++
++    The MLA backend can expose ``[num_kernel_pages, kernel_block_size,
++    head_size]`` while the scheduler addresses larger logical blocks. For
++    Kimi-K3, twelve contiguous 64-token kernel pages form one 768-token
++    scheduler block. The result is a zero-copy
++    ``[num_logical_blocks, logical_block_size, head_size]`` view.
++    """
++
++    name = "subpaged-mla-attention-view"
++
++    def matches(self, spec: KVCacheSpec, kv_cache: RegisteredKVCache) -> bool:
++        return (
++            get_kv_cache_spec_kind(spec) == KVCacheSpecKind.MLA_ATTENTION
++            and not _declares_slot_compression(spec)
++            and isinstance(kv_cache, torch.Tensor)
++            and kv_cache.ndim == 3
++            and kv_cache.shape[1] != spec.block_size
++        )
++
++    def apply(
++        self,
++        spec: KVCacheSpec,
++        kv_cache: RegisteredKVCache,
++        _layout_hints: LayoutHints,
++    ) -> torch.Tensor:
++        """Re-view a three-dimensional MLA tensor at logical-block granularity.
++
++        Raises:
++            ValueError: If the layout is not the expected kernel-paged shape,
++                the sizes do not divide evenly, or the kernel pages of one
++                logical block do not tile its page bytes exactly (which would
++                indicate an undeclared packed layout that must not be edited).
++        """
++        if not isinstance(kv_cache, torch.Tensor):
++            raise ValueError("kernel-paged MLA cache must be a torch.Tensor")
++        logical_block_size = spec.block_size
++        kernel_block_size = kv_cache.shape[1]
++        if logical_block_size % kernel_block_size != 0:
++            raise ValueError(
++                f"logical block size {logical_block_size} is not a multiple of "
++                f"kernel block size {kernel_block_size}"
++            )
++        ratio = logical_block_size // kernel_block_size
++
++        num_kernel_pages = kv_cache.shape[0]
++        if num_kernel_pages % ratio != 0:
++            raise ValueError(
++                f"kernel page count {num_kernel_pages} is not a multiple of "
++                f"the logical/kernel block ratio {ratio}"
++            )
++        kernel_page_bytes = kv_cache.shape[1:].numel() * kv_cache.element_size()
++        if kernel_page_bytes * ratio != spec.page_size_bytes:
++            raise ValueError(
++                f"{ratio} kernel pages ({kernel_page_bytes * ratio} bytes) do "
++                f"not tile the logical page ({spec.page_size_bytes} bytes)"
++            )
++        if not kv_cache.is_contiguous():
++            raise ValueError(
++                "kernel-paged attention KV tensor must be contiguous to "
++                "re-view as logical pages"
++            )
++
++        return kv_cache.view(num_kernel_pages // ratio, logical_block_size, -1)
++
++
+ # Rule registry, in match priority order.
+ _EDITS: tuple[KVCacheGroupEdit, ...] = (
++    _MambaUnifiedViewEdit(),
+     _MambaPageViewEdit(),
++    _SubpagedMLAAttentionViewEdit(),
+     _SubpagedAttentionViewEdit(),
+ )
+ 
+@@ -359,6 +489,7 @@ _EDITS: tuple[KVCacheGroupEdit, ...] = (
+ def apply_kv_cache_group_edits(
+     kv_cache_config: KVCacheConfig | None,
+     kv_caches: Mapping[str, RegisteredKVCache],
++    layout_hints: LayoutHints,
+ ) -> dict[str, RegisteredKVCache]:
+     """Apply all KV cache group metadata edits for LMCache registration.
+ 
+@@ -369,8 +500,10 @@ def apply_kv_cache_group_edits(
+ 
+     Args:
+         kv_cache_config: vLLM ``KVCacheConfig`` (read for per-group specs).
+-        kv_caches: Registered tensors keyed by layer name. Mamba entries are
+-            ``[conv_state, ssm_state]`` lists; others are single tensors.
++        kv_caches: Registered tensors keyed by layer name. Recurrent entries
++            are either unified page tensors or legacy ``[conv_state,
++            ssm_state]`` lists; attention entries are single tensors.
++        layout_hints: layout hints from vLLM (see :class:`LayoutHints`).
+ 
+     Returns:
+         A new ``dict`` with edited layers re-viewed, others untouched.
+@@ -392,7 +525,7 @@ def apply_kv_cache_group_edits(
+         for name in group.layer_names:
+             for edit in _EDITS:
+                 if edit.matches(spec, kv_caches[name]):
+-                    edited[name] = edit.apply(spec, kv_caches[name])
++                    edited[name] = edit.apply(spec, kv_caches[name], layout_hints)
+                     counts[edit.name] += 1
+                     break
+     logger.info(
 diff --git a/lmcache/integration/vllm/kv_cache_groups.py b/lmcache/integration/vllm/kv_cache_groups.py
 index 14a7447d4f4ca9d71fb236d3ead3c4c973df1521..eb3529cdacb73ac79b88286e69656ac3e7846974 100644
 --- a/lmcache/integration/vllm/kv_cache_groups.py
@@ -417,7 +998,7 @@ index 14a7447d4f4ca9d71fb236d3ead3c4c973df1521..eb3529cdacb73ac79b88286e69656ac3
  
  
 diff --git a/lmcache/integration/vllm/lmcache_mp_connector.py b/lmcache/integration/vllm/lmcache_mp_connector.py
-index d268070c3c0daa534a616c88312f8da7b5c665de..21af3747ede9f78c608841a692acc9c25e0bbc29 100644
+index d268070c3c0daa534a616c88312f8da7b5c665de..e026e60af13323a0c2f0e9ca2e20cf855167b32b 100644
 --- a/lmcache/integration/vllm/lmcache_mp_connector.py
 +++ b/lmcache/integration/vllm/lmcache_mp_connector.py
 @@ -464,6 +464,42 @@ class LMCacheMPRequestMetadata:
@@ -463,6 +1044,36 @@ index d268070c3c0daa534a616c88312f8da7b5c665de..21af3747ede9f78c608841a692acc9c2
              block_ids = slice_block_ids_per_group(
                  tracker.allocated_block_ids,
                  group_tokens_per_block,
+@@ -754,11 +790,14 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+         kv_cache_config = getattr(self, "_kv_cache_config", None)
+         # Must precede both group-info creation and transfer registration so
+         # they see the same edited views.
+-        kv_caches = apply_kv_cache_group_edits(kv_cache_config, kv_caches)
++        layout_hints = vllm_layout_hints()
++        kv_caches = apply_kv_cache_group_edits(
++            kv_cache_config, kv_caches, layout_hints=layout_hints
++        )
+         engine_group_infos = create_engine_group_infos_from_vllm(
+             kv_cache_config,
+             kv_caches,
+-            layout_hints=vllm_layout_hints(),
++            layout_hints=layout_hints,
+             dcp_size=self.worker_adapter.parallel_strategy.dcp_size,
+         )
+         self.worker_adapter.register_kv_caches(
+@@ -1399,9 +1438,9 @@ class LMCacheMPConnector(KVConnectorBase_V1, SupportsHMA):
+             self.scheduler_adapter.report_block_allocations(records)
+ 
+     def _get_request_tracker(self, request_id: str) -> LMCacheMPRequestTracker:
+-        assert request_id in self.request_trackers, (
+-            f"Request tracker for request_id {request_id} not found. "
+-        )
++        assert (
++            request_id in self.request_trackers
++        ), f"Request tracker for request_id {request_id} not found. "
+         return self.request_trackers[request_id]
+ 
+     def _get_or_create_request_tracker(
 diff --git a/lmcache/integration/vllm/vllm_multi_process_adapter.py b/lmcache/integration/vllm/vllm_multi_process_adapter.py
 index d74fe3af02cbefc7755c8446434a36034c681ef3..dd5aa0e6033292eaad06dd8f0b7961d58cf6b2f1 100644
 --- a/lmcache/integration/vllm/vllm_multi_process_adapter.py
@@ -2383,6 +2994,171 @@ index 3054e2441c5c7d98d817ca7a1f9ac30b4a7e92d7..a7da312a475264ddd1c829ad73937fc1
      def _unwrap_reconfigurable_l2_adapter(
          self,
          adapter: L2AdapterInterface,
+diff --git a/lmcache/v1/gpu_connector/kv_format/__init__.py b/lmcache/v1/gpu_connector/kv_format/__init__.py
+index 77f633084f52d90fce42a8ea144923362c2b39ef..4d324e777d353676c51195f94239d112489e9fc7 100644
+--- a/lmcache/v1/gpu_connector/kv_format/__init__.py
++++ b/lmcache/v1/gpu_connector/kv_format/__init__.py
+@@ -11,7 +11,10 @@ Public surface:
+ """
+ 
+ # First Party
+-from lmcache.v1.gpu_connector.kv_format.detection import detect_format
++from lmcache.v1.gpu_connector.kv_format.detection import (
++    detect_format,
++    extract_kv_cache_shapes,
++)
+ from lmcache.v1.gpu_connector.kv_format.specs import (
+     KVFormatSpec,
+     concrete_shape,
+@@ -25,6 +28,7 @@ __all__ = [
+     "concrete_shape",
+     "describe_shape",
+     "detect_format",
++    "extract_kv_cache_shapes",
+     "get_spec",
+     "get_spec_class",
+ ]
+diff --git a/lmcache/v1/gpu_connector/kv_format/contiguity.py b/lmcache/v1/gpu_connector/kv_format/contiguity.py
+index f5d0fa4a9cf6c8f8c6c810f65fecb3b20add52a8..3507ed1e514259665ee43e134a15ed06c61c23c4 100644
+--- a/lmcache/v1/gpu_connector/kv_format/contiguity.py
++++ b/lmcache/v1/gpu_connector/kv_format/contiguity.py
+@@ -17,6 +17,29 @@ from lmcache.v1.gpu_connector.kv_format.types import DiscoverableKVCache
+ logger = init_logger(__name__)
+ 
+ 
++def _get_expected_shape(stride: tuple[int, ...], num_elems: int) -> tuple[int, ...]:
++    """Return the expected shape for a stride-sorted tensor view.
++
++    The returned shape is the tightest possible (contiguous) layout
++    that preserves the original storage size and stride ordering. For
++    example, a tensor with ``stride=(16, 4, 1)`` has an expected shape
++    of ``(4, 4, 4)``, which is the smallest shape that can be laid out
++    in memory with those strides.
++
++    Args:
++        stride: The stride of the tensor.
++        num_elems: The total number of elements in the tensor.
++
++    Returns:
++        The expected shape for a contiguous layout.
++    """
++    assert len(stride) > 0, "Stride must have at least one dimension"
++    expected_shape = [num_elems // stride[0]]
++    for i in range(0, len(stride) - 1):
++        expected_shape.append(stride[i] // stride[i + 1])
++    return tuple(dim for dim in expected_shape)
++
++
+ def attempt_permute_to_contiguous_view(
+     kv_caches: DiscoverableKVCache,
+ ) -> DiscoverableKVCache:
+@@ -50,13 +73,11 @@ def attempt_permute_to_contiguous_view(
+     preserved.
+     """
+     if isinstance(kv_caches, torch.Tensor):
+-        if kv_caches.is_contiguous():
+-            return kv_caches
+         strides = kv_caches.stride()
+         perm = sorted(range(kv_caches.ndim), key=lambda i: strides[i], reverse=True)
+         result = kv_caches.permute(perm)
+         if result.is_contiguous():
+-            return result
++            return result.view(_get_expected_shape(result.stride(), result.numel()))
+         padding_per_block = _validate_dim0_padded_layout(result)
+         logger.debug(
+             "attempt_permute_to_contiguous_view: accepting dim-0-padded "
+diff --git a/lmcache/v1/gpu_connector/kv_format/detection.py b/lmcache/v1/gpu_connector/kv_format/detection.py
+index d2576e1f62a733bf2f277613f081a8c44b63e307..d161c812dbcdae0cc85b8885c83ee3065c5aba9f 100644
+--- a/lmcache/v1/gpu_connector/kv_format/detection.py
++++ b/lmcache/v1/gpu_connector/kv_format/detection.py
+@@ -5,6 +5,9 @@
+ off to the engine's :class:`EngineDetector` to reshape and identify the format.
+ """
+ 
++# Third Party
++import torch
++
+ # First Party
+ from lmcache.logging import init_logger
+ from lmcache.utils import EngineType
+@@ -19,6 +22,28 @@ import lmcache.c_ops as lmc_ops
+ logger = init_logger(__name__)
+ 
+ 
++def extract_kv_cache_shapes(
++    kv_caches: DiscoverableKVCache,
++) -> set[torch.Size]:
++    """Return every distinct tensor shape in a nested KV-cache structure.
++
++    Args:
++        kv_caches: A tensor or nested tensor sequence accepted by format
++            discovery.
++
++    Returns:
++        The distinct tensor shapes present in ``kv_caches``.
++    """
++    if isinstance(kv_caches, torch.Tensor):
++        return {kv_caches.shape}
++
++    shapes = set()
++    for t in kv_caches:
++        shapes.update(extract_kv_cache_shapes(t))
++
++    return shapes
++
++
+ def detect_format(
+     kv_caches: DiscoverableKVCache,
+     serving_engine: EngineType,
+diff --git a/lmcache/v1/gpu_connector/kv_format/detectors/vllm.py b/lmcache/v1/gpu_connector/kv_format/detectors/vllm.py
+index 8965f678e08c3543e2c531860fe3a30cf7367750..ee4d3516330d2e030a3ba2d05d745b4d9691bcd3 100644
+--- a/lmcache/v1/gpu_connector/kv_format/detectors/vllm.py
++++ b/lmcache/v1/gpu_connector/kv_format/detectors/vllm.py
+@@ -40,6 +40,10 @@ class VLLM_Detector(EngineDetector):
+         # (HND) or BS/NH (NHD) -- indistinguishable from the shape alone, so the
+         # resolved kv_layout decides. Split [NB, *, *, 2*HS] into
+         # [NB, *, *, 2, HS].
++
++        # The legacy TWO_HS format names also represent opaque combined-state
++        # storage. They remain part of the public format registry, so detection
++        # uses them even when the final dimension is not semantically K+V.
+         if (
+             isinstance(kv_caches, list)
+             and kv_caches
+diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
+index bf4e868a52e110dbf6d1ed962ecb419bed5ec205..fad87daeee25cbc0dd21ff5e1fc49f1907dbec36 100644
+--- a/lmcache/v1/gpu_connector/utils.py
++++ b/lmcache/v1/gpu_connector/utils.py
+@@ -22,6 +22,7 @@ from lmcache.v1.gpu_connector.kv_format import (
+     concrete_shape,
+     describe_shape,
+     detect_format,
++    extract_kv_cache_shapes,
+     get_spec,
+     get_spec_class,
+ )
+@@ -237,13 +238,15 @@ def normalize_and_discover_per_layer_formats(
+ 
+     # Detect the whole structure once. A format that isn't a per-layer list (a
+     # cross-layer tensor, or a K/V-split) is single-format -- return it whole.
+-    whole_format, whole_normalized = detect_format(
+-        kv_caches, serving_engine, layout_hints
+-    )
+-    if not lmc_ops.is_layer_list(whole_format):
+-        return whole_normalized, [whole_format] * get_num_layers(
+-            whole_normalized, whole_format
++    extracted_shapes = extract_kv_cache_shapes(kv_caches)
++    if len(extracted_shapes) == 1:
++        whole_format, whole_normalized = detect_format(
++            kv_caches, serving_engine, layout_hints
+         )
++        if not lmc_ops.is_layer_list(whole_format):
++            return whole_normalized, [whole_format] * get_num_layers(
++                whole_normalized, whole_format
++            )
+ 
+     # Per-layer list: re-detect per engine group, split by tensor shape so a group
+     # that mixes layouts gets the right format per layer.
 diff --git a/lmcache/v1/multiprocess/engine_context.py b/lmcache/v1/multiprocess/engine_context.py
 index f78990750934c98220c09a15f5606514b73e6dec..66f1f22f5359013cd9dbb6aa85f9623df9009a31 100644
 --- a/lmcache/v1/multiprocess/engine_context.py
@@ -3043,6 +3819,39 @@ index 271ff93b2a933f6c0f70f95a95d6f2249e7636c1..a5d0d0cf7322a523a9a8b89a0c5af2e2
  
              # Send the responses
              if outbound_state and outbound_state & zmq.POLLIN:
+diff --git a/lmcache/v1/platform/cpu/shm.py b/lmcache/v1/platform/cpu/shm.py
+index 2cb7c3b1f4eff654064320ef4b06d86051d9aa40..1845fce355289e0dbfc75a25849fe12903ef61e9 100644
+--- a/lmcache/v1/platform/cpu/shm.py
++++ b/lmcache/v1/platform/cpu/shm.py
+@@ -231,12 +231,13 @@ def migrate_to_shm_and_wrap(tensor: torch.Tensor) -> CpuShmTensorWrapper:
+ 
+     # Validate and normalise the tensor *before* touching the registry
+     # or mutating storage, so a bad input never leaves things half-done.
+-    tensor = attempt_permute_to_contiguous_view(tensor)
++    normalized = attempt_permute_to_contiguous_view(tensor)
++    assert isinstance(normalized, torch.Tensor)
+     if tensor.device.type != "cpu":
+         raise ValueError(
+             "migrate_to_shm_and_wrap requires a CPU tensor, got %s" % tensor.device
+         )
+-    if not tensor.is_contiguous():
++    if not normalized.is_contiguous():
+         raise ValueError("migrate_to_shm_and_wrap requires a contiguous tensor")
+ 
+     tid = id(tensor)
+@@ -279,9 +280,9 @@ def migrate_to_shm_and_wrap(tensor: torch.Tensor) -> CpuShmTensorWrapper:
+         shm_storage = torch.frombuffer(buf, dtype=torch.uint8).untyped_storage()
+         tensor.set_(
+             shm_storage,
+-            tensor.storage_offset(),
+-            tensor.shape,
+-            tensor.stride(),
++            normalized.storage_offset(),
++            normalized.shape,
++            normalized.stride(),
+         )
+     except Exception:
+         # Make sure the SHM resources don't leak if migration fails
 diff --git a/tests/v1/distributed/test_fs_atomic_publish.py b/tests/v1/distributed/test_fs_atomic_publish.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..4f25b645e9c8e95b98dcdce3937a4bb0681df38a
@@ -4765,6 +5574,101 @@ index 09c06c5819646d20d65485ee446793a1a9a7f9d0..e86ac177a07f19f54bb6417858dea1d4
      def test_key0_missing(self, l1_manager):
          """L2 has keys {1,2,3} but not 0 → prefix = 0, nothing loaded."""
          adapter = make_adapter()
+diff --git a/tests/v1/gpu_connector/test_kv_format_detection.py b/tests/v1/gpu_connector/test_kv_format_detection.py
+index 3b59484e5abefc3af9fee645338ba62600d74d89..29f30bf7bfdad686573455c0903171bb137e1bfe 100644
+--- a/tests/v1/gpu_connector/test_kv_format_detection.py
++++ b/tests/v1/gpu_connector/test_kv_format_detection.py
+@@ -14,7 +14,7 @@ import torch
+ 
+ # First Party
+ from lmcache.utils import EngineType
+-from lmcache.v1.gpu_connector.kv_format import detect_format
++from lmcache.v1.gpu_connector.kv_format import detect_format, extract_kv_cache_shapes
+ import lmcache.c_ops as lmc_ops
+ 
+ NB, NL, BS, NH, HS = 7, 5, 3, 2, 4
+@@ -30,7 +30,8 @@ def test_vllm_cross_layer():
+     kv = _t(NB, NL, 2, BS, NH, HS)
+     fmt, out = detect_format(kv, EngineType.VLLM, {"kv_layout": "NHD"})
+     assert fmt == F.NB_NL_TWO_BS_NH_HS
+-    assert out is kv
++    assert tuple(out.shape) == tuple(kv.shape)
++    assert out.data_ptr() == kv.data_ptr()
+ 
+ 
+ # The CPU-HND safeguard forces HND regardless of hint when running on a CPU
+@@ -124,3 +125,20 @@ def test_unsupported_structure_raises():
+     kv = [_t(NB, HS) for _ in range(NL)]
+     with pytest.raises(ValueError):
+         detect_format(kv, EngineType.VLLM, {"kv_layout": "NHD"})
++
++
++def test_extract_kv_cache_shapes_single_tensor():
++    assert extract_kv_cache_shapes(_t(NB, BS, HS)) == {(NB, BS, HS)}
++
++
++def test_extract_kv_cache_shapes_uniform_list_dedups():
++    kv = [_t(2, NB, BS, NH, HS) for _ in range(NL)]
++    assert extract_kv_cache_shapes(kv) == {(2, NB, BS, NH, HS)}
++
++
++def test_extract_kv_cache_shapes_mixed_nested():
++    kv = [
++        [_t(NB, BS, NH, HS), _t(NB, BS, HS)],
++        [_t(NB, BS, NH, HS)],
++    ]
++    assert extract_kv_cache_shapes(kv) == {(NB, BS, NH, HS), (NB, BS, HS)}
+diff --git a/tests/v1/gpu_connector/test_utils_shape_desc.py b/tests/v1/gpu_connector/test_utils_shape_desc.py
+index 8c603deb50d7ea0773fa34592c641cf5e2388a0d..f07866f5f918b528d55761052a7de824dac1ecd4 100644
+--- a/tests/v1/gpu_connector/test_utils_shape_desc.py
++++ b/tests/v1/gpu_connector/test_utils_shape_desc.py
+@@ -181,13 +181,14 @@ def test_get_group_data_ptrs_cross_layer_returns_single_base():
+ 
+ 
+ def test_attempt_permute_preserves_bare_tensor():
+-    """A bare torch.Tensor input (cross-layer shape) must pass through
+-    attempt_permute_to_contiguous_view unchanged — no list wrapping — so the
++    """A bare torch.Tensor input (cross-layer shape) must come back as a bare
++    tensor — no list wrapping, no copy, shape intact — so the
+     DiscoverableKVCache recursive union is respected end-to-end."""
+     big = torch.empty(32, 80, 2, 16, 8, 64, dtype=torch.bfloat16, device="cuda")
+     out = attempt_permute_to_contiguous_view(big)
+     assert isinstance(out, torch.Tensor)
+-    assert out is big
++    assert tuple(out.shape) == tuple(big.shape)
++    assert out.data_ptr() == big.data_ptr()
+ 
+ 
+ def test_attempt_permute_recurses_all_shapes():
+@@ -221,6 +222,28 @@ def test_attempt_permute_recurses_all_shapes():
+     assert all(t.is_contiguous() for sublist in out_nested for t in sublist)
+ 
+ 
++def test_attempt_permute_reorders_misleading_size_one_dims():
++    """Recover physical HND order when singleton strides make NHD contiguous."""
++    phys = torch.empty(2, 32, 1, 16, 64, dtype=torch.bfloat16, device="cuda")
++    logical = phys.permute(0, 1, 3, 2, 4)  # [2, NB, BS, 1, HS]
++    assert logical.is_contiguous()
++
++    out = attempt_permute_to_contiguous_view(logical)
++    assert tuple(out.shape) == (2, 32, 1, 16, 64)
++    assert out.data_ptr() == phys.data_ptr()
++
++
++def test_attempt_permute_reviews_collapsed_size_one_strides():
++    """Recover the tight shape encoded by collapsed singleton strides."""
++    base = torch.empty(8 * 32, dtype=torch.bfloat16, device="cuda")
++    t = base.as_strided((8, 1, 1, 32), (32, 1, 1, 1))
++    assert t.is_contiguous()
++
++    out = attempt_permute_to_contiguous_view(t)
++    assert tuple(out.shape) == (8, 32, 1, 1)
++    assert out.data_ptr() == base.data_ptr()
++
++
+ def test_get_device_handles_every_kvcaches_shape():
+     """get_device must work for every DiscoverableKVCache shape without format hints."""
+     t = torch.empty(8, dtype=torch.bfloat16, device="cuda")
 diff --git a/tests/v1/multiprocess/test_futures.py b/tests/v1/multiprocess/test_futures.py
 index 53cf694bc5c29ee852c5511d2753b6a8a676511a..c9086609ec879d9ed6fcceab478da9c5c7117d49 100644
 --- a/tests/v1/multiprocess/test_futures.py
@@ -5274,6 +6178,164 @@ index 7e590017c3069339956cdbbac671af79c712003c..be4c23c0a6a10f4d649d2b22805794d8
      expected = ipc_key_to_object_keys(_lookup_key(world_size=2), chunk_hashes, [0])[0]
 -    assert keys == expected
 +    assert keys_by_group == [expected]
+diff --git a/tests/v1/platform/test_cpu_shm.py b/tests/v1/platform/test_cpu_shm.py
+index 02a11a4e495ec8cf68e5e97cb6f7cbef3c71776f..df25b5f0d606df25b2df756a9e8ff2a81dbfb435 100644
+--- a/tests/v1/platform/test_cpu_shm.py
++++ b/tests/v1/platform/test_cpu_shm.py
+@@ -49,6 +49,25 @@ def test_migrate_to_shm_and_wrap_zero_copy_view():
+         shm_unlink(wrapper.shm_name)
+ 
+ 
++def test_migrate_normalizes_layout_in_place_on_caller_tensor():
++    """Normalize the caller-owned tensor without detaching SHM lifetime."""
++    # Torch-contiguous, but the size-1 dims hide the true inner extent:
++    # the stride-truthful layout is (8, 32, 1, 1).
++    src = torch.zeros(8 * 32, dtype=torch.float32).as_strided(
++        (8, 1, 1, 32), (32, 1, 1, 1)
++    )
++    wrapper = migrate_to_shm_and_wrap(src)
++    try:
++        assert tuple(src.shape) == (8, 32, 1, 1)
++        assert wrapper.shape == (8, 32, 1, 1)
++        # Writes via the caller's tensor land in the SHM segment.
++        src.add_(3.0)
++        view = wrapper.to_tensor()
++        assert torch.equal(view, src)
++    finally:
++        shm_unlink(wrapper.shm_name)
++
++
+ def test_migrate_handles_empty_tensor():
+     """Empty tensors must not call ``mmap`` (length 0 is EINVAL).
+ 
+diff --git a/tests/v1/test_vllm_kv_cache_group_edits.py b/tests/v1/test_vllm_kv_cache_group_edits.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..02763cba9aa1c3c5924052454cb678d287f2fb63
+--- /dev/null
++++ b/tests/v1/test_vllm_kv_cache_group_edits.py
+@@ -0,0 +1,122 @@
++# SPDX-License-Identifier: Apache-2.0
++"""Validate zero-copy KV page views used by vLLM hybrid-cache registration."""
++
++# Standard
++from types import SimpleNamespace
++
++# Third Party
++from vllm.v1.kv_cache_interface import MambaSpec, MLAAttentionSpec
++import pytest
++import torch
++
++# First Party
++from lmcache.integration.vllm.kv_cache_group_edits import (
++    apply_kv_cache_group_edits,
++)
++
++
++def _hybrid_config(mamba_spec: MambaSpec, mla_spec: MLAAttentionSpec):
++    return SimpleNamespace(
++        has_mamba_layers=True,
++        kv_cache_groups=[
++            SimpleNamespace(
++                kv_cache_spec=mamba_spec,
++                layer_names=["recurrent.0"],
++            ),
++            SimpleNamespace(
++                kv_cache_spec=mla_spec,
++                layer_names=["mla.0"],
++            ),
++        ],
++    )
++
++
++@pytest.fixture
++def hybrid_specs() -> tuple[MambaSpec, MLAAttentionSpec]:
++    mamba_spec = MambaSpec(
++        block_size=4,
++        shapes=((2, 2), (2, 2, 2)),
++        dtypes=(torch.bfloat16, torch.bfloat16),
++        page_size_padded=32,
++        mamba_cache_mode="align",
++    )
++    mla_spec = MLAAttentionSpec(
++        block_size=8,
++        num_kv_heads=1,
++        head_size=16,
++        dtype=torch.float16,
++    )
++    return mamba_spec, mla_spec
++
++
++@pytest.mark.parametrize(
++    ("layout", "expected_shape"),
++    [("NHD", (3, 4, 1, 8)), ("HND", (3, 1, 4, 8))],
++)
++def test_unified_recurrent_page_is_reinterpreted_without_copy(
++    hybrid_specs: tuple[MambaSpec, MLAAttentionSpec],
++    layout: str,
++    expected_shape: tuple[int, ...],
++):
++    mamba_spec, mla_spec = hybrid_specs
++    recurrent = torch.arange(3 * 32, dtype=torch.int8).view(3, 1, 1, 32)
++    mla = torch.empty(4, 2, 16, dtype=torch.float16)
++
++    edited = apply_kv_cache_group_edits(
++        _hybrid_config(mamba_spec, mla_spec),
++        {"recurrent.0": recurrent, "mla.0": mla},
++        {"kv_layout": layout},
++    )["recurrent.0"]
++
++    assert tuple(edited.shape) == expected_shape
++    assert edited.data_ptr() == recurrent.data_ptr()
++    assert torch.equal(edited.reshape(-1), recurrent.reshape(-1))
++
++
++def test_kernel_paged_mla_is_reinterpreted_without_copy(
++    hybrid_specs: tuple[MambaSpec, MLAAttentionSpec],
++):
++    mamba_spec, mla_spec = hybrid_specs
++    recurrent = torch.empty(2, 1, 1, 32, dtype=torch.int8)
++    # Four 2-token pages form each 8-token logical block.
++    mla = torch.arange(3 * 4 * 2 * 16, dtype=torch.float16).view(12, 2, 16)
++
++    edited = apply_kv_cache_group_edits(
++        _hybrid_config(mamba_spec, mla_spec),
++        {"recurrent.0": recurrent, "mla.0": mla},
++        {"kv_layout": "NHD"},
++    )["mla.0"]
++
++    assert tuple(edited.shape) == (3, 8, 16)
++    assert edited.data_ptr() == mla.data_ptr()
++    assert torch.equal(edited.reshape(-1), mla.reshape(-1))
++
++
++def test_unified_recurrent_page_rejects_mismatched_page_bytes(
++    hybrid_specs: tuple[MambaSpec, MLAAttentionSpec],
++):
++    mamba_spec, mla_spec = hybrid_specs
++    recurrent = torch.empty(2, 1, 1, 24, dtype=torch.int8)
++    mla = torch.empty(4, 2, 16, dtype=torch.float16)
++
++    with pytest.raises(ValueError, match="declares 32 bytes"):
++        apply_kv_cache_group_edits(
++            _hybrid_config(mamba_spec, mla_spec),
++            {"recurrent.0": recurrent, "mla.0": mla},
++            {"kv_layout": "NHD"},
++        )
++
++
++def test_kernel_paged_mla_rejects_partial_logical_block(
++    hybrid_specs: tuple[MambaSpec, MLAAttentionSpec],
++):
++    mamba_spec, mla_spec = hybrid_specs
++    recurrent = torch.empty(2, 1, 1, 32, dtype=torch.int8)
++    mla = torch.empty(10, 2, 16, dtype=torch.float16)
++
++    with pytest.raises(ValueError, match="kernel page count 10"):
++        apply_kv_cache_group_edits(
++            _hybrid_config(mamba_spec, mla_spec),
++            {"recurrent.0": recurrent, "mla.0": mla},
++            {"kv_layout": "NHD"},
++        )
 diff --git a/tests/v1/test_vllm_kv_cache_groups.py b/tests/v1/test_vllm_kv_cache_groups.py
 index 001cbe3db31d118668f0a66ff48e82bdff610589..8b885ab753a8f6147635b1d67429e071393d3a05 100644
 --- a/tests/v1/test_vllm_kv_cache_groups.py
