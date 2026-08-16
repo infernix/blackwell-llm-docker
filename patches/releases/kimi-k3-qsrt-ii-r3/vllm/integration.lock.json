@@ -5,21 +5,21 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "adb43ae9b44641033931dd33de446b73064351f5",
-    "ref": "refs/heads/agent/ii-kimi-dspark-sharded-sampling-runtime"
+    "commit": "216610e80bc7fad8005cb21b263a2dce5c7ba802",
+    "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "0bd574099c5bcb6c26c0577cd1bec1273ce8c1352983b4d92fa898821b508503"
+    "sha256": "23db09370de61b396f9c2707f1d3dbe9181fa43ba0ac5f4e48342d68147786c8"
   },
   "name": "kimi-k3-tp16-vllm",
   "pull_requests": [
     {
       "commits": [
-        "c160e226b0f4fb4ef5818340ec80e3a1e62c2107"
+        "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f"
       ],
       "disposition": "recorded_in_composition",
-      "head": "c160e226b0f4fb4ef5818340ec80e3a1e62c2107",
+      "head": "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f",
       "number": 382,
       "ref": "refs/pull/382/head",
       "title": "Load Kimi checkpoints with bounded staging"
@@ -107,8 +107,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "6a6c26fe1968587b567fbbd4ec80a246cf80e7aea0522058da521b6472568592",
-    "tree": "e6f276cc143da5db6a255dbc9bc00adbce542dd2"
+    "patch_sha256": "b9cf26938c2af40ba54ac00a952e65538c357777887c7ca9288505c83d50568e",
+    "tree": "c489c319b63539d9af78550c8b201a266329710b"
   },
   "schema_version": 1,
   "source_patches": []

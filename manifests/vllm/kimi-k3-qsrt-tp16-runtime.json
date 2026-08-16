@@ -4,10 +4,10 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/ii-kimi-dspark-sharded-sampling-runtime",
-  "composition_commit": "adb43ae9b44641033931dd33de446b73064351f5",
+  "composition_ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815",
+  "composition_commit": "216610e80bc7fad8005cb21b263a2dce5c7ba802",
   "pull_requests": [
-    {"number": 382, "head": "c160e226b0f4fb4ef5818340ec80e3a1e62c2107", "title": "Load Kimi checkpoints with bounded staging"},
+    {"number": 382, "head": "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f", "title": "Load Kimi checkpoints with bounded staging"},
     {"number": 383, "head": "1c4a2348f7615582369743a7bd9fa32b7d00b99e", "title": "Define Kimi hybrid cache geometry"},
     {"number": 384, "head": "ac9c60f0d1ef4f9f6927652281c922f1b2771736", "title": "Run TP16 DCP collectives through B12X"},
     {"number": 385, "head": "b4f0414ebbf9e22317e8bb969d10b573ec91b551", "title": "Shard Kimi projections without padding checkpoint weights"},

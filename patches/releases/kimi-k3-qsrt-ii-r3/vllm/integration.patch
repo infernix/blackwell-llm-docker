@@ -1166,18 +1166,20 @@ index 0000000000000000000000000000000000000000..81b44c5e5662c1ab6de35910a31c2314
 +        torch.empty((2, 8), dtype=torch.float32), allocated
 +    )
 diff --git a/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py b/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
-index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d449352b72a79 100644
+index a98d882e5d677e17f745b473bbd397269c7e023a..81bdbe0dca73a86ab4535798eaa269ec4c03361e 100644
 --- a/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
 +++ b/tests/model_executor/model_loader/instanttensor_loader/test_weight_utils.py
-@@ -2,6 +2,7 @@
+@@ -2,6 +2,9 @@
  # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
  
  import glob
 +import inspect
++import json
++import struct
  import sys
  from contextlib import contextmanager
  from types import SimpleNamespace
-@@ -11,6 +12,9 @@ import torch
+@@ -11,6 +14,9 @@ import torch
  from safetensors.torch import save_file
  
  import vllm.model_executor.model_loader.weight_utils as weight_utils
@@ -1187,7 +1189,60 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
  from vllm.model_executor.model_loader.weight_utils import (
      download_weights_from_hf,
      instanttensor_weights_iterator,
-@@ -53,6 +57,7 @@ def test_instanttensor_copy_contract(
+@@ -19,6 +25,52 @@ from vllm.model_executor.model_loader.weight_utils import (
+ from vllm.platforms import current_platform
+ 
+ 
++def _safetensors_tensor_metadata(filename):
++    with open(filename, "rb") as checkpoint:
++        header_size = struct.unpack("<Q", checkpoint.read(8))[0]
++        header = json.loads(checkpoint.read(header_size))
++    return {name: item for name, item in header.items() if name != "__metadata__"}
++
++
++class _FakeInstantOpen:
++    def __init__(self, filename, tensors):
++        self.filename = [str(filename)]
++        self._tensors = tensors
++        with weight_utils.safe_open(filename, framework="pt") as physical_file:
++            names = list(physical_file.offset_keys())
++        metadata = _safetensors_tensor_metadata(filename)
++        self.original_names = names
++        self.ordered_tensor_metadatas = [(name, metadata[name]) for name in names]
++        first_offset = metadata[names[0]]["data_offsets"][0]
++        self.tensor_offsets = [(0, first_offset)]
++        self.tensor_offsets.extend(
++            (0, metadata[name]["data_offsets"][1]) for name in names
++        )
++        self.tensor_sizes = [
++            item["data_offsets"][1] - item["data_offsets"][0]
++            for _, item in self.ordered_tensor_metadatas
++        ]
++        self.total_tensor_size = sum(self.tensor_sizes)
++        self.tensor_name_to_index = {name: index for index, name in enumerate(names)}
++        self.loader_handle = None
++        self.buffer_size_requests = []
++        self.enter_count = 0
++
++    def _determine_buffer_size(self, requested):
++        self.buffer_size_requests.append(requested)
++
++    def __enter__(self):
++        self.enter_count += 1
++        return self
++
++    def __exit__(self, exc_type, exc_value, traceback):
++        return False
++
++    def tensors(self):
++        for name, _ in self.ordered_tensor_metadatas:
++            yield name, self._tensors[name]
++
++
+ @pytest.mark.parametrize(
+     ("setting", "expected_copy", "expected_borrowed"),
+     [("0", False, True), ("1", True, False)],
+@@ -53,6 +105,7 @@ def test_instanttensor_copy_contract(
          raise AssertionError
  
      monkeypatch.setenv("INSTANTTENSOR_COPY", setting)
@@ -1195,20 +1250,22 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
      monkeypatch.setattr(
          weight_utils,
          "current_platform",
-@@ -136,7 +141,7 @@ def test_instanttensor_restricts_io_to_indexed_shards(tmp_path):
+@@ -136,7 +189,7 @@ def test_instanttensor_restricts_io_to_indexed_shards(tmp_path):
          "model.expert.weight": str(overlay_shard.resolve()),
      }
  
 -    weight_utils._restrict_instanttensor_to_selected_ranges(
-+    cpu_fallback = weight_utils._restrict_instanttensor_to_selected_ranges(
++    selection = weight_utils._restrict_instanttensor_to_selected_ranges(
          instant_open,
          indexed_tensor_files=indexed_tensor_files,
          weight_name_prefixes=None,
-@@ -160,6 +165,144 @@ def test_instanttensor_restricts_io_to_indexed_shards(tmp_path):
+@@ -160,6 +213,191 @@ def test_instanttensor_restricts_io_to_indexed_shards(tmp_path):
          "model.expert.weight": 1,
      }
      assert buffer_sizes == [None]
-+    assert cpu_fallback == []
++    assert selection.gpu_tensor_count == 2
++    assert selection.selected_tensor_count == 2
++    assert selection.cpu_fallbacks == ()
 +
 +
 +def test_instanttensor_routes_oversized_selected_tensors_to_cpu(tmp_path):
@@ -1222,17 +1279,12 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
 +    )
 +    with weight_utils.safe_open(shard, framework="pt") as physical_file:
 +        physical_names = list(physical_file.offset_keys())
-+    metadata_by_name = {
-+        "model.large.weight": {"data_offsets": [0, 32]},
-+        "model.small.weight": {"data_offsets": [32, 40]},
-+    }
-+    offsets_by_name = {
-+        "model.large.weight": (0, 32),
-+        "model.small.weight": (32, 40),
-+    }
++    metadata_by_name = _safetensors_tensor_metadata(shard)
 +    metadata = [(name, metadata_by_name[name]) for name in physical_names]
-+    offsets = [(0, offsets_by_name[physical_names[0]][0])]
-+    offsets.extend((0, offsets_by_name[name][1]) for name in physical_names)
++    offsets = [(0, metadata_by_name[physical_names[0]]["data_offsets"][0])]
++    offsets.extend(
++        (0, metadata_by_name[name]["data_offsets"][1]) for name in physical_names
++    )
 +    buffer_sizes = []
 +    instant_open = SimpleNamespace(
 +        filename=[str(shard)],
@@ -1245,7 +1297,7 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
 +        _determine_buffer_size=lambda requested: buffer_sizes.append(requested),
 +    )
 +
-+    cpu_fallback = weight_utils._restrict_instanttensor_to_selected_ranges(
++    selection = weight_utils._restrict_instanttensor_to_selected_ranges(
 +        instant_open,
 +        indexed_tensor_files=None,
 +        weight_name_prefixes=None,
@@ -1255,9 +1307,58 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
 +    assert [name for name, _ in instant_open.ordered_tensor_metadatas] == [
 +        "model.small.weight"
 +    ]
-+    assert cpu_fallback == [("model.large.weight", str(shard))]
++    assert selection.gpu_tensor_count == 1
++    assert selection.selected_tensor_count == 2
++    assert [
++        (fallback.position, fallback.name, fallback.filename)
++        for fallback in selection.cpu_fallbacks
++    ] == [(0, "model.large.weight", str(shard))]
 +    assert instant_open.total_tensor_size == 8
 +    assert buffer_sizes == [None]
++
++
++@pytest.mark.parametrize(
++    ("buffer_size", "expected_gpu_opens", "expected_buffer_requests"),
++    [(16, 1, [None]), (1, 0, [])],
++)
++def test_instanttensor_emits_cpu_fallbacks_in_checkpoint_order(
++    tmp_path,
++    monkeypatch,
++    buffer_size,
++    expected_gpu_opens,
++    expected_buffer_requests,
++):
++    shard = tmp_path / "model.safetensors"
++    source = {
++        "a_small": torch.arange(2, dtype=torch.float32),
++        "b_large": torch.arange(8, dtype=torch.float32),
++        "c_small": torch.arange(2, dtype=torch.float32),
++    }
++    save_file(source, shard)
++    instant_open = _FakeInstantOpen(shard, source)
++
++    def no_world_group():
++        raise AssertionError
++
++    monkeypatch.setenv("INSTANTTENSOR_BUFFER_SIZE", str(buffer_size))
++    monkeypatch.setenv("INSTANTTENSOR_COPY", "1")
++    monkeypatch.setattr(
++        weight_utils,
++        "current_platform",
++        SimpleNamespace(is_cuda=lambda: True, current_device=lambda: 0),
++    )
++    monkeypatch.setattr(weight_utils, "get_world_group", no_world_group)
++    monkeypatch.setitem(
++        sys.modules,
++        "instanttensor",
++        SimpleNamespace(safe_open=lambda *args, **kwargs: instant_open),
++    )
++
++    loaded = list(instanttensor_weights_iterator([str(shard)], False))
++
++    assert [name for name, _ in loaded] == instant_open.original_names
++    assert instant_open.enter_count == expected_gpu_opens
++    assert instant_open.buffer_size_requests == expected_buffer_requests
 +
 +
 +@pytest.mark.skipif(
@@ -1339,6 +1440,7 @@ index a98d882e5d677e17f745b473bbd397269c7e023a..5a0df538321452c3cf5e683cd45d4493
 +    for name, tensor in instanttensor_weights_iterator(
 +        [str(shard)], use_tqdm_on_load=False
 +    ):
++        assert getattr(tensor, "_vllm_instanttensor_borrowed", False)
 +        bound_args = signature.bind(None, tensor)
 +        _own_deferred_accelerator_tensors(bound_args)
 +        retained[name] = bound_args.arguments["loaded_weight"]
@@ -5104,10 +5206,10 @@ index 7dba2d271a398effdba762f47e7a3b49a4d35748..920d85c1c02e0ab3672f10430781f6f1
          # If caller's output buffer already matches fused_out shape/dtype, alias
          # to skip the redundant copy in TopKWeightAndReduceNoOP.apply downstream.
 diff --git a/vllm/model_executor/model_loader/reload/layerwise.py b/vllm/model_executor/model_loader/reload/layerwise.py
-index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa83e2d1d4 100644
+index 5aa510a6242a1f10ac14ccb539f74585017067a6..24021fbe0261191fc538b9451679ccadfb659f32 100644
 --- a/vllm/model_executor/model_loader/reload/layerwise.py
 +++ b/vllm/model_executor/model_loader/reload/layerwise.py
-@@ -52,6 +52,54 @@ LAYERWISE_INFO: WeakKeyDictionary[torch.nn.Module, LayerReloadingInfo] = (
+@@ -52,6 +52,59 @@ LAYERWISE_INFO: WeakKeyDictionary[torch.nn.Module, LayerReloadingInfo] = (
  # Global set used to track loading for logging purposes only
  LOADING_LAYERS: WeakSet[torch.nn.Module] = WeakSet()
  
@@ -5154,6 +5256,11 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
 +
 +
 +def _zero_online_processing_unloaded(layer: torch.nn.Module) -> None:
++    """Zero checkpoint-omitted parameter tails before online processing.
++
++    Args:
++        layer: Materialized layer with unloaded-tail annotations.
++    """
 +    unloaded = getattr(layer, _ONLINE_PROCESSING_UNLOADED_ATTR, {})
 +    for name, numel in unloaded.items():
 +        if numel:
@@ -5162,7 +5269,7 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
  
  def get_layerwise_info(layer: torch.nn.Module) -> LayerReloadingInfo:
      """
-@@ -132,7 +180,7 @@ def initialize_online_processing(layer: torch.nn.Module):
+@@ -132,7 +185,7 @@ def initialize_online_processing(layer: torch.nn.Module):
  
      # Track loading progress to determine when to process/copy
      info.load_numel = 0
@@ -5171,7 +5278,7 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
      _wrap_parameters_weight_loader(layer)
  
  
-@@ -146,6 +194,28 @@ def _wrap_parameters_weight_loader(layer: torch.nn.Module) -> None:
+@@ -146,6 +199,28 @@ def _wrap_parameters_weight_loader(layer: torch.nn.Module) -> None:
              tensor.weight_loader = make_online_process_loader(layer, name)
  
  
@@ -5200,7 +5307,7 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
  def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Callable:
      """Create a wrapped weight loader that defers processing."""
      info = get_layerwise_info(layer)
-@@ -176,16 +246,29 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
+@@ -176,16 +251,29 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
          # Re-run on each load: layers may register parameters later (e.g., `bias`).
          # Wrap late parameters and refresh `load_numel_total` so processing waits
          # until all parameters are loaded.
@@ -5234,7 +5341,7 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
          info.load_numel += num_loaded
  
          logger.debug(
-@@ -200,7 +283,7 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
+@@ -200,7 +288,7 @@ def make_online_process_loader(layer: torch.nn.Module, param_name: str) -> Calla
              return ret
  
          # Log warnings allocating excessive buffers on device
@@ -5243,7 +5350,7 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
              LOADING_LAYERS.add(layer)
              if len(LOADING_LAYERS) >= 2:
                  names = sorted([layer.__class__.__name__ for layer in LOADING_LAYERS])
-@@ -352,10 +435,21 @@ def _layerwise_process(layer: torch.nn.Module, info: LayerReloadingInfo):
+@@ -352,10 +440,21 @@ def _layerwise_process(layer: torch.nn.Module, info: LayerReloadingInfo):
          param.weight_loader = _get_original_loader(param)
  
      # Load all buffered weights into materialized layer (using original loaders)
@@ -5269,10 +5376,20 @@ index 5aa510a6242a1f10ac14ccb539f74585017067a6..23684f56c0368c01d0db3105d4b4bdfa
      # Process weights (quantization, repacking, etc.)
      quant_method = getattr(layer, "quant_method", None)
 diff --git a/vllm/model_executor/model_loader/weight_utils.py b/vllm/model_executor/model_loader/weight_utils.py
-index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae273d501dd 100644
+index c63912c576dd330c9e3c48ff52d3ae6317efe82d..ef7d6e9d7357a300b14903e08cdda22e35024785 100644
 --- a/vllm/model_executor/model_loader/weight_utils.py
 +++ b/vllm/model_executor/model_loader/weight_utils.py
-@@ -290,12 +290,19 @@ def get_quant_config(
+@@ -14,7 +14,8 @@ import threading
+ import time
+ from collections import defaultdict
+ from collections.abc import Callable, Generator, Iterable, Sequence
+-from contextlib import contextmanager
++from contextlib import ExitStack, contextmanager
++from dataclasses import dataclass
+ from pathlib import Path
+ from typing import IO, Any
+ 
+@@ -290,12 +291,19 @@ def get_quant_config(
      # if hf_quant_config is None, we will try to get config from
      # hf_overrides
      hf_overrides = model_config.hf_overrides
@@ -5294,7 +5411,7 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
      if quantization_config_file is not None:
          if hasattr(quant_cls, "from_config_file"):
              return quant_cls.from_config_file(quantization_config_file)
-@@ -305,7 +312,11 @@ def get_quant_config(
+@@ -305,7 +313,11 @@ def get_quant_config(
                  "but quant_cls.from_config_file is not implemented in "
                  f"{quant_cls}"
              )
@@ -5307,7 +5424,28 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
      if quantization_config_json is not None:
          if hasattr(quant_cls, "from_config_dict_json"):
              return quant_cls.from_config_dict_json(quantization_config_json)
-@@ -1229,7 +1240,23 @@ def instanttensor_weights_iterator(
+@@ -1192,6 +1204,20 @@ def fastsafetensors_weights_iterator(
+             pl.close()
+ 
+ 
++@dataclass(frozen=True)
++class _InstantTensorCpuFallback:
++    position: int
++    name: str
++    filename: str
++
++
++@dataclass(frozen=True)
++class _InstantTensorSelection:
++    gpu_tensor_count: int
++    selected_tensor_count: int
++    cpu_fallbacks: tuple[_InstantTensorCpuFallback, ...]
++
++
+ def instanttensor_weights_iterator(
+     hf_weights_files: list[str],
+     use_tqdm_on_load: bool,
+@@ -1229,7 +1255,23 @@ def instanttensor_weights_iterator(
          raise ValueError(f"INSTANTTENSOR_COPY must be 0 or 1, got {copy_setting!r}")
      copy_tensors = copy_setting == "1"
  
@@ -5332,14 +5470,14 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
      open_kwargs: dict[str, Any] = {}
      if restrict_before_io:
          open_kwargs["load_now"] = False
-@@ -1244,41 +1271,63 @@ def instanttensor_weights_iterator(
+@@ -1244,41 +1286,116 @@ def instanttensor_weights_iterator(
          copy=copy_tensors,
          **open_kwargs,
      )
-+    cpu_fallback_weights: list[tuple[str, str]] = []
++    selection: _InstantTensorSelection | None = None
      if restrict_before_io:
 -        _restrict_instanttensor_to_selected_ranges(
-+        cpu_fallback_weights = _restrict_instanttensor_to_selected_ranges(
++        selection = _restrict_instanttensor_to_selected_ranges(
              instant_open,
              indexed_tensor_files=indexed_tensor_files,
              weight_name_prefixes=weight_name_prefixes,
@@ -5358,7 +5496,9 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
 -            unit_scale=True,
 -            unit_divisor=1024,
 -            mininterval=1.0,
-+    if not restrict_before_io or instant_open.ordered_tensor_metadatas:
+-        )
++    cpu_fallbacks = selection.cpu_fallbacks if selection is not None else ()
++    if not cpu_fallbacks:
 +        with instant_open as f:
 +            # Track bytes so the bar reports load throughput (GB/s).
 +            pbar = tqdm(
@@ -5390,48 +5530,94 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
 +                tensor = None
 +            finally:
 +                pbar.close()
++        return
 +
-+    if cpu_fallback_weights:
-+        assert max_gpu_tensor_size is not None
-+        logger.info_once(
-+            "Loading %d tensors larger than the %d-byte InstantTensor buffer "
-+            "through CPU safetensors",
-+            len(cpu_fallback_weights),
-+            max_gpu_tensor_size,
-         )
--        try:
++    assert max_gpu_tensor_size is not None
++    assert selection is not None
++    logger.info_once(
++        "Loading %d tensors larger than the %d-byte InstantTensor buffer "
++        "through CPU safetensors",
++        len(cpu_fallbacks),
++        max_gpu_tensor_size,
++    )
++    fallback_by_position = {fallback.position: fallback for fallback in cpu_fallbacks}
++    with ExitStack() as stack:
++        fallback_readers: dict[str, Any] = {}
++        for fallback in cpu_fallbacks:
++            if fallback.filename not in fallback_readers:
++                fallback_readers[fallback.filename] = stack.enter_context(
++                    safe_open(fallback.filename, framework="pt", device="cpu")
++                )
++
++        pbar = None
++        gpu_tensors: Any = iter(())
++        if selection.gpu_tensor_count:
++            instant_reader = stack.enter_context(instant_open)
++            pbar = tqdm(
++                total=instant_reader.total_tensor_size,
++                desc="Loading safetensors using InstantTensor loader",
++                disable=not enable_tqdm(use_tqdm_on_load),
++                bar_format=_BAR_FORMAT,
++                position=tqdm._get_free_pos(),
++                unit="B",
++                unit_scale=True,
++                unit_divisor=1024,
++                mininterval=1.0,
++            )
++            gpu_tensors = iter(instant_reader.tensors())
++
+         try:
 -            for name, tensor in f.tensors():
 -                pbar.update(tensor.numel() * tensor.element_size())
 -                if weight_name_prefixes and not _matches_weight_name_prefixes(
 -                    name, weight_name_prefixes
 -                ):
--                    continue
--                if not copy_tensors:
++            tensor: torch.Tensor | None = None
++            for position in range(selection.selected_tensor_count):
++                fallback = fallback_by_position.get(position)
++                if fallback is not None:
++                    yield (
++                        fallback.name,
++                        fallback_readers[fallback.filename].get_tensor(fallback.name),
++                    )
+                     continue
++                try:
++                    name, tensor = next(gpu_tensors)
++                except StopIteration as e:
++                    raise RuntimeError(
++                        "InstantTensor produced fewer tensors than the selected "
++                        "checkpoint schedule"
++                    ) from e
++                if pbar is not None:
++                    pbar.update(tensor.numel() * tensor.element_size())
+                 if not copy_tensors:
 -                    # Parameter loaders consume borrowed tensors synchronously.
 -                    # Loaders retaining a tensor past this yield must materialize
 -                    # owned storage before InstantTensor advances its ring buffer.
--                    tensor._vllm_instanttensor_borrowed = True
--                yield name, tensor
--        finally:
+                     tensor._vllm_instanttensor_borrowed = True
+                 yield name, tensor
++
++            if next(gpu_tensors, None) is not None:
++                raise RuntimeError(
++                    "InstantTensor produced more tensors than the selected "
++                    "checkpoint schedule"
++                )
++            tensor = None
+         finally:
 -            pbar.close()
-+        fallback_by_file: dict[str, list[str]] = defaultdict(list)
-+        for name, filename in cpu_fallback_weights:
-+            fallback_by_file[filename].append(name)
-+        for filename, names in fallback_by_file.items():
-+            with safe_open(filename, framework="pt", device="cpu") as fallback_file:
-+                for name in names:
-+                    yield name, fallback_file.get_tensor(name)
++            if pbar is not None:
++                pbar.close()
  
  
  def _restrict_instanttensor_to_selected_ranges(
-@@ -1286,8 +1335,23 @@ def _restrict_instanttensor_to_selected_ranges(
+@@ -1286,8 +1403,24 @@ def _restrict_instanttensor_to_selected_ranges(
      *,
      indexed_tensor_files: dict[str, str] | None,
      weight_name_prefixes: Sequence[str] | None,
 -) -> None:
 -    """Replace an unopened InstantTensor layout with selected byte ranges."""
 +    max_tensor_size: int | None = None,
-+) -> list[tuple[str, str]]:
++) -> _InstantTensorSelection:
 +    """Restrict an InstantTensor loader to requested checkpoint ranges.
 +
 +    Args:
@@ -5445,20 +5631,22 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
 +            staging path. Larger selected tensors are assigned to CPU loading.
 +
 +    Returns:
-+        Pairs of tensor name and checkpoint filename assigned to CPU loading.
++        Selected GPU tensor count, total selected tensor count, and CPU
++        fallbacks with their positions in checkpoint order.
 +    """
      required_attrs = (
          "filename",
          "ordered_tensor_metadatas",
-@@ -1313,6 +1377,7 @@ def _restrict_instanttensor_to_selected_ranges(
+@@ -1313,6 +1446,8 @@ def _restrict_instanttensor_to_selected_ranges(
      selected_filenames: list[str] = []
      selected_metadata: list[tuple[str, dict[str, Any]]] = []
      selected_offsets: list[tuple[int, int]] = []
-+    cpu_fallback_weights: list[tuple[str, str]] = []
++    cpu_fallbacks: list[_InstantTensorCpuFallback] = []
++    selected_position = 0
      metadata_pos = 0
      offset_pos = 0
  
-@@ -1334,17 +1399,26 @@ def _restrict_instanttensor_to_selected_ranges(
+@@ -1334,17 +1469,33 @@ def _restrict_instanttensor_to_selected_ranges(
                  f"for {filename}"
              )
  
@@ -5480,34 +5668,41 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
 -            for name in physical_names
 -        ]
 +            selected_here = indexed_here and prefix_matches
-+            tensor_size = int(file_offsets[item_index + 1][1]) - int(
-+                file_offsets[item_index][1]
-+            )
++            item_data_offsets = file_metadata[item_index][1]["data_offsets"]
++            tensor_size = int(item_data_offsets[1]) - int(item_data_offsets[0])
 +            use_cpu_fallback = (
 +                selected_here
 +                and max_tensor_size is not None
 +                and tensor_size > max_tensor_size
 +            )
 +            keep.append(selected_here and not use_cpu_fallback)
-+            if use_cpu_fallback:
-+                cpu_fallback_weights.append((name, filename))
++            if selected_here:
++                if use_cpu_fallback:
++                    cpu_fallbacks.append(
++                        _InstantTensorCpuFallback(
++                            position=selected_position,
++                            name=name,
++                            filename=filename,
++                        )
++                    )
++                selected_position += 1
  
          run_start = 0
          while run_start < tensor_count:
-@@ -1373,7 +1447,7 @@ def _restrict_instanttensor_to_selected_ranges(
+@@ -1373,7 +1524,7 @@ def _restrict_instanttensor_to_selected_ranges(
          raise RuntimeError(
              "InstantTensor layout contains unaccounted metadata or offsets"
          )
 -    if not selected_metadata:
-+    if not selected_metadata and not cpu_fallback_weights:
++    if not selected_metadata and not cpu_fallbacks:
          raise RuntimeError("InstantTensor index/prefix selection matched no tensors")
  
      selected_names = [name for name, _ in selected_metadata]
-@@ -1381,6 +1455,16 @@ def _restrict_instanttensor_to_selected_ranges(
+@@ -1381,19 +1532,36 @@ def _restrict_instanttensor_to_selected_ranges(
          raise RuntimeError(
              "InstantTensor index-aware selection still contains duplicate tensor names"
          )
-+    fallback_names = [name for name, _ in cpu_fallback_weights]
++    fallback_names = [fallback.name for fallback in cpu_fallbacks]
 +    if len(fallback_names) != len(set(fallback_names)):
 +        raise RuntimeError(
 +            "InstantTensor CPU fallback selection contains duplicate tensor names"
@@ -5520,11 +5715,32 @@ index c63912c576dd330c9e3c48ff52d3ae6317efe82d..f791945dfdd4a2568f154e3c9ba86ae2
      selected_sizes = [
          int(item["data_offsets"][1]) - int(item["data_offsets"][0])
          for _, item in selected_metadata
-@@ -1394,6 +1478,7 @@ def _restrict_instanttensor_to_selected_ranges(
-     instant_open.tensor_sizes = selected_sizes
-     instant_open.total_tensor_size = sum(selected_sizes)
-     instant_open._determine_buffer_size(None)
-+    return cpu_fallback_weights
+     ]
+-    instant_open.filename = selected_filenames
+-    instant_open.ordered_tensor_metadatas = selected_metadata
+-    instant_open.tensor_name_to_index = {
+-        name: index for index, name in enumerate(selected_names)
+-    }
+-    instant_open.tensor_offsets = selected_offsets
+-    instant_open.tensor_sizes = selected_sizes
+-    instant_open.total_tensor_size = sum(selected_sizes)
+-    instant_open._determine_buffer_size(None)
++    if selected_metadata:
++        instant_open.filename = selected_filenames
++        instant_open.ordered_tensor_metadatas = selected_metadata
++        instant_open.tensor_name_to_index = {
++            name: index for index, name in enumerate(selected_names)
++        }
++        instant_open.tensor_offsets = selected_offsets
++        instant_open.tensor_sizes = selected_sizes
++        instant_open.total_tensor_size = sum(selected_sizes)
++        instant_open._determine_buffer_size(None)
++
++    return _InstantTensorSelection(
++        gpu_tensor_count=len(selected_metadata),
++        selected_tensor_count=selected_position,
++        cpu_fallbacks=tuple(cpu_fallbacks),
++    )
  
  
  def pt_weights_iterator(

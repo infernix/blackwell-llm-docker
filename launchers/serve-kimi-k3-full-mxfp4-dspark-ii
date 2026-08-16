@@ -103,8 +103,10 @@ printf -v SPECULATIVE_CONFIG \
   '{"method":"dspark","model":"%s","num_speculative_tokens":7,"attention_backend":"B12X_MLA","kv_cache_dtype":"fp8","draft_sample_method":"greedy","rejection_sample_method":"block","quantization":"mxfp8","quantization_config":{"linear":"mxfp8","ignore":["re:.*fused_qkv_a_proj$"]}}' \
   "${DRAFT_MODEL}"
 TARGET_QUANT_CONFIG='{"linear":"mxfp8","ignore":["re:^(?!.*self_attn\\.(?:q_proj|k_proj|v_proj|b_proj|f_a_proj)$).*$"]}'
+# The DSpark KV group is replicated while the target KV group is DCP-sharded.
+# PIECEWISE capture keeps attention metadata outside the shared full graph.
 if [[ -z "${COMPILATION_CONFIG:-}" ]]; then
-  COMPILATION_CONFIG='{"mode":0,"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[8],"pass_config":{"fuse_allreduce_rms":true}}'
+  COMPILATION_CONFIG='{"mode":0,"cudagraph_mode":"PIECEWISE","cudagraph_capture_sizes":[8],"pass_config":{"fuse_allreduce_rms":true}}'
 fi
 
 cd "${VLLM_SOURCE_DIR}"
