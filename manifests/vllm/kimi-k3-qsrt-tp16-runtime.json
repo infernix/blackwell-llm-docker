@@ -5,11 +5,11 @@
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
   "composition_ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815",
-  "composition_commit": "d2b951466d181bb96a243231e222bc8fc0c77c71",
+  "composition_commit": "39c60b7c09c7eb4657254276d015c1817c6b6ef3",
   "pull_requests": [
     {"number": 382, "head": "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f", "title": "Load Kimi checkpoints with bounded staging"},
     {"number": 383, "head": "1c4a2348f7615582369743a7bd9fa32b7d00b99e", "title": "Define Kimi hybrid cache geometry"},
-    {"number": 384, "head": "ac9c60f0d1ef4f9f6927652281c922f1b2771736", "title": "Run TP16 DCP collectives through B12X"},
+    {"number": 384, "head": "9ba0e56d58795c22e5632abdce84472aaa434b4b", "title": "Run TP16 DCP collectives through B12X"},
     {"number": 385, "head": "b4f0414ebbf9e22317e8bb969d10b573ec91b551", "title": "Shard Kimi projections without padding checkpoint weights"},
     {"number": 386, "head": "ae6b996ec5bb766dfab448a0817bea68c3e30ab1", "title": "Fuse Kimi routed-MoE projection transport"},
     {"number": 387, "head": "857807e3576c392a5ed0c00b7f4e56b2e516b59b", "title": "Execute Kimi dense MLA with decode context parallelism"},

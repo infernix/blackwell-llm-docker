@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "d2b951466d181bb96a243231e222bc8fc0c77c71",
+    "commit": "39c60b7c09c7eb4657254276d015c1817c6b6ef3",
     "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "280403c3567b8902fc2cb094101b03f6f5b6ff351fabaa9429d610e2b7fcb18c"
+    "sha256": "61acad30d6d3290b2c0a18f6688310cb6ecf0b8d2e635be3f05cdec6b5e1193c"
   },
   "name": "kimi-k3-tp16-vllm",
   "pull_requests": [
@@ -36,10 +36,10 @@
     },
     {
       "commits": [
-        "ac9c60f0d1ef4f9f6927652281c922f1b2771736"
+        "9ba0e56d58795c22e5632abdce84472aaa434b4b"
       ],
       "disposition": "recorded_in_composition",
-      "head": "ac9c60f0d1ef4f9f6927652281c922f1b2771736",
+      "head": "9ba0e56d58795c22e5632abdce84472aaa434b4b",
       "number": 384,
       "ref": "refs/pull/384/head",
       "title": "Run TP16 DCP collectives through B12X"
@@ -107,8 +107,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "af377c03bedd8a36b19a071330b9a82cd5e0a92ac23fd307ed7ca7de3dce55ae",
-    "tree": "08bd2c5c284b40c3efbc1910fac3862278374b2d"
+    "patch_sha256": "c1704e0c0357d02a31ffe9734708c96797414c93d4635259dbaab0e82228e078",
+    "tree": "2ddc210018a5b15e3123a8549d7b7018627e3e23"
   },
   "schema_version": 1,
   "source_patches": []
