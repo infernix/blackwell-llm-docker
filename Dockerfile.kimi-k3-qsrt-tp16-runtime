@@ -119,6 +119,8 @@ RUN set -eux; \
       f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449; \
     /opt/venv/bin/python -c 'import pathlib, vllm; assert pathlib.Path(vllm.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/vllm"))'; \
     /opt/venv/bin/python -c 'import b12x, pathlib; assert pathlib.Path(b12x.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/b12x"))'; \
+    /opt/venv/bin/python -c 'from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes; assert recommended_max_bytes(16, default=86016) == 86016'; \
+    B12X_PCIE_ALLREDUCE_ALGORITHM=island_rs /opt/venv/bin/python -c 'from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes; assert recommended_max_bytes(16, default=86016) == 163840'; \
     for launcher in \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
