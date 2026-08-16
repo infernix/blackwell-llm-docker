@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "216610e80bc7fad8005cb21b263a2dce5c7ba802",
+    "commit": "d2b951466d181bb96a243231e222bc8fc0c77c71",
     "ref": "refs/heads/agent/ii-kimi-runtime-composition-20260815"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "23db09370de61b396f9c2707f1d3dbe9181fa43ba0ac5f4e48342d68147786c8"
+    "sha256": "280403c3567b8902fc2cb094101b03f6f5b6ff351fabaa9429d610e2b7fcb18c"
   },
   "name": "kimi-k3-tp16-vllm",
   "pull_requests": [
@@ -66,10 +66,10 @@
     },
     {
       "commits": [
-        "bbe91b5cd879f144b8faadd7c8ad89a53a3dcd2d"
+        "857807e3576c392a5ed0c00b7f4e56b2e516b59b"
       ],
       "disposition": "recorded_in_composition",
-      "head": "bbe91b5cd879f144b8faadd7c8ad89a53a3dcd2d",
+      "head": "857807e3576c392a5ed0c00b7f4e56b2e516b59b",
       "number": 387,
       "ref": "refs/pull/387/head",
       "title": "Execute Kimi dense MLA with decode context parallelism"
@@ -107,8 +107,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "b9cf26938c2af40ba54ac00a952e65538c357777887c7ca9288505c83d50568e",
-    "tree": "c489c319b63539d9af78550c8b201a266329710b"
+    "patch_sha256": "af377c03bedd8a36b19a071330b9a82cd5e0a92ac23fd307ed7ca7de3dce55ae",
+    "tree": "08bd2c5c284b40c3efbc1910fac3862278374b2d"
   },
   "schema_version": 1,
   "source_patches": []

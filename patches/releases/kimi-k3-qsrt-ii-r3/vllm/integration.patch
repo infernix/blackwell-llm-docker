@@ -3261,18 +3261,21 @@ index f43d668b73cd317524a1c84cd5a2294de7e16238..6db97703947d4c289bc197612f5cc4f5
 +    assert config.attention_backend is AttentionBackendEnum.B12X_MLA
 +    assert config.target_parallel_config.decode_context_parallel_size == 8
 diff --git a/tests/v1/attention/test_b12x_mla.py b/tests/v1/attention/test_b12x_mla.py
-index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940ebdbc30e4 100644
+index 67e662648ce02c0e72d305272710da87696844d8..69a09d3a67f23c81efe9faa3b162caf90de0c39f 100644
 --- a/tests/v1/attention/test_b12x_mla.py
 +++ b/tests/v1/attention/test_b12x_mla.py
-@@ -3,6 +3,7 @@
+@@ -3,8 +3,10 @@
  
  from types import SimpleNamespace
  
 +import pytest
  import torch
  
++from vllm.model_executor.layers.attention import mla_attention
  from vllm.platforms.interface import DeviceCapability
-@@ -31,7 +32,100 @@ def test_b12x_mla_is_registered_with_k3_envelope() -> None:
+ from vllm.v1.attention.backends.mla import b12x_mla
+ from vllm.v1.attention.backends.mla.b12x_mla import (
+@@ -31,7 +33,115 @@ def test_b12x_mla_is_registered_with_k3_envelope() -> None:
      assert B12xMLAMetadataBuilder.query_len_support is b12x_mla.QueryLenSupport.UNIFORM
  
  
@@ -3314,6 +3317,21 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
 +    )
 +
 +    assert b12x_mla._max_dcp_local_cache_tokens(config) == 131_072
++
++
++def test_mla_uses_one_kv_shard_for_replicated_dcp_cache() -> None:
++    replicated = SimpleNamespace(dcp_replicated=True, dcp_kv_shard_count=None)
++    sharded = SimpleNamespace(dcp_replicated=False, dcp_kv_shard_count=None)
++
++    assert mla_attention._get_mla_kv_dcp_world_size(replicated, 16) == 1
++    assert mla_attention._get_mla_kv_dcp_world_size(sharded, 16) == 16
++
++
++def test_mla_rejects_partial_dcp_cache_without_matching_subgroup() -> None:
++    partial = SimpleNamespace(dcp_replicated=False, dcp_kv_shard_count=4)
++
++    with pytest.raises(NotImplementedError, match="partial DCP KV sharding"):
++        mla_attention._get_mla_kv_dcp_world_size(partial, 16)
 +
 +
 +def _support_reason(monkeypatch, *, dcp_size: int, pcp_size: int = 1) -> str | None:
@@ -3373,7 +3391,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
      def shapes_and_dtypes(self):
          return (((256,), torch.uint8),)
  
-@@ -59,13 +153,16 @@ class _FakeDenseMLA:
+@@ -59,13 +169,14 @@ class _FakeDenseMLA:
  
  
  def _fake_impl(monkeypatch, *, num_heads: int = 8) -> tuple[B12xMLAImpl, _FakeDenseMLA]:
@@ -3383,8 +3401,6 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
      impl.kv_lora_rank = 512
      impl.scale = 192**-0.5
 +    impl.dcp_world_size = 1
-+    impl._effective_heads = num_heads
-+    impl._kernel_heads = b12x_mla._kernel_query_heads(num_heads, 1)
 +    impl._dcp_comm_backend = "a2a"
 +    impl._dcp_max_batch_size = 16
      impl._compiled_bindings = set()
@@ -3392,7 +3408,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
      dense_mla = _FakeDenseMLA()
      impl._dense_mla = dense_mla
      return impl, dense_mla
-@@ -79,6 +176,7 @@ def test_b12x_mla_adapter_binds_common_decode_metadata(monkeypatch) -> None:
+@@ -79,6 +190,7 @@ def test_b12x_mla_adapter_binds_common_decode_metadata(monkeypatch) -> None:
      cache = torch.randn(4, 16, 576, dtype=torch.bfloat16)
      metadata = SimpleNamespace(
          dense_mla_plan=_FakePlan(),
@@ -3400,7 +3416,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
          query_start_loc=torch.tensor([0, 1, 2], dtype=torch.int32),
          decode=SimpleNamespace(
              block_table=torch.tensor([[0, 1], [2, 3]], dtype=torch.int32),
-@@ -107,6 +205,8 @@ def test_b12x_mla_adapter_binds_common_decode_metadata(monkeypatch) -> None:
+@@ -107,6 +219,8 @@ def test_b12x_mla_adapter_binds_common_decode_metadata(monkeypatch) -> None:
      assert binding.q_scale is None
      assert binding.kv_scale is None
      assert binding.sm_scale == impl.scale
@@ -3409,7 +3425,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
  
  
  def test_b12x_mla_adapter_accepts_non_multiple_of_eight_heads(monkeypatch) -> None:
-@@ -115,6 +215,9 @@ def test_b12x_mla_adapter_accepts_non_multiple_of_eight_heads(monkeypatch) -> No
+@@ -115,6 +229,9 @@ def test_b12x_mla_adapter_accepts_non_multiple_of_eight_heads(monkeypatch) -> No
      cache = torch.randn(2, 16, 576, dtype=torch.bfloat16)
      metadata = SimpleNamespace(
          dense_mla_plan=_FakePlan(),
@@ -3419,7 +3435,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
          query_start_loc=torch.tensor([0, 1], dtype=torch.int32),
          decode=SimpleNamespace(
              block_table=torch.tensor([[0, 1]], dtype=torch.int32),
-@@ -126,7 +229,10 @@ def test_b12x_mla_adapter_accepts_non_multiple_of_eight_heads(monkeypatch) -> No
+@@ -126,7 +243,10 @@ def test_b12x_mla_adapter_accepts_non_multiple_of_eight_heads(monkeypatch) -> No
      output, _ = impl.forward_mqa(q, cache, metadata, layer)
  
      assert output.shape == (1, 6, 512)
@@ -3431,7 +3447,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
  
  
  def test_b12x_mla_adapter_binds_causal_multiquery_blocks(monkeypatch) -> None:
-@@ -137,11 +243,27 @@ def test_b12x_mla_adapter_binds_causal_multiquery_blocks(monkeypatch) -> None:
+@@ -137,11 +257,27 @@ def test_b12x_mla_adapter_binds_causal_multiquery_blocks(monkeypatch) -> None:
      q = torch.randn(total_q, 8, 576, dtype=torch.bfloat16)
      cache = torch.randn(8, 16, 576, dtype=torch.bfloat16)
      query_start_loc = torch.tensor([0, 8, 16], dtype=torch.int32)
@@ -3460,7 +3476,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
              seq_lens=torch.tensor([32, 48], dtype=torch.int32),
          ),
      )
-@@ -156,13 +278,16 @@ def test_b12x_mla_adapter_binds_causal_multiquery_blocks(monkeypatch) -> None:
+@@ -156,17 +292,21 @@ def test_b12x_mla_adapter_binds_causal_multiquery_blocks(monkeypatch) -> None:
      assert output.shape == (total_q, 8, 512)
      assert lse is not None and lse.shape == (total_q, 8)
      assert binding.q.shape[0] == total_q
@@ -3479,7 +3495,12 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
      builder._max_dense_mla_rows = 16
      builder._dense_mla_flat_block_table = torch.zeros(16, 4, dtype=torch.int32)
      builder._dense_mla_flat_seq_lens = torch.empty(16, dtype=torch.int32)
-@@ -186,6 +311,7 @@ def test_b12x_mla_builder_flattens_non_causal_draft_block(monkeypatch) -> None:
+     builder._dense_mla_flat_query_start_loc = torch.arange(17, dtype=torch.int32)
++    builder.dcp_world_size = 1
+ 
+     source_table = torch.tensor([[3, 4, 5, 6]], dtype=torch.int32)
+     metadata = SimpleNamespace(
+@@ -186,6 +326,7 @@ def test_b12x_mla_builder_flattens_non_causal_draft_block(monkeypatch) -> None:
  
      result = builder.build(0, SimpleNamespace())
  
@@ -3487,7 +3508,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
      torch.testing.assert_close(
          result.dense_mla_flat_block_table,
          source_table.expand(8, -1),
-@@ -200,6 +326,144 @@ def test_b12x_mla_builder_flattens_non_causal_draft_block(monkeypatch) -> None:
+@@ -200,6 +341,144 @@ def test_b12x_mla_builder_flattens_non_causal_draft_block(monkeypatch) -> None:
      )
  
  
@@ -3632,7 +3653,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
  def test_b12x_mla_adapter_uses_flattened_non_causal_rows(monkeypatch) -> None:
      impl, dense_mla = _fake_impl(monkeypatch, num_heads=6)
      query_rows = 8
-@@ -211,6 +475,9 @@ def test_b12x_mla_adapter_uses_flattened_non_causal_rows(monkeypatch) -> None:
+@@ -211,6 +490,9 @@ def test_b12x_mla_adapter_uses_flattened_non_causal_rows(monkeypatch) -> None:
      flat_query_start = torch.arange(query_rows + 1, dtype=torch.int32)
      metadata = SimpleNamespace(
          dense_mla_plan=_FakePlan(),
@@ -3642,7 +3663,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
          dense_mla_flat_block_table=flat_table,
          dense_mla_flat_seq_lens=flat_lens,
          dense_mla_flat_query_start_loc=flat_query_start,
-@@ -238,6 +505,7 @@ def test_b12x_mla_adapter_passes_fp8_scales(monkeypatch) -> None:
+@@ -238,6 +520,7 @@ def test_b12x_mla_adapter_passes_fp8_scales(monkeypatch) -> None:
      cache = torch.empty(2, 16, 576, dtype=torch.float8_e4m3fn)
      metadata = SimpleNamespace(
          dense_mla_plan=_FakePlan(),
@@ -3650,7 +3671,7 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
          query_start_loc=torch.tensor([0, 1], dtype=torch.int32),
          decode=SimpleNamespace(
              block_table=torch.tensor([[0, 1]], dtype=torch.int32),
-@@ -254,3 +522,83 @@ def test_b12x_mla_adapter_passes_fp8_scales(monkeypatch) -> None:
+@@ -254,3 +537,119 @@ def test_b12x_mla_adapter_passes_fp8_scales(monkeypatch) -> None:
      binding = dense_mla.bindings[0]
      assert binding.q_scale is layer._q_scale
      assert binding.kv_scale is layer._k_scale
@@ -3659,8 +3680,6 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
 +def test_b12x_mla_adapter_gathers_and_combines_dcp(monkeypatch) -> None:
 +    impl, dense_mla = _fake_impl(monkeypatch, num_heads=6)
 +    impl.dcp_world_size = 8
-+    impl._effective_heads = 48
-+    impl._kernel_heads = 48
 +    batch = 2
 +    q = torch.randn(batch, 6, 576, dtype=torch.bfloat16)
 +    cache = torch.randn(4, 16, 576, dtype=torch.bfloat16)
@@ -3714,6 +3733,44 @@ index 67e662648ce02c0e72d305272710da87696844d8..bd1e57edb8fe1385c2f3d39a73cd940e
 +    assert dense_mla.bindings[0].q.data_ptr() == metadata.dense_mla_padded_q.data_ptr()
 +    torch.testing.assert_close(output, torch.ones_like(output))
 +    assert lse is None
++
++
++def test_b12x_mla_adapter_skips_dcp_for_replicated_cache(monkeypatch) -> None:
++    impl, dense_mla = _fake_impl(monkeypatch, num_heads=6)
++    impl.dcp_world_size = 8
++    batch = 2
++    q = torch.randn(batch, 6, 576, dtype=torch.bfloat16)
++    cache = torch.randn(4, 16, 576, dtype=torch.bfloat16)
++
++    def unexpected_collective(*args, **kwargs):
++        raise AssertionError("replicated KV attention must not use DCP collectives")
++
++    monkeypatch.setattr(b12x_mla, "get_dcp_group", unexpected_collective)
++    monkeypatch.setattr(b12x_mla, "dcp_b12x_all_gather_heads", unexpected_collective)
++    monkeypatch.setattr(b12x_mla, "dcp_a2a_lse_reduce", unexpected_collective)
++    metadata = SimpleNamespace(
++        dense_mla_plan=_FakePlan(),
++        dense_mla_scratch=torch.empty(256, dtype=torch.uint8),
++        dense_mla_padded_q=torch.empty(batch, 8, 576, dtype=torch.bfloat16),
++        dense_mla_padded_output=torch.empty(batch, 8, 512, dtype=torch.bfloat16),
++        dense_mla_dcp_world_size=1,
++        query_start_loc=torch.tensor([0, 1, 2], dtype=torch.int32),
++        decode=SimpleNamespace(
++            block_table=torch.tensor([[0, 1], [2, 3]], dtype=torch.int32),
++            seq_lens=torch.tensor([17, 31], dtype=torch.int32),
++        ),
++    )
++
++    output, lse = impl.forward_mqa(
++        q,
++        cache,
++        metadata,
++        SimpleNamespace(_q_scale=None, _k_scale=None),
++    )
++
++    assert output.shape == (batch, 6, 512)
++    assert lse is not None and lse.shape == (batch, 6)
++    assert dense_mla.bindings[0].q.shape == (batch, 8, 576)
 +
 +
 +def test_b12x_mla_adapter_requires_caller_owned_scratch(monkeypatch) -> None:
@@ -4996,10 +5053,38 @@ index 6b3d5d275e11cf921d74e137af36d49882d1110c..8bcd9d0bc7f2cc9fb6310e3240cfc6de
      "VLLM_NIXL_EP_MAX_NUM_RANKS": lambda: int(
          os.getenv("VLLM_NIXL_EP_MAX_NUM_RANKS", "32")
 diff --git a/vllm/model_executor/layers/attention/mla_attention.py b/vllm/model_executor/layers/attention/mla_attention.py
-index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b89941925420598b5a 100644
+index 9adfcfd29c9441d3abef18a676394d99cd220bb9..9ec037bfb280d1b87c9ddd596b87c5ea0bc343bb 100644
 --- a/vllm/model_executor/layers/attention/mla_attention.py
 +++ b/vllm/model_executor/layers/attention/mla_attention.py
-@@ -2503,6 +2503,7 @@ class MLACommonPrefillMetadata:
+@@ -319,6 +319,7 @@ from vllm.v1.kv_cache_interface import (
+     KVCacheSpec,
+     MLAAttentionSpec,
+     SlidingWindowMLASpec,
++    get_kv_cache_dcp_shard_count,
+     get_kv_quant_mode,
+ )
+ 
+@@ -328,6 +329,19 @@ _FP8_DTYPE = current_platform.fp8_dtype()
+ _B12X_ABSORB_BMM_MAX_M = 32
+ 
+ 
++def _get_mla_kv_dcp_world_size(
++    kv_cache_spec: KVCacheSpec, configured_dcp_world_size: int
++) -> int:
++    """Return the DCP group size that owns distinct KV position shards."""
++    shard_count = get_kv_cache_dcp_shard_count(kv_cache_spec, configured_dcp_world_size)
++    if shard_count not in (1, configured_dcp_world_size):
++        raise NotImplementedError(
++            "MLA metadata supports fully sharded or replicated DCP KV groups; "
++            "partial DCP KV sharding requires a matching subgroup"
++        )
++    return shard_count
++
++
+ def _run_mla_query_bmm(
+     query: torch.Tensor,
+     weight: torch.Tensor,
+@@ -2503,6 +2517,7 @@ class MLACommonPrefillMetadata:
          context_lens_list: list[int]
          empty_token_slices: list[slice]
          dcp_manager: MLADCPManager | None = None
@@ -5007,7 +5092,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
  
      block_table: torch.Tensor
      query_start_loc: torch.Tensor
-@@ -2792,6 +2793,7 @@ def build_mla_chunked_context_metadata(
+@@ -2792,6 +2807,7 @@ def build_mla_chunked_context_metadata(
      dcp_local_block_size: int,
      dcp_virtual_block_size: int,
      dcp_manager: MLADCPManager | None = None,
@@ -5015,7 +5100,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
  ) -> "MLACommonPrefillMetadata.ChunkedContextMetadata | None":
      """Build chunked-context metadata for an MLA prefill.
  
-@@ -2811,6 +2813,8 @@ def build_mla_chunked_context_metadata(
+@@ -2811,6 +2827,8 @@ def build_mla_chunked_context_metadata(
          dcp_local_block_size: Per-rank interleave block size for DCP.
          dcp_virtual_block_size: ``dcp_local_block_size * dcp_world_size``.
          dcp_manager: Shared MLA DCP collective manager.
@@ -5024,7 +5109,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
  
      Returns:
          The chunked-context metadata, or None when no prefill has any context.
-@@ -3000,6 +3004,7 @@ def build_mla_chunked_context_metadata(
+@@ -3000,6 +3018,7 @@ def build_mla_chunked_context_metadata(
          context_lens_list=context_lens,
          empty_token_slices=empty_token_slices,
          dcp_manager=dcp_manager,
@@ -5032,7 +5117,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
      )
  
  
-@@ -3022,6 +3027,11 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
+@@ -3022,6 +3041,11 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
      # Whether this builder can flatten a non-causal query block into decode rows.
      supports_non_causal_multi_token_decode: ClassVar[bool] = False
  
@@ -5044,7 +5129,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
      # The threshold for reordering the batch into decode and prefill requests.
      # If > 1, the batch will be reordered such that requests with
      # query length <= threshold are classified as decode requests.
-@@ -3035,22 +3045,25 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
+@@ -3035,22 +3059,25 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
          cache_config = vllm_config.cache_config
          model_config = vllm_config.model_config
  
@@ -5086,7 +5171,23 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
  
          return align_mla_chunked_context_workspace_size(
              vllm_config,
-@@ -3179,11 +3192,20 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
+@@ -3145,10 +3172,13 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
+         attention_layer = self.compilation_config.static_forward_context[layer_names[0]]
+ 
+         try:
+-            self.dcp_world_size = get_dcp_group().world_size
++            configured_dcp_world_size = int(get_dcp_group().world_size)
+         except AssertionError:
+             # DCP might not be initialized in testing
+-            self.dcp_world_size = 1
++            configured_dcp_world_size = 1
++        self.dcp_world_size = _get_mla_kv_dcp_world_size(
++            kv_cache_spec, configured_dcp_world_size
++        )
+         self.dcp_local_block_size = parallel_config.cp_kv_cache_interleave_size
+         self.dcp_virtual_block_size = self.dcp_local_block_size * self.dcp_world_size
+         self.cp_kv_cache_interleave_size = parallel_config.cp_kv_cache_interleave_size
+@@ -3179,11 +3209,20 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
                  device=device,
              )
              self.dcp_manager = getattr(attention_layer, "dcp_manager", None)
@@ -5112,7 +5213,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
          else:
              self.chunked_prefill_workspace = torch.empty(
                  (
-@@ -3339,6 +3361,11 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
+@@ -3339,6 +3378,11 @@ class MLACommonMetadataBuilder(AttentionMetadataBuilder[M]):
                  dcp_local_block_size=self.dcp_local_block_size,
                  dcp_virtual_block_size=self.dcp_virtual_block_size,
                  dcp_manager=self.dcp_manager,
@@ -5124,7 +5225,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
              )
  
              prefill_metadata = MLACommonPrefillMetadata(
-@@ -3471,6 +3498,23 @@ def reorg_kvcache(
+@@ -3471,6 +3515,23 @@ def reorg_kvcache(
      return reorganized_kv_c_normed, reorganized_k_pe
  
  
@@ -5148,7 +5249,7 @@ index 9adfcfd29c9441d3abef18a676394d99cd220bb9..1fea7a09354a52307f3e32b899419254
  def init_mla_context_partial(
      chunked_context: "MLACommonPrefillMetadata.ChunkedContextMetadata",
      attn_output: torch.Tensor,
-@@ -3778,8 +3822,12 @@ class MLACommonBaseImpl(MLAAttentionImpl[A], Generic[A]):
+@@ -3778,8 +3839,12 @@ class MLACommonBaseImpl(MLAAttentionImpl[A], Generic[A]):
              ]
              assert toks * dcp_world_size <= cur_allgather_workspace.shape[0]
              cur_allgather_kvcache = cur_allgather_workspace[: toks * dcp_world_size]
@@ -7413,7 +7514,7 @@ index 0000000000000000000000000000000000000000..e918d12c9e09ed31db37af70bfb9a7fd
 +        _get_kimi_projection_group(),
 +    )
 diff --git a/vllm/v1/attention/backends/mla/b12x_mla.py b/vllm/v1/attention/backends/mla/b12x_mla.py
-index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fdb60a02e7 100644
+index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..4c0848a7866f41778ec2cda489cb3e345cd01b7f 100644
 --- a/vllm/v1/attention/backends/mla/b12x_mla.py
 +++ b/vllm/v1/attention/backends/mla/b12x_mla.py
 @@ -11,6 +11,7 @@ import torch
@@ -7514,24 +7615,29 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
  def _create_dense_mla_plan(
      vllm_config: VllmConfig,
      device: torch.device,
-@@ -87,6 +148,7 @@ def _create_dense_mla_plan(
+@@ -87,6 +148,8 @@ def _create_dense_mla_plan(
      page_size: int,
      num_q_heads: int,
      max_total_q: int | None = None,
 +    dcp_size: int | None = None,
++    max_cache_tokens: int | None = None,
  ) -> Any:
      dense_mla = _load_dense_mla()
      max_total_q = int(
-@@ -94,7 +156,7 @@ def _create_dense_mla_plan(
+@@ -94,7 +157,11 @@ def _create_dense_mla_plan(
          if max_total_q is not None
          else vllm_config.scheduler_config.max_num_seqs
      )
 -    max_cache_tokens = int(vllm_config.model_config.max_model_len)
-+    max_cache_tokens = _max_dcp_local_cache_tokens(vllm_config, dcp_size=dcp_size)
++    max_cache_tokens = int(
++        max_cache_tokens
++        if max_cache_tokens is not None
++        else _max_dcp_local_cache_tokens(vllm_config, dcp_size=dcp_size)
++    )
      if max_total_q > _MAX_B12X_QUERY_ROWS:
          raise ValueError(
              "B12X_MLA supports at most "
-@@ -128,6 +190,9 @@ class B12xMLAMetadata(MLACommonMetadata):
+@@ -128,15 +195,20 @@ class B12xMLAMetadata(MLACommonMetadata):
      """Common MLA metadata plus the capture-static B12X launch plan."""
  
      dense_mla_plan: Any | None = None
@@ -7541,7 +7647,10 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
      dense_mla_flat_block_table: torch.Tensor | None = None
      dense_mla_flat_seq_lens: torch.Tensor | None = None
      dense_mla_flat_query_start_loc: torch.Tensor | None = None
-@@ -137,6 +202,7 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
++    dense_mla_dcp_world_size: int = 1
+ 
+ 
+ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
      _cudagraph_support: ClassVar[AttentionCGSupport] = AttentionCGSupport.UNIFORM_BATCH
      query_len_support: ClassVar[QueryLenSupport] = QueryLenSupport.UNIFORM
      supports_non_causal_multi_token_decode: ClassVar[bool] = True
@@ -7549,7 +7658,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
  
      def __init__(
          self,
-@@ -151,6 +217,10 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
+@@ -151,6 +223,10 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
              vllm_config,
              device,
              B12xMLAMetadata,
@@ -7560,12 +7669,18 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
          )
          max_dense_mla_rows = int(vllm_config.scheduler_config.max_num_seqs) * int(
              self.reorder_batch_threshold
-@@ -161,16 +231,42 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
+@@ -161,16 +237,49 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
                  f"rows={max_dense_mla_rows}, limit={_MAX_B12X_QUERY_ROWS}."
              )
          self._max_dense_mla_rows = max_dense_mla_rows
 +        self._effective_heads = self.num_heads * self.dcp_world_size
 +        self._kernel_heads = _kernel_query_heads(self.num_heads, self.dcp_world_size)
++        max_cache_tokens = _max_dcp_local_cache_tokens(
++            vllm_config, dcp_size=self.dcp_world_size
++        )
++        sliding_window = getattr(kv_cache_spec, "sliding_window", None)
++        if sliding_window is not None:
++            max_cache_tokens = min(max_cache_tokens, int(sliding_window))
          self._dense_mla_plan = _create_dense_mla_plan(
              vllm_config,
              device,
@@ -7574,6 +7689,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 +            num_q_heads=self._kernel_heads,
              max_total_q=max_dense_mla_rows,
 +            dcp_size=self.dcp_world_size,
++            max_cache_tokens=max_cache_tokens,
          )
          self._workspace_specs = self._dense_mla_plan.shapes_and_dtypes()
 -        if is_workspace_manager_initialized():
@@ -7606,7 +7722,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
          max_table_width = int(self._dense_mla_plan.caps.max_page_table_width)
          self._dense_mla_flat_block_table = torch.zeros(
              (max_dense_mla_rows, max_table_width),
-@@ -187,13 +283,40 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
+@@ -187,13 +296,40 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
              dtype=torch.int32,
              device=device,
          )
@@ -7645,17 +7761,18 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
              self.page_size,
              max_dense_mla_rows,
 -            vllm_config.model_config.max_model_len,
-+            _max_dcp_local_cache_tokens(vllm_config, dcp_size=self.dcp_world_size),
++            max_cache_tokens,
              self._dense_mla_plan.num_splits,
          )
  
-@@ -212,42 +335,88 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
+@@ -212,42 +348,89 @@ class B12xMLAMetadataBuilder(MLACommonMetadataBuilder[B12xMLAMetadata]):
              ),
          )
          metadata.dense_mla_plan = self._dense_mla_plan
 +        metadata.dense_mla_scratch = self._dense_mla_scratch
 +        metadata.dense_mla_padded_q = self._dense_mla_padded_q
 +        metadata.dense_mla_padded_output = self._dense_mla_padded_output
++        metadata.dense_mla_dcp_world_size = self.dcp_world_size
          decode_metadata = metadata.decode
 -        if (
 -            not metadata.causal
@@ -7756,7 +7873,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
              metadata.dense_mla_flat_block_table = flat_table
              metadata.dense_mla_flat_seq_lens = flat_lens
              metadata.dense_mla_flat_query_start_loc = (
-@@ -348,20 +517,24 @@ class B12xMLABackend(MLACommonBackend):
+@@ -348,20 +531,24 @@ class B12xMLABackend(MLACommonBackend):
              )
  
          parallel_config = vllm_config.parallel_config
@@ -7788,7 +7905,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
              )
          return None
  
-@@ -372,7 +545,7 @@ class B12xMLABackend(MLACommonBackend):
+@@ -372,7 +559,7 @@ class B12xMLABackend(MLACommonBackend):
  
  class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
      can_return_lse_for_decode: bool = True
@@ -7797,7 +7914,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
  
      def __init__(
          self,
-@@ -440,30 +613,20 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
+@@ -440,30 +627,18 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
              raise ValueError(
                  f"B12xMLAImpl requires a positive query-head count, got {num_heads}."
              )
@@ -7813,8 +7930,6 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
              )
 -
          self._dense_mla = _load_dense_mla()
-+        self._effective_heads = num_heads * self.dcp_world_size
-+        self._kernel_heads = _kernel_query_heads(num_heads, self.dcp_world_size)
 +        self._dcp_comm_backend = vllm_config.parallel_config.dcp_comm_backend
 +        self._dcp_max_batch_size = vllm_config.scheduler_config.max_num_batched_tokens
          self._compiled_bindings: set[tuple[object, ...]] = set()
@@ -7838,7 +7953,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
  
      def forward_mqa(
          self,
-@@ -497,28 +660,107 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
+@@ -497,28 +672,116 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
              )
              if seq_lens is None or query_start_loc is None:
                  raise RuntimeError(
@@ -7865,10 +7980,20 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 -            (total_q, self.num_heads, self.kv_lora_rank),
 -            dtype=torch.bfloat16,
 -            device=q.device,
--        )
++        metadata_dcp_world_size = int(
++            getattr(attn_metadata, "dense_mla_dcp_world_size", self.dcp_world_size)
+         )
 -        scratch = self._borrow_scratch(plan, q.device)
++        if metadata_dcp_world_size not in (1, self.dcp_world_size):
++            raise ValueError(
++                "B12X_MLA metadata uses an unsupported DCP KV shard count: "
++                f"metadata={metadata_dcp_world_size}, runtime={self.dcp_world_size}."
++            )
++        effective_heads = self.num_heads * metadata_dcp_world_size
++        kernel_heads = _kernel_query_heads(self.num_heads, metadata_dcp_world_size)
++
 +        dcp_group = None
-+        if self.dcp_world_size > 1:
++        if metadata_dcp_world_size > 1:
 +            dcp_group = get_dcp_group()
 +            gathered_q = getattr(attn_metadata, "dense_mla_padded_q", None)
 +            if gathered_q is None:
@@ -7885,7 +8010,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 +                    "B12X_MLA DCP query storage does not match the live query: "
 +                    f"buffer={gathered_q.dtype}, query={q.dtype}."
 +                )
-+            gathered_q = gathered_q[:total_q, : self._effective_heads]
++            gathered_q = gathered_q[:total_q, :effective_heads]
 +            q = dcp_b12x_all_gather_heads(
 +                q,
 +                dcp_group,
@@ -7894,13 +8019,13 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 +                out=gathered_q,
 +            )
 +
-+        effective_heads = int(q.shape[1])
-+        if effective_heads != self._effective_heads:
++        actual_heads = int(q.shape[1])
++        if actual_heads != effective_heads:
 +            raise ValueError(
 +                "B12X_MLA gathered an unexpected query-head count: "
-+                f"expected {self._effective_heads}, got {effective_heads}."
++                f"expected {effective_heads}, got {actual_heads}."
 +            )
-+        if self._kernel_heads == effective_heads and self.dcp_world_size == 1:
++        if kernel_heads == effective_heads and metadata_dcp_world_size == 1:
 +            output = torch.empty(
 +                (total_q, effective_heads, self.kv_lora_rank),
 +                dtype=torch.bfloat16,
@@ -7909,9 +8034,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 +        else:
 +            padded_q = getattr(attn_metadata, "dense_mla_padded_q", None)
 +            output = getattr(attn_metadata, "dense_mla_padded_output", None)
-+            if output is None or (
-+                self._kernel_heads != effective_heads and padded_q is None
-+            ):
++            if output is None or (kernel_heads != effective_heads and padded_q is None):
 +                raise RuntimeError(
 +                    "B12X_MLA metadata is missing caller-owned padded query buffers."
 +                )
@@ -7925,7 +8048,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
 +                    f"required={total_q}."
 +                )
 +            output = output[:total_q]
-+            if self._kernel_heads != effective_heads:
++            if kernel_heads != effective_heads:
 +                assert padded_q is not None
 +                padded_q = padded_q[:total_q]
 +                if padded_q.dtype != q.dtype:
@@ -7956,7 +8079,7 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
          binding = self._dense_mla.bind(
              plan,
              scratch=scratch,
-@@ -531,6 +773,7 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
+@@ -531,6 +794,7 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
              q_scale=layer._q_scale if quantized else None,
              kv_scale=layer._k_scale if quantized else None,
              sm_scale=self.scale,
@@ -7964,14 +8087,14 @@ index e858446b02e470bc94e89e8b9a9f0c94cb40f89b..46750031b82bb93545b18347293a92fd
          )
  
          compile_key = (
-@@ -549,7 +792,31 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
+@@ -549,7 +813,31 @@ class B12xMLAImpl(MLACommonImpl[B12xMLAMetadata]):
              self._dense_mla.compile(binding=binding)
              self._compiled_bindings.add(compile_key)
  
 -        return self._dense_mla.run(binding=binding)
 +        output, lse = self._dense_mla.run(binding=binding)
-+        output = output[:, : self._effective_heads]
-+        lse = lse[:, : self._effective_heads]
++        output = output[:, :effective_heads]
++        lse = lse[:, :effective_heads]
 +        if dcp_group is None:
 +            return output, lse
 +        if self._dcp_comm_backend == "a2a":
