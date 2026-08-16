@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Serve the official Kimi-K3 MXFP4 target with the Inferact DSpark draft and
+# an external LMCache process. Set LMCACHE_MODE=off for an uncached control,
+# or LMCACHE_MODE=disk with a persistent /cache mount for an L2 filesystem tier.
+set -euo pipefail
+
+export LMCACHE_MODE="${LMCACHE_MODE:-ram}"
+export LMCACHE_L1_GB="${LMCACHE_L1_GB:-24}"
+export LMCACHE_CHUNK_SIZE="${LMCACHE_CHUNK_SIZE:-512}"
+export ENABLE_PREFIX_CACHING="${ENABLE_PREFIX_CACHING:-1}"
+export TP_SIZE="${TP_SIZE:-16}"
+export DCP_SIZE="${DCP_SIZE:-16}"
+
+exec /usr/local/bin/lmcache-mp-wrapper.sh \
+  /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
+  "$@"

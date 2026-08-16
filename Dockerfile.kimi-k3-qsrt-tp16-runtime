@@ -21,6 +21,14 @@ ARG B12X_PATCH_SHA256
 ARG B12X_INTEGRATION_TREE
 ARG B12X_INTEGRATION_LOCK_SHA256
 ARG B12X_PRS
+ARG LMCACHE_REPO
+ARG LMCACHE_REF
+ARG LMCACHE_COMMIT
+ARG LMCACHE_PATCH_FILE
+ARG LMCACHE_PATCH_SHA256
+ARG LMCACHE_INTEGRATION_TREE
+ARG LMCACHE_INTEGRATION_LOCK_SHA256
+ARG LMCACHE_PRS
 ARG CACHE_FINGERPRINT
 ARG SOURCE_OVERLAY_SHA256
 ARG RELEASE_NAME
@@ -32,7 +40,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV VLLM_SOURCE_OVERLAY_ROOT=/opt/kimi-k3-qsrt/vllm \
     VLLM_BINARY_PACKAGE_DIR=/opt/infernal-invocation/vllm/vllm \
     SPARKINFER_DIR=/opt/kimi-k3-qsrt/b12x \
-    PYTHONPATH=/opt/kimi-k3-qsrt/b12x:/opt/kimi-k3-qsrt/source-overlay:/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
+    PYTHONPATH=/opt/kimi-k3-qsrt/lmcache:/opt/kimi-k3-qsrt/b12x:/opt/kimi-k3-qsrt/source-overlay:/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
     PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 ENV LOCAL_INFERENCE_CACHE_FINGERPRINT=${CACHE_FINGERPRINT} \
@@ -51,7 +59,7 @@ ENV LOCAL_INFERENCE_CACHE_FINGERPRINT=${CACHE_FINGERPRINT} \
     CUDA_CACHE_PATH=/cache/jit/${CACHE_FINGERPRINT}/cuda \
     CUPY_CACHE_DIR=/cache/jit/${CACHE_FINGERPRINT}/cupy
 
-COPY patches/releases/kimi-k3-qsrt-ii-r3 /tmp/kimi-k3-qsrt-release
+COPY patches/releases/kimi-k3-production-lmcache-r1 /tmp/kimi-k3-qsrt-release
 
 # Each source directory is reconstructed from an immutable base commit and a
 # hash-verified aggregate patch. The resulting Git tree is the runtime source
@@ -83,6 +91,12 @@ RUN set -eux; \
       "${B12X_REPO}" "${B12X_REF}" "${B12X_COMMIT}" \
       "/tmp/kimi-k3-qsrt-release/b12x/integration.patch" \
       "${B12X_PATCH_SHA256}" "${B12X_INTEGRATION_TREE}"; \
+    compose_source /opt/kimi-k3-qsrt/lmcache \
+      "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
+      "/tmp/kimi-k3-qsrt-release/lmcache/integration.patch" \
+      "${LMCACHE_PATCH_SHA256}" "${LMCACHE_INTEGRATION_TREE}"; \
+    find /opt/venv/lib/python3.12/site-packages/lmcache -maxdepth 1 \
+      -type f -name '*.so' -exec cp -a -t /opt/kimi-k3-qsrt/lmcache/lmcache {} +; \
     rm -rf /tmp/kimi-k3-qsrt-release
 
 COPY runtime/kimi-k3-qsrt/source-overlay /opt/kimi-k3-qsrt/source-overlay
@@ -111,14 +125,19 @@ COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dspark-ii /usr/local/bin/se
 COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
 COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-nospec /usr/local/bin/serve-kimi-k3-qsrt-nospec
 COPY --chmod=0755 launchers/serve-kimi-k3-qsrt-dspark /usr/local/bin/serve-kimi-k3-qsrt-dspark
+COPY --chmod=0755 launchers/lmcache-mp-wrapper.sh /usr/local/bin/lmcache-mp-wrapper.sh
+COPY --chmod=0755 launchers/serve-kimi-k3-production-dspark-ii /usr/local/bin/serve-kimi-k3-production-dspark-ii
 
 RUN set -eux; \
     test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/b12x write-tree)" = "${B12X_INTEGRATION_TREE}"; \
+    test "$(git -C /opt/kimi-k3-qsrt/lmcache write-tree)" = "${LMCACHE_INTEGRATION_TREE}"; \
     test "$(sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py | cut -d' ' -f1)" = \
       f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449; \
     /opt/venv/bin/python -c 'import pathlib, vllm; assert pathlib.Path(vllm.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/vllm"))'; \
     /opt/venv/bin/python -c 'import b12x, pathlib; assert pathlib.Path(b12x.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/b12x"))'; \
+    /opt/venv/bin/python -c 'import lmcache, pathlib; assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/lmcache"))'; \
+    /opt/venv/bin/python -c 'from lmcache.integration.vllm.kv_cache_groups import _is_mamba_spec; T=type("MambaSpec", (), {}); assert _is_mamba_spec(T())'; \
     /opt/venv/bin/python -c 'from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes; assert recommended_max_bytes(16, default=86016) == 86016'; \
     B12X_PCIE_ALLREDUCE_ALGORITHM=island_rs /opt/venv/bin/python -c 'from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes; assert recommended_max_bytes(16, default=86016) == 163840'; \
     for launcher in \
@@ -126,12 +145,14 @@ RUN set -eux; \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
       /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii \
       /usr/local/bin/serve-kimi-k3-qsrt-nospec \
-      /usr/local/bin/serve-kimi-k3-qsrt-dspark; do \
+      /usr/local/bin/serve-kimi-k3-qsrt-dspark \
+      /usr/local/bin/lmcache-mp-wrapper.sh \
+      /usr/local/bin/serve-kimi-k3-production-dspark-ii; do \
       bash -n "${launcher}"; \
     done
 
 LABEL org.opencontainers.image.title="Kimi-K3 official MXFP4 and QSRT-K2 runtime" \
-      org.opencontainers.image.description="Source-locked Kimi-K3 no-speculation, DSpark, and DFlash serving profiles on CUDA 13.3 and PyTorch 2.13" \
+      org.opencontainers.image.description="Source-locked Kimi-K3 DSpark runtime with DCP16, LMCache, structured tools, CUDA 13.3, and PyTorch 2.13" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.version="${RELEASE_DATE}" \
       org.opencontainers.image.revision="${DOCKER_COMMIT}" \
@@ -154,6 +175,13 @@ LABEL org.opencontainers.image.title="Kimi-K3 official MXFP4 and QSRT-K2 runtime
       local-inference.b12x.integration.tree="${B12X_INTEGRATION_TREE}" \
       local-inference.b12x.patch.sha256="${B12X_PATCH_SHA256}" \
       local-inference.b12x.lock.sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
+      local-inference.lmcache.repo="${LMCACHE_REPO}" \
+      local-inference.lmcache.branch="${LMCACHE_REF}" \
+      local-inference.lmcache.commit="${LMCACHE_COMMIT}" \
+      local-inference.lmcache.integration.prs="${LMCACHE_PRS}" \
+      local-inference.lmcache.integration.tree="${LMCACHE_INTEGRATION_TREE}" \
+      local-inference.lmcache.patch.sha256="${LMCACHE_PATCH_SHA256}" \
+      local-inference.lmcache.lock.sha256="${LMCACHE_INTEGRATION_LOCK_SHA256}" \
       local-inference.flash-attention.forward.sha256="f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449"
 
-ENTRYPOINT ["/usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii"]
+ENTRYPOINT ["/usr/local/bin/serve-kimi-k3-production-dspark-ii"]

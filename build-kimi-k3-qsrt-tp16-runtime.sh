@@ -5,11 +5,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-release_root=patches/releases/kimi-k3-qsrt-ii-r3
+release_root=patches/releases/kimi-k3-production-lmcache-r1
 vllm_lock="${release_root}/vllm/integration.lock.json"
 b12x_lock="${release_root}/b12x/integration.lock.json"
+lmcache_lock="${release_root}/lmcache/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
-release_name="${RELEASE_NAME:-kimi-k3-ii-runtime}"
+release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache}"
 release_date="${RELEASE_DATE:-20260816}"
 revision="${REVISION:-r1}"
 
@@ -17,7 +18,9 @@ for path in \
   "${vllm_lock}" \
   "${release_root}/vllm/integration.patch" \
   "${b12x_lock}" \
-  "${release_root}/b12x/integration.patch"; do
+  "${release_root}/b12x/integration.patch" \
+  "${lmcache_lock}" \
+  "${release_root}/lmcache/integration.patch"; do
   [[ -f "${path}" ]] || {
     printf 'Release composition artifact is missing: %s\n' "${path}" >&2
     exit 1
@@ -42,10 +45,11 @@ read_lock() {
 
 read_lock "${vllm_lock}" VLLM vllm
 read_lock "${b12x_lock}" B12X b12x
+read_lock "${lmcache_lock}" LMCACHE lmcache
 
 source_overlay_sha256="$(sha256sum runtime/kimi-k3-qsrt/source-overlay/sitecustomize.py | cut -d' ' -f1)"
-cache_fingerprint="cu133-torch213-kimi-k3-qsrt-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}"
-image="${IMAGE:-voipmonitor/vllm:kimi-k3-ii-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
+cache_fingerprint="cu133-torch213-kimi-k3-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}"
+image="${IMAGE:-voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
 
 if [[ -n "$(git status --porcelain --untracked-files=all)" ]] \
     && [[ "${ALLOW_DIRTY_BUILD:-0}" != 1 ]]; then
@@ -66,6 +70,8 @@ printf 'vllm_base=%s tree=%s prs=%s\n' \
   "${VLLM_COMMIT}" "${VLLM_INTEGRATION_TREE}" "${VLLM_PRS}"
 printf 'b12x_base=%s tree=%s prs=%s\n' \
   "${B12X_COMMIT}" "${B12X_INTEGRATION_TREE}" "${B12X_PRS}"
+printf 'lmcache_base=%s tree=%s prs=%s\n' \
+  "${LMCACHE_COMMIT}" "${LMCACHE_INTEGRATION_TREE}" "${LMCACHE_PRS}"
 
 DOCKER_BUILDKIT=1 docker build \
   --pull=false \
@@ -87,6 +93,14 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "B12X_INTEGRATION_TREE=${B12X_INTEGRATION_TREE}" \
   --build-arg "B12X_INTEGRATION_LOCK_SHA256=${B12X_INTEGRATION_LOCK_SHA256}" \
   --build-arg "B12X_PRS=${B12X_PRS}" \
+  --build-arg "LMCACHE_REPO=${LMCACHE_REPO}" \
+  --build-arg "LMCACHE_REF=${LMCACHE_REF}" \
+  --build-arg "LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
+  --build-arg "LMCACHE_PATCH_FILE=${LMCACHE_PATCH_FILE}" \
+  --build-arg "LMCACHE_PATCH_SHA256=${LMCACHE_PATCH_SHA256}" \
+  --build-arg "LMCACHE_INTEGRATION_TREE=${LMCACHE_INTEGRATION_TREE}" \
+  --build-arg "LMCACHE_INTEGRATION_LOCK_SHA256=${LMCACHE_INTEGRATION_LOCK_SHA256}" \
+  --build-arg "LMCACHE_PRS=${LMCACHE_PRS}" \
   --build-arg "CACHE_FINGERPRINT=${cache_fingerprint}" \
   --build-arg "SOURCE_OVERLAY_SHA256=${source_overlay_sha256}" \
   --build-arg "RELEASE_NAME=${release_name}" \
@@ -110,11 +124,14 @@ assert_label local-inference.docker.commit "${docker_commit}"
 assert_label local-inference.runtime.base-id "${base_image_id}"
 assert_label local-inference.vllm.integration.tree "${VLLM_INTEGRATION_TREE}"
 assert_label local-inference.b12x.integration.tree "${B12X_INTEGRATION_TREE}"
+assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TREE}"
 assert_label local-inference.flash-attention.forward.sha256 \
   f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449
 
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
   'import pathlib, vllm; expected=pathlib.Path("/opt/kimi-k3-qsrt/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'
+docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
+  'import lmcache, pathlib; expected=pathlib.Path("/opt/kimi-k3-qsrt/lmcache"); assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(expected)'
 docker run --rm --entrypoint /bin/bash "${image}" -lc \
   'sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py'
 

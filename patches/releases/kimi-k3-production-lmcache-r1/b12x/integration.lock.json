@@ -1,0 +1,52 @@
+{
+  "base": {
+    "commit": "56ab5f4a99be3f2e456f80f5fd534b6b4c69ae91",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "merge",
+  "manifest": {
+    "sha256": "27642aed1d13c128e2455e7c10d06ae98c3431048c42a3e27434785b56729e82"
+  },
+  "name": "kimi-k3-production-b12x",
+  "pull_requests": [
+    {
+      "commits": [
+        "b3c2c162064ea9fab118f08922577aca5912e7e6"
+      ],
+      "disposition": "merged",
+      "head": "b3c2c162064ea9fab118f08922577aca5912e7e6",
+      "number": 215,
+      "ref": "refs/pull/215/head",
+      "title": "Preserve unaligned multi-row FP8 linear outputs"
+    },
+    {
+      "commits": [
+        "f6f7ff7a1eac1c6a88cd537a0dc9ba15bf82f4b1"
+      ],
+      "disposition": "merged",
+      "head": "f6f7ff7a1eac1c6a88cd537a0dc9ba15bf82f4b1",
+      "number": 220,
+      "ref": "refs/pull/220/head",
+      "title": "Add TP16 equal-quarter PCIe all-reduce"
+    },
+    {
+      "commits": [
+        "68d6ee22cf52f3b7efcfe5021badef1a30540499"
+      ],
+      "disposition": "merged",
+      "head": "68d6ee22cf52f3b7efcfe5021badef1a30540499",
+      "number": 224,
+      "ref": "refs/pull/224/head",
+      "title": "Batch Kimi top-16 expert selection"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "1cfe4338cc297cec061384bbd4cbe1a4b4d1b13fa23167d45408f25b054ea6d7",
+    "tree": "4e2fedeebf6a9580d42e6692cb79def850cd8478"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
