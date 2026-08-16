@@ -6,6 +6,6 @@
   "composition_strategy": "merge",
   "pull_requests": [
     {"number": 215, "head": "b3c2c162064ea9fab118f08922577aca5912e7e6", "title": "Preserve unaligned multi-row FP8 linear outputs"},
-    {"number": 220, "head": "3b6568d97d2c6c2a69bfd37fd0ac0ae790efe6b9", "title": "Add TP16 equal-quarter PCIe all-reduce"}
+    {"number": 220, "head": "f6f7ff7a1eac1c6a88cd537a0dc9ba15bf82f4b1", "title": "Add TP16 equal-quarter PCIe all-reduce"}
   ]
 }

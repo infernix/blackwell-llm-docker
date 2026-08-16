@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "40640ec00c22d9dbd35aa939f42fb4a6568885e0c75812040efc21e82c0cb636"
+    "sha256": "4914005d950da4160d2de87a8d2a8fabc6e8e4e813d008425773f58e60ce03ca"
   },
   "name": "kimi-k3-b12x-runtime",
   "pull_requests": [
@@ -23,10 +23,10 @@
     },
     {
       "commits": [
-        "3b6568d97d2c6c2a69bfd37fd0ac0ae790efe6b9"
+        "f6f7ff7a1eac1c6a88cd537a0dc9ba15bf82f4b1"
       ],
       "disposition": "merged",
-      "head": "3b6568d97d2c6c2a69bfd37fd0ac0ae790efe6b9",
+      "head": "f6f7ff7a1eac1c6a88cd537a0dc9ba15bf82f4b1",
       "number": 220,
       "ref": "refs/pull/220/head",
       "title": "Add TP16 equal-quarter PCIe all-reduce"
@@ -34,8 +34,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "37648157f92239c386a8da56a76223ab9e38a822ee7e1de6bba7591d23066a46",
-    "tree": "bdffb86cd81795ec3796b3e90f3d13255cf96b80"
+    "patch_sha256": "48857ced49aa39b5edaaf628324c49dc33db8b0ff7b5e1c1b1ccdde0bc08ec0d",
+    "tree": "3be8bc74d6813223b5be732a4c865401a693f5f5"
   },
   "schema_version": 1,
   "source_patches": []

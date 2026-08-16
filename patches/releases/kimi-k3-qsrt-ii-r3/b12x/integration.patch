@@ -3570,7 +3570,7 @@ index 0000000000000000000000000000000000000000..90a04a9413943d3d0addef909a9677ec
 +if __name__ == "__main__":
 +    main()
 diff --git a/tests/comm/test_pcie_hierarchical.py b/tests/comm/test_pcie_hierarchical.py
-index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b11495c616 100644
+index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..622612c4c8520426cd8e24d8480907c96c79a936 100644
 --- a/tests/comm/test_pcie_hierarchical.py
 +++ b/tests/comm/test_pcie_hierarchical.py
 @@ -1,6 +1,7 @@
@@ -3600,7 +3600,7 @@ index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b1
  
  
  @pytest.mark.parametrize("world_size", [2, 4, 6, 8])
-@@ -38,7 +42,7 @@ def test_allreduce_uses_bounded_degree_path_for_large_worlds(
+@@ -38,15 +42,18 @@ def test_allreduce_uses_bounded_degree_path_for_large_worlds(
      assert _algorithm_for_world_size(world_size) == "hierarchical"
  
  
@@ -3608,8 +3608,10 @@ index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b1
 +def test_allreduce_factory_keeps_tp16_equal_quarter_opt_in(
      monkeypatch: pytest.MonkeyPatch,
  ) -> None:
++    monkeypatch.delenv("B12X_PCIE_ALLREDUCE_ALGORITHM", raising=False)
      runtime = SimpleNamespace(
-@@ -47,6 +51,8 @@ def test_allreduce_factory_builds_tp16_hierarchy(
+         rank=0,
+         world_size=16,
          device=torch.device("cuda:0"),
      )
      hierarchy_factory = MagicMock(return_value=runtime)
@@ -3618,7 +3620,7 @@ index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b1
      exchange_group = object()
      monkeypatch.setattr(pcie_allreduce.dist, "get_world_size", lambda group: 16)
      monkeypatch.setattr(
-@@ -54,6 +60,11 @@ def test_allreduce_factory_builds_tp16_hierarchy(
+@@ -54,6 +61,11 @@ def test_allreduce_factory_builds_tp16_hierarchy(
          "PCIeHierarchicalAllReduce",
          hierarchy_factory,
      )
@@ -3630,7 +3632,7 @@ index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b1
  
      allreduce = PCIeAllReduce.from_exchange_group(
          exchange_group=exchange_group,  # type: ignore[arg-type]
-@@ -68,6 +79,260 @@ def test_allreduce_factory_builds_tp16_hierarchy(
+@@ -68,6 +80,263 @@ def test_allreduce_factory_builds_tp16_hierarchy(
          max_elements=8 * 1024,
          ext_module=None,
      )
@@ -3748,7 +3750,10 @@ index b8bfbe4f35eec02b3b90a23757d65c5f7c3b7b96..afcf7d81c0a965186fc951cd3f3402b1
 +    island = MagicMock()
 +    island.should_allreduce.return_value = True
 +    allreduce = PCIeAllReduce(hierarchy, "hierarchical", island)
-+    inp = torch.empty(pcie_allreduce.ISLAND_RS_CROSSOVER_ELEMENTS * 2)
++    inp = torch.empty(
++        pcie_allreduce.ISLAND_RS_CROSSOVER_ELEMENTS * 2,
++        dtype=torch.bfloat16,
++    )
 +
 +    allreduce.all_reduce(inp)
 +
