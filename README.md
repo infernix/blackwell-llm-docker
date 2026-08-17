@@ -186,89 +186,67 @@ between them is unsupported.
 
 ### Infernal Invocation CUDA 13.3 runtime for DeepSeek-V4-Flash and GLM-5.2
 
-Status: **qualified for the exact image and model-profile pairs listed below**.
+Status: **qualified for DeepSeek-V4-Flash and source-qualified for the GLM-5.2
+profiles listed below**.
 The build script `build-deepseek-infernal-invocation-cu133-torch213.sh`
 composes immutable vLLM, B12X, and LMCache trees. The runtime uses CUDA 13.3,
 PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllm068fc8e-b12x96e5d3d-fi1ac6942-cu133-torch213-20260815-r15
-sha256:f1b13c8604b274212e1164def7d4ed7a4cac9e4f7fa06fa1739730195eca4e18
+voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16
+sha256:106345a4b2fa29cd20eaea5ad20ed8064c9de9cfbe048b2840a9a52e65f28824
 ```
 
-| Model profile | Qualified image | Qualified configuration | Compose file |
+| Model profile | Status | Configuration | Compose file |
 |---|---|---|---|
-| GLM-5.2 SQG W4A8 | r13 | TP4/DCP1/MTP0, B12X routed W4A8, native SQG K3/K4/K6 decode, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-sqg-infernal-invocation-r13.yml` |
-| DeepSeek-V4-Flash-0731 | r15 | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8, inactive padded routes | `examples/docker-compose-ds4-infernal-invocation-cu133-r15.yml` |
-| GLM-5.2 NVFP4 | r11 | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r11.yml` |
-| GLM-5.2 EXL3 R7 3.5bpw | r11 | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r11.yml` |
+| DeepSeek-V4-Flash-0731 | qualified | TP2/DCP1, fixed probabilistic DSpark K5, B12X W4A8, FP8 compressed MLA KV | `examples/docker-compose-ds4-infernal-invocation-cu133-r16.yml` |
+| GLM-5.2 NVFP4 | source-qualified | TP8/DCP1/MTP3, B12X W4A16, online MXFP8, FP8 MLA KV | `examples/docker-compose-glm52-nvfp4-infernal-invocation-r16.yml` |
+| GLM-5.2 EXL3 R7 3.5bpw | source-qualified | TP4/DCP1/MTP3, mixed Trellis K3/K4/K5 experts, online K6, NVFP4 DS-MLA KV | `examples/docker-compose-glm52-exl3-infernal-invocation-r16.yml` |
 
 Start one profile with its committed Compose specification:
 
 ```bash
 docker compose \
-  -f examples/docker-compose-ds4-infernal-invocation-cu133-r15.yml \
+  -f examples/docker-compose-ds4-infernal-invocation-cu133-r16.yml \
   up -d
 ```
 
-The GLM-5.2 SQG profile executes the checkpoint's independent K3/K4 routed
-matrices and K6 non-routed matrices directly from their quantized storage.
-B12X reconstructs E4M3 values inside the SM120 kernels; it does not retain a
-BF16 copy of the quantized weights. The qualified TP4 runtime loaded 86.22 GiB
-of model state per GPU, allocated 1.62 GiB of KV cache, and exposed 47,360 KV
-tokens with `MAX_MODEL_LEN=32768` and `GPU_MEMORY_UTILIZATION=0.96`.
-
-All four ranks recorded the routed layers 3 through 77 as loaded and executed
-through the full-W4A8 activation endpoint with A16 fallback disabled. The
-runtime captured PIECEWISE rows 1 through 6 and a FULL CUDA graph. Two warmed
-512-token CC1 runs measured 31.02 and 31.26 tok/s on four direct-root-port
-RTX PRO 6000 Blackwell GPUs. Three uncached 8,192-token prefills measured
-3,040.9, 3,025.3, and 3,043.7 tok/s. These measurements qualify
-TP4/DCP1/MTP0 only; DCP, MTP, higher concurrency, and other SQG geometries are
-unsupported by this profile.
-
 DeepSeek-V4-Flash uses negative expert identifiers for scheduler padding when
-`VLLM_MOE_SKIP_PADDING=1`. The B12X dynamic MoE kernels in pull request #214
-exclude those identifiers from route histograms, expert input storage, weight
-loads, and output accumulation. Tokens without an active route also skip
-producer-side BF16-to-MXFP8 quantization and packed-row fanout. Valid expert
-routes retain their arithmetic. The vLLM expert-zero normalization from pull
-request #291 is not part of r15 because it preserves correctness by executing
-work that B12X can omit.
+`VLLM_MOE_SKIP_PADDING=1`. The B12X tiny-decode and native W4A16 kernels mask
+negative and out-of-range expert identifiers before expert-table access. Valid
+routes retain their arithmetic and inactive scheduler rows perform no expert
+work.
 
-The r15 DeepSeek qualification used TP2/DCP1, B12X W4A8, FP8 compressed MLA
-KV, prefix caching, InstantTensor BUFFERED loading, and no native or LMCache
-offload. Target-only and fixed probabilistic DSpark K5 modes captured FULL
-CUDA graphs and completed sustained C1 decode without runtime errors.
-Target-only decode measured 125.7 tok/s. DSpark K5 measured 191.3 tok/s and
-returned the expected arithmetic JSON object. DSpark throughput is dependent
-on the generated trajectory and draft acceptance, so the measurement is a
-runtime sanity gate rather than a fixed model-speed constant.
+The DeepSeek qualification used TP2/DCP1, B12X W4A8, fixed probabilistic
+DSpark K5, FP8 compressed MLA KV, prefix caching, and InstantTensor BUFFERED
+loading. Target decode, DSpark draft decode, and DFlash context-KV execution
+captured FULL CUDA graphs. Two C1 trajectories measured 64.60 and 63.57 target
+steps/s; aggregate output rate varied with draft acceptance. A strict-tool
+soak completed 160 of 160 requests at concurrency 8, and concurrent 32k/64k
+prompts completed without request mixing or protocol-token leakage.
 
-The same source composition retains heterogeneous attention-cache recycling
-from [vLLM PR #308](https://github.com/local-inference-lab/vllm/pull/308) and
-complete speculative grammar-prefix validation from
-[vLLM PR #320](https://github.com/local-inference-lab/vllm/pull/320). The r15
-runtime receipt qualifies TP2/DCP1 at 131,072 model tokens. It does not qualify
-DCP, TP4, TP8, native KV offload, LMCache, or the 1,048,576-token profile.
+Native KV tiering was also qualified with a 2 GiB CPU tier and a 64 GiB
+filesystem tier. The restarted engine restored 614 filesystem objects,
+transferred 1,232,322,560 bytes from the filesystem tier, reproduced exact
+outputs, and left no temporary objects or active tiering jobs. LMCache remains
+a separate optional ownership model and was not enabled in that run.
 
-The GLM r11 entrypoint accepts borrowed InstantTensor buffers. Its deferred
+The GLM entrypoint accepts borrowed InstantTensor buffers. Its deferred
 layerwise online quantizer owns tensors that outlive the iterator step, so
 `INSTANTTENSOR_COPY=0` cannot expose retained weights to staging-buffer reuse.
-The EXL3 R7 profile loaded its 322 GiB checkpoint, prepared all mixed-rate
-routed-expert layers, captured FULL decode graphs, and returned the expected
-arithmetic result. Two warmed CC1 measurements produced 127.22 and 131.45
-aggregate tok/s. The NVFP4 profile returned the same arithmetic result and
-produced 182.54 aggregate tok/s in one warmed CC1 measurement.
+The EXL3 profile preserves per-projection MCG K3/K4/K5 payloads and encodes
+eligible BF16 dense projections as cached K6 payloads. Focused release-image
+validation passed 147 loader and quantization tests plus six sparse-MLA cache,
+metadata, and workspace tests. Full-checkpoint TP4 EXL3 and TP8 NVFP4 E2E
+execution requires hosts with the corresponding GPU capacity and is not
+claimed by the r16 receipt. SQG checkpoint support is unsupported and absent
+from the r16 source composition.
 
 The exact image identity, source trees, runtime packages, configurations,
 measurements, and qualification limits are recorded in
-`validation/infernal-invocation-r13-glm52-sqg-remote-gpu.json` for GLM-5.2 SQG,
-`validation/infernal-invocation-r15-remote-gpu.json` for DeepSeek-V4-Flash,
-and `validation/infernal-invocation-r11-local-gpu.json` for the GLM NVFP4 and
-EXL3 R7 profiles. A profile is qualified only on the image and geometry named
-by its receipt.
+`validation/infernal-invocation-r16-remote-gpu.json`. A profile is qualified
+only on the image and geometry named by its receipt.
 
 ### Clean GG release composition
 

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Native filesystem KV tier publication and replay qualification across an engine restart",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [4, 5],
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 4,
+    "max_num_batched_tokens": 8192,
+    "max_model_len": 131072,
+    "native_cpu_kv_offload_gib": 2,
+    "native_filesystem_l2_gib": 64,
+    "lmcache": "disabled"
+  },
+  "cold_publication": {
+    "filesystem_objects": 614,
+    "temporary_objects": 0,
+    "filesystem_bytes": 1232331084,
+    "concurrent_exact_outputs": ["17", "29"],
+    "replay_exact_output": "17",
+    "replay_elapsed_seconds": 0.4328
+  },
+  "restart_replay": {
+    "filesystem_objects": 614,
+    "temporary_objects": 0,
+    "concurrent_exact_outputs": ["17", "29"],
+    "concurrent_elapsed_seconds": [1.2408, 0.9235],
+    "replay_exact_output": "17",
+    "replay_elapsed_seconds": 0.3868,
+    "filesystem_block_hits": 614,
+    "filesystem_read_bytes": 1232322560,
+    "filesystem_read_seconds": 0.2271,
+    "cpu_to_gpu_transfers": 6,
+    "cpu_to_gpu_bytes": 1605588480,
+    "cpu_to_gpu_seconds": 0.0293,
+    "active_promotion_jobs_after": 0,
+    "active_cascade_jobs_after": 0
+  },
+  "result": "Writer-owned filesystem objects remained complete across engine restart. The restarted engine restored all 614 blocks from the filesystem tier, produced the same exact outputs, and left no temporary objects or active tiering jobs.",
+  "limitations": [
+    "The qualification filesystem on the validation host is not Btrfs.",
+    "The receipt validates native vLLM offload. LMCache uses a separate ownership model and is not enabled in this run."
+  ]
+}

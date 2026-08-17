@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "DeepSeek-V4-Flash DSpark runtime qualification for inactive-route handling and structured-output isolation",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "checkpoint_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "backend": "B12X W4A8 with B12X compressed MLA",
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 8,
+    "max_num_batched_tokens": 4096,
+    "max_cuda_graph_rows": 48,
+    "max_model_len": 262144,
+    "gpu_memory_utilization": 0.975,
+    "kv_cache": "FP8 compressed MLA",
+    "native_kv_offload": "disabled",
+    "lmcache": "disabled",
+    "cuda_graph_mode": "FULL_AND_PIECEWISE"
+  },
+  "cuda_graph_capture": {
+    "target_full": true,
+    "dspark_full": true,
+    "dflash_context_kv_full": true,
+    "piecewise": true
+  },
+  "c1_decode": {
+    "measurement_seconds_per_run": 20,
+    "aggregate_output_tokens_per_second": [169.5989, 71.4759],
+    "engine_steps_per_second": [64.5996, 63.5730],
+    "mean_acceptance_length": [2.6254, 1.1243],
+    "interpretation": "Engine execution remained within 1.6 percent across trajectories. Aggregate output rate changed with DSpark acceptance and is not a stable runtime-speed control."
+  },
+  "strict_tool_soak": {
+    "requests": 160,
+    "concurrency": 8,
+    "completion_tokens": 23247,
+    "elapsed_seconds": 31.5900,
+    "valid_responses": 160,
+    "failures": 0,
+    "latency_seconds": {
+      "minimum": 0.9502,
+      "median": 1.0055,
+      "p95": 1.6027,
+      "maximum": 2.8463
+    },
+    "server_healthy_after": true
+  },
+  "long_context_isolation": {
+    "concurrent_prompt_tokens": [32791, 65615],
+    "requested_output_tokens": 4096,
+    "finish_reason": ["tool_calls", "tool_calls"],
+    "identity_violations": 0,
+    "raw_protocol_marker_matches": 0,
+    "non_printable_characters": 0,
+    "replacement_characters": 0,
+    "server_healthy_after": true
+  },
+  "result": "The B12X tiny-decode path masks inactive MoE route identifiers before expert-table access. The reported MAX_NUM_SEQS=8 and graph-row-48 configuration completed 160 strict-tool requests without malformed output, request mixing, runtime failure, or loss of server health.",
+  "limitations": [
+    "The C1 aggregate token rate is acceptance-dependent. Engine steps per second are the runtime-speed control.",
+    "Runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5 on GPUs 6 and 7 of the direct-attached validation host.",
+    "The longest concurrent prompts contained 32791 and 65615 measured tokens; this receipt does not qualify the full 262144-token context limit."
+  ]
+}
