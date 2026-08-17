@@ -72,6 +72,18 @@
   ],
   "reviewed_exclusions": [
     {
+      "number": 25,
+      "head": "d9a7ae273a4de28cd37a2a122e6852c451e4b889",
+      "disposition": "out_of_scope",
+      "reason": "Unified recurrent pages and 768-token scheduler blocks backed by twelve 64-token MLA kernel pages serve the Kimi-K3 cache layout. The qualified DeepSeek V4 and GLM-5.2 profiles do not register either geometry."
+    },
+    {
+      "number": 24,
+      "head": "f7504adfbf340621c0e0dac359fd1628a3ca5f5f",
+      "disposition": "out_of_scope",
+      "reason": "Replicated Mamba restore geometry serves recurrent-state models. DeepSeek V4 and GLM-5.2 do not allocate Mamba cache groups."
+    },
+    {
       "number": 6,
       "head": "80c39a74edd97263fd5b3e8c0e164d4196daef46",
       "disposition": "superseded",

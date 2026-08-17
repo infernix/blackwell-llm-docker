@@ -66,6 +66,9 @@ jq -e '
     .number == 320 and
     .head == "e9534672129b961399b1625d33d83c79eacded30") and
   any(.pull_requests[];
+    .number == 417 and
+    .head == "2511e5df2b1e4dfd2360a28e89899c90b7b3fcc7") and
+  any(.pull_requests[];
     .number == 415 and
     .head == "c805ebd0896ccfbd2569bc0b2a7944d3282106ff") and
   all(.pull_requests[]; .number != 291 and .number != 305 and .number != 315) and
@@ -80,8 +83,8 @@ jq -e '
     .disposition == "unsupported")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .base.commit == "4766b51528c950daa910f8eff38c22c528314154" and
-  .result.tree == "dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a" and
+  .base.commit == "d6e0bb7c813264f1293288b9de0d18f277be7c9f" and
+  .result.tree == "5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -111,6 +114,10 @@ jq -e '
     .head == "e9534672129b961399b1625d33d83c79eacded30" and
     .disposition == "merged") and
   any(.pull_requests[];
+    .number == 417 and
+    .head == "2511e5df2b1e4dfd2360a28e89899c90b7b3fcc7" and
+    .disposition == "merged") and
+  any(.pull_requests[];
     .number == 415 and
     .head == "c805ebd0896ccfbd2569bc0b2a7944d3282106ff" and
     .disposition == "merged") and
@@ -123,6 +130,12 @@ jq -e '
   any(.pull_requests[];
     .number == 223 and
     .head == "27897e85f12a2eaea141d9b51229adc3d6fd3071") and
+  any(.pull_requests[];
+    .number == 227 and
+    .head == "debaafe156c9824396178d53e01e5f15d2a2a04a") and
+  any(.pull_requests[];
+    .number == 228 and
+    .head == "50046df84a15cc5f76b94260e897fd39072b2fdf") and
   all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214) and
   any(.reviewed_exclusions[];
     .number == 197 and
@@ -130,7 +143,7 @@ jq -e '
 ' "${b12x_manifest}" >/dev/null
 jq -e '
   .base.commit == "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4" and
-  .result.tree == "2227a86c8d56672cb96c790bb62d3c9e2c0118ee" and
+  .result.tree == "436a9333afc483a4049bb35183a456e27aa322f9" and
   any(.pull_requests[];
     .number == 221 and
     .head == "413f96e889dad1ae0752fd1f4be9d37f56849600" and
@@ -139,6 +152,14 @@ jq -e '
     .number == 223 and
     .head == "27897e85f12a2eaea141d9b51229adc3d6fd3071" and
     .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 227 and
+    .head == "debaafe156c9824396178d53e01e5f15d2a2a04a" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 228 and
+    .head == "50046df84a15cc5f76b94260e897fd39072b2fdf" and
+    .disposition == "merged") and
   all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214)
 ' "${b12x_lock}" >/dev/null
 
@@ -146,9 +167,9 @@ output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
 grep -Fxq 'revision=r16' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a' <<<"${output}"
+grep -Fxq 'vllm_tree=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
-grep -Fxq 'b12x_tree=2227a86c8d56672cb96c790bb62d3c9e2c0118ee' <<<"${output}"
+grep -Fxq 'b12x_tree=436a9333afc483a4049bb35183a456e27aa322f9' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
 grep -Fxq 'lmcache_tree=5fdf59cfa184bc15dc5414df0bd633da9e49aaae' <<<"${output}"
 grep -Fxq 'torch=2.13.0' <<<"${output}"

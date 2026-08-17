@@ -760,6 +760,97 @@ index ba5ebf76ed673741e3da19fbe901441e4d0791eb..703b59634923f1f3f676713622f0e3d1
  # ── Thinking mode initial state ──────────────────────────────────────
  
  
+diff --git a/tests/parser/engine/test_deepseek_v4_legacy_dsml.py b/tests/parser/engine/test_deepseek_v4_legacy_dsml.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..5d008696397a9316c74441da862f0dcabec1df66
+--- /dev/null
++++ b/tests/parser/engine/test_deepseek_v4_legacy_dsml.py
+@@ -0,0 +1,85 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Compatibility tests for direct legacy DeepSeek V4 DSML tool calls."""
++
++import json
++
++import pytest
++
++from tests.parser.engine.conftest import make_mock_tokenizer
++from tests.parser.engine.streaming_helpers import (
++    collect_content,
++    collect_function_name,
++    collect_tool_arguments,
++    simulate_tool_streaming,
++)
++from vllm.parser.deepseek_v4 import (
++    DSML_THINK_END,
++    DSML_THINK_START,
++    DeepSeekV4Parser,
++)
++
++_THINK_START_ID = 50
++_THINK_END_ID = 51
++
++
++@pytest.fixture
++def mock_tokenizer():
++    return make_mock_tokenizer(
++        {
++            DSML_THINK_START: _THINK_START_ID,
++            DSML_THINK_END: _THINK_END_ID,
++        }
++    )
++
++
++def _legacy_invoke(name: str, value: str) -> str:
++    return (
++        f'<|DSML|invoke name="{name}">\n'
++        f'<|DSML|parameter name="command" string="true">{value}'
++        "</|DSML|parameter>\n</|DSML|invoke>"
++    )
++
++
++def test_non_streaming_two_direct_invokes_are_tool_calls(mock_tokenizer, mock_request):
++    text = "Preamble.\n" + _legacy_invoke("exec", "true")
++    text += "\n" + _legacy_invoke("exec", "false")
++    parser = DeepSeekV4Parser(mock_tokenizer, chat_template_kwargs={"thinking": False})
++
++    reasoning, content, tool_calls = parser.parse(text, mock_request)
++
++    assert reasoning is None
++    assert content is not None
++    assert content.rstrip() == "Preamble."
++    assert tool_calls is not None
++    assert [call.name for call in tool_calls] == ["exec", "exec"]
++    assert [json.loads(call.arguments) for call in tool_calls] == [
++        {"command": "true"},
++        {"command": "false"},
++    ]
++
++
++def test_streaming_direct_invoke_returns_to_content(mock_tokenizer, mock_request):
++    parser = DeepSeekV4Parser(mock_tokenizer, chat_template_kwargs={"thinking": False})
++    text = _legacy_invoke("exec", "true") + "\nCalls completed."
++
++    results = simulate_tool_streaming(parser, mock_request, [text])
++    finish_delta = parser.finish_streaming()
++    content = collect_content(results)
++    if finish_delta and finish_delta.content:
++        content += finish_delta.content
++
++    assert collect_function_name(results) == "exec"
++    assert content.strip() == "Calls completed."
++
++
++def test_streaming_split_legacy_markers_do_not_leak(mock_tokenizer, mock_request):
++    text = _legacy_invoke("exec", "true")
++    parser = DeepSeekV4Parser(mock_tokenizer, chat_template_kwargs={"thinking": False})
++    chunks = [text[i : i + 7] for i in range(0, len(text), 7)]
++
++    results = simulate_tool_streaming(parser, mock_request, chunks)
++
++    assert collect_function_name(results) == "exec"
++    assert json.loads(collect_tool_arguments(results)) == {"command": "true"}
++    assert "DSML" not in collect_content(results)
 diff --git a/tests/quantization/test_exl3.py b/tests/quantization/test_exl3.py
 index 225fdd9a8e67b99d47c69f484d4d6dab5363808d..59345380f44e1545056752f1a3eb6321add66c04 100644
 --- a/tests/quantization/test_exl3.py
@@ -4935,10 +5026,10 @@ index 92b638d05ace396234ab852d5b95906c3b51dfee..ad7b047f409fec28e1621cf75fdc7911
          ):
              raise ValueError(
 diff --git a/vllm/envs.py b/vllm/envs.py
-index c7a9ced83e816725084f901a64f76fca700d3f1c..ec52f38f9b277dfb9c838eeee8649759775b7964 100755
+index 8bcd9d0bc7f2cc9fb6310e3240cfc6dedcab16c2..dc61c3b09256f48ad8b01a06a6acd172b33135c9 100755
 --- a/vllm/envs.py
 +++ b/vllm/envs.py
-@@ -2435,8 +2435,20 @@ environment_variables: dict[str, Callable[[], Any]] = {
+@@ -2449,8 +2449,20 @@ environment_variables: dict[str, Callable[[], Any]] = {
      "VLLM_EXL3_TRELLIS_MAX_M": lambda: os.getenv("VLLM_EXL3_TRELLIS_MAX_M"),
      "VLLM_EXL3_TRELLIS_BLOCK_M": lambda: os.getenv("VLLM_EXL3_TRELLIS_BLOCK_M"),
      "VLLM_EXL3_PREFILL_CHUNK": lambda: os.getenv("VLLM_EXL3_PREFILL_CHUNK"),
@@ -9060,10 +9151,58 @@ index 8cbc82b9e9072867bebb8a8baad48a2f9154b642..52dd6bbb6d2a69bbb837f8696c20b4f2
  
      def extract_reasoning_streaming(
 diff --git a/vllm/parser/deepseek_v4.py b/vllm/parser/deepseek_v4.py
-index 9955d938545f604feaf83bc44a9ada8d7e8c1ec1..e167d3d436b1312e308bf27dfe4d8d40d03b6502 100644
+index 9955d938545f604feaf83bc44a9ada8d7e8c1ec1..87bbe31dd83fe91b0e1687e7d54e929aa199ff8e 100644
 --- a/vllm/parser/deepseek_v4.py
 +++ b/vllm/parser/deepseek_v4.py
-@@ -152,6 +152,13 @@ def deepseek_v4_config(thinking: bool = False) -> ParserEngineConfig:
+@@ -39,6 +39,7 @@ if TYPE_CHECKING:
+     from vllm.tool_parsers.abstract_tool_parser import Tool
+ 
+ _DSML = "｜DSML｜"
++_LEGACY_DSML = "|DSML|"
+ 
+ DSML_THINK_START = "<think>"
+ DSML_THINK_END = "</think>"
+@@ -49,14 +50,24 @@ DSML_INVOKE_NAME_END = '">'
+ DSML_INVOKE_END = f"</{_DSML}invoke>"
+ DSML_PARAM_CLOSE = f"</{_DSML}parameter>"
+ 
++# Some older tool prompts contain ASCII-pipe DSML examples without the optional
++# ``tool_calls`` wrapper. The model can reproduce that input faithfully; parse
++# it as a compatibility variant instead of exposing protocol text as content.
++LEGACY_DSML_TOOL_START = f"<{_LEGACY_DSML}tool_calls>"
++LEGACY_DSML_TOOL_END = f"</{_LEGACY_DSML}tool_calls>"
++LEGACY_DSML_INVOKE_PREFIX = f'<{_LEGACY_DSML}invoke name="'
++LEGACY_DSML_INVOKE_END = f"</{_LEGACY_DSML}invoke>"
++LEGACY_DSML_PARAM_CLOSE = f"</{_LEGACY_DSML}parameter>"
++
+ _ESCAPED_DSML = re.escape(_DSML)
++_DSML_TOKEN_RE = rf"(?:{_ESCAPED_DSML}|{re.escape(_LEGACY_DSML)})"
+ _PARAM_RE = re.compile(
+-    rf'<{_ESCAPED_DSML}parameter\s+name="([^"]+)"\s+string="(true|false)">'
+-    rf"(.*?)</{_ESCAPED_DSML}parameter>",
++    rf'<{_DSML_TOKEN_RE}parameter\s+name="([^"]+)"\s+string="(true|false)">'
++    rf"(.*?)</{_DSML_TOKEN_RE}parameter>",
+     re.DOTALL,
+ )
+ _PARTIAL_PARAM_RE = re.compile(
+-    rf'<{_ESCAPED_DSML}parameter\s+name="([^"]+)"\s+string="(true|false)">'
++    rf'<{_DSML_TOKEN_RE}parameter\s+name="([^"]+)"\s+string="(true|false)">'
+     rf"(.*)$",
+     re.DOTALL,
+ )
+@@ -135,6 +146,11 @@ def deepseek_v4_config(thinking: bool = False) -> ParserEngineConfig:
+             "INVOKE_NAME_END": DSML_INVOKE_NAME_END,
+             "INVOKE_END": DSML_INVOKE_END,
+             "PARAM_CLOSE": DSML_PARAM_CLOSE,
++            "TOOL_START_LEGACY": LEGACY_DSML_TOOL_START,
++            "TOOL_END_LEGACY": LEGACY_DSML_TOOL_END,
++            "INVOKE_PREFIX_LEGACY": LEGACY_DSML_INVOKE_PREFIX,
++            "INVOKE_END_LEGACY": LEGACY_DSML_INVOKE_END,
++            "PARAM_CLOSE_LEGACY": LEGACY_DSML_PARAM_CLOSE,
+         },
+         token_id_terminals={
+             "THINK_START": DSML_THINK_START,
+@@ -152,6 +168,13 @@ def deepseek_v4_config(thinking: bool = False) -> ParserEngineConfig:
                  ParserState.CONTENT,
                  (),
              ),
@@ -9077,6 +9216,171 @@ index 9955d938545f604feaf83bc44a9ada8d7e8c1ec1..e167d3d436b1312e308bf27dfe4d8d40
              # Absorb a duplicate <think> while already reasoning
              (ParserState.REASONING, "THINK_START"): Transition(
                  ParserState.REASONING,
+@@ -170,37 +193,99 @@ def deepseek_v4_config(thinking: bool = False) -> ParserEngineConfig:
+                 ParserState.TOOL_PREAMBLE,
+                 (),
+             ),
++            (ParserState.CONTENT, "TOOL_START_LEGACY"): Transition(
++                ParserState.TOOL_PREAMBLE,
++                (),
++            ),
++            # The outer ``tool_calls`` wrapper is optional in legacy DSML.
++            (ParserState.CONTENT, "INVOKE_PREFIX"): Transition(
++                ParserState.TOOL_DIRECT_NAME,
++                (EventType.TOOL_CALL_START,),
++            ),
++            (ParserState.CONTENT, "INVOKE_PREFIX_LEGACY"): Transition(
++                ParserState.TOOL_DIRECT_NAME,
++                (EventType.TOOL_CALL_START,),
++            ),
++            (ParserState.REASONING, "TOOL_START_LEGACY"): Transition(
++                ParserState.TOOL_PREAMBLE,
++                (EventType.REASONING_END,),
++            ),
++            (ParserState.REASONING, "INVOKE_PREFIX"): Transition(
++                ParserState.TOOL_DIRECT_NAME,
++                (EventType.REASONING_END, EventType.TOOL_CALL_START),
++            ),
++            (ParserState.REASONING, "INVOKE_PREFIX_LEGACY"): Transition(
++                ParserState.TOOL_DIRECT_NAME,
++                (EventType.REASONING_END, EventType.TOOL_CALL_START),
++            ),
+             (ParserState.TOOL_PREAMBLE, "INVOKE_PREFIX"): Transition(
+                 ParserState.TOOL_NAME,
+                 (EventType.TOOL_CALL_START,),
+             ),
++            (ParserState.TOOL_PREAMBLE, "INVOKE_PREFIX_LEGACY"): Transition(
++                ParserState.TOOL_NAME,
++                (EventType.TOOL_CALL_START,),
++            ),
+             (ParserState.TOOL_NAME, "INVOKE_NAME_END"): Transition(
+                 ParserState.TOOL_ARGS,
+                 (),
+             ),
++            (ParserState.TOOL_DIRECT_NAME, "INVOKE_NAME_END"): Transition(
++                ParserState.TOOL_DIRECT_ARGS,
++                (),
++            ),
+             (ParserState.TOOL_ARGS, "INVOKE_END"): Transition(
+                 ParserState.TOOL_BETWEEN,
+                 (EventType.TOOL_CALL_END,),
+             ),
++            (ParserState.TOOL_ARGS, "INVOKE_END_LEGACY"): Transition(
++                ParserState.TOOL_BETWEEN,
++                (EventType.TOOL_CALL_END,),
++            ),
++            # A direct invoke has no enclosing wrapper. Return to content so
++            # subsequent prose is not suppressed; a later direct invoke can
++            # start another call from CONTENT.
++            (ParserState.TOOL_DIRECT_ARGS, "INVOKE_END"): Transition(
++                ParserState.CONTENT,
++                (EventType.TOOL_CALL_END,),
++            ),
++            (ParserState.TOOL_DIRECT_ARGS, "INVOKE_END_LEGACY"): Transition(
++                ParserState.CONTENT,
++                (EventType.TOOL_CALL_END,),
++            ),
+             (ParserState.TOOL_ARGS, "TOOL_END"): Transition(
+                 ParserState.CONTENT,
+                 (EventType.TOOL_CALL_END,),
+             ),
++            (ParserState.TOOL_ARGS, "TOOL_END_LEGACY"): Transition(
++                ParserState.CONTENT,
++                (EventType.TOOL_CALL_END,),
++            ),
+             # Parallel tool calls
+             (ParserState.TOOL_BETWEEN, "INVOKE_PREFIX"): Transition(
+                 ParserState.TOOL_NAME,
+                 (EventType.TOOL_CALL_START,),
+             ),
++            (ParserState.TOOL_BETWEEN, "INVOKE_PREFIX_LEGACY"): Transition(
++                ParserState.TOOL_NAME,
++                (EventType.TOOL_CALL_START,),
++            ),
+             (ParserState.TOOL_BETWEEN, "TOOL_END"): Transition(
+                 ParserState.CONTENT,
+                 (),
+             ),
++            (ParserState.TOOL_BETWEEN, "TOOL_END_LEGACY"): Transition(
++                ParserState.CONTENT,
++                (),
++            ),
+         },
+         content_events={
+             ParserState.CONTENT: EventType.TEXT_CHUNK,
+             ParserState.REASONING: EventType.REASONING_CHUNK,
+             ParserState.TOOL_NAME: EventType.TOOL_NAME,
+             ParserState.TOOL_ARGS: EventType.ARG_VALUE_CHUNK,
++            ParserState.TOOL_DIRECT_NAME: EventType.TOOL_NAME,
++            ParserState.TOOL_DIRECT_ARGS: EventType.ARG_VALUE_CHUNK,
+         },
+         arg_converter=_dsml_arg_converter,
+         arg_structural_chars=frozenset(">"),
+diff --git a/vllm/parser/engine/parser_engine_config.py b/vllm/parser/engine/parser_engine_config.py
+index ad83e331490a13e82b675d9eaf23aff323b279ef..b74809c30258a19544754048286bc291d20f8905 100644
+--- a/vllm/parser/engine/parser_engine_config.py
++++ b/vllm/parser/engine/parser_engine_config.py
+@@ -33,6 +33,8 @@ class ParserState(Enum):
+     TOOL_NAME = auto()
+     TOOL_ARGS = auto()
+     TOOL_BETWEEN = auto()
++    TOOL_DIRECT_NAME = auto()
++    TOOL_DIRECT_ARGS = auto()
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+diff --git a/vllm/parser/engine/streaming_parser_engine.py b/vllm/parser/engine/streaming_parser_engine.py
+index 157a1796e854a93074cfc5367fe8302273999085..d697665a297107b5bcba0d4bc6e339f773970a19 100644
+--- a/vllm/parser/engine/streaming_parser_engine.py
++++ b/vllm/parser/engine/streaming_parser_engine.py
+@@ -264,6 +264,8 @@ class StreamingParserEngine:
+             ParserState.TOOL_ARGS,
+             ParserState.TOOL_NAME,
+             ParserState.TOOL_BETWEEN,
++            ParserState.TOOL_DIRECT_NAME,
++            ParserState.TOOL_DIRECT_ARGS,
+         ):
+             if self.tool_index >= 0:
+                 events.append(
+@@ -314,6 +316,8 @@ class StreamingParserEngine:
+             ParserState.TOOL_NAME,
+             ParserState.TOOL_ARGS,
+             ParserState.TOOL_BETWEEN,
++            ParserState.TOOL_DIRECT_NAME,
++            ParserState.TOOL_DIRECT_ARGS,
+         }
+     )
+ 
+@@ -389,7 +393,7 @@ class StreamingParserEngine:
+         if self.state == ParserState.MESSAGE_HEADER:
+             self._message_header_buffer += text
+             return []
+-        if self.state == ParserState.TOOL_ARGS:
++        if self.state in (ParserState.TOOL_ARGS, ParserState.TOOL_DIRECT_ARGS):
+             if self.config.tool_args_json:
+                 return self._feed_args_text(text)
+             return [
+@@ -419,8 +423,9 @@ class StreamingParserEngine:
+         message_header = ""
+ 
+         if (
+-            self.state == ParserState.TOOL_ARGS
+-            and transition.next_state != ParserState.TOOL_ARGS
++            self.state in (ParserState.TOOL_ARGS, ParserState.TOOL_DIRECT_ARGS)
++            and transition.next_state
++            not in (ParserState.TOOL_ARGS, ParserState.TOOL_DIRECT_ARGS)
+             and self._args_buffer
+         ):
+             events.append(
+@@ -457,7 +462,7 @@ class StreamingParserEngine:
+                 )
+             )
+ 
+-        if self.state == ParserState.TOOL_ARGS:
++        if self.state in (ParserState.TOOL_ARGS, ParserState.TOOL_DIRECT_ARGS):
+             self._args_brace_depth = 0
+             self._args_in_string = False
+             self._args_escape_next = False
 diff --git a/vllm/transformers_utils/repo_utils.py b/vllm/transformers_utils/repo_utils.py
 index 4066edbbf094a5a9c6c16383e3bc9831469367e4..3a5ade69961462bad2c28d4be0c2bd808f512a64 100644
 --- a/vllm/transformers_utils/repo_utils.py
@@ -10309,18 +10613,6 @@ index 0c4d05676cc48c3f3281cc021582ccbfb86f8c82..c1b79ef135c1c6a51d75ff9754515c5d
          )
          with record_function_or_nullcontext("vllm:v2/speculator/prefill/dispatch"):
              rebuild_prefill_attn_metadata = getattr(
-diff --git a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
-index 0d126f672c89c9bffbbcf40f9facd9721fb16026..8ae79d4079e1af8a7c3dc3c4b638c71ab62b08ca 100644
---- a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
-+++ b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
-@@ -424,6 +424,7 @@ class DSparkSpeculator(DFlashSpeculator):
-         cudagraph_runtime_mode: CUDAGraphMode = CUDAGraphMode.NONE,
-         is_profile: bool = False,
-         num_query_per_req: int | None = None,
-+        capture_only: bool = False,
-     ) -> None:
-         if num_query_per_req is None:
-             num_query_per_req = self.num_query_per_req
 diff --git a/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py b/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py
 index aaa59b21f6c25d4c7c473c72cefbf7f96d4ec88e..19cef48ae2e38c5402f1e3dcec4f2b677634b982 100644
 --- a/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py

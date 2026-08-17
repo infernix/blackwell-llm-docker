@@ -18,10 +18,26 @@
       "number": 223,
       "head": "27897e85f12a2eaea141d9b51229adc3d6fd3071",
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
+    },
+    {
+      "number": 227,
+      "head": "debaafe156c9824396178d53e01e5f15d2a2a04a",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    },
+    {
+      "number": 228,
+      "head": "50046df84a15cc5f76b94260e897fd39072b2fdf",
+      "title": "Ignore inactive MoE routes in tiny decode"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 222,
+      "head": "d86c94252e75c86bd626897c3b3fa74df075c6bf",
+      "disposition": "out_of_scope",
+      "reason": "Native MXFP4 dense GEMM serves checkpoints with E8M0-scaled FP4 dense weights. The qualified DeepSeek V4 profile uses FP8 dense weights, GLM-5.2 NVFP4 uses E4M3-scaled FP4 weights, and the supported Trellis profiles use their dedicated representation."
+    },
     {
       "number": 197,
       "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",

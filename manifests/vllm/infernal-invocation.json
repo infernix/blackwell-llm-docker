@@ -105,6 +105,11 @@
       "title": "Validate speculative structured output before commit"
     },
     {
+      "number": 417,
+      "head": "2511e5df2b1e4dfd2360a28e89899c90b7b3fcc7",
+      "title": "Parse legacy direct DeepSeek V4 DSML tool calls"
+    },
+    {
       "number": 415,
       "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
       "title": "Preserve the DSpark CUDA-graph capture contract"
@@ -112,6 +117,24 @@
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 399,
+      "head": "aa172aa86a4b34cafa6af9415342c37ad6fdc730",
+      "disposition": "superseded",
+      "reason": "Pull request #417 preserves legacy direct-DSML parser compatibility and isolates its regression cases in a dedicated test module so the change composes with the Infernal Invocation strict-tool parser stack."
+    },
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "disposition": "out_of_scope",
+      "reason": "Mamba copy-on-write handling serves recurrent-state model architectures. DeepSeek V4 and GLM-5.2 do not allocate Mamba cache groups."
+    },
+    {
+      "number": 413,
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
+      "disposition": "out_of_scope",
+      "reason": "Incremental Kimi-K3 tool-argument streaming is specific to the Kimi-K3 parser and serving profile. DeepSeek V4 and GLM-5.2 use different parser contracts."
+    },
     {
       "number": 315,
       "head": "ca9668472dc1dad4b99ac35fb6c34772828b81f7",

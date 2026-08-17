@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "manifest": {
-    "sha256": "686db62a9bc6616312a20a74866a0de08f4c5b8824bb3983caac91db175f308d"
+    "sha256": "bff075df378ef8d4adc5f86af956cb7c3a7c919afa7cc0b19ec451c10deaed8f"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -29,12 +29,26 @@
       "number": 223,
       "ref": "refs/pull/223/head",
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
+    },
+    {
+      "disposition": "merged",
+      "head": "debaafe156c9824396178d53e01e5f15d2a2a04a",
+      "number": 227,
+      "ref": "refs/pull/227/head",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    },
+    {
+      "disposition": "merged",
+      "head": "50046df84a15cc5f76b94260e897fd39072b2fdf",
+      "number": 228,
+      "ref": "refs/pull/228/head",
+      "title": "Ignore inactive MoE routes in tiny decode"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "3cad7624c3f7de1f43181ddcfec746c282e8305ad3a343fc136bd8c365bfdcb7",
-    "tree": "2227a86c8d56672cb96c790bb62d3c9e2c0118ee"
+    "patch_sha256": "ceda5a0ff286334f98a62751030e8a44f0925d3181145d9ea3db29cfbe27be77",
+    "tree": "436a9333afc483a4049bb35183a456e27aa322f9"
   },
   "schema_version": 1,
   "source_patches": []

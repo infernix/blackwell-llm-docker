@@ -4,7 +4,7 @@
 # dense projections, FP8 MLA KV, and B12X sparse attention and MoE kernels.
 services:
   glm52:
-    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllmdc2cd06-b12x2227a86-fi1ac6942-cu133-torch213-20260817-r16}
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x436a933-fi1ac6942-cu133-torch213-20260817-r16}
     container_name: ${NAME:-glm52-nvfp4-infernal-r16}
     entrypoint: ["/usr/local/bin/serve-infernal-invocation.sh"]
     network_mode: host

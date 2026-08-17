@@ -1,11 +1,11 @@
 {
   "base": {
-    "commit": "4766b51528c950daa910f8eff38c22c528314154",
+    "commit": "d6e0bb7c813264f1293288b9de0d18f277be7c9f",
     "ref": "refs/heads/dev/infernal-invocation",
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "fff45fa26f3af63f447db5144b4e2f93ce5bbd3ce3c59dc4ee8527df5c17c6af"
+    "sha256": "09cac4fbbe57049353c3ff774a8a24c5ec8593df53b67ba8b651084120bbea5c"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -151,6 +151,13 @@
     },
     {
       "disposition": "merged",
+      "head": "2511e5df2b1e4dfd2360a28e89899c90b7b3fcc7",
+      "number": 417,
+      "ref": "refs/pull/417/head",
+      "title": "Parse legacy direct DeepSeek V4 DSML tool calls"
+    },
+    {
+      "disposition": "merged",
       "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
       "number": 415,
       "ref": "refs/pull/415/head",
@@ -159,8 +166,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ad6524fa0762645ee852995c0a091dd629b7f1b18c8e4e56d0433b602b87f2a2",
-    "tree": "dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a"
+    "patch_sha256": "cf1b0b47777b8e353c31111f1127b34f7011d3eb21a104c876e799a026d80c61",
+    "tree": "5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a"
   },
   "schema_version": 1,
   "source_patches": []

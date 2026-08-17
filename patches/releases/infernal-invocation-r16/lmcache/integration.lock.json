@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/LMCache.git"
   },
   "manifest": {
-    "sha256": "d5f48bde7eda832ff3b1094f98d625d5a3567e244207ac60747b0f562f1ed401"
+    "sha256": "416b6c805d75999cc9d2b0ff9e06a5b048dea0885e75d9100b972e60ab4ece4e"
   },
   "name": "infernal-invocation-lmcache",
   "pull_requests": [
