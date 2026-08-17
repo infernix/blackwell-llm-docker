@@ -5987,10 +5987,10 @@ index e6d35b7d2c6a80c08aca46cebfe2054c6589b971..f427ef7b0eecb0e209cac4b3df0d85bb
      """The static path should not segfault on Parameter-backed scale tensors."""
 diff --git a/tests/moe/test_route_pack_cache.py b/tests/moe/test_route_pack_cache.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..786a2bb5afd92a821d598880ce4c00183858bb0a
+index 0000000000000000000000000000000000000000..7862723963f62981340e027b5034452494675f98
 --- /dev/null
 +++ b/tests/moe/test_route_pack_cache.py
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,38 @@
 +import pytest
 +import torch
 +
@@ -6018,15 +6018,12 @@ index 0000000000000000000000000000000000000000..786a2bb5afd92a821d598880ce4c0018
 +    )
 +
 +
-+def test_route_pack_prewarm_separates_equal_routed_row_counts() -> None:
-+    assert _key(token_count=3, top_k=1) != _key(token_count=1, top_k=3)
-+
-+
-+def test_route_pack_prewarm_separates_caller_owned_arenas() -> None:
-+    assert _key(packed_route_slots=256, route_blocks=4) != _key(
-+        packed_route_slots=320,
-+        route_blocks=5,
-+    )
++def test_route_pack_prewarm_key_includes_each_launch_dimension() -> None:
++    baseline = _key()
++    assert baseline != _key(token_count=4)
++    assert baseline != _key(top_k=2)
++    assert baseline != _key(packed_route_slots=320)
++    assert baseline != _key(route_blocks=5)
 +
 +
 +def test_route_pack_prewarm_rejects_nonpositive_dimensions() -> None:

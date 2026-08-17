@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "08876aeb21b5756eb4451996edfc3816245d72b62da3e42061ac9f7bad075bc9"
+    "sha256": "2d7191979e3e76f2ace25fd698b383ca8268486559349f09ba8c7e7f98516c00"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -33,10 +33,10 @@
     },
     {
       "commits": [
-        "96bb5b0126cdad8264bc5842fd4a959410c30c54"
+        "35c7ed0b7ac2430ceb8d07a6fb05734ac5f3878e"
       ],
       "disposition": "merged",
-      "head": "96bb5b0126cdad8264bc5842fd4a959410c30c54",
+      "head": "35c7ed0b7ac2430ceb8d07a6fb05734ac5f3878e",
       "number": 223,
       "ref": "refs/pull/223/head",
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
@@ -84,8 +84,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "df7a146e5b03bdf2fbf1c3a83f86e203ff34cf7abb5c6ac13b889e630ad62d28",
-    "tree": "53b9e70cb17ef44b583a0f86c1968d5b801eeb5b"
+    "patch_sha256": "9dde29254d7db866f189eea416c1c2de939d7e6e804d4d8f594368a701b12cf2",
+    "tree": "c0a44a16f884222faab1ff52ed5db0875bf61971"
   },
   "schema_version": 1,
   "source_patches": []
