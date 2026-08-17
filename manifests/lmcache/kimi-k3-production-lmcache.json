@@ -3,7 +3,9 @@
   "name": "kimi-k3-production-lmcache",
   "repository": "https://github.com/local-inference-lab/LMCache.git",
   "base_ref": "refs/heads/release/v0.5.2-glm52-dcp-base",
-  "composition_strategy": "merge",
+  "composition_strategy": "pinned_branch",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-engine-driven-20260817",
+  "composition_commit": "b19c80dccb3976f93e40c76e0dd4f496a2cf9386",
   "pull_requests": [
     {
       "number": 7,

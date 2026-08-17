@@ -103,7 +103,8 @@ export VLLM_DISABLED_KERNELS
 printf -v SPECULATIVE_CONFIG \
   '{"method":"dspark","model":"%s","num_speculative_tokens":7,"attention_backend":"B12X_MLA","kv_cache_dtype":"fp8","draft_sample_method":"greedy","rejection_sample_method":"block","quantization":"mxfp8","quantization_config":{"linear":"mxfp8","ignore":["re:.*fused_qkv_a_proj$"]}}' \
   "${DRAFT_MODEL}"
-TARGET_QUANT_CONFIG='{"linear":"mxfp8","ignore":["re:^(?!.*self_attn\\.(?:q_proj|k_proj|v_proj|b_proj|f_a_proj)$).*$"]}'
+TARGET_QUANT_CONFIG='{"linear":"mxfp8","ignore":["re:^(?!.*(?:self_attn\\.(?:q_proj|k_proj|v_proj|b_proj|f_a_proj)|vision_tower\\..*|mm_projector\\..*)$).*$"]}'
+MODEL_LOADER_EXTRA_CONFIG='{"instanttensor_priority_weight_name_prefixes":["vision_tower","mm_projector"],"instanttensor_small_checkpoint_max_bytes":8589934592}'
 # Target and draft attention keep independent cache geometry: the target KV
 # group is DCP-sharded and the DSpark KV group is replicated. Full capture is
 # qualified with per-group metadata and removes target decode launch overhead.
@@ -123,10 +124,18 @@ esac
 case "${ENABLE_VISION:-0}" in
   0) multimodal_args=(--language-model-only) ;;
   1)
+    case "${MM_ENCODER_TP_MODE:-data}" in
+      data|weights) ;;
+      *)
+        echo "MM_ENCODER_TP_MODE must be data or weights" >&2
+        exit 2
+        ;;
+    esac
     multimodal_args=(
-      --limit-mm-per-prompt "{\"image\":${MAX_IMAGES_PER_PROMPT:-4}}"
+      --limit-mm-per-prompt "{\"image\":${MAX_IMAGES_PER_PROMPT:-1}}"
+      --mm-processor-kwargs "{\"in_patch_limit\":${VISION_IN_PATCH_LIMIT:-40960},\"patch_limit_on_one_side\":${VISION_PATCH_LIMIT_ON_ONE_SIDE:-512}}"
       --mm-processor-cache-gb "${MM_PROCESSOR_CACHE_GB:-1}"
-      --mm-encoder-tp-mode data
+      --mm-encoder-tp-mode "${MM_ENCODER_TP_MODE:-data}"
     )
     ;;
   *)
@@ -145,6 +154,7 @@ exec "${PYTHON_BIN}" -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --dcp-comm-backend a2a \
   --dcp-kv-cache-interleave-size 1 \
   --load-format instanttensor \
+  --model-loader-extra-config "${MODEL_LOADER_EXTRA_CONFIG}" \
   --moe-backend b12x \
   --linear-backend auto \
   --attention-backend B12X_MLA \

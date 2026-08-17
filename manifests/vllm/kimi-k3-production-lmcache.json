@@ -3,16 +3,18 @@
   "name": "kimi-k3-production-vllm",
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
-  "composition_strategy": "merge",
+  "composition_strategy": "pinned_branch",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817",
+  "composition_commit": "770c13fb9d430a4361ad32f490c8b27d10de8f8a",
   "pull_requests": [
     {
       "number": 382,
-      "head": "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f",
+      "head": "3912977cc57fafab6eb7227a63918b0ad2bad573",
       "title": "Load Kimi checkpoints with bounded staging"
     },
     {
       "number": 383,
-      "head": "69bcc3a379fdbdc2b7c84cb1ca323c7c23d4e818",
+      "head": "d900666e308f05c47e2e0a848a567230d78a7bdf",
       "title": "Define Kimi hybrid cache geometry"
     },
     {
@@ -69,6 +71,11 @@
       "number": 401,
       "head": "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1",
       "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
+    },
+    {
+      "number": 404,
+      "head": "f04051235a8ceecee3c3d538426f3eeaf987cf48",
+      "title": "Bound Kimi-K3 vision loading and preprocessing memory"
     }
   ]
 }
