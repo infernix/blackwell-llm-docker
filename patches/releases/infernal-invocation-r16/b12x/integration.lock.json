@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
   "manifest": {
-    "sha256": "bff075df378ef8d4adc5f86af956cb7c3a7c919afa7cc0b19ec451c10deaed8f"
+    "sha256": "70bf0df9b778858f626b62ff8448df076d0493e16232a895386bd89b111a27e2"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -43,12 +43,26 @@
       "number": 228,
       "ref": "refs/pull/228/head",
       "title": "Ignore inactive MoE routes in tiny decode"
+    },
+    {
+      "disposition": "merged",
+      "head": "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb",
+      "number": 229,
+      "ref": "refs/pull/229/head",
+      "title": "Align W4A16 CUDA graph tests with buffer contracts"
+    },
+    {
+      "disposition": "merged",
+      "head": "156920046e858f413db0c51e53cd25b9020d5f40",
+      "number": 230,
+      "ref": "refs/pull/230/head",
+      "title": "Fix mapped W4A16 route namespace planning"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ceda5a0ff286334f98a62751030e8a44f0925d3181145d9ea3db29cfbe27be77",
-    "tree": "436a9333afc483a4049bb35183a456e27aa322f9"
+    "patch_sha256": "b7e7f02ee13df43f3f1ba7d00cbfad95b568a299f58ee08d51aa39a7699b195a",
+    "tree": "8106764e7d43daba83c1f10ef205f84c167b523c"
   },
   "schema_version": 1,
   "source_patches": []

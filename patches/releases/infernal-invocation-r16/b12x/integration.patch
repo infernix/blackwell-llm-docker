@@ -4820,10 +4820,21 @@ index f11afe9c421306504204a7751649d262e0f61bc6..30b69bad6b81df932f44a34dff426436
  
  def _make_workspace(
 diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
-index e40ab190d7e89005ae92f080b40b11d737e67f8e..6a739dced862c6534eda379ebaa0db889bc14332 100644
+index e40ab190d7e89005ae92f080b40b11d737e67f8e..9361ea4978128e7a18c9068b604e4ab65ddfcd7f 100644
 --- a/b12x/moe/fused_moe/_impl.py
 +++ b/b12x/moe/fused_moe/_impl.py
-@@ -6543,7 +6543,10 @@ def _plan_full_rotation_w4a16_launches(
+@@ -2591,7 +2591,9 @@ def _plan_core_workspace(
+         )
+         requested_route_E = int(route_num_experts or weight_E)
+         full_rotation = weight_layout == "trellis_t256"
+-        route_E = requested_route_E if full_rotation else int(weight_E)
++        # Route metadata must address every physical weight and every global
++        # router ID accepted through route_expert_map.
++        route_E = max(int(weight_E), requested_route_E)
+         if full_rotation:
+             if source_format not in _TRELLIS_SOURCE_FORMATS:
+                 raise ValueError(
+@@ -6543,7 +6545,10 @@ def _plan_full_rotation_w4a16_launches(
      if torch.cuda.is_current_stream_capturing():
          raise RuntimeError("Trellis launch planning cannot run during capture")
  
@@ -4835,7 +4846,7 @@ index e40ab190d7e89005ae92f080b40b11d737e67f8e..6a739dced862c6534eda379ebaa0db88
      from b12x.moe._shared.kernels.w4a16.kernel import (
          _DEFAULT_MAX_SHARED_MEM,
          compile_w4a16_fused_moe,
-@@ -6656,68 +6659,80 @@ def _plan_full_rotation_w4a16_launches(
+@@ -6656,68 +6661,80 @@ def _plan_full_rotation_w4a16_launches(
              for ids_dtype in (torch.int32, torch.int64)
              for mapped in (False, True)
          )
@@ -4972,7 +4983,7 @@ index e40ab190d7e89005ae92f080b40b11d737e67f8e..6a739dced862c6534eda379ebaa0db88
      return fused_launches, topk_sum_launches
  
  
-@@ -7057,6 +7072,7 @@ def _prewarm_w4a16_planned_launches(
+@@ -7057,6 +7074,7 @@ def _prewarm_w4a16_planned_launches(
              route_pack_key = (
                  workspace.device.type,
                  int(torch.cuda.current_device()),
@@ -5400,11 +5411,91 @@ index 065a5ac7a3a70543c94b9fdb9b4f6e6d09bcd155..2cea1da662bd07eadea757f122834686
 +        min_cos=0.998,
 +        max_normalized_rmse=0.05,
 +    )
+diff --git a/tests/moe/test_fused_moe_planning.py b/tests/moe/test_fused_moe_planning.py
+index bd248c68145df51b653a38a4c80aa1744e525479..48e33fe1d463b0daad14fe7b8f361815653284c7 100644
+--- a/tests/moe/test_fused_moe_planning.py
++++ b/tests/moe/test_fused_moe_planning.py
+@@ -99,6 +99,27 @@ def _subset_router_caps() -> fused_moe.Caps:
+     )
+ 
+ 
++def _mapped_packed_caps() -> fused_moe.Caps:
++    weight_plan = fused_moe.plan_weights(
++        quant_modes="w4a16",
++        source_format="compressed_tensors",
++        activation="silu",
++        params_dtype=torch.bfloat16,
++        num_experts=8,
++        hidden_size=128,
++        intermediate_size=128,
++        w13_layout="w13",
++    )
++    return fused_moe.Caps(
++        max_tokens=8,
++        num_topk=2,
++        route_num_experts=12,
++        device="cpu",
++        weight_plan=weight_plan,
++        quant_mode="w4a16",
++    )
++
++
+ def test_required_nbytes_avoids_launch_prewarm(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+@@ -159,6 +180,20 @@ def test_non_trellis_core_sizes_routes_for_weight_experts(
+     assert specs["expert_offsets"].shape == (161,)
+ 
+ 
++def test_mapped_packed_plan_covers_global_route_namespace(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setattr(fused_moe_impl, "get_num_sm", lambda _device: 188)
++
++    plan = fused_moe.plan(_mapped_packed_caps())
++    specs = {spec.name: spec for spec in plan._core_workspace_plan.tensor_specs}
++
++    assert plan._core_workspace_plan.weight_E == 8
++    assert plan._core_workspace_plan.route_E == 12
++    assert specs["expert_offsets"].shape == (13,)
++    assert specs["expert_counts"].shape == (12,)
++
++
+ def test_unpinned_small_capacity_matches_reachable_block_8(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
 diff --git a/tests/moe/test_w4a16_e2e.py b/tests/moe/test_w4a16_e2e.py
-index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..8721bb8b686658cd498c28465daf495b050f4891 100644
+index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e77789a3c2acb 100644
 --- a/tests/moe/test_w4a16_e2e.py
 +++ b/tests/moe/test_w4a16_e2e.py
-@@ -1083,6 +1083,137 @@ def test_w4a16_e8m0_native_micro_matches_raw_e8m0_oracle(
+@@ -146,6 +146,7 @@ def test_w4a16_small_m_direct_barrier_modes_eager_and_graph(
+         topk_weights=topk_weights,
+         topk_ids=topk_ids,
+         quant_mode="w4a16",
++        output=torch.empty_like(x),
+     )
+     expected = _reference_w4a16(
+         x,
+@@ -328,7 +329,10 @@ def test_trellis_w4a16_capture_prewarm_uses_exact_runtime_key(
+         n=2048,
+         activation="silu",
+         trellis_bits=3,
++        trellis_codebook="mcg",
++        trellis_pair_kinds=None,
+         trellis_tile_config=None,
++        coupled_hadamard=False,
+     )
+     fused_calls: list[dict[str, object]] = []
+     resolved_fused = object()
+@@ -736,6 +740,7 @@ def test_w4a16_fp4_e8m0_k32_kernel_matches_raw_e8m0_oracle(
+             block_expert_ids=buffers.block_expert_ids,
+             packed_route_count=buffers.packed_route_count,
+             expert_offsets=buffers.expert_offsets,
++            expert_counts=buffers.expert_counts,
+             swiglu_limit=10.0 if activation == "silu" else None,
+         )
+ 
+@@ -1083,6 +1088,137 @@ def test_w4a16_e8m0_native_micro_matches_raw_e8m0_oracle(
          _assert_matches_oracle(buffers.output, expected, activation=activation)
  
  
@@ -5542,6 +5633,30 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..8721bb8b686658cd498c28465daf495b
  @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
  def test_w4a16_e8m0_native_aligned_generic_fc1_uses_k32_scale_stride() -> None:
      """K/32 scales keep their native expert stride in aligned generic FC1."""
+@@ -3018,6 +3154,7 @@ def test_w4a16_moe_swiglu_limit_matches_oracle_under_cuda_graph() -> None:
+         block_expert_ids=buffers.block_expert_ids,
+         packed_route_count=buffers.packed_route_count,
+         expert_offsets=buffers.expert_offsets,
++        expert_counts=buffers.expert_counts,
+         swiglu_limit=swiglu_limit,
+     )
+     torch.cuda.synchronize()
+@@ -3042,6 +3179,7 @@ def test_w4a16_moe_swiglu_limit_matches_oracle_under_cuda_graph() -> None:
+             block_expert_ids=buffers.block_expert_ids,
+             packed_route_count=buffers.packed_route_count,
+             expert_offsets=buffers.expert_offsets,
++            expert_counts=buffers.expert_counts,
+             swiglu_limit=swiglu_limit,
+         )
+     graph.replay()
+@@ -3129,6 +3267,7 @@ def test_w4a16_preplanned_capacity_launch_accepts_smaller_live_m() -> None:
+             block_expert_ids=buffers.block_expert_ids,
+             packed_route_count=buffers.packed_route_count,
+             expert_offsets=buffers.expert_offsets,
++            expert_counts=buffers.expert_counts,
+             fused_launch=fused_launch,
+             topk_sum_launch=topk_sum_launch,
+         )
 diff --git a/tests/moe/test_w4a16_mixed_trellis.py b/tests/moe/test_w4a16_mixed_trellis.py
 index 82493c9f2054ed4dfaf3841cd429dbd2f2b9bacf..ba0203f7e130af38164bf4fc8ea6576c77dfe6c4 100644
 --- a/tests/moe/test_w4a16_mixed_trellis.py

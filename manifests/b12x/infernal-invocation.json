@@ -28,6 +28,16 @@
       "number": 228,
       "head": "50046df84a15cc5f76b94260e897fd39072b2fdf",
       "title": "Ignore inactive MoE routes in tiny decode"
+    },
+    {
+      "number": 229,
+      "head": "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb",
+      "title": "Align W4A16 CUDA graph tests with buffer contracts"
+    },
+    {
+      "number": 230,
+      "head": "156920046e858f413db0c51e53cd25b9020d5f40",
+      "title": "Fix mapped W4A16 route namespace planning"
     }
   ],
   "source_patches": [],

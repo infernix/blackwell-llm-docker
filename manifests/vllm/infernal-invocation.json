@@ -257,7 +257,7 @@
     },
     {
       "number": 310,
-      "head": "a23c54ca2ff76ae2487e93ec92455cae7d5eae63",
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
       "disposition": "out_of_scope",
       "reason": "Replicated DFlash-family draft attention serves Kimi-K3 external speculators. Kimi-K3 uses a separate runtime manifest and image."
     },

@@ -136,6 +136,12 @@ jq -e '
   any(.pull_requests[];
     .number == 228 and
     .head == "50046df84a15cc5f76b94260e897fd39072b2fdf") and
+  any(.pull_requests[];
+    .number == 229 and
+    .head == "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb") and
+  any(.pull_requests[];
+    .number == 230 and
+    .head == "156920046e858f413db0c51e53cd25b9020d5f40") and
   all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214) and
   any(.reviewed_exclusions[];
     .number == 197 and
@@ -143,7 +149,7 @@ jq -e '
 ' "${b12x_manifest}" >/dev/null
 jq -e '
   .base.commit == "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4" and
-  .result.tree == "436a9333afc483a4049bb35183a456e27aa322f9" and
+  .result.tree == "8106764e7d43daba83c1f10ef205f84c167b523c" and
   any(.pull_requests[];
     .number == 221 and
     .head == "413f96e889dad1ae0752fd1f4be9d37f56849600" and
@@ -160,6 +166,14 @@ jq -e '
     .number == 228 and
     .head == "50046df84a15cc5f76b94260e897fd39072b2fdf" and
     .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 229 and
+    .head == "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 230 and
+    .head == "156920046e858f413db0c51e53cd25b9020d5f40" and
+    .disposition == "merged") and
   all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214)
 ' "${b12x_lock}" >/dev/null
 
@@ -169,9 +183,9 @@ grep -Fxq 'revision=r16' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
 grep -Fxq 'vllm_tree=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
-grep -Fxq 'b12x_tree=436a9333afc483a4049bb35183a456e27aa322f9' <<<"${output}"
+grep -Fxq 'b12x_tree=8106764e7d43daba83c1f10ef205f84c167b523c' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
-grep -Fxq 'lmcache_tree=5fdf59cfa184bc15dc5414df0bd633da9e49aaae' <<<"${output}"
+grep -Fxq 'lmcache_tree=e045d729bc5c4c63a40e13d032f42923de97812f' <<<"${output}"
 grep -Fxq 'torch=2.13.0' <<<"${output}"
 grep -Fxq 'cuda=13.3' <<<"${output}"
 grep -Fxq 'nccl=2.31.2' <<<"${output}"

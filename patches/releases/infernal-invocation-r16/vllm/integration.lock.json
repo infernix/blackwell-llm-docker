@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "09cac4fbbe57049353c3ff774a8a24c5ec8593df53b67ba8b651084120bbea5c"
+    "sha256": "e10cd3a192d9ea1953ce711530ffb59c2f1fa353ecead7d22f6277cc51091bdd"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
