@@ -5237,10 +5237,18 @@ index 0000000000000000000000000000000000000000..428f7cbc061299ac416ed4b57bfb2ab6
 +        representation=representation,
 +    )
 diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
-index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959b062bb3a 100644
+index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..d085045efa4d6fbdbcfa8a9a2e0404fea9950e0e 100644
 --- a/b12x/moe/fused_moe/_impl.py
 +++ b/b12x/moe/fused_moe/_impl.py
-@@ -6545,7 +6545,10 @@ def _plan_full_rotation_w4a16_launches(
+@@ -94,6 +94,7 @@ from b12x._lib.scratch import (
+     scratch_buffer_spec,
+     scratch_tensor,
+ )
++from ._route_pack_cache import route_pack_prewarm_key
+ 
+ logger = logging.getLogger(__name__)
+ _B12X_TIMING = (
+@@ -6545,7 +6546,10 @@ def _plan_full_rotation_w4a16_launches(
      if torch.cuda.is_current_stream_capturing():
          raise RuntimeError("Trellis launch planning cannot run during capture")
  
@@ -5252,7 +5260,7 @@ index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959
      from b12x.moe._shared.kernels.w4a16.kernel import (
          _DEFAULT_MAX_SHARED_MEM,
          compile_w4a16_fused_moe,
-@@ -6658,68 +6661,80 @@ def _plan_full_rotation_w4a16_launches(
+@@ -6658,68 +6662,83 @@ def _plan_full_rotation_w4a16_launches(
              for ids_dtype in (torch.int32, torch.int64)
              for mapped in (False, True)
          )
@@ -5298,14 +5306,14 @@ index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959
                  capacity_tokens,
                  core_plan.num_topk,
 -                dtype=torch.int32,
-+                dtype=route_ids_dtype,
-                 device=core_plan.device,
-             )
+-                device=core_plan.device,
+-            )
 -            packed_route_indices = torch.empty(
 -                capacity_route_slots,
 -                dtype=torch.int32,
--                device=core_plan.device,
--            )
++                dtype=route_ids_dtype,
+                 device=core_plan.device,
+             )
 -            block_expert_ids = torch.empty(
 -                capacity_m_blocks,
 -                dtype=torch.int32,
@@ -5334,11 +5342,14 @@ index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959
 +                        device=core_plan.device,
 +                    )
 +                for token_count in route_pack_warmup_token_counts(capacity_tokens):
-+                    route_pack_key = (
++                    route_pack_key = route_pack_prewarm_key(
 +                        core_plan.device.type,
 +                        int(torch.cuda.current_device()),
-+                        str(route_ids_dtype),
-+                        token_count * core_plan.num_topk,
++                        route_ids_dtype,
++                        token_count,
++                        core_plan.num_topk,
++                        capacity_route_slots,
++                        capacity_m_blocks,
 +                        int(block_size_m),
 +                        int(core_plan.route_E),
 +                        mapped,
@@ -5389,15 +5400,24 @@ index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959
      return fused_launches, topk_sum_launches
  
  
-@@ -7059,6 +7074,7 @@ def _prewarm_w4a16_planned_launches(
-             route_pack_key = (
+@@ -7056,10 +7075,14 @@ def _prewarm_w4a16_planned_launches(
+                         )
+                 continue
+ 
+-            route_pack_key = (
++            route_pack_key = route_pack_prewarm_key(
                  workspace.device.type,
                  int(torch.cuda.current_device()),
-+                str(torch.int32),
-                 int(token_count) * int(workspace.num_topk),
+-                int(token_count) * int(workspace.num_topk),
++                torch.int32,
++                token_count,
++                workspace.num_topk,
++                workspace.packed_route_indices.numel(),
++                workspace.block_expert_ids.numel(),
                  int(block_size_m),
                  int(workspace.route_E),
-@@ -8137,6 +8153,7 @@ def _get_micro_kernel(
+                 bool(False),
+@@ -8137,6 +8160,7 @@ def _get_micro_kernel(
          dummy(cutlass.BFloat16),  # out_ptr
          barrier_fake,  # barrier_count
          barrier_fake,  # barrier_epoch
@@ -5405,6 +5425,63 @@ index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..5f9a0b3dea48d3efcf584d8a5098c959
          Int32(compile_m),  # m_val
          Int32(1),  # grid_x
          current_cuda_stream(),  # stream
+diff --git a/b12x/moe/fused_moe/_route_pack_cache.py b/b12x/moe/fused_moe/_route_pack_cache.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..eacfcfe0041e9759b98d534ac33cfa1278be45f2
+--- /dev/null
++++ b/b12x/moe/fused_moe/_route_pack_cache.py
+@@ -0,0 +1,51 @@
++"""Cache identity for W4A16 route-pack launch preparation."""
++
++from __future__ import annotations
++
++from typing import Any
++
++
++def route_pack_prewarm_key(
++    device_type: str,
++    device_index: int,
++    route_ids_dtype: Any,
++    token_count: int,
++    top_k: int,
++    packed_route_slots: int,
++    route_blocks: int,
++    block_size: int,
++    num_experts: int,
++    mapped: bool,
++) -> tuple[object, ...]:
++    """Identify every input that can change a route-pack specialization.
++
++    ``token_count`` and ``top_k`` remain separate because equal routed-row
++    counts can select different ``NUMEL_CAPACITY`` values. The caller-owned
++    slot and block capacities are also part of the key because a fixed arena
++    can replace the power-of-two bucket selected for the live shape.
++    """
++
++    values = {
++        "token_count": token_count,
++        "top_k": top_k,
++        "packed_route_slots": packed_route_slots,
++        "route_blocks": route_blocks,
++        "block_size": block_size,
++        "num_experts": num_experts,
++    }
++    normalized = {name: int(value) for name, value in values.items()}
++    invalid = {name: value for name, value in normalized.items() if value < 1}
++    if invalid:
++        raise ValueError(f"route-pack prewarm dimensions must be positive: {invalid}")
++    return (
++        str(device_type),
++        int(device_index),
++        str(route_ids_dtype),
++        normalized["token_count"],
++        normalized["top_k"],
++        normalized["packed_route_slots"],
++        normalized["route_blocks"],
++        normalized["block_size"],
++        normalized["num_experts"],
++        bool(mapped),
++    )
 diff --git a/b12x/moe/fused_moe/api.py b/b12x/moe/fused_moe/api.py
 index 83e8e30ff1319353cb0f3d569dd6675d73e4f02a..e6df1af151346b57b26eec3f0bbea94818e86d4b 100644
 --- a/b12x/moe/fused_moe/api.py
@@ -5766,10 +5843,10 @@ index 0000000000000000000000000000000000000000..f5e73154ac71ae6eb4bc088810a978de
 +    with pytest.raises(RuntimeError, match="CUDA graph capture"):
 +        trellis_linear.run(source, weight, **buffers)
 diff --git a/tests/moe/test_btx_e2e.py b/tests/moe/test_btx_e2e.py
-index 7b95330e7620585da638331b0aedf34bf7a6d11e..b0e1bfa8bc0369288dc6dd8138058cfc7e1e2841 100644
+index 7b95330e7620585da638331b0aedf34bf7a6d11e..8c5e1f7c5b82a66c9a98dd29a47f767a1f5f98d2 100644
 --- a/tests/moe/test_btx_e2e.py
 +++ b/tests/moe/test_btx_e2e.py
-@@ -142,6 +142,78 @@ def _routing(m, experts, topk, device, seed):
+@@ -142,6 +142,96 @@ def _routing(m, experts, topk, device, seed):
      return ids, router_weights
  
  
@@ -5825,6 +5902,24 @@ index 7b95330e7620585da638331b0aedf34bf7a6d11e..b0e1bfa8bc0369288dc6dd8138058cfc
 +    assert adopted.representation_for("w4a16") is native
 +    assert adopted.w1_fp4.data_ptr() == from_atoms.w1_fp4.data_ptr()
 +    assert adopted.w2_fp4.data_ptr() == from_atoms.w2_fp4.data_ptr()
++
++    torch.manual_seed(20260817)
++    x = (torch.randn((4, hidden), device=device) * 0.05).to(torch.float16)
++    ids, router_weights = _routing(4, experts, 2, device, 20260817)
++    original_output = _serve(
++        from_atoms,
++        x=x,
++        ids=ids,
++        router_weights=router_weights,
++    )
++    adopted_output = _serve(
++        adopted,
++        x=x,
++        ids=ids,
++        router_weights=router_weights,
++    )
++    assert torch.count_nonzero(original_output).item() > 0
++    assert torch.equal(adopted_output, original_output)
 +
 +    mismatched = fused_moe.plan_weights(
 +        quant_modes="w4a16",
@@ -5890,6 +5985,53 @@ index e6d35b7d2c6a80c08aca46cebfe2054c6589b971..f427ef7b0eecb0e209cac4b3df0d85bb
  @pytest.mark.parametrize("case", ["alphas", "scales"])
  def test_b12x_moe_accepts_parameter_backed_launch_args(case: str) -> None:
      """The static path should not segfault on Parameter-backed scale tensors."""
+diff --git a/tests/moe/test_route_pack_cache.py b/tests/moe/test_route_pack_cache.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..786a2bb5afd92a821d598880ce4c00183858bb0a
+--- /dev/null
++++ b/tests/moe/test_route_pack_cache.py
+@@ -0,0 +1,41 @@
++import pytest
++import torch
++
++from b12x.moe.fused_moe._route_pack_cache import route_pack_prewarm_key
++
++
++def _key(
++    *,
++    token_count: int = 3,
++    top_k: int = 1,
++    packed_route_slots: int = 256,
++    route_blocks: int = 4,
++) -> tuple[object, ...]:
++    return route_pack_prewarm_key(
++        "cuda",
++        0,
++        torch.int32,
++        token_count,
++        top_k,
++        packed_route_slots,
++        route_blocks,
++        64,
++        4,
++        False,
++    )
++
++
++def test_route_pack_prewarm_separates_equal_routed_row_counts() -> None:
++    assert _key(token_count=3, top_k=1) != _key(token_count=1, top_k=3)
++
++
++def test_route_pack_prewarm_separates_caller_owned_arenas() -> None:
++    assert _key(packed_route_slots=256, route_blocks=4) != _key(
++        packed_route_slots=320,
++        route_blocks=5,
++    )
++
++
++def test_route_pack_prewarm_rejects_nonpositive_dimensions() -> None:
++    with pytest.raises(ValueError, match="dimensions must be positive"):
++        _key(top_k=0)
 diff --git a/tests/moe/test_w4a16_e2e.py b/tests/moe/test_w4a16_e2e.py
 index 6d63a02e6512a5b84296dc68a9e8181500b0c1c1..68d580455ffb14fb7d7a8933ba6e9a8205b27366 100644
 --- a/tests/moe/test_w4a16_e2e.py
