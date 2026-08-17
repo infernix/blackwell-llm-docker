@@ -29,6 +29,23 @@ command -v lmcache >/dev/null || {
   exit 2
 }
 
+lmcache_expected_source_root="${LMCACHE_EXPECTED_SOURCE_ROOT:-}"
+if [[ -n "${lmcache_expected_source_root}" ]]; then
+  "${PYTHON_BIN:-python3}" - "${lmcache_expected_source_root}" <<'PY'
+from pathlib import Path
+import sys
+
+import lmcache
+
+expected = Path(sys.argv[1]).resolve()
+loaded = Path(lmcache.__file__).resolve()
+if not loaded.is_relative_to(expected):
+    raise SystemExit(
+        f"LMCache imported from {loaded}; expected a module below {expected}"
+    )
+PY
+fi
+
 service_port="${PORT:-8000}"
 port_offset=0
 if [[ "${service_port}" =~ ^[0-9]+$ ]] && (( service_port >= 8000 )); then
@@ -58,6 +75,26 @@ lmcache_l1_init_gb="${LMCACHE_L1_INIT_GB:-${lmcache_l1_gb}}"
 lmcache_gpu_workers="${LMCACHE_MAX_GPU_WORKERS:-${TP_SIZE:-${TP:-1}}}"
 lmcache_cpu_workers="${LMCACHE_MAX_CPU_WORKERS:-4}"
 lmcache_log="${LMCACHE_LOG:-/tmp/lmcache-mp-${service_port}.log}"
+lmcache_transfer_mode="${LMCACHE_TRANSFER_MODE:-auto}"
+lmcache_transfer_mode="${lmcache_transfer_mode,,}"
+case "${lmcache_transfer_mode}" in
+  auto|lmcache_driven|engine_driven) ;;
+  *)
+    echo "ERROR: LMCACHE_TRANSFER_MODE must be auto, lmcache_driven, or engine_driven; got ${lmcache_transfer_mode}" >&2
+    exit 2
+    ;;
+esac
+
+lmcache_separate_object_groups="${LMCACHE_SEPARATE_OBJECT_GROUPS:-0}"
+lmcache_separate_object_groups="${lmcache_separate_object_groups,,}"
+case "${lmcache_separate_object_groups}" in
+  1|true|yes|on) lmcache_separate_object_groups=1 ;;
+  0|false|no|off) lmcache_separate_object_groups=0 ;;
+  *)
+    echo "ERROR: LMCACHE_SEPARATE_OBJECT_GROUPS must be a boolean; got ${lmcache_separate_object_groups}" >&2
+    exit 2
+    ;;
+esac
 
 server_args=(
   server
@@ -66,6 +103,7 @@ server_args=(
   --chunk-size "${lmcache_chunk_size}"
   --max-gpu-workers "${lmcache_gpu_workers}"
   --max-cpu-workers "${lmcache_cpu_workers}"
+  --supported-transfer-mode "${lmcache_transfer_mode}"
   --l1-size-gb "${lmcache_l1_gb}"
   --l1-init-size-gb "${lmcache_l1_init_gb}"
   --l1-write-ttl-seconds 600
@@ -77,6 +115,16 @@ server_args=(
   --l2-prefetch-policy retain
   --http-port "${lmcache_http_port}"
 )
+
+# An explicitly empty shared-memory name selects bounded per-request transfer
+# buffers. This avoids mapping and pinning the entire L1 pool in every vLLM
+# worker when the engine-driven transfer path is used.
+if [[ -v LMCACHE_SHM_NAME ]]; then
+  server_args+=(--shm-name "${LMCACHE_SHM_NAME}")
+fi
+if [[ "${lmcache_separate_object_groups}" == 1 ]]; then
+  server_args+=(--separate-object-groups)
+fi
 
 lmcache_l2_path=disabled
 if [[ "${mode}" == "disk" ]]; then
@@ -112,6 +160,7 @@ fi
 transfer_config="$(
   LMCACHE_JSON_HOST="${lmcache_host}" \
   LMCACHE_JSON_PORT="${lmcache_port}" \
+  LMCACHE_JSON_TRANSFER_MODE="${lmcache_transfer_mode}" \
     python3 - <<'PY'
 import json
 import os
@@ -126,6 +175,9 @@ print(
                 "lmcache.mp.port": int(os.environ["LMCACHE_JSON_PORT"]),
                 "lmcache.mp.mq_timeout": 60,
                 "lmcache.mp.heartbeat_interval": 5,
+                "lmcache.mp.mp_transfer_mode": os.environ[
+                    "LMCACHE_JSON_TRANSFER_MODE"
+                ],
             },
         },
         separators=(",", ":"),
@@ -149,7 +201,21 @@ export PYTORCH_CUDA_ALLOC_CONF="${allocator_config}"
 
 rm -f "${lmcache_log}"
 export LMCACHE_DISABLE_BANNER="${LMCACHE_DISABLE_BANNER:-1}"
-lmcache "${server_args[@]}" >"${lmcache_log}" 2>&1 &
+lmcache_server_command=(lmcache)
+if [[ "${lmcache_transfer_mode}" == engine_driven ]]; then
+  # GPU visibility is removed only from the standalone cache server. GPU
+  # gather/scatter operations remain in the existing vLLM worker processes.
+  lmcache_server_env="${LMCACHE_SERVER_ENV-CUDA_VISIBLE_DEVICES= CUDA_MODULE_LOADING=LAZY}"
+  read -r -a lmcache_server_env_args <<< "${lmcache_server_env}"
+  for assignment in "${lmcache_server_env_args[@]}"; do
+    if [[ ! "${assignment}" =~ ^[A-Za-z_][A-Za-z0-9_]*=.*$ ]]; then
+      echo "ERROR: invalid LMCACHE_SERVER_ENV assignment: ${assignment}" >&2
+      exit 2
+    fi
+  done
+  lmcache_server_command=(env "${lmcache_server_env_args[@]}" lmcache)
+fi
+"${lmcache_server_command[@]}" "${server_args[@]}" >"${lmcache_log}" 2>&1 &
 lmcache_pid=$!
 model_pid=""
 shutdown_requested=0
@@ -195,8 +261,8 @@ if [[ "${ready}" != 1 ]]; then
   exit 1
 fi
 
-printf 'LMCache ready: mode=%s L1=%sGB chunk=%s L2=%s health=http://%s:%s/healthcheck metrics=http://%s:%s/metrics log=%s\n' \
-  "${mode}" "${lmcache_l1_gb}" "${lmcache_chunk_size}" \
+printf 'LMCache ready: mode=%s transfer=%s L1=%sGB chunk=%s L2=%s health=http://%s:%s/healthcheck metrics=http://%s:%s/metrics log=%s\n' \
+  "${mode}" "${lmcache_transfer_mode}" "${lmcache_l1_gb}" "${lmcache_chunk_size}" \
   "${lmcache_l2_path}" "${lmcache_host}" "${lmcache_http_port}" \
   "${lmcache_host}" "${lmcache_http_port}" "${lmcache_log}"
 

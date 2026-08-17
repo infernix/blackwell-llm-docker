@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-production-vllm",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/infernal-invocation",
+  "composition_strategy": "pinned_branch",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r6",
+  "composition_commit": "a25a92563935839ff857a76ae6218a81c88c8fab",
+  "pull_requests": [
+    {
+      "number": 310,
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
+      "title": "Preserve replicated DFlash-family draft semantics under DCP"
+    },
+    {
+      "number": 413,
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "title": "Preserve Mamba CoW after external prefix hits"
+    },
+    {
+      "number": 415,
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "title": "Preserve the DSpark CUDA-graph capture contract"
+    }
+  ]
+}

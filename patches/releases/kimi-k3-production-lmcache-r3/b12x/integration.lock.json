@@ -1,0 +1,62 @@
+{
+  "base": {
+    "commit": "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "merge",
+  "manifest": {
+    "sha256": "b47ee97bc07f42a1fd99f71a03cad0cd61ca6895a7495370a8c148bbcca6cbb0"
+  },
+  "name": "kimi-k3-production-b12x",
+  "pull_requests": [
+    {
+      "commits": [
+        "b3c2c162064ea9fab118f08922577aca5912e7e6"
+      ],
+      "disposition": "merged",
+      "head": "b3c2c162064ea9fab118f08922577aca5912e7e6",
+      "number": 215,
+      "ref": "refs/pull/215/head",
+      "title": "Preserve unaligned multi-row FP8 linear outputs"
+    },
+    {
+      "commits": [
+        "dba993834192b4ce7d62c33bf2f0fe5f132f04bf"
+      ],
+      "disposition": "merged",
+      "head": "dba993834192b4ce7d62c33bf2f0fe5f132f04bf",
+      "number": 220,
+      "ref": "refs/pull/220/head",
+      "title": "Add TP16 equal-quarter PCIe all-reduce"
+    },
+    {
+      "commits": [
+        "15b0e65cee3a7b3e9f079ce3d353cefff5fcc1ad"
+      ],
+      "disposition": "merged",
+      "head": "15b0e65cee3a7b3e9f079ce3d353cefff5fcc1ad",
+      "number": 224,
+      "ref": "refs/pull/224/head",
+      "title": "Batch Kimi top-16 expert selection"
+    },
+    {
+      "commits": [
+        "8c6f5a38fbbfea918df977f1e1f549f21fc5294a"
+      ],
+      "disposition": "merged",
+      "head": "8c6f5a38fbbfea918df977f1e1f549f21fc5294a",
+      "number": 226,
+      "ref": "refs/pull/226/head",
+      "title": "Reuse fixed route arenas for prefill tails"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tree": "6b49020b7645f6e425ef7f838f1069b0e87f381c"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

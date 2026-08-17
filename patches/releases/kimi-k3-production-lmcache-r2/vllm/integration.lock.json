@@ -1,0 +1,165 @@
+{
+  "base": {
+    "commit": "abeaacfe9acecbe946d5584636788aeabbfe2582",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "composition": {
+    "commit": "770c13fb9d430a4361ad32f490c8b27d10de8f8a",
+    "ref": "refs/heads/agent/kimi-k3-production-composition-20260817"
+  },
+  "composition_strategy": "pinned_branch",
+  "manifest": {
+    "sha256": "3505763968dd3991fe9cad3a10f78ce8a0d3be9294df48e3eea2c759737e1e88"
+  },
+  "name": "kimi-k3-production-vllm",
+  "pull_requests": [
+    {
+      "commits": [
+        "3912977cc57fafab6eb7227a63918b0ad2bad573"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "3912977cc57fafab6eb7227a63918b0ad2bad573",
+      "number": 382,
+      "ref": "refs/pull/382/head",
+      "title": "Load Kimi checkpoints with bounded staging"
+    },
+    {
+      "commits": [
+        "d900666e308f05c47e2e0a848a567230d78a7bdf"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "d900666e308f05c47e2e0a848a567230d78a7bdf",
+      "number": 383,
+      "ref": "refs/pull/383/head",
+      "title": "Define Kimi hybrid cache geometry"
+    },
+    {
+      "commits": [
+        "eb4d7342f4b7b2786fa7f1fe444caf60ff11f59b"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "eb4d7342f4b7b2786fa7f1fe444caf60ff11f59b",
+      "number": 384,
+      "ref": "refs/pull/384/head",
+      "title": "Run DCP collectives through B12X"
+    },
+    {
+      "commits": [
+        "17b9f73216cc872e0d165eaf0db3f2d29b7cedac"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "17b9f73216cc872e0d165eaf0db3f2d29b7cedac",
+      "number": 385,
+      "ref": "refs/pull/385/head",
+      "title": "Shard Kimi projections without padding checkpoint weights"
+    },
+    {
+      "commits": [
+        "64c430abdfcd34a9676b3383fd27ebdc99c21a17"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "64c430abdfcd34a9676b3383fd27ebdc99c21a17",
+      "number": 386,
+      "ref": "refs/pull/386/head",
+      "title": "Fuse Kimi routed-MoE projection transport"
+    },
+    {
+      "commits": [
+        "fe2416a7f9bc562c33fc35607d99c4febf895b0c"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "fe2416a7f9bc562c33fc35607d99c4febf895b0c",
+      "number": 387,
+      "ref": "refs/pull/387/head",
+      "title": "Execute Kimi dense MLA with decode context parallelism"
+    },
+    {
+      "commits": [
+        "6411832f616599c1aab060e7ee59eeccfa7b8e4c"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "6411832f616599c1aab060e7ee59eeccfa7b8e4c",
+      "number": 388,
+      "ref": "refs/pull/388/head",
+      "title": "Support external Kimi speculative draft runtimes"
+    },
+    {
+      "commits": [
+        "1c6ba6c33ba240169c6e1f54590e908732228d7e"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "1c6ba6c33ba240169c6e1f54590e908732228d7e",
+      "number": 389,
+      "ref": "refs/pull/389/head",
+      "title": "Bound and shard Kimi DSpark state"
+    },
+    {
+      "commits": [
+        "77c874cc4de3da759b71c90ced3b02183be06e9c"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "77c874cc4de3da759b71c90ced3b02183be06e9c",
+      "number": 390,
+      "ref": "refs/pull/390/head",
+      "title": "Sample Kimi DSpark proposals from vocabulary shards"
+    },
+    {
+      "commits": [
+        "08d15da19e84e5f7abb0f456056c7cb74f1b1261"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "08d15da19e84e5f7abb0f456056c7cb74f1b1261",
+      "number": 391,
+      "ref": "refs/pull/391/head",
+      "title": "Select the B12X all-reduce limit by tensor-parallel size"
+    },
+    {
+      "commits": [
+        "8a4485f6ada46c492d944aa47cab1c026f3b4cd5"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "8a4485f6ada46c492d944aa47cab1c026f3b4cd5",
+      "number": 400,
+      "ref": "refs/pull/400/head",
+      "title": "Select assembled Kimi router logits with CuTeDSL"
+    },
+    {
+      "commits": [
+        "a5004ada3f2e8c1e480a8d0885f98121a94ccc0d"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "a5004ada3f2e8c1e480a8d0885f98121a94ccc0d",
+      "number": 395,
+      "ref": "refs/pull/395/head",
+      "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
+    },
+    {
+      "commits": [
+        "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1",
+      "number": 401,
+      "ref": "refs/pull/401/head",
+      "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
+    },
+    {
+      "commits": [
+        "f04051235a8ceecee3c3d538426f3eeaf987cf48"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "f04051235a8ceecee3c3d538426f3eeaf987cf48",
+      "number": 404,
+      "ref": "refs/pull/404/head",
+      "title": "Bound Kimi-K3 vision loading and preprocessing memory"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "ca7134ec666e87aad504518693c61d4e411c7a4bc917514c714703a7b2e73b96",
+    "tree": "60141a0a953e787bcecc6b69d5d15a1af1a50eee"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

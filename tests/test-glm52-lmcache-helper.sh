@@ -12,6 +12,12 @@ cat >"${tmp_root}/bin/lmcache" <<'SH'
 set -euo pipefail
 printf '%q ' "$@" >"${LMCACHE_TEST_SERVER_ARGS}"
 printf '\n' >>"${LMCACHE_TEST_SERVER_ARGS}"
+if [[ -n "${LMCACHE_TEST_SERVER_ENV:-}" ]]; then
+  printf '%s\n%s\n' \
+    "${CUDA_VISIBLE_DEVICES-<unset>}" \
+    "${CUDA_MODULE_LOADING-<unset>}" \
+    >"${LMCACHE_TEST_SERVER_ENV}"
+fi
 echo 'LMCache ZMQ cache server is running'
 if [[ "${LMCACHE_TEST_EXIT_AFTER_READY:-0}" == 1 ]]; then
   sleep "${LMCACHE_TEST_EXIT_DELAY:-2}"
@@ -40,6 +46,10 @@ set -euo pipefail
 printf '%s\n' "$@" >"${LMCACHE_TEST_MODEL_ARGS}"
 if [[ -n "${LMCACHE_TEST_MODEL_ENV:-}" ]]; then
   printf '%s\n' "${PYTORCH_CUDA_ALLOC_CONF-<unset>}" >"${LMCACHE_TEST_MODEL_ENV}"
+fi
+if [[ -n "${LMCACHE_TEST_MODEL_CUDA_ENV:-}" ]]; then
+  printf '%s\n' "${CUDA_VISIBLE_DEVICES-<unset>}" \
+    >"${LMCACHE_TEST_MODEL_CUDA_ENV}"
 fi
 if [[ "${LMCACHE_TEST_MODEL_HANDLE_TERM:-0}" == 1 ]]; then
   trap 'exit 0' INT TERM HUP
@@ -73,13 +83,50 @@ fi
 grep -Fq -- '--l1-size-gb 2' "${tmp_root}/ram-server.args"
 grep -Fq -- '--max-gpu-workers 8' "${tmp_root}/ram-server.args"
 grep -Fq -- '--chunk-size 512' "${tmp_root}/ram-server.args"
+grep -Fq -- '--supported-transfer-mode auto' "${tmp_root}/ram-server.args"
+if grep -Fq -- '--shm-name' "${tmp_root}/ram-server.args"; then
+  echo 'Default LMCache mode unexpectedly configured shared memory' >&2
+  exit 1
+fi
+if grep -Fq -- '--separate-object-groups' "${tmp_root}/ram-server.args"; then
+  echo 'Default LMCache mode unexpectedly separated object groups' >&2
+  exit 1
+fi
 if grep -Fq -- '--l2-adapter' "${tmp_root}/ram-server.args"; then
   echo 'RAM-only mode unexpectedly enabled L2' >&2
   exit 1
 fi
 grep -Fq -- '--kv-transfer-config' "${tmp_root}/ram-model.args"
 grep -Fq -- '"lmcache.mp.port":5557' "${tmp_root}/ram-model.args"
+grep -Fq -- '"lmcache.mp.mp_transfer_mode":"auto"' \
+  "${tmp_root}/ram-model.args"
 grep -Fxq 'expandable_segments:False' "${tmp_root}/ram-model.env"
+
+# Engine-driven transfers keep the standalone server CPU-only. GPU visibility
+# remains unchanged for the model process that performs gather/scatter work.
+PATH="${tmp_root}/bin:${PATH}" \
+LMCACHE_MODE=ram \
+LMCACHE_TRANSFER_MODE=engine_driven \
+LMCACHE_SHM_NAME= \
+LMCACHE_SEPARATE_OBJECT_GROUPS=1 \
+LMCACHE_L1_GB=2 \
+LMCACHE_LOG="${tmp_root}/engine.log" \
+LMCACHE_TEST_SERVER_ARGS="${tmp_root}/engine-server.args" \
+LMCACHE_TEST_SERVER_ENV="${tmp_root}/engine-server.env" \
+LMCACHE_TEST_MODEL_ARGS="${tmp_root}/engine-model.args" \
+LMCACHE_TEST_MODEL_CUDA_ENV="${tmp_root}/engine-model-cuda.env" \
+CUDA_VISIBLE_DEVICES=0,1 \
+bash "${lmcache_wrapper}" \
+  "${tmp_root}/model-server" engine-driven
+grep -Fq -- '--supported-transfer-mode engine_driven' \
+  "${tmp_root}/engine-server.args"
+grep -Fq -- "--shm-name ''" "${tmp_root}/engine-server.args"
+grep -Fq -- '--separate-object-groups' "${tmp_root}/engine-server.args"
+grep -Fq -- '"lmcache.mp.mp_transfer_mode":"engine_driven"' \
+  "${tmp_root}/engine-model.args"
+sed -n '1p' "${tmp_root}/engine-server.env" | grep -Fxq ''
+sed -n '2p' "${tmp_root}/engine-server.env" | grep -Fxq 'LAZY'
+grep -Fxq '0,1' "${tmp_root}/engine-model-cuda.env"
 
 # HTTP health is the primary readiness contract; this test intentionally uses
 # a log string that cannot satisfy the fallback.

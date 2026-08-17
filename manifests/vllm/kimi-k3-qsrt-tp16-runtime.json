@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "kimi-k3-vllm-runtime",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/infernal-invocation",
+  "composition_strategy": "merge",
+  "pull_requests": [
+    {"number": 382, "head": "9bb610a661c0f7e37ddaa392bc04a3d29dbb3d6f", "title": "Load Kimi checkpoints with bounded staging"},
+    {"number": 383, "head": "69bcc3a379fdbdc2b7c84cb1ca323c7c23d4e818", "title": "Define Kimi hybrid cache geometry"},
+    {"number": 384, "head": "eb4d7342f4b7b2786fa7f1fe444caf60ff11f59b", "title": "Run DCP collectives through B12X"},
+    {"number": 385, "head": "17b9f73216cc872e0d165eaf0db3f2d29b7cedac", "title": "Shard Kimi projections without padding checkpoint weights"},
+    {"number": 386, "head": "a446137736b35e3a18e0dc760bc6cb1fbfb09ddb", "title": "Fuse Kimi routed-MoE projection transport"},
+    {"number": 387, "head": "a7a655295058764f35b1a4c15cbe3fa191f88f8d", "title": "Execute Kimi dense MLA with decode context parallelism"},
+    {"number": 388, "head": "6411832f616599c1aab060e7ee59eeccfa7b8e4c", "title": "Support external Kimi speculative draft runtimes"},
+    {"number": 389, "head": "1c6ba6c33ba240169c6e1f54590e908732228d7e", "title": "Bound and shard Kimi DSpark state"},
+    {"number": 390, "head": "77c874cc4de3da759b71c90ced3b02183be06e9c", "title": "Sample Kimi DSpark proposals from vocabulary shards"},
+    {"number": 391, "head": "08d15da19e84e5f7abb0f456056c7cb74f1b1261", "title": "Select the B12X all-reduce limit by tensor-parallel size"}
+  ]
+}
