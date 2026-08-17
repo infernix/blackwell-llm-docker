@@ -3640,6 +3640,55 @@ index 64749b0937bfda5ebf574b87e92370c12c75e928..0bb3900926fad51204e4207d18e251c1
  def test_store_load_roundtrip_without_o_direct(tmp_path, monkeypatch):
      """Buffered fallback must round-trip data when O_DIRECT is unsupported.
  
+diff --git a/tests/v1/spec_decode/test_dspark_cudagraph_contract.py b/tests/v1/spec_decode/test_dspark_cudagraph_contract.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c1c1c444e52f85dd9b0c84ae7283cc3b4bb50c1d
+--- /dev/null
++++ b/tests/v1/spec_decode/test_dspark_cudagraph_contract.py
+@@ -0,0 +1,43 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++from types import SimpleNamespace
++from unittest.mock import Mock
++
++import torch
++
++from vllm.config.compilation import CUDAGraphMode
++from vllm.v1.worker.gpu.spec_decode.dspark.speculator import DSparkSpeculator
++
++
++def test_dspark_generate_draft_accepts_dflash_capture_contract():
++    head_hidden = torch.randn(10, 8)
++    speculator = SimpleNamespace(
++        num_query_per_req=5,
++        capacity_activation_batch_size=1,
++        _speculative_steps_for_query_len=Mock(return_value=5),
++        _run_model=Mock(return_value=head_hidden),
++        _sample_sequential=Mock(),
++    )
++
++    DSparkSpeculator._generate_draft(
++        speculator,
++        num_reqs=2,
++        num_tokens_padded=10,
++        attn_metadata=None,
++        slot_mappings=None,
++        num_tokens_across_dp=None,
++        cudagraph_runtime_mode=CUDAGraphMode.FULL,
++        is_profile=True,
++        num_query_per_req=5,
++        capture_only=True,
++    )
++
++    speculator._sample_sequential.assert_called_once_with(
++        2,
++        head_hidden,
++        5,
++        5,
++        is_profile=True,
++        use_capacity=True,
++    )
 diff --git a/tests/v1/spec_decode/test_dynamic_sd_cug.py b/tests/v1/spec_decode/test_dynamic_sd_cug.py
 index deb23908a9d15356be1e390102c09403f0fb9810..7ffe1dad241860a06f808ee546e3e56df6aace05 100644
 --- a/tests/v1/spec_decode/test_dynamic_sd_cug.py
@@ -10260,6 +10309,18 @@ index 0c4d05676cc48c3f3281cc021582ccbfb86f8c82..c1b79ef135c1c6a51d75ff9754515c5d
          )
          with record_function_or_nullcontext("vllm:v2/speculator/prefill/dispatch"):
              rebuild_prefill_attn_metadata = getattr(
+diff --git a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
+index 0d126f672c89c9bffbbcf40f9facd9721fb16026..8ae79d4079e1af8a7c3dc3c4b638c71ab62b08ca 100644
+--- a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
++++ b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
+@@ -424,6 +424,7 @@ class DSparkSpeculator(DFlashSpeculator):
+         cudagraph_runtime_mode: CUDAGraphMode = CUDAGraphMode.NONE,
+         is_profile: bool = False,
+         num_query_per_req: int | None = None,
++        capture_only: bool = False,
+     ) -> None:
+         if num_query_per_req is None:
+             num_query_per_req = self.num_query_per_req
 diff --git a/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py b/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py
 index aaa59b21f6c25d4c7c473c72cefbf7f96d4ec88e..19cef48ae2e38c5402f1e3dcec4f2b677634b982 100644
 --- a/vllm/v1/worker/gpu/spec_decode/multi_module_mtp/speculator.py

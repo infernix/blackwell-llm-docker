@@ -65,6 +65,9 @@ jq -e '
   any(.pull_requests[];
     .number == 320 and
     .head == "e9534672129b961399b1625d33d83c79eacded30") and
+  any(.pull_requests[];
+    .number == 415 and
+    .head == "c805ebd0896ccfbd2569bc0b2a7944d3282106ff") and
   all(.pull_requests[]; .number != 291 and .number != 305 and .number != 315) and
   any(.reviewed_exclusions[];
     .number == 291 and
@@ -78,7 +81,7 @@ jq -e '
 ' "${vllm_manifest}" >/dev/null
 jq -e '
   .base.commit == "4766b51528c950daa910f8eff38c22c528314154" and
-  .result.tree == "8a32c547fc9c77b40834abfc5ba46d7097166fef" and
+  .result.tree == "dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -106,6 +109,10 @@ jq -e '
   any(.pull_requests[];
     .number == 320 and
     .head == "e9534672129b961399b1625d33d83c79eacded30" and
+    .disposition == "merged") and
+  any(.pull_requests[];
+    .number == 415 and
+    .head == "c805ebd0896ccfbd2569bc0b2a7944d3282106ff" and
     .disposition == "merged") and
   all(.pull_requests[]; .number != 291 and .number != 305 and .number != 315)
 ' "${vllm_lock}" >/dev/null
@@ -139,7 +146,7 @@ output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
 grep -Fxq 'revision=r16' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=8a32c547fc9c77b40834abfc5ba46d7097166fef' <<<"${output}"
+grep -Fxq 'vllm_tree=dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
 grep -Fxq 'b12x_tree=2227a86c8d56672cb96c790bb62d3c9e2c0118ee' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"

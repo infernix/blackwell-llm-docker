@@ -5,7 +5,7 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "manifest": {
-    "sha256": "115b4641ad3971206e275587d290b545767d9d200b1bab91de230d472c9e3530"
+    "sha256": "fff45fa26f3af63f447db5144b4e2f93ce5bbd3ce3c59dc4ee8527df5c17c6af"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -148,12 +148,19 @@
       "number": 320,
       "ref": "refs/pull/320/head",
       "title": "Validate speculative structured output before commit"
+    },
+    {
+      "disposition": "merged",
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "number": 415,
+      "ref": "refs/pull/415/head",
+      "title": "Preserve the DSpark CUDA-graph capture contract"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "be62a538ddb986d8d2902c2a16e5ede5f752e44f33b7122d1b84f6fde28167e1",
-    "tree": "8a32c547fc9c77b40834abfc5ba46d7097166fef"
+    "patch_sha256": "ad6524fa0762645ee852995c0a091dd629b7f1b18c8e4e56d0433b602b87f2a2",
+    "tree": "dc2cd06103eb804a69fb3bf4ace347b0c5cc3e0a"
   },
   "schema_version": 1,
   "source_patches": []

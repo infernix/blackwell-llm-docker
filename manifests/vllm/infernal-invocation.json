@@ -103,6 +103,11 @@
       "number": 320,
       "head": "e9534672129b961399b1625d33d83c79eacded30",
       "title": "Validate speculative structured output before commit"
+    },
+    {
+      "number": 415,
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "title": "Preserve the DSpark CUDA-graph capture contract"
     }
   ],
   "source_patches": [],
