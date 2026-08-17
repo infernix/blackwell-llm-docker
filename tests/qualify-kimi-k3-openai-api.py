@@ -189,15 +189,15 @@ def main() -> None:
                     {
                         "type": "text",
                         "text": (
-                            "Identify the main fruit in this image and state its "
-                            "dominant color in one sentence."
+                            "Identify the fruit depicted in this image and state "
+                            "its usual ripe color in one sentence."
                         ),
                     },
                 ],
             }
         ],
         "temperature": 0,
-        "max_tokens": 1024,
+        "max_tokens": 4096,
     }
     vision_response, vision_seconds = _request_json(
         f"{args.base_url}/v1/chat/completions",
