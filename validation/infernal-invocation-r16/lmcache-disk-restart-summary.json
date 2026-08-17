@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "LMCache disk-tier lookup, eviction, and replay qualification across a complete vLLM and LMCache process restart",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12xa4a0bc8-fi1ac6942-cu133-torch213-20260817-r16",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "checkpoint_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 4,
+    "max_cuda_graph_rows": 24,
+    "max_model_len": 131072,
+    "lmcache_mode": "disk",
+    "lmcache_l1_gib": 2,
+    "lmcache_l2_gib": 64,
+    "lmcache_transfer_mode": "auto",
+    "lmcache_gpu_affinity_workers": 2,
+    "native_kv_offload": "disabled",
+    "pytorch_cuda_alloc_conf": "expandable_segments:False"
+  },
+  "request": {
+    "prompt_tokens": 24349,
+    "reusable_prefix_tokens": 24064
+  },
+  "initial_process": {
+    "cold_cached_tokens": 0,
+    "cold_elapsed_seconds": 1.895684147020802,
+    "churn_requests": 6,
+    "l1_cleared_before_replay": true,
+    "local_prefix_cache_reset_before_replay": true,
+    "replay_cached_tokens": 24064,
+    "replay_elapsed_seconds": 0.3616345599293709,
+    "l2_usage_bytes": 4360044928,
+    "l2_stored_chunks": 554,
+    "l2_prefetch_hit_chunks": 94,
+    "l2_load_requests": 2,
+    "loaded_chunks_per_worker": [94, 94]
+  },
+  "restart_process": {
+    "first_request_cached_tokens": 24064,
+    "first_request_elapsed_seconds": 0.38862267904914916,
+    "l1_cleared_before_replay": true,
+    "local_prefix_cache_reset_before_replay": true,
+    "replay_cached_tokens": 24064,
+    "replay_elapsed_seconds": 0.3467076789820567,
+    "l2_usage_bytes": 4360044928,
+    "cumulative_l2_prefetch_hit_chunks": 188,
+    "cumulative_l2_load_requests": 4,
+    "lookup_hit_tokens": 48128,
+    "lookup_requested_tokens": 48128,
+    "cumulative_loaded_chunks_per_worker": [188, 188]
+  },
+  "result": "LMCache restored the 24064-token reusable prefix from disk after explicit L1 and local-prefix eviction and again after a complete process restart. Both TP ranks loaded the same chunk count, and the persistent L2 byte count remained unchanged.",
+  "limitations": [
+    "The receipt covers one 24349-token TP2/DCP1 prefix on the validation filesystem.",
+    "Native vLLM KV offload and LMCache were not enabled together."
+  ]
+}

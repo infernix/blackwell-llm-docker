@@ -194,8 +194,8 @@ PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16
-sha256:106345a4b2fa29cd20eaea5ad20ed8064c9de9cfbe048b2840a9a52e65f28824
+voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12xa4a0bc8-fi1ac6942-cu133-torch213-20260817-r16
+sha256:ff9d4f2402ed88b1ae7ca3a6886c80a64d72993f1a593380c8cb6f193437567d
 ```
 
 | Model profile | Status | Configuration | Compose file |
@@ -221,27 +221,28 @@ work.
 The DeepSeek qualification used TP2/DCP1, B12X W4A8, fixed probabilistic
 DSpark K5, FP8 compressed MLA KV, prefix caching, and InstantTensor BUFFERED
 loading. Target decode, DSpark draft decode, and DFlash context-KV execution
-captured FULL CUDA graphs. Two C1 trajectories measured 64.60 and 63.57 target
-steps/s; aggregate output rate varied with draft acceptance. A strict-tool
-soak completed 160 of 160 requests at concurrency 8, and concurrent 32k/64k
-prompts completed without request mixing or protocol-token leakage.
+captured FULL CUDA graphs. The warmed C1 gate measured 172.93 aggregate tok/s
+and 64.03 target steps/s. The matching Gilded Gnosis r27 control measured
+173.18 tok/s and 62.96 steps/s. A strict-tool soak completed 160 of 160
+requests at concurrency 8 with no invalid response or runtime failure.
 
-Native KV tiering was also qualified with a 2 GiB CPU tier and a 64 GiB
-filesystem tier. The restarted engine restored 614 filesystem objects,
-transferred 1,232,322,560 bytes from the filesystem tier, reproduced exact
-outputs, and left no temporary objects or active tiering jobs. LMCache remains
-a separate optional ownership model and was not enabled in that run.
+Native KV tiering was qualified with a 2 GiB CPU tier and a 64 GiB filesystem
+tier. The restarted engine found all 695 persisted objects, read 1,394,892,800
+bytes from the filesystem tier, reproduced exact outputs, and left no
+temporary objects. LMCache disk tiering was qualified separately: after L1
+eviction and a complete process restart, both TP ranks restored the same
+24,064-token prefix from a 4,360,044,928-byte persistent L2 store.
 
 The GLM entrypoint accepts borrowed InstantTensor buffers. Its deferred
 layerwise online quantizer owns tensors that outlive the iterator step, so
 `INSTANTTENSOR_COPY=0` cannot expose retained weights to staging-buffer reuse.
 The EXL3 profile preserves per-projection MCG K3/K4/K5 payloads and encodes
-eligible BF16 dense projections as cached K6 payloads. Focused release-image
-validation passed 147 loader and quantization tests plus six sparse-MLA cache,
-metadata, and workspace tests. Full-checkpoint TP4 EXL3 and TP8 NVFP4 E2E
-execution requires hosts with the corresponding GPU capacity and is not
-claimed by the r16 receipt. SQG checkpoint support is unsupported and absent
-from the r16 source composition.
+eligible BF16 dense projections as cached K6 payloads. The focused B12X suite
+passed 309 tests with 18 skips across online K6, projection-mixed routed
+experts, graph replay, packaging, and sparse-MLA contracts. Full-checkpoint TP4
+EXL3 and TP8 NVFP4 E2E execution requires hosts with the corresponding GPU
+capacity and is not claimed by the r16 receipt. SQG checkpoint support is
+unsupported and absent from the r16 source composition.
 
 The exact image identity, source trees, runtime packages, configurations,
 measurements, and qualification limits are recorded in

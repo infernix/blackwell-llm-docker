@@ -1,41 +1,43 @@
 {
   "schema_version": 1,
   "status": "qualified",
-  "purpose": "Release qualification receipt for DeepSeek-V4-Flash inactive-route correctness, native KV tier replay, and GLM-5.2 B12X runtime contracts",
-  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16",
-  "image_id": "sha256:13248fb258d9750d26a305ffad9def6858848f1a209ab1dad2486fd6ce203dc1",
-  "registry_digest": "sha256:106345a4b2fa29cd20eaea5ad20ed8064c9de9cfbe048b2840a9a52e65f28824",
-  "image_size_bytes": 30765495114,
-  "validated_at": "2026-08-17T18:35:10Z",
+  "purpose": "Release qualification receipt for DeepSeek-V4-Flash runtime behavior, persistent KV-cache backends, and GLM-5.2 B12X source contracts",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12xa4a0bc8-fi1ac6942-cu133-torch213-20260817-r16",
+  "image_id": "sha256:b8ce67bd8ed86ad9a77affe63105b1ace4f7a6a8e09b41e1ba5deb9379a3e81e",
+  "registry_digest": "sha256:ff9d4f2402ed88b1ae7ca3a6886c80a64d72993f1a593380c8cb6f193437567d",
+  "image_size_bytes": 30769324821,
+  "validated_at": "2026-08-17",
   "validator_host": "192.168.0.69",
-  "gpu_ids": [4, 5, 6, 7],
+  "gpu_ids": [6, 7],
   "vllm_tree": "5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a",
-  "b12x_tree": "6965c4873e170d956431390c3dec3d99c828eea1",
+  "b12x_tree": "a4a0bc8a8f5e56dbef85f9b46b0d74f6e8edb491",
   "lmcache_tree": "e045d729bc5c4c63a40e13d032f42923de97812f",
   "source_composition": {
-    "docker_composition_commit": "39a599f462a47aa7cb7037b02730d12011f5c5e5",
+    "docker_composition_commit": "f1d96a72cb2861ab7329bb4d1a4b8a4d32357e35",
     "vllm": {
       "base": "dev/infernal-invocation@d6e0bb7c813264f1293288b9de0d18f277be7c9f",
       "tree": "5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a",
       "integrated_pull_requests": [285, 286, 287, 288, 289, 290, 292, 293, 294, 295, 296, 298, 300, 301, 302, 303, 304, 308, 309, 320, 415, 417],
+      "pull_requests_not_in_base": [285, 286, 287, 288, 289, 290, 292, 293, 294, 295, 296, 298, 300, 301, 302, 303, 304, 308, 309, 320, 415, 417],
       "source_patches": []
     },
     "b12x": {
-      "base": "master@6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4",
-      "tree": "6965c4873e170d956431390c3dec3d99c828eea1",
+      "base": "master@c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
+      "tree": "a4a0bc8a8f5e56dbef85f9b46b0d74f6e8edb491",
       "integrated_pull_requests": [145, 221, 223, 227, 228, 229, 230],
-      "source_patches": [],
-      "post_build_audit": "The same tree is produced by b12x master c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5 plus the unmerged heads represented by pull requests 145, 221, 223, and 227."
+      "pull_requests_not_in_base": [145, 221, 223, 227],
+      "source_patches": []
     },
     "lmcache": {
       "base": "release/v0.5.2-glm52-dcp-base@a128b2e286ebb3556cb43124149e600ff99fe481",
       "tree": "e045d729bc5c4c63a40e13d032f42923de97812f",
       "integrated_pull_requests": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23],
+      "pull_requests_not_in_base": [],
       "source_patches": []
     }
   },
   "runtime_packages": {
-    "vllm": "0.26.1rc0+infernal.invocation.cu133.r16.vllm5beffc4.b12x6965c48",
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r16.vllm5beffc4.b12xa4a0bc8",
     "b12x": "1.2.3",
     "torch": "2.13.0",
     "cuda": "13.3",
@@ -50,16 +52,14 @@
     "deepseek_dspark_graphs": "Target decode, DSpark draft decode, and DFlash context-KV execution capture FULL CUDA graphs for the qualified row envelope.",
     "deepseek_direct_dsml": "The DeepSeek V4 tool parser accepts the checkpoint's legacy direct DSML tool-call form in addition to the channel-prefixed form.",
     "native_kv_tiering": "Filesystem-tier objects are published from writer-owned inodes and remain replayable across engine restart.",
+    "lmcache_disk_tiering": "LMCache can evict a reusable prefix from L1, restore it from a persistent disk tier, and repeat the restoration after process restart.",
     "glm_projection_mixed_experts": "Projection-mixed MCG K3/K4/K5 routed experts are loaded without forcing a single layer-wide bitrate.",
     "glm_sparse_mla": "The B12X GLM sparse MLA path validates cache dtype, nested dense-decode metadata, sparse-request coverage, and shared capture/runtime workspace state."
   },
   "source_validation": {
-    "docker_release_tests": "pass: 15 tests",
+    "docker_release_tests": "pass",
     "docker_compose_contracts": "pass: DeepSeek-V4-Flash and GLM-5.2 EXL3/NVFP4 profiles",
-    "glm_projection_mixed_loader_tests": "pass: 147 tests",
-    "glm_sparse_mla_contract_tests": "pass: 6 tests",
-    "b12x_combined_source_tests": "pass: 21 tests with Ruff check and format",
-    "b12x_gpu_graph_and_route_tests": "pass: mapped route planning, inactive-route masking, eager execution, and CUDA graph replay",
+    "b12x_focused_suite": "pass: 309 tests, 18 skipped",
     "source_composition": "pass: immutable integration locks and no private source patches"
   },
   "runtime_validation": {
@@ -67,13 +67,14 @@
     "deepseek_artifact": "validation/infernal-invocation-r16/runtime-summary.json",
     "native_l2": "qualified",
     "native_l2_artifact": "validation/infernal-invocation-r16/native-l2-restart-summary.json",
+    "lmcache_disk": "qualified",
+    "lmcache_disk_artifact": "validation/infernal-invocation-r16/lmcache-disk-restart-summary.json",
     "glm": "source-qualified"
   },
-  "result": "DeepSeek-V4-Flash TP2/DCP1 DSpark K5 completed the exact MAX_NUM_SEQS=8 and graph-row-48 report envelope without inactive-route corruption. A 160-request strict-tool soak, concurrent 32k/64k request-isolation gate, C1 engine-rate control, full CUDA graphs, and native filesystem-tier restart replay passed. GLM-5.2 projection-mixed loader and sparse-MLA contracts passed focused tests in the release image.",
+  "result": "DeepSeek-V4-Flash TP2/DCP1 fixed probabilistic DSpark K5 matched the Gilded Gnosis r27 C1 control, completed FULL graph capture, and passed 160 strict-tool requests. Native vLLM and LMCache disk backends each restored persisted KV data after process restart. GLM-5.2 projection-mixed loading, online K6, routed-expert execution, and sparse-MLA contracts passed the focused B12X suite.",
   "limitations": [
-    "The remote validation host has four available 96 GB GPUs. It cannot load the GLM-5.2 TP8 NVFP4 profile, and no full-checkpoint GLM E2E result is claimed for this exact image.",
-    "GLM-5.2 full-checkpoint qualification requires community TP4 EXL3 and TP8 NVFP4 execution on the published image.",
-    "DeepSeek runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5. Other topologies remain supported profiles but are not part of this receipt.",
+    "The validation host cannot load the GLM-5.2 TP4 EXL3 or TP8 NVFP4 profiles. No full-checkpoint GLM E2E result is claimed for this image.",
+    "DeepSeek runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5.",
     "SQG checkpoint support is intentionally absent from the release composition."
   ],
   "artifacts": {
