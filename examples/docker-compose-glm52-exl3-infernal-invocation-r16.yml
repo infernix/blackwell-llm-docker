@@ -5,7 +5,7 @@
 # loading and persisted below /cache for the same checkpoint revision.
 services:
   glm52:
-    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16}
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16}
     container_name: ${NAME:-glm52-exl3-infernal-r16}
     entrypoint: ["/usr/local/bin/serve-infernal-invocation.sh"]
     network_mode: host

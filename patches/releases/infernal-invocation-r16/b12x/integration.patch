@@ -1153,7 +1153,7 @@ index d9f0294765e82ba15ba51339bfc093608ce2c854..ce108d4765791305e05f150b1071488e
  
  
 diff --git a/b12x/moe/_shared/kernels/micro.py b/b12x/moe/_shared/kernels/micro.py
-index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..aa0ff4b770704f169e994ff1b7bfddf6f4f5e68e 100644
+index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..8f003fb23b3102ff3543f1af3b8a84a8dbddc7ce 100644
 --- a/b12x/moe/_shared/kernels/micro.py
 +++ b/b12x/moe/_shared/kernels/micro.py
 @@ -406,6 +406,7 @@ class MoEMicroKernelBackend:
@@ -1191,7 +1191,41 @@ index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..aa0ff4b770704f169e994ff1b7bfddf6
          )
  
      @cute.jit
-@@ -894,6 +899,7 @@ class MoEMicroKernelBackend:
+@@ -548,6 +553,33 @@ class MoEMicroKernelBackend:
+             )
+         return fp4_dot4_sum_f32acc(u_packed, x0, x1, x2, x3)
+ 
++    @cute.jit
++    def _fc2_route(
++        self,
++        topk_ids: cute.Tensor,
++        topk_weights: cute.Tensor,
++        eid_addr: Int32,
++        route_expert_limit: Int32,
++    ) -> Tuple[Int32, Float32]:
++        """Return an addressable expert and its effective router weight.
++
++        Fixed-M fused launches receive a route table sanitized in shared
++        memory before FC1 and FC2 execute. The FC2-only endpoint instead uses
++        runtime M with a compile-time expert-capacity bucket, so it must check
++        each route against the resident expert count supplied by the caller.
++        Invalid routes address expert zero with an exact-zero effective weight.
++        """
++        raw_expert = Int32(topk_ids[eid_addr])
++        expert = raw_expert
++        weight = Float32(topk_weights[eid_addr])
++        if cutlass.const_expr(self.compile_time_phase == 2):
++            expert = Int32(0)
++            weight = Float32(0.0)
++            if raw_expert >= Int32(0) and raw_expert < route_expert_limit:
++                expert = raw_expert
++                weight = Float32(topk_weights[eid_addr])
++        return expert, weight
++
+     @cute.jit
+     def _scale_byte_to_f32(self, byte: Uint32) -> Float32:
+         """Decode one block-scale byte to f32 (E8M0 in MXFP4 mode, else E4M3)."""
+@@ -894,6 +926,7 @@ class MoEMicroKernelBackend:
          self.m1_fc2_rows_per_cta = m1_fc2_rows
          self.launch_block_dim = _K_PER_CTA * 16 if m1_half_cta_fc2 else _BLOCK_DIM
          self.grid_x = grid_x
@@ -1199,7 +1233,114 @@ index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..aa0ff4b770704f169e994ff1b7bfddf6
          # Required inter_fp32 element count: the per-token intermediate plus
          # the trellis K-split scratch tail. Callers must zero-initialize; the
          # kernel restores the tail to zero after each use.
-@@ -2399,6 +2405,37 @@ class MoEMicroKernelBackend:
+@@ -933,6 +966,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -965,8 +999,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1165,6 +1200,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1190,8 +1226,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1405,6 +1442,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1445,8 +1483,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1636,6 +1675,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1673,8 +1713,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1870,6 +1911,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1919,8 +1961,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -2393,12 +2436,44 @@ class MoEMicroKernelBackend:
+         barrier_epoch: cute.Tensor,
+         trellis_lut: cute.Tensor,
+         trellis_rotations: cute.Tensor,
++        route_expert_limit: Int32,
+         m_val: Int32,
+     ):
+         cfg = self._cfg
          bidx_x, _, _ = cute.arch.block_idx()
          tidx, _, _ = cute.arch.thread_idx()
          gdim_x, _, _ = cute.arch.grid_dim()
@@ -1224,7 +1365,7 @@ index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..aa0ff4b770704f169e994ff1b7bfddf6
 +                weight = Float32(0.0)
 +                if (
 +                    raw_expert >= Int32(0)
-+                    and raw_expert < Int32(cfg.weight_E)
++                    and raw_expert < route_expert_limit
 +                ):
 +                    expert = raw_expert
 +                    weight = Float32(topk_weights[route_slot])
@@ -1237,57 +1378,110 @@ index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..aa0ff4b770704f169e994ff1b7bfddf6
          if cutlass.const_expr(self.compile_time_phase == 2):
              self._run_fc2(
                  Int32(bidx_x),
-diff --git a/b12x/moe/_shared/kernels/tiny_decode.py b/b12x/moe/_shared/kernels/tiny_decode.py
-index 8d522a63efeb2ae1b9ba9c9bf659f6c8b0cbb30b..0cf0ca4aad8120a37ab5015f37c6364262bdd1ad 100644
---- a/b12x/moe/_shared/kernels/tiny_decode.py
-+++ b/b12x/moe/_shared/kernels/tiny_decode.py
-@@ -231,7 +231,14 @@ class MoETinyDecodeKernelBackend:
-             rem = bidx % fc1_per_rt
-             nt = rem // Int32(c["fc1_ktg"])
-             ktg = rem % Int32(c["fc1_ktg"])
--            eid = Int64(Int32(topk_ids[rt_idx]))
-+            route_eid = Int32(topk_ids[rt_idx])
-+            route_active = route_eid >= Int32(0) and route_eid < Int32(c["weight_E"])
-+            # vLLM represents CUDA-graph padding and non-local EP routes with
-+            # an expert id outside [0, weight_E). Keep every address in range;
-+            # inactive routes retain the pre-zeroed intermediate and output.
-+            eid = Int64(0)
-+            if route_active:
-+                eid = Int64(route_eid)
-             tok = rt_idx // Int32(c["num_topk"])
-             we_base = w13_base + eid * Int64(c["w13_words"] * 4)
-             se_base = sfb13_base + eid * Int64(c["sfb13_bytes"])
-@@ -292,7 +299,7 @@ class MoETinyDecodeKernelBackend:
-             acc1 = warp_reduce(acc1, lambda a, b: a + b, width=4)
-             acc2 = warp_reduce(acc2, lambda a, b: a + b, width=4)
-             acc3 = warp_reduce(acc3, lambda a, b: a + b, width=4)
--            if cgrp == Int32(0):
-+            if route_active and cgrp == Int32(0):
-                 ibase_rt = inter_base + Int64(rt_idx) * Int64(c["two_n"] * 4)
-                 accs = (acc0, acc1, acc2, acc3)
-                 for v in cutlass.range_constexpr(4):
-@@ -326,7 +333,11 @@ class MoETinyDecodeKernelBackend:
-             rem = bidx % fc2_per_rt
-             nt = rem // Int32(c["fc2_ktg"])
-             ktg = rem % Int32(c["fc2_ktg"])
--            eid = Int64(Int32(topk_ids[rt_idx]))
-+            route_eid = Int32(topk_ids[rt_idx])
-+            route_active = route_eid >= Int32(0) and route_eid < Int32(c["weight_E"])
-+            eid = Int64(0)
-+            if route_active:
-+                eid = Int64(route_eid)
-             tok = rt_idx // Int32(c["num_topk"])
-             rw = Float32(topk_weights[rt_idx])
-             we_base = w2_base + eid * Int64(c["w2_words"] * 4)
-@@ -433,7 +444,7 @@ class MoETinyDecodeKernelBackend:
-             o1 = cute.arch.shuffle_sync_bfly(acc1, offset=4)
-             o2 = cute.arch.shuffle_sync_bfly(acc2, offset=4)
-             o3 = cute.arch.shuffle_sync_bfly(acc3, offset=4)
--            if cgrp == Int32(0):
-+            if route_active and cgrp == Int32(0):
-                 if (r8 % Int32(2)) == Int32(0):
-                     ob = out_base + Int64(tok) * Int64(c["k"] * 2)
-                     accs = (acc0, acc1, acc2, acc3)
+@@ -2412,6 +2487,7 @@ class MoEMicroKernelBackend:
+                 intermediate,
+                 topk_ids,
+                 topk_weights,
++                route_expert_limit,
+                 scatter_output,
+                 trellis_lut,
+             )
+@@ -5500,6 +5576,7 @@ class MoEMicroKernelBackend:
+             intermediate,
+             topk_ids,
+             topk_weights,
++            route_expert_limit,
+             scatter_output,
+             trellis_lut,
+         )
+@@ -5631,6 +5708,7 @@ class MoEMicroKernelBackend:
+         intermediate: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+         trellis_lut: cute.Tensor,
+     ):
+@@ -5674,6 +5752,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     else:
+@@ -5687,6 +5766,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+             else:
+@@ -5703,6 +5783,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     else:
+@@ -5716,6 +5797,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     fc2_task += Int32(gdim_x)
+@@ -5740,6 +5822,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 elif cutlass.const_expr(cfg.fc2_n_chunks > 1):
+@@ -5753,6 +5836,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 else:
+@@ -5766,6 +5850,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 fc2_task += Int32(gdim_x)
+@@ -5788,6 +5873,7 @@ class MoEMicroKernelBackend:
+         out_ptr: cute.Pointer,
+         barrier_count: cute.Tensor,
+         barrier_epoch: cute.Tensor,
++        route_expert_limit: Int32,
+         m_val: Int32,
+         grid_x: Int32,
+         stream,
+@@ -5888,6 +5974,7 @@ class MoEMicroKernelBackend:
+                 if cutlass.const_expr(trellis_rot_ptr is not None)
+                 else barrier_count
+             ),
++            route_expert_limit,
+             m_val,
+         ).launch(
+             grid=(grid_x, Int32(1), Int32(1)),
+@@ -5950,6 +6037,7 @@ class MoEMicroKernelBackend:
+             ptr(cutlass.BFloat16, out),
+             barrier_count,
+             barrier_epoch,
++            Int32(w1_alphas.numel()),
+             Int32(m),
+             Int32(grid_x),
+             stream,
 diff --git a/b12x/moe/_shared/kernels/w4a16/host.py b/b12x/moe/_shared/kernels/w4a16/host.py
 index e2eb4d579aa1d1a87bbace0f94bdd9ae93c3bc80..831db31e0190c80300bbdafda8bc1a2b220216b8 100644
 --- a/b12x/moe/_shared/kernels/w4a16/host.py
@@ -1334,18 +1528,66 @@ index e2eb4d579aa1d1a87bbace0f94bdd9ae93c3bc80..831db31e0190c80300bbdafda8bc1a2b
      "unswizzle_block_scale",
      "unswizzle_expert_scales",
 diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels/w4a16/kernel.py
-index af2ca4c205bc547eb15ea9500530edf6982a2e69..7adf48785dd661c746fd6d64418b9113397a82c0 100644
+index af2ca4c205bc547eb15ea9500530edf6982a2e69..f17f8a6208602a2525e08a2206aa91323c3f8731 100644
 --- a/b12x/moe/_shared/kernels/w4a16/kernel.py
 +++ b/b12x/moe/_shared/kernels/w4a16/kernel.py
-@@ -771,6 +771,7 @@ class MoEMicroKernelW4A16SmallMDirect(MoEMicroKernelBackend):
+@@ -771,6 +771,9 @@ class MoEMicroKernelW4A16SmallMDirect(MoEMicroKernelBackend):
              swiglu_beta=swiglu_beta,
              w13_layout=w13_layout,
              compile_time_phase=compile_time_phase,
-+            stage_inactive_routes=True,
++            # Fused direct launches have a compile-time route-table extent.
++            # FC2-only uses runtime M and sanitizes each route inside FC2.
++            stage_inactive_routes=int(compile_time_phase) != 2,
          )
  
  
-@@ -11340,6 +11341,48 @@ def _run_trellis256_dense_current_device(
+@@ -8504,12 +8507,13 @@ def _compile_w4a16_small_m_direct(
+         dummy(cutlass.BFloat16),
+         barrier_fake,
+         barrier_fake,
++        Int32(num_experts),
+         Int32(m),
+         Int32(kernel.grid_x),
+         current_cuda_stream(),
+         compile_spec=KernelCompileSpec.from_facts(
+             "moe.w4a16.small_m_direct",
+-            2,
++            3,
+             ("device_index", None if device is None else int(device.index or 0)),
+             ("m", int(m)),
+             ("hidden_size", int(hidden_size)),
+@@ -8641,12 +8645,13 @@ def _compile_w4a16_fc2_direct(
+         dummy(cutlass.BFloat16),
+         barrier_fake,
+         barrier_fake,
++        Int32(expert_capacity),
+         Int32(2),
+         Int32(kernel.grid_x),
+         current_cuda_stream(),
+         compile_spec=KernelCompileSpec.from_facts(
+             "moe.w4a16.fc2_direct",
+-            4,
++            5,
+             ("device_index", int(device.index or 0)),
+             ("hidden_size", int(hidden_size)),
+             ("intermediate_size", int(intermediate_size)),
+@@ -9863,6 +9868,7 @@ def _w4a16_small_m_direct_launch_flat(
+         ptr(cutlass.BFloat16, output),
+         barrier_count,
+         barrier_epoch,
++        Int32(num_experts),
+         Int32(m),
+         Int32(direct_launch.grid_x),
+         cuda.CUstream(stream_int),
+@@ -10010,6 +10016,7 @@ def _w4a16_fc2_direct_launch_flat(
+         ptr(cutlass.BFloat16, output),
+         barrier_count,
+         barrier_epoch,
++        Int32(num_experts),
+         Int32(m),
+         Int32(launch.grid_x),
+         cuda.CUstream(stream_int),
+@@ -11340,6 +11347,48 @@ def _run_trellis256_dense_current_device(
      if c_tmp is not None and int(c_tmp.data_ptr()) % 16 != 0:
          raise ValueError("c_tmp must be at least 16-byte aligned")
  
@@ -4820,21 +5062,10 @@ index f11afe9c421306504204a7751649d262e0f61bc6..30b69bad6b81df932f44a34dff426436
  
  def _make_workspace(
 diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
-index e40ab190d7e89005ae92f080b40b11d737e67f8e..9361ea4978128e7a18c9068b604e4ab65ddfcd7f 100644
+index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..9361ea4978128e7a18c9068b604e4ab65ddfcd7f 100644
 --- a/b12x/moe/fused_moe/_impl.py
 +++ b/b12x/moe/fused_moe/_impl.py
-@@ -2591,7 +2591,9 @@ def _plan_core_workspace(
-         )
-         requested_route_E = int(route_num_experts or weight_E)
-         full_rotation = weight_layout == "trellis_t256"
--        route_E = requested_route_E if full_rotation else int(weight_E)
-+        # Route metadata must address every physical weight and every global
-+        # router ID accepted through route_expert_map.
-+        route_E = max(int(weight_E), requested_route_E)
-         if full_rotation:
-             if source_format not in _TRELLIS_SOURCE_FORMATS:
-                 raise ValueError(
-@@ -6543,7 +6545,10 @@ def _plan_full_rotation_w4a16_launches(
+@@ -6545,7 +6545,10 @@ def _plan_full_rotation_w4a16_launches(
      if torch.cuda.is_current_stream_capturing():
          raise RuntimeError("Trellis launch planning cannot run during capture")
  
@@ -4846,7 +5077,7 @@ index e40ab190d7e89005ae92f080b40b11d737e67f8e..9361ea4978128e7a18c9068b604e4ab6
      from b12x.moe._shared.kernels.w4a16.kernel import (
          _DEFAULT_MAX_SHARED_MEM,
          compile_w4a16_fused_moe,
-@@ -6656,68 +6661,80 @@ def _plan_full_rotation_w4a16_launches(
+@@ -6658,68 +6661,80 @@ def _plan_full_rotation_w4a16_launches(
              for ids_dtype in (torch.int32, torch.int64)
              for mapped in (False, True)
          )
@@ -4983,7 +5214,7 @@ index e40ab190d7e89005ae92f080b40b11d737e67f8e..9361ea4978128e7a18c9068b604e4ab6
      return fused_launches, topk_sum_launches
  
  
-@@ -7057,6 +7074,7 @@ def _prewarm_w4a16_planned_launches(
+@@ -7059,6 +7074,7 @@ def _prewarm_w4a16_planned_launches(
              route_pack_key = (
                  workspace.device.type,
                  int(torch.cuda.current_device()),
@@ -5329,173 +5560,31 @@ index 0000000000000000000000000000000000000000..f5e73154ac71ae6eb4bc088810a978de
 +
 +    with pytest.raises(RuntimeError, match="CUDA graph capture"):
 +        trellis_linear.run(source, weight, **buffers)
-diff --git a/tests/moe/test_cute_migration_moe_standard_corpus.py b/tests/moe/test_cute_migration_moe_standard_corpus.py
-index 065a5ac7a3a70543c94b9fdb9b4f6e6d09bcd155..2cea1da662bd07eadea757f122834686a83d04c9 100644
---- a/tests/moe/test_cute_migration_moe_standard_corpus.py
-+++ b/tests/moe/test_cute_migration_moe_standard_corpus.py
-@@ -135,12 +135,8 @@ def _make_mxfp4_weights(device: torch.device, *, seed: int) -> _Weights:
-     )
-     # E8M0 byte 122 is exactly 2^-5.  These are checkpoint-native logical
-     # K/32 grids; production preparation repacks them for tiny decode.
--    w1_scale = torch.full(
--        (_E, 2 * _N, _K // 32), 122, dtype=torch.uint8, device=device
--    )
--    w2_scale = torch.full(
--        (_E, _K, _N // 32), 122, dtype=torch.uint8, device=device
--    )
-+    w1_scale = torch.full((_E, 2 * _N, _K // 32), 122, dtype=torch.uint8, device=device)
-+    w2_scale = torch.full((_E, _K, _N // 32), 122, dtype=torch.uint8, device=device)
-     alpha = torch.ones(_E, dtype=torch.float32, device=device)
-     unit = torch.ones(_E, dtype=torch.float32, device=device)
-     return _Weights(
-@@ -232,6 +228,13 @@ def _nvfp4_oracle(
- def _mxfp4_oracle(weights: _Weights, inputs: _Inputs) -> torch.Tensor:
-     # No prepared/repacked tensor participates in this oracle.  It consumes the
-     # checkpoint-native FP4 + E8M0 grids and emulates MXFP8 activation rounding.
-+    active = (inputs.topk_ids >= 0) & (inputs.topk_ids < _E)
-+    oracle_ids = torch.where(
-+        active, inputs.topk_ids, torch.zeros_like(inputs.topk_ids)
-+    ).contiguous()
-+    oracle_weights = torch.where(
-+        active, inputs.topk_weights, torch.zeros_like(inputs.topk_weights)
-+    ).contiguous()
-     return moe_reference_w4a8_mx(
-         inputs.a.float(),
-         weights.w1_fp4,
-@@ -242,8 +245,8 @@ def _mxfp4_oracle(weights: _Weights, inputs: _Inputs) -> torch.Tensor:
-         weights.w2_scale,
-         None,
-         weights.w2_alpha,
--        inputs.topk_ids,
--        inputs.topk_weights,
-+        oracle_ids,
-+        oracle_weights,
-         _E,
-         _K,
-         _N,
-@@ -579,3 +582,37 @@ def test_standard_moe_tiny_decode_live_graph_oracle(
-         min_cos=0.998,
-         max_normalized_rmse=0.05,
-     )
-+
-+
-+def test_standard_moe_tiny_decode_inactive_route_live_graph_oracle(
-+    monkeypatch: pytest.MonkeyPatch,
-+) -> None:
-+    """Ignore scheduler-padding routes during tiny-decode graph replay."""
-+
-+    device = require_b12x()
-+    _reset_dispatch_environment(monkeypatch)
-+    weights = _make_mxfp4_weights(device, seed=301)
-+    initial = _make_inputs(device, m=2, seed=302, route_shift=0)
-+    changed = _make_inputs(device, m=2, seed=303, route_shift=2)
-+    changed.topk_ids[1, 1] = -1
-+
-+    initial_reference = _mxfp4_oracle(weights, initial)
-+    changed_reference = _mxfp4_oracle(weights, changed)
-+    case = _prepare_and_bind(
-+        weights,
-+        initial,
-+        quant_mode="w4a8_mx",
-+        source_format="fp4_e8m0_k32",
-+    )
-+    assert case.scratch_plan.launch_plan.implementation == "micro"
-+    assert case.binding.implementation == "micro"
-+    _run_live_graph_check(
-+        case,
-+        initial=initial,
-+        changed=changed,
-+        initial_reference=initial_reference,
-+        changed_reference=changed_reference,
-+        context="standard-moe-tiny-decode-inactive-route",
-+        min_cos=0.998,
-+        max_normalized_rmse=0.05,
-+    )
-diff --git a/tests/moe/test_fused_moe_planning.py b/tests/moe/test_fused_moe_planning.py
-index bd248c68145df51b653a38a4c80aa1744e525479..48e33fe1d463b0daad14fe7b8f361815653284c7 100644
---- a/tests/moe/test_fused_moe_planning.py
-+++ b/tests/moe/test_fused_moe_planning.py
-@@ -99,6 +99,27 @@ def _subset_router_caps() -> fused_moe.Caps:
-     )
- 
- 
-+def _mapped_packed_caps() -> fused_moe.Caps:
-+    weight_plan = fused_moe.plan_weights(
-+        quant_modes="w4a16",
-+        source_format="compressed_tensors",
-+        activation="silu",
-+        params_dtype=torch.bfloat16,
-+        num_experts=8,
-+        hidden_size=128,
-+        intermediate_size=128,
-+        w13_layout="w13",
-+    )
-+    return fused_moe.Caps(
-+        max_tokens=8,
-+        num_topk=2,
-+        route_num_experts=12,
-+        device="cpu",
-+        weight_plan=weight_plan,
-+        quant_mode="w4a16",
-+    )
-+
-+
- def test_required_nbytes_avoids_launch_prewarm(
-     monkeypatch: pytest.MonkeyPatch,
- ) -> None:
-@@ -159,6 +180,20 @@ def test_non_trellis_core_sizes_routes_for_weight_experts(
-     assert specs["expert_offsets"].shape == (161,)
- 
- 
-+def test_mapped_packed_plan_covers_global_route_namespace(
-+    monkeypatch: pytest.MonkeyPatch,
-+) -> None:
-+    monkeypatch.setattr(fused_moe_impl, "get_num_sm", lambda _device: 188)
-+
-+    plan = fused_moe.plan(_mapped_packed_caps())
-+    specs = {spec.name: spec for spec in plan._core_workspace_plan.tensor_specs}
-+
-+    assert plan._core_workspace_plan.weight_E == 8
-+    assert plan._core_workspace_plan.route_E == 12
-+    assert specs["expert_offsets"].shape == (13,)
-+    assert specs["expert_counts"].shape == (12,)
-+
-+
- def test_unpinned_small_capacity_matches_reachable_block_8(
-     monkeypatch: pytest.MonkeyPatch,
- ) -> None:
 diff --git a/tests/moe/test_w4a16_e2e.py b/tests/moe/test_w4a16_e2e.py
-index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e77789a3c2acb 100644
+index 6d63a02e6512a5b84296dc68a9e8181500b0c1c1..68d580455ffb14fb7d7a8933ba6e9a8205b27366 100644
 --- a/tests/moe/test_w4a16_e2e.py
 +++ b/tests/moe/test_w4a16_e2e.py
-@@ -146,6 +146,7 @@ def test_w4a16_small_m_direct_barrier_modes_eager_and_graph(
-         topk_weights=topk_weights,
-         topk_ids=topk_ids,
-         quant_mode="w4a16",
-+        output=torch.empty_like(x),
-     )
-     expected = _reference_w4a16(
-         x,
-@@ -328,7 +329,10 @@ def test_trellis_w4a16_capture_prewarm_uses_exact_runtime_key(
-         n=2048,
-         activation="silu",
-         trellis_bits=3,
-+        trellis_codebook="mcg",
-+        trellis_pair_kinds=None,
-         trellis_tile_config=None,
-+        coupled_hadamard=False,
-     )
-     fused_calls: list[dict[str, object]] = []
-     resolved_fused = object()
-@@ -736,6 +740,7 @@ def test_w4a16_fp4_e8m0_k32_kernel_matches_raw_e8m0_oracle(
-             block_expert_ids=buffers.block_expert_ids,
-             packed_route_count=buffers.packed_route_count,
-             expert_offsets=buffers.expert_offsets,
-+            expert_counts=buffers.expert_counts,
-             swiglu_limit=10.0 if activation == "silu" else None,
-         )
+@@ -62,6 +62,19 @@ def test_w4a16_small_m_host_barrier_reset_kill_switch(
+     assert not _small_m_direct_host_barrier_reset_enabled()
  
-@@ -1083,6 +1088,137 @@ def test_w4a16_e8m0_native_micro_matches_raw_e8m0_oracle(
+ 
++def test_w4a16_fc2_runtime_m_does_not_use_fixed_route_staging() -> None:
++    kernel = MoEMicroKernelW4A16SmallMDirect(
++        activation="silu",
++        fast_math=False,
++        share_input_across_experts=False,
++        share_expert_scales=True,
++        single_token=False,
++        scale_format="e8m0_k32",
++        compile_time_phase=2,
++    )
++    assert not kernel.stage_inactive_routes
++
++
+ @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+ @pytest.mark.parametrize("host_barrier_reset", [False, True])
+ def test_w4a16_small_m_direct_barrier_modes_eager_and_graph(
+@@ -1088,6 +1101,148 @@ def test_w4a16_e8m0_native_micro_matches_raw_e8m0_oracle(
          _assert_matches_oracle(buffers.output, expected, activation=activation)
  
  
@@ -5503,8 +5592,25 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
 +@pytest.mark.parametrize("m", [1, 2, 4, 8])
 +def test_w4a16_e8m0_native_micro_ignores_inactive_routes_during_graph_replay(
 +    m: int,
++    monkeypatch: pytest.MonkeyPatch,
 +) -> None:
 +    """Native small-M execution must not address weights for inactive routes."""
++    import b12x.moe._shared.kernels.w4a16.kernel as w4a16_kernel
++
++    monkeypatch.setenv("B12X_W4A16_SMALL_M_DIRECT", "1")
++    direct_launches = 0
++    real_direct_launch = w4a16_kernel._w4a16_small_m_direct_launch_flat
++
++    def spy_direct_launch(*args, **kwargs) -> None:
++        nonlocal direct_launches
++        direct_launches += 1
++        real_direct_launch(*args, **kwargs)
++
++    monkeypatch.setattr(
++        w4a16_kernel,
++        "_w4a16_small_m_direct_launch_flat",
++        spy_direct_launch,
++    )
 +    experts, hidden_size, intermediate_size = 4, 128, 192
 +    topk, activation = 2, "situ"
 +    rows = 2 * intermediate_size
@@ -5524,9 +5630,7 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
 +        device="cuda",
 +    )
 +    w13_scale = _pattern_e8m0((experts, rows, hidden_size // 32))
-+    w2_scale = _pattern_e8m0(
-+        (experts, hidden_size, intermediate_size // 32), offset=1
-+    )
++    w2_scale = _pattern_e8m0((experts, hidden_size, intermediate_size // 32), offset=1)
 +    global_scale = torch.ones(experts, dtype=torch.float32, device="cuda")
 +    prepared = prepare_w4a16_e8m0_native_weights(
 +        w13,
@@ -5553,9 +5657,7 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
 +        device="cuda",
 +    )
 +    inputs = torch.randn(m, hidden_size, dtype=torch.bfloat16, device="cuda")
-+    topk_ids = torch.randint(
-+        0, experts, (m, topk), dtype=torch.int32, device="cuda"
-+    )
++    topk_ids = torch.randint(0, experts, (m, topk), dtype=torch.int32, device="cuda")
 +    topk_weights = torch.rand(m, topk, dtype=torch.float32, device="cuda")
 +
 +    def launch() -> torch.Tensor:
@@ -5576,24 +5678,24 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
 +            expert_offsets=buffers.expert_offsets,
 +        )
 +
-+    launch()
++    valid_eager = launch().clone()
 +    torch.cuda.synchronize()
++    assert direct_launches == 1
++    assert bool(torch.isfinite(valid_eager).all().item())
++    assert bool((valid_eager.abs().sum(dim=1) > 0).all().item())
 +    graph = torch.cuda.CUDAGraph()
 +    with torch.cuda.graph(graph):
 +        captured = launch()
++    assert direct_launches == 2
 +
 +    inactive_ids = topk_ids.clone()
-+    inactive_ids[-1] = torch.tensor(
-+        [-1, experts], dtype=torch.int32, device="cuda"
-+    )
++    inactive_ids[-1] = torch.tensor([-1, experts], dtype=torch.int32, device="cuda")
 +    if m > 1:
 +        inactive_ids[0, 0] = -1
 +    topk_ids.copy_(inactive_ids)
 +    original_weights = topk_weights.clone()
 +    active = (inactive_ids >= 0) & (inactive_ids < experts)
-+    reference_ids = torch.where(
-+        active, inactive_ids, torch.zeros_like(inactive_ids)
-+    )
++    reference_ids = torch.where(active, inactive_ids, torch.zeros_like(inactive_ids))
 +    reference_weights = torch.where(
 +        active, topk_weights, torch.zeros_like(topk_weights)
 +    )
@@ -5617,9 +5719,7 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
 +    eager = launch().clone()
 +    torch.cuda.synchronize()
 +    _assert_matches_oracle(eager, expected, activation=activation)
-+    torch.testing.assert_close(
-+        eager[-1], torch.zeros_like(eager[-1]), rtol=0, atol=0
-+    )
++    torch.testing.assert_close(eager[-1], torch.zeros_like(eager[-1]), rtol=0, atol=0)
 +
 +    captured.fill_(float("nan"))
 +    graph.replay()
@@ -5633,30 +5733,148 @@ index a9fa7f96e7cb8caf994e62a0a18b4052fb0d987c..1347b719d03938ec38dc041f8b2e7778
  @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
  def test_w4a16_e8m0_native_aligned_generic_fc1_uses_k32_scale_stride() -> None:
      """K/32 scales keep their native expert stride in aligned generic FC1."""
-@@ -3018,6 +3154,7 @@ def test_w4a16_moe_swiglu_limit_matches_oracle_under_cuda_graph() -> None:
-         block_expert_ids=buffers.block_expert_ids,
-         packed_route_count=buffers.packed_route_count,
-         expert_offsets=buffers.expert_offsets,
-+        expert_counts=buffers.expert_counts,
-         swiglu_limit=swiglu_limit,
+@@ -3256,6 +3411,73 @@ def test_w4a16_fc2_only_consumes_contiguous_bf16_and_native_mxfp4() -> None:
+     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+ 
+ 
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
++@pytest.mark.parametrize("intermediate_size", [256, 512])
++def test_w4a16_fc2_only_zeroes_invalid_routes_at_runtime_m3(
++    intermediate_size: int,
++) -> None:
++    experts, hidden_size, routes = 2, 128, 3
++    w2 = torch.empty(
++        (experts, hidden_size, intermediate_size // 2),
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    w2[0].fill_(0x11)
++    w2[1].fill_(0x22)
++    scales = torch.full(
++        (experts, hidden_size, intermediate_size // 32),
++        127,
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    intermediate = torch.ones(
++        (routes, intermediate_size), dtype=torch.bfloat16, device="cuda"
++    )
++    route_ids = torch.tensor([0, -1, experts], dtype=torch.int32, device="cuda")
++    route_weights = torch.tensor([0.25, 0.5, 1.0], dtype=torch.float32, device="cuda")
++    original_ids = route_ids.clone()
++    original_weights = route_weights.clone()
++
++    prepared = prepare_w4a16_fc2_e8m0(w2, scales)
++    actual = run_w4a16_fc2_e8m0(
++        intermediate,
++        prepared,
++        route_ids,
++        route_weights,
++    )
++    expected_values = torch.tensor(
++        [intermediate_size / 8.0, 0.0, 0.0],
++        dtype=torch.bfloat16,
++        device="cuda",
++    )
++    expected = expected_values[:, None].expand_as(actual)
++
++    assert bool(torch.isfinite(actual).all().item())
++    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, original_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
++
++    graph_output = torch.empty_like(actual)
++    prewarm_w4a16_fc2_e8m0(prepared, route_ids_dtype=torch.int32)
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        captured = run_w4a16_fc2_e8m0(
++            intermediate,
++            prepared,
++            route_ids,
++            route_weights,
++            output=graph_output,
++        )
++    captured.fill_(float("nan"))
++    graph.replay()
++    torch.cuda.synchronize()
++    assert captured is graph_output
++    assert bool(torch.isfinite(captured).all().item())
++    torch.testing.assert_close(captured, expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, original_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
++
++
+ @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     experts, hidden_size, intermediate_size, routes = 5, 128, 256, 7
+@@ -3275,15 +3497,11 @@ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     intermediate = torch.ones(
+         (routes, intermediate_size), dtype=torch.bfloat16, device="cuda"
+     )
+-    route_ids = torch.tensor(
+-        [0, 1, 2, 3, 4, 0, 2], dtype=torch.int32, device="cuda"
+-    )
++    route_ids = torch.tensor([0, 1, 0, 1, 0, 1, 0], dtype=torch.int32, device="cuda")
+     route_weights = torch.linspace(
+         0.125, 0.875, routes, dtype=torch.float32, device="cuda"
+     )
+-    output = torch.empty(
+-        (routes, hidden_size), dtype=torch.bfloat16, device="cuda"
+-    )
++    output = torch.empty((routes, hidden_size), dtype=torch.bfloat16, device="cuda")
+ 
+     prepared = prepare_w4a16_fc2_e8m0(w2, scales)
+     prewarm_w4a16_fc2_e8m0(prepared, route_ids_dtype=torch.int32)
+@@ -3301,14 +3519,46 @@ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     graph.replay()
+     torch.cuda.synchronize()
+ 
+-    expected = torch.empty_like(output)
++    valid_values = (
++        256.0
++        * route_weights
++        * torch.where(
++            route_ids == 0,
++            torch.tensor(0.5, device="cuda"),
++            torch.tensor(1.0, device="cuda"),
++        )
++    )
++    valid_expected = valid_values.to(torch.bfloat16)[:, None].expand_as(output)
++    torch.testing.assert_close(captured, valid_expected, rtol=0, atol=0)
++
++    invalid_ids = torch.tensor(
++        [0, -1, 1, experts, 0, -9, 1], dtype=torch.int32, device="cuda"
++    )
++    route_ids.copy_(invalid_ids)
++    original_weights = route_weights.clone()
++    invalid_values = torch.tensor(
++        [16.0, 0.0, 96.0, 0.0, 80.0, 0.0, 224.0],
++        dtype=torch.bfloat16,
++        device="cuda",
++    )
++    invalid_expected = invalid_values[:, None].expand_as(output)
++
++    eager = torch.empty_like(output)
+     run_w4a16_fc2_e8m0(
+         intermediate,
+         prepared,
+         route_ids,
+         route_weights,
+-        output=expected,
++        output=eager,
      )
      torch.cuda.synchronize()
-@@ -3042,6 +3179,7 @@ def test_w4a16_moe_swiglu_limit_matches_oracle_under_cuda_graph() -> None:
-             block_expert_ids=buffers.block_expert_ids,
-             packed_route_count=buffers.packed_route_count,
-             expert_offsets=buffers.expert_offsets,
-+            expert_counts=buffers.expert_counts,
-             swiglu_limit=swiglu_limit,
-         )
-     graph.replay()
-@@ -3129,6 +3267,7 @@ def test_w4a16_preplanned_capacity_launch_accepts_smaller_live_m() -> None:
-             block_expert_ids=buffers.block_expert_ids,
-             packed_route_count=buffers.packed_route_count,
-             expert_offsets=buffers.expert_offsets,
-+            expert_counts=buffers.expert_counts,
-             fused_launch=fused_launch,
-             topk_sum_launch=topk_sum_launch,
-         )
++    torch.testing.assert_close(eager, invalid_expected, rtol=0, atol=0)
++
++    captured.fill_(float("nan"))
++    graph.replay()
++    torch.cuda.synchronize()
+     assert captured is output
+-    torch.testing.assert_close(captured, expected, rtol=0, atol=0)
++    assert bool(torch.isfinite(captured).all().item())
++    torch.testing.assert_close(captured, invalid_expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, invalid_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
 diff --git a/tests/moe/test_w4a16_mixed_trellis.py b/tests/moe/test_w4a16_mixed_trellis.py
 index 82493c9f2054ed4dfaf3841cd429dbd2f2b9bacf..ba0203f7e130af38164bf4fc8ea6576c77dfe6c4 100644
 --- a/tests/moe/test_w4a16_mixed_trellis.py

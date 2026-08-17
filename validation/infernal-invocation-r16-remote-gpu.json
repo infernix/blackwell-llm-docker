@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "qualified",
   "purpose": "Release qualification receipt for DeepSeek-V4-Flash inactive-route correctness, native KV tier replay, and GLM-5.2 B12X runtime contracts",
-  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16",
   "image_id": "sha256:13248fb258d9750d26a305ffad9def6858848f1a209ab1dad2486fd6ce203dc1",
   "registry_digest": "sha256:106345a4b2fa29cd20eaea5ad20ed8064c9de9cfbe048b2840a9a52e65f28824",
   "image_size_bytes": 30765495114,
@@ -10,7 +10,7 @@
   "validator_host": "192.168.0.69",
   "gpu_ids": [4, 5, 6, 7],
   "vllm_tree": "5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a",
-  "b12x_tree": "8106764e7d43daba83c1f10ef205f84c167b523c",
+  "b12x_tree": "6965c4873e170d956431390c3dec3d99c828eea1",
   "lmcache_tree": "e045d729bc5c4c63a40e13d032f42923de97812f",
   "source_composition": {
     "docker_composition_commit": "39a599f462a47aa7cb7037b02730d12011f5c5e5",
@@ -22,7 +22,7 @@
     },
     "b12x": {
       "base": "master@6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4",
-      "tree": "8106764e7d43daba83c1f10ef205f84c167b523c",
+      "tree": "6965c4873e170d956431390c3dec3d99c828eea1",
       "integrated_pull_requests": [145, 221, 223, 227, 228, 229, 230],
       "source_patches": [],
       "post_build_audit": "The same tree is produced by b12x master c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5 plus the unmerged heads represented by pull requests 145, 221, 223, and 227."
@@ -35,7 +35,7 @@
     }
   },
   "runtime_packages": {
-    "vllm": "0.26.1rc0+infernal.invocation.cu133.r16.vllm5beffc4.b12x8106764",
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r16.vllm5beffc4.b12x6965c48",
     "b12x": "1.2.3",
     "torch": "2.13.0",
     "cuda": "13.3",

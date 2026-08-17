@@ -194,7 +194,7 @@ PyTorch 2.13.0, NCCL 2.31.2, FlashInfer 0.6.18, CUTLASS DSL 4.6.2, XGrammar
 0.2.5, and InstantTensor 0.1.9.
 
 ```text
-voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16
+voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16
 sha256:106345a4b2fa29cd20eaea5ad20ed8064c9de9cfbe048b2840a9a52e65f28824
 ```
 

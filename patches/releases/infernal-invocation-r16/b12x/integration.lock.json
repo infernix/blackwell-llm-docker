@@ -1,15 +1,20 @@
 {
   "base": {
-    "commit": "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4",
+    "commit": "c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
     "ref": "refs/heads/master",
     "repository": "https://github.com/local-inference-lab/b12x.git"
   },
+  "composition": null,
+  "composition_strategy": "merge",
   "manifest": {
-    "sha256": "70bf0df9b778858f626b62ff8448df076d0493e16232a895386bd89b111a27e2"
+    "sha256": "ea3c40a20ace6d394e3d09097373208c4f831568a92c9d0e04e0fbd9638f258d"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
     {
+      "commits": [
+        "7f88972df71d580951115220b75923078b769fe8"
+      ],
       "disposition": "merged",
       "head": "7f88972df71d580951115220b75923078b769fe8",
       "number": 145,
@@ -17,6 +22,9 @@
       "title": "Qualify CUTLASS DSL 4.6.2"
     },
     {
+      "commits": [
+        "413f96e889dad1ae0752fd1f4be9d37f56849600"
+      ],
       "disposition": "merged",
       "head": "413f96e889dad1ae0752fd1f4be9d37f56849600",
       "number": 221,
@@ -24,6 +32,9 @@
       "title": "Fuse unpaired K6/MCG dense execution in CuTe DSL"
     },
     {
+      "commits": [
+        "27897e85f12a2eaea141d9b51229adc3d6fd3071"
+      ],
       "disposition": "merged",
       "head": "27897e85f12a2eaea141d9b51229adc3d6fd3071",
       "number": 223,
@@ -31,13 +42,19 @@
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
     },
     {
+      "commits": [
+        "6a41770fb1514c4db03b4ff552380ec6821a3ae9"
+      ],
       "disposition": "merged",
-      "head": "debaafe156c9824396178d53e01e5f15d2a2a04a",
+      "head": "6a41770fb1514c4db03b4ff552380ec6821a3ae9",
       "number": 227,
       "ref": "refs/pull/227/head",
       "title": "Honor inactive routes in native W4A16 microkernels"
     },
     {
+      "commits": [
+        "50046df84a15cc5f76b94260e897fd39072b2fdf"
+      ],
       "disposition": "merged",
       "head": "50046df84a15cc5f76b94260e897fd39072b2fdf",
       "number": 228,
@@ -45,6 +62,9 @@
       "title": "Ignore inactive MoE routes in tiny decode"
     },
     {
+      "commits": [
+        "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb"
+      ],
       "disposition": "merged",
       "head": "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb",
       "number": 229,
@@ -52,6 +72,9 @@
       "title": "Align W4A16 CUDA graph tests with buffer contracts"
     },
     {
+      "commits": [
+        "156920046e858f413db0c51e53cd25b9020d5f40"
+      ],
       "disposition": "merged",
       "head": "156920046e858f413db0c51e53cd25b9020d5f40",
       "number": 230,
@@ -61,8 +84,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "b7e7f02ee13df43f3f1ba7d00cbfad95b568a299f58ee08d51aa39a7699b195a",
-    "tree": "8106764e7d43daba83c1f10ef205f84c167b523c"
+    "patch_sha256": "0cc36dbbef0b8c24fea172f962c4945a0c38d0154d6dfac8ac566bf726191397",
+    "tree": "6965c4873e170d956431390c3dec3d99c828eea1"
   },
   "schema_version": 1,
   "source_patches": []

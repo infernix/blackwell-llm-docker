@@ -132,7 +132,7 @@ jq -e '
     .head == "27897e85f12a2eaea141d9b51229adc3d6fd3071") and
   any(.pull_requests[];
     .number == 227 and
-    .head == "debaafe156c9824396178d53e01e5f15d2a2a04a") and
+    .head == "6a41770fb1514c4db03b4ff552380ec6821a3ae9") and
   any(.pull_requests[];
     .number == 228 and
     .head == "50046df84a15cc5f76b94260e897fd39072b2fdf") and
@@ -148,8 +148,8 @@ jq -e '
     .disposition == "unsupported")
 ' "${b12x_manifest}" >/dev/null
 jq -e '
-  .base.commit == "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4" and
-  .result.tree == "8106764e7d43daba83c1f10ef205f84c167b523c" and
+  .base.commit == "c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5" and
+  .result.tree == "6965c4873e170d956431390c3dec3d99c828eea1" and
   any(.pull_requests[];
     .number == 221 and
     .head == "413f96e889dad1ae0752fd1f4be9d37f56849600" and
@@ -160,7 +160,7 @@ jq -e '
     .disposition == "merged") and
   any(.pull_requests[];
     .number == 227 and
-    .head == "debaafe156c9824396178d53e01e5f15d2a2a04a" and
+    .head == "6a41770fb1514c4db03b4ff552380ec6821a3ae9" and
     .disposition == "merged") and
   any(.pull_requests[];
     .number == 228 and
@@ -183,7 +183,7 @@ grep -Fxq 'revision=r16' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
 grep -Fxq 'vllm_tree=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
-grep -Fxq 'b12x_tree=8106764e7d43daba83c1f10ef205f84c167b523c' <<<"${output}"
+grep -Fxq 'b12x_tree=6965c4873e170d956431390c3dec3d99c828eea1' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
 grep -Fxq 'lmcache_tree=e045d729bc5c4c63a40e13d032f42923de97812f' <<<"${output}"
 grep -Fxq 'torch=2.13.0' <<<"${output}"

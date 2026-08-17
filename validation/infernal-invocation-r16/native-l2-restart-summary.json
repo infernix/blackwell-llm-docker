@@ -2,7 +2,7 @@
   "schema_version": 1,
   "status": "qualified",
   "purpose": "Native filesystem KV tier publication and replay qualification across an engine restart",
-  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x8106764-fi1ac6942-cu133-torch213-20260817-r16",
+  "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12x6965c48-fi1ac6942-cu133-torch213-20260817-r16",
   "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
   "validator_host": "192.168.0.69",
   "gpu_ids": [4, 5],
