@@ -186,12 +186,12 @@ case "${ONLINE_QUANT}" in
       QUANTIZATION_CONFIG_JSON='{"linear":{"weight":"mxfp8"},"shared_experts":{"weight":"mxfp8"},"ignore":["re:^model\\.layers\\.0\\.","re:.*\\.self_attn\\.indexer\\.","re:.*\\.mlp\\.gate$","model.layers.78.eh_proj","lm_head"]}'
     fi
     ;;
-  exl3-b6)
+  trellis-mcg-b6|exl3-b6)
     [[ "${QUANTIZATION}" == "exl3" ]] || \
-      die "ONLINE_QUANT=exl3-b6 requires QUANTIZATION=exl3"
+      die "ONLINE_QUANT=${ONLINE_QUANT} requires QUANTIZATION=exl3"
     if [[ -n "${VLLM_EXL3_ONLINE_TRELLIS_BITS:-}" && \
           "${VLLM_EXL3_ONLINE_TRELLIS_BITS}" != "6" ]]; then
-      die "ONLINE_QUANT=exl3-b6 requires VLLM_EXL3_ONLINE_TRELLIS_BITS=6"
+      die "ONLINE_QUANT=${ONLINE_QUANT} requires VLLM_EXL3_ONLINE_TRELLIS_BITS=6"
     fi
     export VLLM_EXL3_ONLINE_TRELLIS_BITS=6
     export VLLM_EXL3_ENCODER_SOURCE="${VLLM_EXL3_ENCODER_SOURCE:-/opt/exllamav3-python/exllamav3}"
@@ -215,7 +215,7 @@ case "${ONLINE_QUANT}" in
     [[ -n "${QUANTIZATION_CONFIG_JSON}" ]] || die "ONLINE_QUANT=custom requires QUANTIZATION_CONFIG_JSON"
     ;;
   *)
-    die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, exl3-b6, fp8, or custom"
+    die "ONLINE_QUANT must be none, mxfp8, nf3-mxfp8, trellis-mcg-b6, exl3-b6, fp8, or custom"
     ;;
 esac
 

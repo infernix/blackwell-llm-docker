@@ -1,0 +1,41 @@
+{
+  "base": {
+    "commit": "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "manifest": {
+    "sha256": "686db62a9bc6616312a20a74866a0de08f4c5b8824bb3983caac91db175f308d"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "disposition": "merged",
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "number": 145,
+      "ref": "refs/pull/145/head",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "disposition": "merged",
+      "head": "413f96e889dad1ae0752fd1f4be9d37f56849600",
+      "number": 221,
+      "ref": "refs/pull/221/head",
+      "title": "Fuse unpaired K6/MCG dense execution in CuTe DSL"
+    },
+    {
+      "disposition": "merged",
+      "head": "27897e85f12a2eaea141d9b51229adc3d6fd3071",
+      "number": 223,
+      "ref": "refs/pull/223/head",
+      "title": "Execute projection-mixed MCG K3/K4/K5 experts"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "3cad7624c3f7de1f43181ddcfec746c282e8305ad3a343fc136bd8c365bfdcb7",
+    "tree": "2227a86c8d56672cb96c790bb62d3c9e2c0118ee"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

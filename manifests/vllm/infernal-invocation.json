@@ -66,8 +66,8 @@
     },
     {
       "number": 300,
-      "head": "c6b4fa5ec0dfa7fb62d1ba81da11071b95948be2",
-      "title": "Load projection-mixed EXL3 R7 checkpoints"
+      "head": "901a7c50e5d344b5bea975c3393c4dc23c958fc1",
+      "title": "Load projection-mixed EXL3 routed experts"
     },
     {
       "number": 301,
@@ -90,11 +90,6 @@
       "title": "Publish filesystem KV blocks without inode replacement"
     },
     {
-      "number": 305,
-      "head": "a5389deea51a64727bbca303ecabcd070517479f",
-      "title": "Own borrowed weights before deferred online processing"
-    },
-    {
       "number": 308,
       "head": "053e6351d0b3b3e35c969c9e3933db64d30a7164",
       "title": "Zero recycled blocks for heterogeneous attention caches"
@@ -105,11 +100,6 @@
       "title": "Defer MLA DCP workspace allocation until CUDA materialization"
     },
     {
-      "number": 315,
-      "head": "ca9668472dc1dad4b99ac35fb6c34772828b81f7",
-      "title": "Load Brandon GLM-5.2 SQG W4A8"
-    },
-    {
       "number": 320,
       "head": "e9534672129b961399b1625d33d83c79eacded30",
       "title": "Validate speculative structured output before commit"
@@ -117,6 +107,18 @@
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 315,
+      "head": "ca9668472dc1dad4b99ac35fb6c34772828b81f7",
+      "disposition": "unsupported",
+      "reason": "Infernal Invocation does not support the Brandon GLM-5.2 SQG W4A8 checkpoint. The release supports the GLM-5.2 NVFP4 and projection-mixed Trellis checkpoint contracts."
+    },
+    {
+      "number": 305,
+      "head": "a5389deea51a64727bbca303ecabcd070517479f",
+      "disposition": "superseded",
+      "reason": "The Infernal Invocation base owns deferred accelerator weights through commit 6a5c183c7e, so the profile-specific borrowed-weight ownership patch is not required."
+    },
     {
       "number": 341,
       "head": "2319414c99c917fd0d2eeed1fa5d09a7ff1bbd04",

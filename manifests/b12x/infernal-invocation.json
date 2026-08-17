@@ -10,38 +10,24 @@
       "title": "Qualify CUTLASS DSL 4.6.2"
     },
     {
-      "number": 146,
-      "head": "fb4bc17b8329ff8602399924352570e0d54cdc8a",
-      "title": "Validate the wave-balanced W4A16 FC2 tile"
+      "number": 221,
+      "head": "413f96e889dad1ae0752fd1f4be9d37f56849600",
+      "title": "Fuse unpaired K6/MCG dense execution in CuTe DSL"
     },
     {
-      "number": 148,
-      "head": "3fc1f0d4000879c75db9e91fbe4a3f328286af6f",
-      "title": "Serve projection-mixed EXL3 K3/K4/K5 weights"
-    },
-    {
-      "number": 149,
-      "head": "b6a7672c9dee63f070585c3a5098c6803a1b5762",
-      "title": "Test W4A8 QSRT rate compatibility"
-    },
-    {
-      "number": 150,
-      "head": "a3f06e262a9f351e3b916d90c5e916cde53a5dbe",
-      "title": "Allocate W4A16 route histograms for CUDA graph capture"
-    },
-    {
-      "number": 197,
-      "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",
-      "title": "Execute Brandon GLM-5.2 SQG W4A8"
-    },
-    {
-      "number": 214,
-      "head": "321c24a7ef60174cd6131d932f43bb84a4f3a60f",
-      "title": "Ignore inactive routes in dynamic MoE kernels"
+      "number": 223,
+      "head": "27897e85f12a2eaea141d9b51229adc3d6fd3071",
+      "title": "Execute projection-mixed MCG K3/K4/K5 experts"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 197,
+      "head": "b234532cd35bf57c0efda1439981c72565ec4e6e",
+      "disposition": "unsupported",
+      "reason": "Infernal Invocation does not support the Brandon GLM-5.2 SQG W4A8 checkpoint. No SQG execution path is included in the release tree."
+    },
     {
       "number": 218,
       "head": "b1270f4d3462ad0b11ced1117915adaa93bef415",

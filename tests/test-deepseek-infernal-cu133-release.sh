@@ -5,14 +5,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dockerfile="${repo_root}/Dockerfile.deepseek-infernal-invocation-cu133-torch213"
 builder="${repo_root}/build-deepseek-infernal-invocation-cu133-torch213.sh"
 pip_check_allowlist="${repo_root}/tests/deepseek-infernal-cu133-pip-check.allowlist"
-compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r15.yml"
-glm_nvfp4_compose_file="${repo_root}/examples/docker-compose-glm52-nvfp4-infernal-invocation-r15.yml"
-glm_exl3_compose_file="${repo_root}/examples/docker-compose-glm52-exl3-infernal-invocation-r15.yml"
-glm_sqg_compose_file="${repo_root}/examples/docker-compose-glm52-sqg-infernal-invocation-r15.yml"
+compose_file="${repo_root}/examples/docker-compose-ds4-infernal-invocation-cu133-r16.yml"
+glm_nvfp4_compose_file="${repo_root}/examples/docker-compose-glm52-nvfp4-infernal-invocation-r16.yml"
+glm_exl3_compose_file="${repo_root}/examples/docker-compose-glm52-exl3-infernal-invocation-r16.yml"
 vllm_manifest="${repo_root}/manifests/vllm/infernal-invocation.json"
-vllm_lock="${repo_root}/patches/releases/infernal-invocation-r15/vllm/integration.lock.json"
+vllm_lock="${repo_root}/patches/releases/infernal-invocation-r16/vllm/integration.lock.json"
 b12x_manifest="${repo_root}/manifests/b12x/infernal-invocation.json"
-b12x_lock="${repo_root}/patches/releases/infernal-invocation-r15/b12x/integration.lock.json"
+b12x_lock="${repo_root}/patches/releases/infernal-invocation-r16/b12x/integration.lock.json"
 
 LC_ALL=C sort -cu "${pip_check_allowlist}"
 
@@ -43,10 +42,7 @@ grep -Fq 'INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}' "${compose_
 docker compose -f "${compose_file}" config --quiet
 docker compose -f "${glm_nvfp4_compose_file}" config --quiet
 docker compose -f "${glm_exl3_compose_file}" config --quiet
-docker compose -f "${glm_sqg_compose_file}" config --quiet
-grep -Fq 'MODEL: ${MODEL:-brandonmusic/GLM-5.2-SQG-W4A8}' "${glm_sqg_compose_file}"
-grep -Fq 'MODEL_REVISION: ${MODEL_REVISION:-593dd0d2de6f79ce4e65303930c22c75e1359d44}' "${glm_sqg_compose_file}"
-grep -Fq 'VLLM_GLM_SQG_W4A8_EVIDENCE_DIR: /cache/evidence/glm52-sqg-r15' "${glm_sqg_compose_file}"
+grep -Fq 'ONLINE_QUANT: ${ONLINE_QUANT:-trellis-mcg-b6}' "${glm_exl3_compose_file}"
 jq -e '
   any(.pull_requests[];
     .number == 302 and
@@ -58,27 +54,31 @@ jq -e '
     .number == 304 and
     .head == "229de6270e511701045fd73af592620901c7422b") and
   any(.pull_requests[];
-    .number == 305 and
-    .head == "a5389deea51a64727bbca303ecabcd070517479f") and
-  any(.pull_requests[];
     .number == 308 and
     .head == "053e6351d0b3b3e35c969c9e3933db64d30a7164") and
   any(.pull_requests[];
     .number == 309 and
     .head == "dc0c026df62448d1bec747d9dd6fb0a01d838f3e") and
   any(.pull_requests[];
-    .number == 315 and
-    .head == "ca9668472dc1dad4b99ac35fb6c34772828b81f7") and
+    .number == 300 and
+    .head == "901a7c50e5d344b5bea975c3393c4dc23c958fc1") and
   any(.pull_requests[];
     .number == 320 and
     .head == "e9534672129b961399b1625d33d83c79eacded30") and
-  all(.pull_requests[]; .number != 291) and
+  all(.pull_requests[]; .number != 291 and .number != 305 and .number != 315) and
   any(.reviewed_exclusions[];
     .number == 291 and
-    .disposition == "superseded")
+    .disposition == "superseded") and
+  any(.reviewed_exclusions[];
+    .number == 305 and
+    .disposition == "superseded") and
+  any(.reviewed_exclusions[];
+    .number == 315 and
+    .disposition == "unsupported")
 ' "${vllm_manifest}" >/dev/null
 jq -e '
-  .result.tree == "068fc8e7270b92077ba753d002da179c865e444d" and
+  .base.commit == "4766b51528c950daa910f8eff38c22c528314154" and
+  .result.tree == "8a32c547fc9c77b40834abfc5ba46d7097166fef" and
   any(.pull_requests[];
     .number == 302 and
     .head == "7d1c21353cf4563b5344c83cf53acecac1f2f99c" and
@@ -92,10 +92,6 @@ jq -e '
     .head == "229de6270e511701045fd73af592620901c7422b" and
     .disposition == "merged") and
   any(.pull_requests[];
-    .number == 305 and
-    .head == "a5389deea51a64727bbca303ecabcd070517479f" and
-    .disposition == "merged") and
-  any(.pull_requests[];
     .number == 308 and
     .head == "053e6351d0b3b3e35c969c9e3933db64d30a7164" and
     .disposition == "merged") and
@@ -104,42 +100,48 @@ jq -e '
     .head == "dc0c026df62448d1bec747d9dd6fb0a01d838f3e" and
     .disposition == "merged") and
   any(.pull_requests[];
-    .number == 315 and
-    .head == "ca9668472dc1dad4b99ac35fb6c34772828b81f7" and
+    .number == 300 and
+    .head == "901a7c50e5d344b5bea975c3393c4dc23c958fc1" and
     .disposition == "merged") and
   any(.pull_requests[];
     .number == 320 and
     .head == "e9534672129b961399b1625d33d83c79eacded30" and
     .disposition == "merged") and
-  all(.pull_requests[]; .number != 291)
+  all(.pull_requests[]; .number != 291 and .number != 305 and .number != 315)
 ' "${vllm_lock}" >/dev/null
 jq -e '
   any(.pull_requests[];
-    .number == 197 and
-    .head == "b234532cd35bf57c0efda1439981c72565ec4e6e") and
+    .number == 221 and
+    .head == "413f96e889dad1ae0752fd1f4be9d37f56849600") and
   any(.pull_requests[];
-    .number == 214 and
-    .head == "321c24a7ef60174cd6131d932f43bb84a4f3a60f")
+    .number == 223 and
+    .head == "27897e85f12a2eaea141d9b51229adc3d6fd3071") and
+  all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214) and
+  any(.reviewed_exclusions[];
+    .number == 197 and
+    .disposition == "unsupported")
 ' "${b12x_manifest}" >/dev/null
 jq -e '
-  .result.tree == "96e5d3d5c2057fa5d4f542e2368951ddbdcb5b42" and
+  .base.commit == "6714ff09bc5be749c6f674ac8e2ba6a3b6a40ab4" and
+  .result.tree == "2227a86c8d56672cb96c790bb62d3c9e2c0118ee" and
   any(.pull_requests[];
-    .number == 197 and
-    .head == "b234532cd35bf57c0efda1439981c72565ec4e6e" and
+    .number == 221 and
+    .head == "413f96e889dad1ae0752fd1f4be9d37f56849600" and
     .disposition == "merged") and
   any(.pull_requests[];
-    .number == 214 and
-    .head == "321c24a7ef60174cd6131d932f43bb84a4f3a60f" and
-    .disposition == "merged")
+    .number == 223 and
+    .head == "27897e85f12a2eaea141d9b51229adc3d6fd3071" and
+    .disposition == "merged") and
+  all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214)
 ' "${b12x_lock}" >/dev/null
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
-grep -Fxq 'revision=r15' <<<"${output}"
+grep -Fxq 'revision=r16' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
-grep -Fxq 'vllm_tree=068fc8e7270b92077ba753d002da179c865e444d' <<<"${output}"
+grep -Fxq 'vllm_tree=8a32c547fc9c77b40834abfc5ba46d7097166fef' <<<"${output}"
 grep -Fxq 'b12x_ref=master' <<<"${output}"
-grep -Fxq 'b12x_tree=96e5d3d5c2057fa5d4f542e2368951ddbdcb5b42' <<<"${output}"
+grep -Fxq 'b12x_tree=2227a86c8d56672cb96c790bb62d3c9e2c0118ee' <<<"${output}"
 grep -Fxq 'lmcache_ref=release/v0.5.2-glm52-dcp-base' <<<"${output}"
 grep -Fxq 'lmcache_tree=5fdf59cfa184bc15dc5414df0bd633da9e49aaae' <<<"${output}"
 grep -Fxq 'torch=2.13.0' <<<"${output}"

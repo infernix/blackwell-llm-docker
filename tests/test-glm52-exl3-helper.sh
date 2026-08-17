@@ -74,10 +74,10 @@ if grep -Fq 'VLLM_EXL3_ABI_SHIM=' <<<"${output}"; then
 fi
 
 b6_output="$(env "${common_env[@]}" \
-  ONLINE_QUANT=exl3-b6 \
+  ONLINE_QUANT=trellis-mcg-b6 \
   VLLM_EXL3_ENCODER_REVISION=test-encoder-revision \
   "${launcher}" 2>&1)"
-grep -Fxq 'ONLINE_QUANT=exl3-b6' <<<"${b6_output}"
+grep -Fxq 'ONLINE_QUANT=trellis-mcg-b6' <<<"${b6_output}"
 grep -Fxq 'VLLM_EXL3_ONLINE_TRELLIS_BITS=6' <<<"${b6_output}"
 grep -Fxq 'VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3' \
   <<<"${b6_output}"
@@ -89,8 +89,14 @@ grep -Fq 'shared_experts' <<<"${b6_output}"
 grep -Fq 'fused_qkv_a_proj' <<<"${b6_output}"
 grep -Fq -- '--quantization-config' <<<"${b6_output}"
 
-override_output="$(env "${common_env[@]}" \
+legacy_b6_output="$(env "${common_env[@]}" \
   ONLINE_QUANT=exl3-b6 \
+  "${launcher}" 2>&1)"
+grep -Fxq 'ONLINE_QUANT=exl3-b6' <<<"${legacy_b6_output}"
+grep -Fxq 'VLLM_EXL3_ONLINE_TRELLIS_BITS=6' <<<"${legacy_b6_output}"
+
+override_output="$(env "${common_env[@]}" \
+  ONLINE_QUANT=trellis-mcg-b6 \
   VLLM_EXL3_ENCODER_SOURCE=/custom/encoder \
   VLLM_EXL3_ONLINE_CACHE_DIR=/custom/cache \
   VLLM_EXL3_ONLINE_CACHE_MODE=readonly \
@@ -100,16 +106,16 @@ grep -Fxq 'VLLM_EXL3_ONLINE_CACHE_DIR=/custom/cache' <<<"${override_output}"
 grep -Fxq 'VLLM_EXL3_ONLINE_CACHE_MODE=readonly' <<<"${override_output}"
 
 if invalid_output="$(env "${common_env[@]}" \
-  QUANTIZATION=modelopt_fp4 ONLINE_QUANT=exl3-b6 "${launcher}" 2>&1)"; then
-  echo 'ONLINE_QUANT=exl3-b6 unexpectedly accepted a non-EXL3 backend' >&2
+  QUANTIZATION=modelopt_fp4 ONLINE_QUANT=trellis-mcg-b6 "${launcher}" 2>&1)"; then
+  echo 'ONLINE_QUANT=trellis-mcg-b6 unexpectedly accepted a non-EXL3 backend' >&2
   exit 1
 fi
-grep -Fq 'ONLINE_QUANT=exl3-b6 requires QUANTIZATION=exl3' <<<"${invalid_output}"
+grep -Fq 'ONLINE_QUANT=trellis-mcg-b6 requires QUANTIZATION=exl3' <<<"${invalid_output}"
 
 if invalid_bits_output="$(env "${common_env[@]}" \
-  ONLINE_QUANT=exl3-b6 VLLM_EXL3_ONLINE_TRELLIS_BITS=5 \
+  ONLINE_QUANT=trellis-mcg-b6 VLLM_EXL3_ONLINE_TRELLIS_BITS=5 \
   "${launcher}" 2>&1)"; then
-  echo 'ONLINE_QUANT=exl3-b6 unexpectedly accepted a non-K6 bit width' >&2
+  echo 'ONLINE_QUANT=trellis-mcg-b6 unexpectedly accepted a non-K6 bit width' >&2
   exit 1
 fi
 grep -Fq 'requires VLLM_EXL3_ONLINE_TRELLIS_BITS=6' \
