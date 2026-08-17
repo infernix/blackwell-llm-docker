@@ -105,6 +105,7 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "SOURCE_OVERLAY_SHA256=${source_overlay_sha256}" \
   --build-arg "RELEASE_NAME=${release_name}" \
   --build-arg "RELEASE_DATE=${release_date}" \
+  --build-arg "RELEASE_ARTIFACT_DIR=${release_root}" \
   --build-arg "DOCKER_COMMIT=${docker_commit}" \
   --file Dockerfile.kimi-k3-qsrt-tp16-runtime \
   --tag "${image}" \
