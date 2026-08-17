@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "39424c101284682993569b7126a7274989899630",
+    "commit": "ba6c5d4660ea9f3587fc4f98ac10970ba810b908",
     "ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r2"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "9635dbf988e1839eeef4e0733af027baa5f638d39e959290b222fb9fd971fa1f"
+    "sha256": "741b574d20149b3d58ea8d96b0462bddc0a1b9e0ae50b8a0c6c772e9ac7a927f"
   },
   "name": "kimi-k3-production-vllm",
   "pull_requests": [
@@ -76,10 +76,10 @@
     },
     {
       "commits": [
-        "efbaa9581032d01e9ce111849ab2d92a26b16757"
+        "3ebc8967dab28a9df103d8c66bff9688525263bc"
       ],
       "disposition": "recorded_in_composition",
-      "head": "efbaa9581032d01e9ce111849ab2d92a26b16757",
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
       "number": 413,
       "ref": "refs/pull/413/head",
       "title": "Stream Kimi-K3 tool arguments incrementally"
@@ -97,8 +97,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "03c44b2ff6bb1c0e19d9ea94304ee2fed54eca4c6c5b00b23c198c1807abf7a6",
-    "tree": "f315a756df18dd7c59e69e8624712f56e0585d32"
+    "patch_sha256": "d672b97b617542a359aa0984bcca5c5510a3b70e1aca4724f2af6f7d4547a069",
+    "tree": "6ca0e5547958af8eba72fc3d35d52e40cbeb6230"
   },
   "schema_version": 1,
   "source_patches": []

@@ -5,7 +5,7 @@
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
   "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r2",
-  "composition_commit": "39424c101284682993569b7126a7274989899630",
+  "composition_commit": "ba6c5d4660ea9f3587fc4f98ac10970ba810b908",
   "pull_requests": [
     {
       "number": 390,
@@ -39,7 +39,7 @@
     },
     {
       "number": 413,
-      "head": "efbaa9581032d01e9ce111849ab2d92a26b16757",
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
       "title": "Stream Kimi-K3 tool arguments incrementally"
     },
     {

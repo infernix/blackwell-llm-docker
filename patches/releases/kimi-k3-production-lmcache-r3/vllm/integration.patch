@@ -676,10 +676,10 @@ index af8723f801a2134adeffb9c5e7402d3b2b7bd2af..6d4226472ea21506d93bafef9f0a01b3
  async def test_render_messages_async_returns_token_prompt():
      renderer = _make_renderer(StubTokenizer([4, 5]))
 diff --git a/tests/tool_use/test_kimi_k3_tool_parser.py b/tests/tool_use/test_kimi_k3_tool_parser.py
-index 118c51db574e5511d4659e93dd57ec4058c3f7d6..8c0c1e880344742f806dbd6440bf802aed5e33cd 100644
+index 118c51db574e5511d4659e93dd57ec4058c3f7d6..47bd9b374acffbf740e517e1d372e5d1e5ea61f9 100644
 --- a/tests/tool_use/test_kimi_k3_tool_parser.py
 +++ b/tests/tool_use/test_kimi_k3_tool_parser.py
-@@ -361,9 +361,122 @@ def test_streaming_split_markers_do_not_leak():
+@@ -361,9 +361,141 @@ def test_streaming_split_markers_do_not_leak():
      assert content == "Hi"
      assert OPEN not in content
      assert SEP not in content
@@ -802,6 +802,25 @@ index 118c51db574e5511d4659e93dd57ec4058c3f7d6..8c0c1e880344742f806dbd6440bf802a
 +    assert json.loads(streamed_arguments) == {"content": "payload"}
 +    non_streamed = parser.extract_tool_calls(previous_text, request)
 +    assert streamed_arguments == non_streamed.tool_calls[0].function.arguments
++
++
++def test_streaming_ignores_call_shaped_text_after_tools_close():
++    parser = KimiK3ToolParser(DummyTokenizer())
++    request = _request()
++    output = _tools() + _call("calc", 1, _arg("x", "number", "1"))
++
++    delta = parser.extract_tool_calls_streaming(
++        previous_text="",
++        current_text=output,
++        delta_text=output,
++        previous_token_ids=[],
++        current_token_ids=[1],
++        delta_token_ids=[1],
++        request=request,
++    )
++
++    assert delta is None
++    assert parser.extract_tool_calls(output, request).tools_called is False
  
  
  def test_tool_call_ids_are_unique_across_messages():
@@ -2125,7 +2144,7 @@ index e0f937f2e6cea39b9175460a656ae3ff6c2740f3..a8eb2bece5f4e641b0b5c1742b7f9ca4
              content_format="string",
              media_io_kwargs=_merge_k3_media_io_kwargs(params.media_io_kwargs),
 diff --git a/vllm/tool_parsers/kimi_k3_tool_parser.py b/vllm/tool_parsers/kimi_k3_tool_parser.py
-index 9f688f2270e4733fe143781b12edfc4437ca8bdc..7dea33d589adb2ca54a036a86e74a7c9ee7a7f96 100644
+index 9f688f2270e4733fe143781b12edfc4437ca8bdc..e1fc5a156996453515a9467c62189db773aaa4f7 100644
 --- a/vllm/tool_parsers/kimi_k3_tool_parser.py
 +++ b/vllm/tool_parsers/kimi_k3_tool_parser.py
 @@ -37,6 +37,7 @@ from collections.abc import Sequence
@@ -2262,7 +2281,7 @@ index 9f688f2270e4733fe143781b12edfc4437ca8bdc..7dea33d589adb2ca54a036a86e74a7c9
  
      def _strip_response_content(self, text: str) -> str | None:
          """Strip XTML response/message markers from generated response text.
-@@ -361,35 +426,60 @@ class KimiK3ToolParser(ToolParser):
+@@ -361,35 +426,66 @@ class KimiK3ToolParser(ToolParser):
          delta_token_ids: Sequence[int],
          request: ChatCompletionRequest,
      ) -> DeltaMessage | None:
@@ -2278,13 +2297,33 @@ index 9f688f2270e4733fe143781b12edfc4437ca8bdc..7dea33d589adb2ca54a036a86e74a7c9
          if m_tools is None:
              return DeltaMessage(content=content) if content else None
  
-         section = current_text[m_tools.end() :]
+-        section = current_text[m_tools.end() :]
 -        calls = [
 -            tc
 -            for m in self._call_re.finditer(section)
 -            if (tc := self._decode_call(m["attrs"], m["body"])) is not None
 -        ]
 -        if len(calls) <= self._sent_tool_call_count:
+-            return DeltaMessage(content=content) if content else None
+-        new = calls[self._sent_tool_call_count :]
+-
+-        deltas = [
+-            DeltaToolCall(
+-                index=self._sent_tool_call_count + i,
+-                id=tc.id,
+-                type="function",
+-                function=DeltaFunctionCall(
+-                    name=tc.function.name, arguments=tc.function.arguments
+-                ).model_dump(exclude_none=True),
++        section_start = m_tools.end()
++        m_tools_close = self._tools_close_re.search(current_text, section_start)
++        section = current_text[
++            section_start : (
++                len(current_text) if m_tools_close is None else m_tools_close.start()
+             )
+-            for i, tc in enumerate(new)
+         ]
+-        self._sent_tool_call_count = len(calls)
 +        opens = list(self._call_open_re.finditer(section))
 +        deltas: list[DeltaToolCall] = []
 +        index = 0
@@ -2330,21 +2369,7 @@ index 9f688f2270e4733fe143781b12edfc4437ca8bdc..7dea33d589adb2ca54a036a86e74a7c9
 +            index += 1
 +
 +        if not deltas:
-             return DeltaMessage(content=content) if content else None
--        new = calls[self._sent_tool_call_count :]
--
--        deltas = [
--            DeltaToolCall(
--                index=self._sent_tool_call_count + i,
--                id=tc.id,
--                type="function",
--                function=DeltaFunctionCall(
--                    name=tc.function.name, arguments=tc.function.arguments
--                ).model_dump(exclude_none=True),
--            )
--            for i, tc in enumerate(new)
--        ]
--        self._sent_tool_call_count = len(calls)
++            return DeltaMessage(content=content) if content else None
          return DeltaMessage(content=content, tool_calls=deltas)
 diff --git a/vllm/v1/attention/ops/dcp_alltoall.py b/vllm/v1/attention/ops/dcp_alltoall.py
 index a5834df26a772193e1d74abf61a5a33205e63d56..e57e753da4e526d83d8f85bf0313a2af7de219d6 100644
