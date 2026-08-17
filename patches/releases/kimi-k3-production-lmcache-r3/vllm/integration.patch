@@ -1,0 +1,2790 @@
+diff --git a/tests/distributed/test_b12x_fused_all_reduce.py b/tests/distributed/test_b12x_fused_all_reduce.py
+index 91b2a84e706cedee721e2c22be77372441db8f15..f0f2068d63f43289e412c987b0c969423eaf44ee 100644
+--- a/tests/distributed/test_b12x_fused_all_reduce.py
++++ b/tests/distributed/test_b12x_fused_all_reduce.py
+@@ -1,6 +1,7 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+ 
++import builtins
+ from types import SimpleNamespace
+ from unittest.mock import MagicMock
+ 
+@@ -29,8 +30,10 @@ from vllm.distributed import tensor_model_parallel_all_reduce
+ from vllm.distributed.device_communicators import custom_all_reduce
+ from vllm.distributed.device_communicators.custom_all_reduce import (
+     CustomAllreduce,
++    _b12x_pcie_allreduce_max_size,
+     _b12x_pcie_dma_min_bytes,
+     _b12x_pcie_oneshot_limits,
++    _load_b12x_pcie_recommended_max_bytes,
+     get_b12x_pcie_allreduce,
+ )
+ from vllm.distributed.parallel_state import get_tp_group, graph_capture
+@@ -425,13 +428,94 @@ def test_b12x_oneshot_buffer_tracks_dispatch_limits(
+         "84KB",
+     )
+ 
+-    assert _b12x_pcie_oneshot_limits() == (
++    assert _b12x_pcie_oneshot_limits(16) == (
+         64 * 1024,
+         84 * 1024,
+         84 * 1024,
+     )
+ 
+ 
++def test_b12x_allreduce_limit_uses_world_size_policy(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.delenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", raising=False)
++    recommender = MagicMock(return_value=160 * 1024)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: recommender,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 160 * 1024
++    assert _b12x_pcie_oneshot_limits(16) == (
++        160 * 1024,
++        84 * 1024,
++        160 * 1024,
++    )
++    recommender.assert_called_with(16, default=84 * 1024)
++
++
++def test_b12x_allreduce_limit_preserves_explicit_operator_value(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", "64KB")
++    recommender = MagicMock(return_value=160 * 1024)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: recommender,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 64 * 1024
++    recommender.assert_not_called()
++
++
++def test_b12x_allreduce_limit_uses_vllm_default_without_b12x_policy(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.delenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", raising=False)
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "_load_b12x_pcie_recommended_max_bytes",
++        lambda: None,
++    )
++
++    assert _b12x_pcie_allreduce_max_size(16) == 84 * 1024
++
++
++def test_b12x_policy_loader_accepts_absent_optional_package(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    original_import = builtins.__import__
++
++    def import_without_b12x(name, *args, **kwargs):
++        if name == "b12x.comm.pcie.pcie_allreduce":
++            raise ModuleNotFoundError("No module named 'b12x'", name="b12x")
++        return original_import(name, *args, **kwargs)
++
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++    monkeypatch.setattr(builtins, "__import__", import_without_b12x)
++    assert _load_b12x_pcie_recommended_max_bytes() is None
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++
++
++def test_b12x_policy_loader_surfaces_broken_dependency(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    original_import = builtins.__import__
++
++    def import_with_broken_dependency(name, *args, **kwargs):
++        if name == "b12x.comm.pcie.pcie_allreduce":
++            raise ModuleNotFoundError("No module named 'cutlass'", name="cutlass")
++        return original_import(name, *args, **kwargs)
++
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++    monkeypatch.setattr(builtins, "__import__", import_with_broken_dependency)
++    with pytest.raises(ModuleNotFoundError, match="cutlass"):
++        _load_b12x_pcie_recommended_max_bytes()
++    _load_b12x_pcie_recommended_max_bytes.cache_clear()
++
++
+ def test_b12x_dma_min_bytes_is_configurable(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+diff --git a/tests/distributed/test_dcp_a2a.py b/tests/distributed/test_dcp_a2a.py
+index b15950b06a1ba38f63124991aa9524b40f95856a..5406742e8cd9768ce262c0b069cae36c3b3dff73 100644
+--- a/tests/distributed/test_dcp_a2a.py
++++ b/tests/distributed/test_dcp_a2a.py
+@@ -1800,6 +1800,65 @@ def test_b12x_kimi_batched_topk_requires_batched_router_binding(monkeypatch):
+     assert result is None
+ 
+ 
++@pytest.mark.skipif(torch.accelerator.device_count() < 1, reason="CUDA is required.")
++def test_b12x_kimi_router_topk_is_stateless(monkeypatch):
++    from vllm.v1.attention.ops import dcp_alltoall
++
++    monkeypatch.setenv("VLLM_USE_B12X_DCP_A2A", "1")
++    monkeypatch.setenv("VLLM_DCP_A2A_MAX_TOKENS", "1")
++    router_logits = torch.zeros(8, 896, dtype=torch.float32, device="cuda")
++    correction_bias = torch.zeros(896, dtype=torch.float32, device="cuda")
++    received: dict[str, Any] = {}
++
++    def kimi_topk16(router, bias, weights, ids):
++        received.update(
++            router=router,
++            bias=bias,
++            weights=weights,
++            ids=ids,
++        )
++
++    monkeypatch.setattr(
++        dcp_alltoall,
++        "_load_b12x_kimi_topk16",
++        lambda: kimi_topk16,
++    )
++
++    actual = dcp_alltoall.try_b12x_kimi_topk16(
++        router_logits,
++        correction_bias,
++    )
++
++    assert actual is not None
++    weights, ids = actual
++    assert weights.shape == ids.shape == (8, 16)
++    assert weights.dtype == torch.float32
++    assert ids.dtype == torch.int32
++    assert received.pop("router") is router_logits
++    assert received.pop("bias") is correction_bias
++    assert received.pop("weights") is weights
++    assert received.pop("ids") is ids
++    assert received == {}
++
++
++def test_b12x_kimi_router_topk_requires_b12x_transport(monkeypatch):
++    from vllm.v1.attention.ops import dcp_alltoall
++
++    monkeypatch.delenv("VLLM_USE_B12X_DCP_A2A", raising=False)
++    monkeypatch.setattr(
++        dcp_alltoall,
++        "_load_b12x_kimi_topk16",
++        lambda: pytest.fail("disabled routing must not load B12X"),
++    )
++
++    result = dcp_alltoall.try_b12x_kimi_topk16(
++        torch.zeros(8, 896),
++        torch.zeros(896),
++    )
++
++    assert result is None
++
++
+ def test_kimi_projection_warmup_respects_transport_token_cap(monkeypatch):
+     from vllm.v1.attention.ops import dcp_alltoall
+ 
+diff --git a/tests/models/kimi_k3/test_mm_preprocess.py b/tests/models/kimi_k3/test_mm_preprocess.py
+index c9932eac397ff0872c48b3461313fe85922d789c..1389ad438d1f59667256a6268da93378b7e390fb 100644
+--- a/tests/models/kimi_k3/test_mm_preprocess.py
++++ b/tests/models/kimi_k3/test_mm_preprocess.py
+@@ -25,11 +25,15 @@ class _Tokenizer:
+ 
+ 
+ class _ProcessingContext:
+-    def __init__(self) -> None:
++    def __init__(self, mm_processor_kwargs: dict[str, object] | None = None) -> None:
++        multimodal_config = SimpleNamespace(
++            mm_processor_kwargs=mm_processor_kwargs,
++        )
+         self.model_config = SimpleNamespace(
+             model="moonshotai/Kimi-K3",
+             revision="test-revision",
+             trust_remote_code=True,
++            get_multimodal_config=lambda: multimodal_config,
+         )
+         self._hf_config = SimpleNamespace(media_placeholder_token_id=42)
+ 
+@@ -71,3 +75,73 @@ def test_kimi_k3_selects_native_image_processor_when_available(
+             KimiK25FusedVisionProcessor if numba_available else None
+         ),
+     }
++
++
++def test_kimi_k3_applies_static_image_patch_limits(
++    monkeypatch: pytest.MonkeyPatch,
++):
++    image_processor = SimpleNamespace(
++        media_proc_cfg={
++            "in_patch_limit": 65536,
++            "patch_limit_on_one_side": 512,
++        },
++        media_tokens_calculator=lambda _media: 1,
++    )
++    monkeypatch.setattr(mm_preprocess, "is_numba_available", lambda: False)
++    monkeypatch.setattr(
++        mm_preprocess,
++        "cached_get_image_processor",
++        lambda *_args, **_kwargs: image_processor,
++    )
++
++    info = mm_preprocess.KimiK3ProcessingInfo(  # type: ignore[arg-type]
++        _ProcessingContext(
++            {
++                "in_patch_limit": 49152,
++                "patch_limit_on_one_side": 384,
++            }
++        )
++    )
++
++    assert info.image_processor is not image_processor
++    assert info.image_processor.media_proc_cfg == {
++        "in_patch_limit": 49152,
++        "patch_limit_on_one_side": 384,
++    }
++    assert image_processor.media_proc_cfg == {
++        "in_patch_limit": 65536,
++        "patch_limit_on_one_side": 512,
++    }
++
++
++@pytest.mark.parametrize(
++    ("processor_kwargs", "message"),
++    [
++        ({"in_patch_limit": True}, "positive integer"),
++        ({"in_patch_limit": 65537}, "exceeds the checkpoint limit"),
++        ({"patch_limit_on_one_side": 513}, "exceeds the checkpoint limit"),
++    ],
++)
++def test_kimi_k3_rejects_invalid_image_patch_limits(
++    monkeypatch: pytest.MonkeyPatch,
++    processor_kwargs: dict[str, object],
++    message: str,
++):
++    image_processor = SimpleNamespace(
++        media_proc_cfg={
++            "in_patch_limit": 65536,
++            "patch_limit_on_one_side": 512,
++        },
++        media_tokens_calculator=lambda _media: 1,
++    )
++    monkeypatch.setattr(mm_preprocess, "is_numba_available", lambda: False)
++    monkeypatch.setattr(
++        mm_preprocess,
++        "cached_get_image_processor",
++        lambda *_args, **_kwargs: image_processor,
++    )
++
++    with pytest.raises(ValueError, match=message):
++        mm_preprocess.KimiK3ProcessingInfo(  # type: ignore[arg-type]
++            _ProcessingContext(processor_kwargs)
++        )
+diff --git a/tests/models/kimi_k3/test_sequence_parallel.py b/tests/models/kimi_k3/test_sequence_parallel.py
+index d0e8000a69a72c4ac5665b7d24a3d5b3529a99df..6193368281445ede65d30edb4c4831ab217a1bfd 100644
+--- a/tests/models/kimi_k3/test_sequence_parallel.py
++++ b/tests/models/kimi_k3/test_sequence_parallel.py
+@@ -525,6 +525,43 @@ def test_kimi_router_marks_precomputed_padding_routes_inactive(monkeypatch):
+     torch.testing.assert_close(ids[2], expected_ids[2])
+ 
+ 
++def test_kimi_router_selects_experts_with_b12x_for_full_logits(monkeypatch):
++    correction_bias = nn.Parameter(torch.zeros(896))
++    router = kimi_model.KimiK3PrecomputedTopKRouter(
++        top_k=16,
++        global_num_experts=896,
++        e_score_correction_bias=correction_bias,
++        renormalize=True,
++        routed_scaling_factor=1.0,
++        scoring_func="sigmoid",
++    )
++    hidden_states = torch.empty(8, 4)
++    router_logits = torch.empty(8, 896, dtype=torch.float32)
++    expected = (torch.empty(8, 16), torch.empty(8, 16, dtype=torch.int32))
++    received: dict[str, torch.Tensor] = {}
++
++    def select_experts(logits: torch.Tensor, bias: torch.Tensor):
++        received.update(logits=logits, bias=bias)
++        return expected
++
++    monkeypatch.setattr(
++        kimi_model,
++        "try_select_kimi_routed_experts",
++        select_experts,
++    )
++
++    actual = router._compute_routing(
++        hidden_states,
++        router_logits,
++        torch.int32,
++    )
++
++    assert actual is expected
++    assert received.pop("logits") is router_logits
++    assert received.pop("bias").data_ptr() == correction_bias.data.data_ptr()
++    assert received == {}
++
++
+ def test_kimi_router_uses_standard_routing_for_non_payload(monkeypatch):
+     router = kimi_model.KimiK3PrecomputedTopKRouter(
+         top_k=16,
+diff --git a/tests/models/test_dspark_mla.py b/tests/models/test_dspark_mla.py
+index 3b6cf4ad07d63698358b572dd63bf87a14bff185..e166a918365670ee322bf72e93fe675e93216917 100644
+--- a/tests/models/test_dspark_mla.py
++++ b/tests/models/test_dspark_mla.py
+@@ -9,6 +9,7 @@ import torch.nn as nn
+ 
+ from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
+ from vllm.model_executor.layers.logits_processor import LogitsProcessor
++from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
+ from vllm.model_executor.models.qwen3_dspark import DSparkMarkovHead
+ from vllm.model_executor.models.registry import ModelRegistry
+ from vllm.model_executor.warmup.kimi_k3_triton_warmup import _get_kda_layer
+@@ -337,3 +338,114 @@ def test_kda_warmup_ignores_cacheless_dspark_layers(
+     monkeypatch.setattr(kimi_k3_kda, "KimiK3DeltaAttention", FakeKDA)
+ 
+     assert _get_kda_layer(worker) is target_layer
++
++
++def _make_local_argmax_model(
++    monkeypatch: pytest.MonkeyPatch,
++) -> K3DSparkForCausalLM:
++    from vllm.model_executor.layers import logits_processor, vocab_parallel_embedding
++
++    monkeypatch.setenv("VLLM_DSPARK_SHARD_MARKOV_HEAD", "1")
++    monkeypatch.delenv("VLLM_DSPARK_REPLICATE_MARKOV_W1", raising=False)
++    monkeypatch.setattr(
++        vocab_parallel_embedding, "get_tensor_model_parallel_rank", lambda: 0
++    )
++    monkeypatch.setattr(
++        vocab_parallel_embedding,
++        "get_tensor_model_parallel_world_size",
++        lambda: 8,
++    )
++    monkeypatch.setattr(
++        logits_processor,
++        "get_current_vllm_config",
++        lambda: SimpleNamespace(model_config=None),
++    )
++
++    model = object.__new__(K3DSparkForCausalLM)
++    nn.Module.__init__(model)
++    model.lm_head = ParallelLMHead(128, 8, prefix="lm_head")
++    model.model = nn.Module()
++    model.model.markov_head = DSparkMarkovHead(128, 128, 8, prefix="markov_head")
++    model.logits_processor = LogitsProcessor(128)
++    model._b12x_dspark_argmax_enabled = False
++    model._b12x_dspark_argmax_cls = None
++    model._b12x_dspark_argmax_runtime = None
++    model._b12x_dspark_argmax_output = None
++    model._b12x_dspark_argmax_max_batch = 8
++    return model
++
++
++@pytest.mark.cpu_test
++def test_k3_dspark_local_argmax_requires_matching_unpadded_shards(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = _make_local_argmax_model(monkeypatch)
++    assert model.supports_local_draft_argmax()
++
++    model.model.markov_head.markov_w2.num_embeddings_padded += 64
++    assert not model.supports_local_draft_argmax()
++
++
++@pytest.mark.cpu_test
++def test_k3_dspark_cutedsl_argmax_uses_tp8_runtime(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = _make_local_argmax_model(monkeypatch)
++    calls = []
++
++    class FakeArgmax:
++        @classmethod
++        def from_exchange_group(cls, **kwargs):
++            calls.append(("construct", kwargs))
++            return cls()
++
++        def fused_add_argmax(self, base, bias, out):
++            calls.append(("sample", base.clone(), bias.clone(), out))
++            return out.fill_(7)
++
++    monkeypatch.setattr(
++        dspark_mla,
++        "get_tp_group",
++        lambda: SimpleNamespace(cpu_group="tp-metadata-group"),
++    )
++    model._b12x_dspark_argmax_cls = FakeArgmax
++    model._b12x_dspark_argmax_enabled = True
++    base = torch.randn((3, 16), dtype=torch.bfloat16)
++    bias = torch.randn_like(base)
++
++    sampled = model.sample_local_draft_logits(base, bias)
++
++    assert sampled.tolist() == [7, 7, 7]
++    assert calls[0] == (
++        "construct",
++        {
++            "exchange_group": "tp-metadata-group",
++            "device": torch.device("cpu"),
++            "local_vocab_size": 16,
++            "max_batch_size": 8,
++        },
++    )
++    assert calls[1][0] == "sample"
++    assert calls[1][3].shape == (3,)
++
++
++@pytest.mark.cpu_test
++def test_k3_dspark_local_argmax_falls_back_to_exact_gather(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = _make_local_argmax_model(monkeypatch)
++    gathered = []
++
++    def fake_all_gather(logits: torch.Tensor, dim: int) -> torch.Tensor:
++        gathered.append((logits.clone(), dim))
++        return logits
++
++    monkeypatch.setattr(dspark_mla, "tensor_model_parallel_all_gather", fake_all_gather)
++    base = torch.tensor([[1.0, 2.0, 3.0, 4.0]], dtype=torch.bfloat16)
++    bias = torch.tensor([[0.0, 4.0, 0.0, 0.0]], dtype=torch.bfloat16)
++
++    sampled = model.sample_local_draft_logits(base, bias)
++
++    assert sampled.tolist() == [1]
++    torch.testing.assert_close(gathered[0][0], base + bias)
++    assert gathered[0][1] == -1
+diff --git a/tests/renderers/test_kimi_k3.py b/tests/renderers/test_kimi_k3.py
+index af8723f801a2134adeffb9c5e7402d3b2b7bd2af..6d4226472ea21506d93bafef9f0a01b3cfcf3da0 100644
+--- a/tests/renderers/test_kimi_k3.py
++++ b/tests/renderers/test_kimi_k3.py
+@@ -341,6 +341,213 @@ def test_render_messages_ignores_client_supplied_xtml_tool_attrs():
+     assert "index" not in conversation[1]
+ 
+ 
++def test_render_messages_merges_split_assistant_prose_and_tool_calls():
++    tokenizer = StubTokenizer([1, 2, 3])
++    renderer = _make_renderer(tokenizer)
++
++    conversation, _ = renderer.render_messages(
++        [
++            {"role": "user", "content": "inspect config"},
++            {"role": "assistant", "content": "Checking config now."},
++            {
++                "role": "assistant",
++                "content": None,
++                "tool_calls": [
++                    {
++                        "id": "call_1",
++                        "type": "function",
++                        "function": {"name": "lookup", "arguments": "{}"},
++                    }
++                ],
++            },
++            {"role": "tool", "tool_call_id": "call_1", "content": "ok"},
++        ],
++        ChatParams(),
++    )
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 1
++    unified = assistant_messages[0]
++    assert unified["content"] == "Checking config now."
++    assert unified["tool_calls"][0]["function"]["name"] == "lookup"
++    # The tool message still resolves against the merged assistant turn.
++    assert conversation[-1]["tool"] == "lookup"
++    assert conversation[-1]["index"] == 1
++    assert tokenizer.conversations[-1] == conversation
++
++
++def test_render_messages_merges_empty_prose_and_tool_calls_pair():
++    tokenizer = StubTokenizer([1, 2, 3])
++    renderer = _make_renderer(tokenizer)
++
++    conversation, _ = renderer.render_messages(
++        [
++            {"role": "user", "content": "go"},
++            {"role": "assistant", "content": ""},
++            {
++                "role": "assistant",
++                "content": None,
++                "tool_calls": [
++                    {
++                        "id": "call_1",
++                        "type": "function",
++                        "function": {"name": "lookup", "arguments": "{}"},
++                    }
++                ],
++            },
++        ],
++        ChatParams(),
++    )
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 1
++    assert assistant_messages[0]["content"] == ""
++    assert assistant_messages[0]["tool_calls"]
++
++
++def test_render_messages_keeps_assistant_pair_when_second_has_prose():
++    tokenizer = StubTokenizer([1, 2, 3])
++    renderer = _make_renderer(tokenizer)
++
++    conversation, _ = renderer.render_messages(
++        [
++            {"role": "user", "content": "go"},
++            {"role": "assistant", "content": "first turn"},
++            {
++                "role": "assistant",
++                "content": "second turn with prose",
++                "tool_calls": [
++                    {
++                        "id": "call_1",
++                        "type": "function",
++                        "function": {"name": "lookup", "arguments": "{}"},
++                    }
++                ],
++            },
++        ],
++        ChatParams(),
++    )
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 2
++    assert assistant_messages[0]["content"] == "first turn"
++    assert assistant_messages[1]["content"] == "second turn with prose"
++
++
++def test_render_messages_keeps_pair_when_both_have_reasoning():
++    tokenizer = StubTokenizer([1, 2, 3])
++    renderer = _make_renderer(tokenizer)
++
++    conversation, _ = renderer.render_messages(
++        [
++            {"role": "user", "content": "go"},
++            {
++                "role": "assistant",
++                "content": "prose",
++                "reasoning": "thought A",
++            },
++            {
++                "role": "assistant",
++                "content": None,
++                "reasoning": "thought B",
++                "tool_calls": [
++                    {
++                        "id": "call_1",
++                        "type": "function",
++                        "function": {"name": "lookup", "arguments": "{}"},
++                    }
++                ],
++            },
++        ],
++        ChatParams(),
++    )
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 2
++    assert assistant_messages[0]["reasoning"] == "thought A"
++    assert assistant_messages[1]["reasoning"] == "thought B"
++
++
++def test_render_messages_merge_preserves_single_reasoning():
++    tokenizer = StubTokenizer([1, 2, 3])
++    renderer = _make_renderer(tokenizer)
++
++    messages = [
++        {"role": "user", "content": "go"},
++        {
++            "role": "assistant",
++            "content": "prose",
++            "reasoning": "thought A",
++        },
++        {
++            "role": "assistant",
++            "content": None,
++            "tool_calls": [
++                {
++                    "id": "call_1",
++                    "type": "function",
++                    "function": {"name": "lookup", "arguments": "{}"},
++                }
++            ],
++        },
++    ]
++
++    conversation, _ = renderer.render_messages(messages, ChatParams())
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 1
++    assert assistant_messages[0]["content"] == "prose"
++    assert assistant_messages[0]["reasoning"] == "thought A"
++    assert assistant_messages[0]["reasoning_content"] == "thought A"
++    assert assistant_messages[0]["tool_calls"]
++    # Inputs are not mutated by the merge.
++    assert messages[1] == {
++        "role": "assistant",
++        "content": "prose",
++        "reasoning": "thought A",
++    }
++
++
++@pytest.mark.asyncio
++async def test_render_messages_async_merge_preserves_single_reasoning():
++    renderer = _make_renderer(StubTokenizer([1, 2, 3]))
++
++    conversation, _ = await renderer.render_messages_async(
++        [
++            {"role": "assistant", "content": "prose", "reasoning": "thought A"},
++            {
++                "role": "assistant",
++                "content": None,
++                "tool_calls": [
++                    {
++                        "id": "call_1",
++                        "type": "function",
++                        "function": {"name": "lookup", "arguments": "{}"},
++                    }
++                ],
++            },
++        ],
++        ChatParams(),
++    )
++
++    assistant_messages = [
++        message for message in conversation if message["role"] == "assistant"
++    ]
++    assert len(assistant_messages) == 1
++    assert assistant_messages[0]["reasoning"] == "thought A"
++    assert assistant_messages[0]["tool_calls"]
++
++
+ @pytest.mark.asyncio
+ async def test_render_messages_async_returns_token_prompt():
+     renderer = _make_renderer(StubTokenizer([4, 5]))
+diff --git a/tests/tool_use/test_kimi_k3_tool_parser.py b/tests/tool_use/test_kimi_k3_tool_parser.py
+index 118c51db574e5511d4659e93dd57ec4058c3f7d6..8c0c1e880344742f806dbd6440bf802aed5e33cd 100644
+--- a/tests/tool_use/test_kimi_k3_tool_parser.py
++++ b/tests/tool_use/test_kimi_k3_tool_parser.py
+@@ -361,9 +361,122 @@ def test_streaming_split_markers_do_not_leak():
+     assert content == "Hi"
+     assert OPEN not in content
+     assert SEP not in content
+-    assert len(tool_deltas) == 1
+-    assert tool_deltas[0].function.name == "calc"
+-    assert json.loads(tool_deltas[0].function.arguments) == {"x": 1}
++    assert [tool_call.function.name for tool_call in tool_deltas if tool_call.id] == [
++        "calc"
++    ]
++    arguments = "".join(tool_call.function.arguments or "" for tool_call in tool_deltas)
++    assert json.loads(arguments) == {"x": 1}
++
++
++def test_streaming_emits_argument_text_as_it_arrives():
++    """A long string argument must stream, not land in one delta at the close."""
++    parser = KimiK3ToolParser(DummyTokenizer())
++    request = _request()
++    value = "word " * 200
++    body_chunks = [value[i : i + 5] for i in range(0, len(value), 5)]
++    chunks = [
++        f"{OPEN}tools{SEP}",
++        f'{OPEN}call tool="write_file" index="1"{SEP}',
++        f'{OPEN}argument key="content" type="string"{SEP}',
++        *body_chunks,
++        f"{CLOSE}argument{SEP}",
++        f"{CLOSE}call{SEP}",
++    ]
++    previous_text = ""
++    previous_ids: list[int] = []
++    messages: list[DeltaMessage] = []
++    arguments_before_close = ""
++
++    for i, chunk in enumerate(chunks, start=1):
++        if chunk == f"{CLOSE}argument{SEP}":
++            arguments_before_close = "".join(
++                tool_call.function.arguments or ""
++                for message in messages
++                for tool_call in (message.tool_calls or [])
++            )
++        current_text = previous_text + chunk
++        current_ids = previous_ids + [i]
++        delta = parser.extract_tool_calls_streaming(
++            previous_text=previous_text,
++            current_text=current_text,
++            delta_text=chunk,
++            previous_token_ids=previous_ids,
++            current_token_ids=current_ids,
++            delta_token_ids=[i],
++            request=request,
++        )
++        if delta is not None:
++            messages.append(delta)
++        previous_text = current_text
++        previous_ids = current_ids
++
++    tool_deltas = [
++        tool_call for message in messages for tool_call in (message.tool_calls or [])
++    ]
++
++    # the name is announced once, up front, and every body chunk moves the stream
++    assert [tool_call.function.name for tool_call in tool_deltas if tool_call.id] == [
++        "write_file"
++    ]
++    assert len(tool_deltas) >= len(body_chunks)
++    assert all(tool_call.index == 0 for tool_call in tool_deltas)
++    assert (
++        arguments_before_close
++        == json.dumps({"content": value}, ensure_ascii=False)[:-2]
++    )
++
++    arguments = "".join(tool_call.function.arguments or "" for tool_call in tool_deltas)
++    assert json.loads(arguments) == {"content": value}
++    non_streamed = parser.extract_tool_calls(previous_text, request)
++    assert arguments == non_streamed.tool_calls[0].function.arguments
++
++
++def test_streaming_holds_whitespace_tolerant_argument_close_fragments():
++    parser = KimiK3ToolParser(DummyTokenizer())
++    request = _request()
++    chunks = [
++        f"{OPEN}tools{SEP}",
++        f'{OPEN}call tool="write_file" index="1"{SEP}',
++        f'{OPEN}argument key="content" type="string"{SEP}',
++        "payload",
++        f"{CLOSE} arg",
++        "ument ",
++        "<|sep",
++        "|>",
++        f"{CLOSE}call{SEP}",
++    ]
++    previous_text = ""
++    previous_ids: list[int] = []
++    streamed_arguments = ""
++    partial_close_snapshots: list[str] = []
++
++    for i, chunk in enumerate(chunks, start=1):
++        current_text = previous_text + chunk
++        current_ids = previous_ids + [i]
++        delta = parser.extract_tool_calls_streaming(
++            previous_text=previous_text,
++            current_text=current_text,
++            delta_text=chunk,
++            previous_token_ids=previous_ids,
++            current_token_ids=current_ids,
++            delta_token_ids=[i],
++            request=request,
++        )
++        if delta is not None:
++            streamed_arguments += "".join(
++                tool_call.function.arguments or ""
++                for tool_call in (delta.tool_calls or [])
++            )
++        if 5 <= i <= 7:
++            partial_close_snapshots.append(streamed_arguments)
++        previous_text = current_text
++        previous_ids = current_ids
++
++    expected_prefix = json.dumps({"content": "payload"}, ensure_ascii=False)[:-2]
++    assert partial_close_snapshots == [expected_prefix] * 3
++    assert json.loads(streamed_arguments) == {"content": "payload"}
++    non_streamed = parser.extract_tool_calls(previous_text, request)
++    assert streamed_arguments == non_streamed.tool_calls[0].function.arguments
+ 
+ 
+ def test_tool_call_ids_are_unique_across_messages():
+diff --git a/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py b/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
+index 5f549ec8df7ebc7442acf0a7af76446cb0c51b43..54e26459ceeb0a160b8926e3b31a56093abb1579 100644
+--- a/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
++++ b/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
+@@ -260,6 +260,187 @@ def test_hybrid_mamba_align_partial_hash_hit():
+     assert manager.get_blocks("1").blocks[1][1].block_hash_num_tokens == 8
+ 
+ 
++def test_dcp8_hybrid_reuses_prefix_at_recurrent_block_boundary():
++    """A DCP-sharded attention block must not coarsen an aligned Mamba hit.
++
++    Kimi K3's production geometry has 1,536-token rank-local blocks and DCP8,
++    so full-attention blocks cover 12,288 logical tokens while recurrent state
++    is materialized every 1,536 tokens. Two prompts sharing 44,449 tokens can
++    therefore safely reuse through token 43,008, rather than falling back to
++    the previous 12,288-token boundary at 36,864.
++    """
++    local_block_size = 1536
++    dcp_world_size = 8
++    global_attention_block_size = local_block_size * dcp_world_size
++    producer_length = 44_449
++    consumer_length = 44_609
++    expected_hit = 43_008
++
++    kv_cache_config = KVCacheConfig(
++        num_blocks=128,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["full"],
++                FullAttentionSpec(
++                    block_size=local_block_size,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float32,
++                ),
++            ),
++            KVCacheGroupSpec(
++                ["mamba"],
++                MambaSpec(
++                    block_size=local_block_size,
++                    shapes=(1, 1),
++                    dtypes=(torch.float32,),
++                    mamba_cache_mode="align",
++                ),
++            ),
++        ],
++    )
++    manager = make_kv_cache_manager(
++        kv_cache_config=kv_cache_config,
++        max_model_len=65_536,
++        enable_caching=True,
++        scheduler_block_size=global_attention_block_size,
++        hash_block_size=local_block_size,
++        dcp_world_size=dcp_world_size,
++    )
++    assert [m.block_size for m in manager.coordinator.single_type_managers] == [
++        global_attention_block_size,
++        local_block_size,
++    ]
++
++    shared_tokens = [i % 251 for i in range(producer_length)]
++    producer = make_request("producer", shared_tokens, local_block_size, sha256)
++    computed_blocks, num_computed, _ = manager.get_computed_blocks(producer)
++    assert num_computed == 0
++
++    # Match the real scheduler: recurrent state is committed one rank-local
++    # block at a time, then the non-aligned prompt tail is computed last.
++    while producer.num_computed_tokens < producer.num_tokens:
++        num_new_tokens = min(
++            local_block_size,
++            producer.num_tokens - producer.num_computed_tokens,
++        )
++        new_blocks = manager.allocate_slots(
++            producer,
++            num_new_tokens,
++            num_new_computed_tokens=(
++                num_computed if producer.num_computed_tokens == 0 else 0
++            ),
++            new_computed_blocks=(
++                computed_blocks if producer.num_computed_tokens == 0 else None
++            ),
++        )
++        assert new_blocks is not None
++        producer.num_computed_tokens += num_new_tokens
++        manager.new_step_starts()
++
++    manager.free(producer)
++    manager.new_step_starts()
++
++    consumer = make_request(
++        "consumer",
++        shared_tokens + [252] * (consumer_length - producer_length),
++        local_block_size,
++        sha256,
++    )
++    computed_blocks, num_computed, _ = manager.get_computed_blocks(consumer)
++
++    assert num_computed == expected_hit
++    assert [len(group) for group in computed_blocks.blocks] == [4, 28]
++
++    new_blocks = manager.allocate_slots(
++        consumer,
++        consumer.num_tokens - num_computed,
++        num_new_computed_tokens=num_computed,
++        new_computed_blocks=computed_blocks,
++    )
++    assert new_blocks is not None
++    copies, _ = manager.take_kv_cache_block_copies()
++    # Only the DCP-sharded attention group resumes inside a physical block;
++    # Mamba lands on an already-materialized full recurrent-state boundary.
++    assert len(copies) == 1
++
++
++def test_dcp_hybrid_keeps_coarse_hits_when_recurrent_state_is_partial():
++    """DCP stays coarse when a hash boundary lacks a full recurrent state."""
++    hash_block_size = 4
++    scheduler_block_size = 8
++    kv_cache_config = KVCacheConfig(
++        num_blocks=64,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["full"],
++                FullAttentionSpec(
++                    block_size=4,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float32,
++                ),
++            ),
++            KVCacheGroupSpec(
++                ["mamba"],
++                MambaSpec(
++                    shapes=((1, 1),),
++                    dtypes=(torch.float32,),
++                    block_size=8,
++                    mamba_cache_mode="align",
++                ),
++            ),
++        ],
++    )
++    manager = make_kv_cache_manager(
++        kv_cache_config=kv_cache_config,
++        max_model_len=64,
++        enable_caching=True,
++        scheduler_block_size=scheduler_block_size,
++        hash_block_size=hash_block_size,
++        dcp_world_size=2,
++    )
++
++    shared_tokens = list(range(13))
++    producer = make_request("producer", shared_tokens, hash_block_size, sha256)
++    computed_blocks, num_computed, _ = manager.get_computed_blocks(producer)
++    assert num_computed == 0
++
++    while producer.num_computed_tokens < producer.num_tokens:
++        num_new_tokens = min(
++            hash_block_size,
++            producer.num_tokens - producer.num_computed_tokens,
++        )
++        new_blocks = manager.allocate_slots(
++            producer,
++            num_new_tokens,
++            num_new_computed_tokens=(
++                num_computed if producer.num_computed_tokens == 0 else 0
++            ),
++            new_computed_blocks=(
++                computed_blocks if producer.num_computed_tokens == 0 else None
++            ),
++        )
++        assert new_blocks is not None
++        producer.num_computed_tokens += num_new_tokens
++        manager.new_step_starts()
++
++    manager.free(producer)
++    manager.new_step_starts()
++
++    consumer = make_request(
++        "consumer",
++        shared_tokens + [13],
++        hash_block_size,
++        sha256,
++    )
++    _, num_computed, _ = manager.get_computed_blocks(consumer)
++
++    assert num_computed == scheduler_block_size
++
++
+ def test_hybrid_mamba_partial_tail_owner_uses_cow_on_continue():
+     hash_block_size = 2
+     block_size = 2 * hash_block_size
+@@ -333,6 +514,79 @@ def test_hybrid_mamba_partial_tail_owner_uses_cow_on_continue():
+     assert moved[0].block_hash_num_tokens == 6
+ 
+ 
++def test_external_mamba_hit_same_block_uses_running_cow_on_continue():
++    """An external mid-block hit must become a running request even when its
++    first continuation does not need another Mamba block."""
++    hash_block_size = 2
++    mamba_block_size = 4 * hash_block_size
++    kv_cache_config = KVCacheConfig(
++        num_blocks=32,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["full"],
++                FullAttentionSpec(
++                    block_size=hash_block_size,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float32,
++                ),
++            ),
++            KVCacheGroupSpec(
++                ["mamba"],
++                MambaSpec(
++                    block_size=mamba_block_size,
++                    shapes=(1, 1),
++                    dtypes=(torch.float32,),
++                    mamba_cache_mode="align",
++                ),
++            ),
++        ],
++    )
++    manager = make_kv_cache_manager(
++        kv_cache_config=kv_cache_config,
++        max_model_len=8192,
++        enable_caching=True,
++        hash_block_size=hash_block_size,
++    )
++
++    request = make_request("0", [0] * 15, hash_block_size, sha256)
++    loaded_blocks = manager.allocate_slots(
++        request,
++        num_new_tokens=0,
++        num_external_computed_tokens=10,
++        delay_cache_blocks=True,
++    )
++    assert loaded_blocks is not None
++
++    request.num_computed_tokens = 10
++    first_step_blocks = manager.allocate_slots(request, num_new_tokens=4)
++    assert first_step_blocks is not None
++    assert first_step_blocks.get_block_ids()[1] == []
++
++    source_block_id = manager.get_blocks("0").get_block_ids()[1][1]
++    partial_hash = request.block_hashes[14 // hash_block_size - 1]
++    partial_block = manager.block_pool.get_cached_block(
++        partial_hash, kv_cache_group_ids=[1]
++    )
++    assert partial_block is not None
++    assert partial_block[0].block_id == source_block_id
++
++    request.num_computed_tokens = 14
++    continuation_blocks = manager.allocate_slots(request, num_new_tokens=1)
++    assert continuation_blocks is not None
++
++    assert continuation_blocks.get_block_ids()[1] == []
++    assert manager.get_blocks("0").get_block_ids()[1][1] == source_block_id
++    copies, _ = manager.take_kv_cache_block_copies()
++    cow_copy = next(c for c in copies if c.src_block_id == source_block_id)
++    assert cow_copy.dst_block_id != source_block_id
++
++    moved = manager.block_pool.get_cached_block(partial_hash, kv_cache_group_ids=[1])
++    assert moved is not None
++    assert moved[0].block_id == cow_copy.dst_block_id
++
++
+ def test_take_partial_tail_offloads_returns_cow_target():
+     """The connector offload hand-off exposes the mamba CoW *target* block Y
+     (the durable boundary state), not the overwritten source X, and only at
+diff --git a/tests/v1/spec_decode/test_dspark_captured_markov.py b/tests/v1/spec_decode/test_dspark_captured_markov.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1477d535f5b5637a92fba6e97285df22fef519a
+--- /dev/null
++++ b/tests/v1/spec_decode/test_dspark_captured_markov.py
+@@ -0,0 +1,102 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++from types import SimpleNamespace
++
++import pytest
++import torch
++
++from vllm.distributed.device_communicators import custom_all_reduce
++from vllm.v1.worker.gpu.spec_decode.dspark import speculator as speculator_module
++from vllm.v1.worker.gpu.spec_decode.dspark.speculator import DSparkSpeculator
++
++
++def _captured_speculator() -> SimpleNamespace:
++    return SimpleNamespace(
++        use_draft_token_capacity=False,
++        draft_logits=None,
++        _draft_topk=None,
++        _use_local_draft_argmax=False,
++        _capture_sharded_markov=True,
++        _markov_outside_cudagraph=False,
++        max_num_reqs=8,
++        num_speculative_steps=7,
++        vllm_config=object(),
++        draft_model_config=SimpleNamespace(hf_config=SimpleNamespace(markov_rank=128)),
++        dtype=torch.bfloat16,
++        device=torch.device("cpu"),
++    )
++
++
++def test_captured_markov_allreduce_probe_covers_every_draft_step(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    probe_shapes = []
++
++    class ActiveAllreduce:
++        def should_custom_ar(self, probe):
++            probe_shapes.append(tuple(probe.shape))
++            return True
++
++    model = SimpleNamespace(
++        supports_local_draft_argmax=lambda: True,
++        draft_id_to_target_id=None,
++        _b12x_dspark_argmax_enabled=True,
++        model=SimpleNamespace(markov_head=SimpleNamespace(replicate_w1=False)),
++    )
++    speculator = _captured_speculator()
++    monkeypatch.setenv("VLLM_DSPARK_SHARD_MARKOV_HEAD", "1")
++    monkeypatch.setattr(
++        speculator_module,
++        "load_dspark_model",
++        lambda _target_model, _config: model,
++    )
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "get_active_b12x_pcie_allreduce",
++        lambda: ActiveAllreduce(),
++        raising=False,
++    )
++
++    loaded = DSparkSpeculator.load_draft_model(
++        speculator,
++        target_model=object(),
++        target_attn_layer_names=set(),
++    )
++
++    assert loaded is model
++    assert speculator._use_local_draft_argmax
++    assert probe_shapes == [(56, 128)]
++
++
++def test_captured_markov_with_replicated_w1_needs_no_allreduce_probe(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = SimpleNamespace(
++        supports_local_draft_argmax=lambda: True,
++        draft_id_to_target_id=None,
++        _b12x_dspark_argmax_enabled=True,
++        model=SimpleNamespace(markov_head=SimpleNamespace(replicate_w1=True)),
++    )
++    speculator = _captured_speculator()
++    monkeypatch.setenv("VLLM_DSPARK_SHARD_MARKOV_HEAD", "1")
++    monkeypatch.setattr(
++        speculator_module,
++        "load_dspark_model",
++        lambda _target_model, _config: model,
++    )
++    monkeypatch.setattr(
++        custom_all_reduce,
++        "get_active_b12x_pcie_allreduce",
++        lambda: pytest.fail("replicated W1 must not inspect TP all-reduce"),
++        raising=False,
++    )
++
++    loaded = DSparkSpeculator.load_draft_model(
++        speculator,
++        target_model=object(),
++        target_attn_layer_names=set(),
++    )
++
++    assert loaded is model
++    assert speculator._use_local_draft_argmax
+diff --git a/tests/v1/spec_decode/test_dspark_local_vocab_sampling.py b/tests/v1/spec_decode/test_dspark_local_vocab_sampling.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a96d73a57caa165a807bac0ff8cda01de40f9b7
+--- /dev/null
++++ b/tests/v1/spec_decode/test_dspark_local_vocab_sampling.py
+@@ -0,0 +1,127 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++from types import SimpleNamespace
++from unittest.mock import Mock
++
++import pytest
++import torch
++
++from vllm.v1.worker.gpu.spec_decode.dspark import speculator as speculator_module
++from vllm.v1.worker.gpu.spec_decode.dspark.speculator import DSparkSpeculator
++
++
++def test_sharded_markov_model_selects_local_sampling(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = SimpleNamespace(
++        supports_local_draft_argmax=lambda: True,
++        draft_id_to_target_id=None,
++    )
++    speculator = SimpleNamespace(
++        vllm_config=object(),
++        use_draft_token_capacity=False,
++        draft_logits=None,
++        _draft_topk=None,
++        _use_local_draft_argmax=False,
++        _capture_sharded_markov=False,
++        _markov_outside_cudagraph=False,
++    )
++    monkeypatch.setenv("VLLM_DSPARK_SHARD_MARKOV_HEAD", "1")
++    monkeypatch.setattr(
++        speculator_module,
++        "load_dspark_model",
++        lambda _target_model, _vllm_config: model,
++    )
++
++    loaded = DSparkSpeculator.load_draft_model(
++        speculator,
++        target_model=object(),
++        target_attn_layer_names=set(),
++    )
++
++    assert loaded is model
++    assert speculator._use_local_draft_argmax
++
++
++def test_sharded_markov_model_rejects_reduced_topk(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    model = SimpleNamespace(
++        supports_local_draft_argmax=lambda: True,
++        draft_id_to_target_id=None,
++    )
++    speculator = SimpleNamespace(
++        vllm_config=object(),
++        use_draft_token_capacity=False,
++        draft_logits=None,
++        _draft_topk=32,
++        _use_local_draft_argmax=False,
++        _capture_sharded_markov=False,
++        _markov_outside_cudagraph=False,
++    )
++    monkeypatch.setenv("VLLM_DSPARK_SHARD_MARKOV_HEAD", "1")
++    monkeypatch.setattr(
++        speculator_module,
++        "load_dspark_model",
++        lambda _target_model, _vllm_config: model,
++    )
++
++    with pytest.raises(ValueError, match="does not support dspark_draft_topk"):
++        DSparkSpeculator.load_draft_model(
++            speculator,
++            target_model=object(),
++            target_attn_layer_names=set(),
++        )
++
++
++def test_sequential_greedy_sampling_keeps_vocabulary_shards_local() -> None:
++    base_logits = torch.tensor(
++        [
++            [1.0, 5.0, 0.0, 0.0],
++            [0.0, 0.0, 2.0, 1.0],
++        ],
++        dtype=torch.bfloat16,
++    )
++    local_bias = torch.zeros((1, 4), dtype=torch.bfloat16)
++    model = SimpleNamespace(
++        compute_local_draft_logits=Mock(return_value=base_logits),
++        markov_embed=Mock(side_effect=lambda token_ids: token_ids[:, None].float()),
++        compute_local_markov_bias=Mock(return_value=local_bias),
++        sample_local_draft_logits=Mock(
++            side_effect=lambda base, bias: (base + bias).argmax(dim=-1)
++        ),
++    )
++    speculator = SimpleNamespace(
++        sample_indices=torch.tensor([0, 1]),
++        model=model,
++        _use_local_draft_argmax=True,
++        draft_logits=None,
++        _draft_topk=None,
++        sample_idx_mapping=torch.tensor([0, 1]),
++        sample_pos=torch.tensor([1, 2]),
++        draft_token_confidence_logits=torch.empty((1, 2)),
++        min_survival_probability=0.0,
++        use_draft_token_capacity=False,
++        input_buffers=SimpleNamespace(input_ids=torch.tensor([3, 0])),
++        device=torch.device("cpu"),
++        vocab_size=16,
++        draft_token_valid_lengths=torch.empty((1,), dtype=torch.int32),
++        draft_tokens=torch.empty((1, 2), dtype=torch.int64),
++        draft_token_capacity=torch.empty((1,), dtype=torch.int32),
++        _sample_logits=Mock(side_effect=AssertionError("full logits were sampled")),
++    )
++
++    DSparkSpeculator._sample_sequential(
++        speculator,
++        num_reqs=1,
++        head_hidden=torch.randn((2, 8)),
++        num_speculative_steps=2,
++        num_query_per_req=2,
++    )
++
++    assert speculator.draft_tokens.tolist() == [[1, 2]]
++    model.compute_local_draft_logits.assert_called_once()
++    assert model.compute_local_markov_bias.call_count == 2
++    assert model.sample_local_draft_logits.call_count == 2
++    speculator._sample_logits.assert_not_called()
+diff --git a/tests/v1/spec_decode/test_dspark_postgraph_markov_tail.py b/tests/v1/spec_decode/test_dspark_postgraph_markov_tail.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8b5397342688b394fc23424aa1fd3793d9cdef87
+--- /dev/null
++++ b/tests/v1/spec_decode/test_dspark_postgraph_markov_tail.py
+@@ -0,0 +1,133 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++
++from types import SimpleNamespace
++from unittest.mock import Mock
++
++import torch
++
++from vllm.config.compilation import CUDAGraphMode
++from vllm.v1.worker.gpu.spec_decode.dspark.speculator import DSparkSpeculator
++
++
++def _make_speculator() -> SimpleNamespace:
++    head_hidden = torch.randn(8, 16)
++    model = SimpleNamespace(
++        compute_local_draft_logits=Mock(side_effect=lambda hidden: hidden[:, :11] + 1)
++    )
++    return SimpleNamespace(
++        _run_model=Mock(return_value=head_hidden),
++        model=model,
++        _markov_outside_cudagraph=True,
++        _ensure_captured_markov_buffers=Mock(),
++        _captured_markov_hidden=torch.empty(7, 16),
++        _captured_base_logits=torch.empty(7, 11),
++        sample_indices=torch.arange(7),
++        num_query_per_req=7,
++        _speculative_steps_for_query_len=lambda query_len: query_len,
++        _sample_sequential=Mock(),
++        capacity_activation_batch_size=0,
++    )
++
++
++def test_capture_records_backbone_output_without_markov_collectives(monkeypatch):
++    speculator = _make_speculator()
++    monkeypatch.setattr(torch.cuda, "is_current_stream_capturing", lambda: True)
++
++    DSparkSpeculator._generate_draft(
++        speculator,
++        num_reqs=1,
++        num_tokens_padded=8,
++        attn_metadata=None,
++        slot_mappings=None,
++        num_tokens_across_dp=None,
++        cudagraph_runtime_mode=CUDAGraphMode.FULL,
++    )
++
++    speculator._sample_sequential.assert_not_called()
++    speculator._ensure_captured_markov_buffers.assert_called_once_with()
++    torch.testing.assert_close(
++        speculator._captured_markov_hidden,
++        speculator._run_model.return_value[:7],
++    )
++    torch.testing.assert_close(
++        speculator._captured_base_logits,
++        speculator._run_model.return_value[:7, :11] + 1,
++    )
++
++
++def test_capture_warmup_does_not_launch_markov_collectives(monkeypatch):
++    speculator = _make_speculator()
++    monkeypatch.setattr(torch.cuda, "is_current_stream_capturing", lambda: False)
++
++    DSparkSpeculator._generate_draft(
++        speculator,
++        num_reqs=1,
++        num_tokens_padded=8,
++        attn_metadata=None,
++        slot_mappings=None,
++        num_tokens_across_dp=None,
++        cudagraph_runtime_mode=CUDAGraphMode.NONE,
++        capture_only=True,
++    )
++
++    speculator._sample_sequential.assert_not_called()
++    speculator._ensure_captured_markov_buffers.assert_called_once_with()
++    torch.testing.assert_close(
++        speculator._captured_markov_hidden,
++        speculator._run_model.return_value[:7],
++    )
++    torch.testing.assert_close(
++        speculator._captured_base_logits,
++        speculator._run_model.return_value[:7, :11] + 1,
++    )
++
++
++def test_eager_generation_samples_complete_markov_tail(monkeypatch):
++    speculator = _make_speculator()
++    monkeypatch.setattr(torch.cuda, "is_current_stream_capturing", lambda: False)
++
++    DSparkSpeculator._generate_draft(
++        speculator,
++        num_reqs=1,
++        num_tokens_padded=8,
++        attn_metadata=None,
++        slot_mappings=None,
++        num_tokens_across_dp=None,
++        cudagraph_runtime_mode=CUDAGraphMode.NONE,
++    )
++
++    speculator._sample_sequential.assert_called_once_with(
++        1,
++        speculator._run_model.return_value,
++        7,
++        7,
++        is_profile=False,
++        use_capacity=True,
++    )
++    speculator._ensure_captured_markov_buffers.assert_not_called()
++
++
++def test_graph_replay_finishes_markov_tail_from_stable_buffers():
++    speculator = _make_speculator()
++
++    DSparkSpeculator._finish_captured_draft(
++        speculator,
++        num_reqs=1,
++        num_tokens_padded=8,
++        num_query_per_req=7,
++        is_profile=False,
++    )
++
++    args = speculator._sample_sequential.call_args
++    assert args.args[:4] == (1, None, 7, 7)
++    assert args.kwargs["is_profile"] is False
++    assert args.kwargs["use_capacity"] is True
++    assert (
++        args.kwargs["prepared_sample_hidden"].untyped_storage().data_ptr()
++        == speculator._captured_markov_hidden.untyped_storage().data_ptr()
++    )
++    assert (
++        args.kwargs["precomputed_base_logits"].untyped_storage().data_ptr()
++        == speculator._captured_base_logits.untyped_storage().data_ptr()
++    )
+diff --git a/vllm/distributed/device_communicators/custom_all_reduce.py b/vllm/distributed/device_communicators/custom_all_reduce.py
+index a90d153615ed793caa486fcfa018dc6a0029ce05..1064180560970a6a5c58024900d18f7edc941d50 100644
+--- a/vllm/distributed/device_communicators/custom_all_reduce.py
++++ b/vllm/distributed/device_communicators/custom_all_reduce.py
+@@ -96,8 +96,52 @@ def _parse_byte_size(value: str) -> int:
+     return int(value)
+ 
+ 
+-def _b12x_pcie_oneshot_limits() -> tuple[int, int, int]:
+-    allreduce_max_size = _parse_byte_size(envs.VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE)
++@lru_cache(maxsize=1)
++def _load_b12x_pcie_recommended_max_bytes() -> Any | None:
++    try:
++        from b12x.comm.pcie.pcie_allreduce import recommended_max_bytes
++    except ModuleNotFoundError as exc:
++        if exc.name != "b12x":
++            raise
++        return None
++    return recommended_max_bytes
++
++
++def _b12x_pcie_allreduce_max_size(world_size: int) -> int:
++    """Resolve the custom all-reduce limit from operator and B12X policy.
++
++    An explicitly configured vLLM limit has priority. Otherwise B12X may
++    enlarge the vLLM default only for tensor-parallel sizes with a qualified
++    implementation for the additional message-size band.
++
++    Args:
++        world_size: Active tensor-parallel world size.
++
++    Returns:
++        Resolved maximum all-reduce size in bytes.
++    """
++
++    configured = os.getenv("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE")
++    if configured is not None:
++        return _parse_byte_size(configured)
++    default = _parse_byte_size(envs.VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE)
++    recommended_max_bytes = _load_b12x_pcie_recommended_max_bytes()
++    if recommended_max_bytes is None:
++        return default
++    resolved = int(recommended_max_bytes(world_size, default=default))
++    if resolved != default:
++        logger.info(
++            "B12X selected a %d-byte PCIe all-reduce limit for TP%d; "
++            "the vLLM default is %d bytes.",
++            resolved,
++            world_size,
++            default,
++        )
++    return resolved
++
++
++def _b12x_pcie_oneshot_limits(world_size: int) -> tuple[int, int, int]:
++    allreduce_max_size = _b12x_pcie_allreduce_max_size(world_size)
+     fused_max_size = _parse_byte_size(
+         envs.VLLM_PCIE_ONESHOT_FUSED_ADD_RMS_NORM_MAX_SIZE
+     )
+@@ -554,7 +598,7 @@ class CustomAllreduce:
+                 self._pcie_allreduce_max_size,
+                 self._pcie_fused_add_rms_norm_max_size,
+                 pcie_oneshot_buffer_size,
+-            ) = _b12x_pcie_oneshot_limits()
++            ) = _b12x_pcie_oneshot_limits(world_size)
+             if self.nccl_group is None:
+                 logger.warning(
+                     "Custom allreduce is disabled because %s PCIe oneshot "
+diff --git a/vllm/envs.py b/vllm/envs.py
+index c7a9ced83e816725084f901a64f76fca700d3f1c..8bcd9d0bc7f2cc9fb6310e3240cfc6dedcab16c2 100755
+--- a/vllm/envs.py
++++ b/vllm/envs.py
+@@ -70,6 +70,8 @@ if TYPE_CHECKING:
+     VLLM_DSPARK_COMPACT_ROPE: bool = False
+     VLLM_DSPARK_SHARD_MARKOV_HEAD: bool = False
+     VLLM_DSPARK_REPLICATE_MARKOV_W1: bool = False
++    VLLM_KIMI_K3_B12X_DSPARK_ARGMAX: bool = False
++    VLLM_DSPARK_CAPTURE_SHARDED_MARKOV: bool = False
+     VLLM_USE_B12X_WO_PROJECTION: bool = False
+     VLLM_USE_B12X_MOE: bool = False
+     VLLM_NF3_GRID188_DECODE: bool = True
+@@ -1171,6 +1173,18 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     "VLLM_DSPARK_REPLICATE_MARKOV_W1": lambda: bool(
+         int(os.getenv("VLLM_DSPARK_REPLICATE_MARKOV_W1", "0"))
+     ),
++    # Select a Kimi-K3 DSpark token without gathering full vocabulary shards.
++    # B12X performs an exact BF16 add and global greedy argmax for compatible
++    # unpadded vocabulary layouts. Unsupported layouts retain the exact vLLM
++    # all-gather fallback.
++    "VLLM_KIMI_K3_B12X_DSPARK_ARGMAX": lambda: bool(
++        int(os.getenv("VLLM_KIMI_K3_B12X_DSPARK_ARGMAX", "0"))
++    ),
++    # Capture TP-sharded deterministic Markov sampling only when every
++    # collective in the tail uses a CUDA-graph-safe B12X implementation.
++    "VLLM_DSPARK_CAPTURE_SHARDED_MARKOV": lambda: bool(
++        int(os.getenv("VLLM_DSPARK_CAPTURE_SHARDED_MARKOV", "0"))
++    ),
+     # Use b12x for the DeepSeek V4 WO-A/WO-B fused projection.
+     # This is separate from the generic FP8 linear switch for perf isolation.
+     "VLLM_USE_B12X_WO_PROJECTION": lambda: bool(
+diff --git a/vllm/model_executor/layers/quantization/online/mxfp8.py b/vllm/model_executor/layers/quantization/online/mxfp8.py
+index 93e15b4b22e047572849e5163b6f7d8ee5ae1f9a..60b587e5be589bcc8d8e0cc63aa0e37ae7497b49 100644
+--- a/vllm/model_executor/layers/quantization/online/mxfp8.py
++++ b/vllm/model_executor/layers/quantization/online/mxfp8.py
+@@ -95,7 +95,15 @@ class Mxfp8OnlineLinearMethod(_Fp8OnlineLinearBase):
+         replace_parameter(layer, "weight", weight_fp8.data)
+         replace_parameter(layer, "weight_scale", weight_scale.data)
+ 
+-        self.kernel.process_weights_after_loading(layer)
++        weight_shape = tuple(layer.weight.shape)
++        try:
++            self.kernel.process_weights_after_loading(layer)
++        except RuntimeError as error:
++            prefix = getattr(layer, "prefix", type(layer).__name__)
++            raise RuntimeError(
++                "MXFP8 weight preparation failed for "
++                f"{prefix} with weight shape {weight_shape}"
++            ) from error
+ 
+         layer._already_called_process_weights_after_loading = True
+ 
+diff --git a/vllm/model_executor/layers/quantization/utils/marlin_utils_fp8.py b/vllm/model_executor/layers/quantization/utils/marlin_utils_fp8.py
+index aaa1d820905d794faf8d25a7000993c530d5475b..66abea015fef874ac5cc516df5d446f2f9a1f950 100644
+--- a/vllm/model_executor/layers/quantization/utils/marlin_utils_fp8.py
++++ b/vllm/model_executor/layers/quantization/utils/marlin_utils_fp8.py
+@@ -475,6 +475,34 @@ def prepare_mxfp8_layer_for_marlin(layer: torch.nn.Module) -> None:
+     qweight = qweight.T.contiguous()
+     qweight = marlin_pad_qweight(qweight, part_size_n, part_size_k, padded_n, padded_k)
+ 
++    # qweight owns an independent contiguous copy at this point. The source
++    # FP8 parameter is no longer needed, and retaining it while the Marlin
++    # output is allocated makes peak memory proportional to three full weight
++    # buffers. Keep an empty registered parameter so reload metadata remains
++    # available until the final packed parameter replaces it below.
++    replace_parameter(
++        layer,
++        "weight",
++        torch.empty(0, dtype=layer.weight.dtype, device=device),
++    )
++
++    # Online quantization can leave reusable allocator blocks split across
++    # sizes that are unsuitable for the final contiguous Marlin output. This
++    # matters when expandable segments are disabled for pointer-stable KV
++    # cache integrations. Release inactive blocks only under low physical
++    # memory; active model tensors and qweight remain allocated.
++    free_bytes, _ = torch.cuda.mem_get_info(device)
++    minimum_free_bytes = max(1 << 30, 2 * qweight.numel() * qweight.element_size())
++    if free_bytes < minimum_free_bytes:
++        logger.info(
++            "Releasing inactive CUDA allocator blocks before MXFP8 Marlin "
++            "repack for %s (%d MiB free, %d MiB required).",
++            getattr(layer, "prefix", type(layer).__name__),
++            free_bytes >> 20,
++            minimum_free_bytes >> 20,
++        )
++        torch.cuda.empty_cache()
++
+     marlin_qweight = ops.gptq_marlin_repack(
+         b_q_weight=qweight,
+         perm=perm,
+diff --git a/vllm/models/kimi_k3/common/mm_preprocess.py b/vllm/models/kimi_k3/common/mm_preprocess.py
+index 5f7390a084bf4e52e82582174f18fb79cff3d0a8..b8405fd1d5f9fcad35e9e42618195aeaa6ba425b 100644
+--- a/vllm/models/kimi_k3/common/mm_preprocess.py
++++ b/vllm/models/kimi_k3/common/mm_preprocess.py
+@@ -4,6 +4,7 @@
+ 
+ import math
+ from collections.abc import Mapping, Sequence
++from copy import deepcopy
+ from typing import Any, cast
+ 
+ import torch
+@@ -37,6 +38,63 @@ from vllm.utils.import_utils import is_numba_available
+ logger = init_logger(__name__)
+ 
+ 
++_PATCH_LIMIT_KEYS = ("in_patch_limit", "patch_limit_on_one_side")
++
++
++def _apply_image_patch_limits(
++    image_processor: Any,
++    processor_kwargs: Mapping[str, object],
++) -> Any:
++    """Return a processor with deployment-wide Kimi image limits applied.
++
++    Kimi's image processor resizes inputs to ``in_patch_limit`` and
++    ``patch_limit_on_one_side``. Restricting those checkpoint defaults bounds
++    both the startup memory profile and request-time vision activations. The
++    cached checkpoint processor is copied so another model configuration in
++    the same process cannot inherit these deployment-specific limits.
++    """
++    overrides = {
++        key: processor_kwargs[key]
++        for key in _PATCH_LIMIT_KEYS
++        if key in processor_kwargs
++    }
++    if not overrides:
++        return image_processor
++
++    media_proc_cfg = getattr(image_processor, "media_proc_cfg", None)
++    if not isinstance(media_proc_cfg, Mapping):
++        raise ValueError(
++            "Kimi-K3 image patch limits require an image processor with "
++            "a media_proc_cfg mapping"
++        )
++
++    bounded_cfg = dict(media_proc_cfg)
++    for key, value in overrides.items():
++        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
++            raise ValueError(f"Kimi-K3 {key} must be a positive integer")
++        checkpoint_limit = bounded_cfg.get(key)
++        if not isinstance(checkpoint_limit, int) or checkpoint_limit <= 0:
++            raise ValueError(
++                f"Kimi-K3 checkpoint does not define a positive {key} limit"
++            )
++        if value > checkpoint_limit:
++            raise ValueError(
++                f"Kimi-K3 {key}={value} exceeds the checkpoint limit "
++                f"of {checkpoint_limit}"
++            )
++        bounded_cfg[key] = value
++
++    bounded_processor = deepcopy(image_processor)
++    bounded_processor.media_proc_cfg = bounded_cfg
++    logger.info(
++        "Kimi-K3 image processing limits: in_patch_limit=%d, "
++        "patch_limit_on_one_side=%d",
++        bounded_cfg["in_patch_limit"],
++        bounded_cfg["patch_limit_on_one_side"],
++    )
++    return bounded_processor
++
++
+ def navit_resize_image(
+     width: int,
+     height: int,
+@@ -116,6 +174,14 @@ class KimiK3ProcessingInfo(BaseProcessingInfo):
+             trust_remote_code=self.ctx.model_config.trust_remote_code,
+             processor_cls_overrides=processor_cls,
+         )
++        get_mm_config = getattr(self.ctx.model_config, "get_multimodal_config", None)
++        if get_mm_config is not None:
++            mm_config = get_mm_config()
++            processor_kwargs = mm_config.mm_processor_kwargs or {}
++            image_processor = _apply_image_patch_limits(
++                image_processor,
++                processor_kwargs,
++            )
+ 
+         # Resolve token ID from the tokenizer because transformers v5
+         # may remap token IDs vs config.json.
+diff --git a/vllm/models/kimi_k3/nvidia/dspark_mla.py b/vllm/models/kimi_k3/nvidia/dspark_mla.py
+index 160209b7f2524dc7413b9cd7770c4341241e2756..c852b2a238f113b7ddb9084c456aa9c00568efe8 100644
+--- a/vllm/models/kimi_k3/nvidia/dspark_mla.py
++++ b/vllm/models/kimi_k3/nvidia/dspark_mla.py
+@@ -4,6 +4,7 @@
+ 
+ from collections.abc import Iterable, Iterator
+ from contextlib import contextmanager
++from typing import Any
+ 
+ import torch
+ import torch.nn as nn
+@@ -11,6 +12,7 @@ import torch.nn as nn
+ import vllm._custom_ops as ops
+ from vllm import envs
+ from vllm.config import VllmConfig
++from vllm.distributed import get_tp_group, tensor_model_parallel_all_gather
+ from vllm.logger import init_logger
+ from vllm.model_executor.layers.layernorm import RMSNorm
+ from vllm.model_executor.layers.linear import (
+@@ -19,6 +21,9 @@ from vllm.model_executor.layers.linear import (
+     ReplicatedLinear,
+ )
+ from vllm.model_executor.layers.logits_processor import LogitsProcessor
++from vllm.model_executor.layers.vocab_parallel_embedding import (
++    VocabParallelEmbedding,
++)
+ from vllm.model_executor.models.qwen3_dspark import DSparkMarkovHead
+ from vllm.model_executor.models.utils import (
+     AutoWeightsLoader,
+@@ -37,6 +42,19 @@ logger = init_logger(__name__)
+ _COMPACT_ROPE_PROTECTED_IDS: set[int] = set()
+ 
+ 
++def _load_b12x_vocab_parallel_argmax() -> Any | None:
++    """Return B12X's exact vocabulary reducer when its API is complete."""
++    try:
++        from b12x.comm.pcie import VocabParallelArgmax
++    except ImportError:
++        return None
++    if not callable(getattr(VocabParallelArgmax, "from_exchange_group", None)):
++        return None
++    if not callable(getattr(VocabParallelArgmax, "fused_add_argmax", None)):
++        return None
++    return VocabParallelArgmax
++
++
+ @contextmanager
+ def protect_k3_compact_rope_sources(model: nn.Module) -> Iterator[None]:
+     """Prevent a draft from releasing position tables owned by ``model``."""
+@@ -613,6 +631,21 @@ class K3DSparkForCausalLM(nn.Module):
+         self.logits_processor = LogitsProcessor(
+             self.config.draft_vocab_size, scale=logit_scale
+         )
++        argmax_requested = bool(envs.VLLM_KIMI_K3_B12X_DSPARK_ARGMAX)
++        self._b12x_dspark_argmax_cls = (
++            _load_b12x_vocab_parallel_argmax() if argmax_requested else None
++        )
++        self._b12x_dspark_argmax_enabled = self._b12x_dspark_argmax_cls is not None
++        if argmax_requested and not self._b12x_dspark_argmax_enabled:
++            logger.warning_once(
++                "B12X does not provide the complete VocabParallelArgmax API; "
++                "Kimi-K3 DSpark uses the exact vocabulary all-gather fallback."
++            )
++        self._b12x_dspark_argmax_max_batch = min(
++            vllm_config.scheduler_config.max_num_seqs, 8
++        )
++        self._b12x_dspark_argmax_runtime: Any = None
++        self._b12x_dspark_argmax_output: torch.Tensor | None = None
+ 
+     def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
+         return self.model.embed_input_ids(input_ids)
+@@ -648,6 +681,112 @@ class K3DSparkForCausalLM(nn.Module):
+     def compute_draft_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
+         return self.compute_logits(hidden_states)
+ 
++    def supports_local_draft_argmax(self) -> bool:
++        """Return whether rank-local target and Markov logits can be combined."""
++        markov_head = self.model.markov_head
++        if not markov_head.shard_across_tp:
++            return False
++        if not isinstance(self.lm_head, VocabParallelEmbedding):
++            return False
++        markov_w2 = markov_head.markov_w2
++        if not isinstance(markov_w2, VocabParallelEmbedding):
++            return False
++        layout_fields = (
++            "tp_size",
++            "tp_rank",
++            "num_embeddings",
++            "org_vocab_size",
++            "num_embeddings_padded",
++            "num_embeddings_per_partition",
++        )
++        if any(
++            getattr(self.lm_head, field) != getattr(markov_w2, field)
++            for field in layout_fields
++        ):
++            return False
++        if self.lm_head.shard_indices != markov_w2.shard_indices:
++            return False
++        # B12X maps every local row to a global token. Restrict its fast path
++        # to a dense vocabulary so a zero-filled padding row cannot win.
++        if self.lm_head.num_embeddings_padded != self.lm_head.org_vocab_size:
++            return False
++        if self.logits_processor.soft_cap is not None:
++            return False
++        return self.logits_processor.scale > 0.0
++
++    def compute_local_draft_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
++        """Project target hidden states into this rank's vocabulary shard."""
++        assert isinstance(self.lm_head, VocabParallelEmbedding)
++        return self.logits_processor._apply_head(self.lm_head, hidden_states, None)
++
++    def compute_local_markov_bias(self, markov_embed: torch.Tensor) -> torch.Tensor:
++        """Project a Markov embedding into the matching vocabulary shard."""
++        return self.model.markov_head.local_bias(markov_embed, self.logits_processor)
++
++    def gather_local_draft_logits(
++        self,
++        base_logits: torch.Tensor,
++        markov_bias: torch.Tensor,
++    ) -> torch.Tensor:
++        """Add matching shards and gather the exact complete distribution."""
++        logits = tensor_model_parallel_all_gather(base_logits + markov_bias, dim=-1)
++        return logits[..., : self.logits_processor.org_vocab_size]
++
++    def _get_b12x_dspark_argmax(self, base_logits: torch.Tensor) -> Any | None:
++        runtime = self._b12x_dspark_argmax_runtime
++        if runtime is not None:
++            return runtime
++
++        argmax_cls = self._b12x_dspark_argmax_cls
++        if argmax_cls is None:
++            self._b12x_dspark_argmax_enabled = False
++            return None
++
++        runtime = argmax_cls.from_exchange_group(
++            exchange_group=get_tp_group().cpu_group,
++            device=base_logits.device,
++            local_vocab_size=base_logits.shape[-1],
++            max_batch_size=self._b12x_dspark_argmax_max_batch,
++        )
++        self._b12x_dspark_argmax_output = torch.empty(
++            self._b12x_dspark_argmax_max_batch,
++            dtype=torch.int64,
++            device=base_logits.device,
++        )
++        self._b12x_dspark_argmax_runtime = runtime
++        logger.info_once(
++            "Kimi-K3 DSpark uses B12X TP%d fused BF16 add and global argmax "
++            "for up to %d requests.",
++            self.lm_head.tp_size,
++            self._b12x_dspark_argmax_max_batch,
++        )
++        return runtime
++
++    def sample_local_draft_logits(
++        self,
++        base_logits: torch.Tensor,
++        markov_bias: torch.Tensor,
++    ) -> torch.Tensor:
++        """Return exact greedy tokens through B12X or the full-logit fallback."""
++        assert isinstance(self.lm_head, VocabParallelEmbedding)
++        batch_size = int(base_logits.shape[0])
++        if (
++            self._b12x_dspark_argmax_enabled
++            and self.lm_head.tp_size in (8, 12, 16)
++            and base_logits.dtype == torch.bfloat16
++            and markov_bias.dtype == torch.bfloat16
++            and 0 < batch_size <= self._b12x_dspark_argmax_max_batch
++        ):
++            runtime = self._get_b12x_dspark_argmax(base_logits)
++            if runtime is not None:
++                assert self._b12x_dspark_argmax_output is not None
++                return runtime.fused_add_argmax(
++                    base_logits,
++                    markov_bias,
++                    out=self._b12x_dspark_argmax_output[:batch_size],
++                )
++        return self.gather_local_draft_logits(base_logits, markov_bias).argmax(dim=-1)
++
+     def map_draft_to_target(self, draft_ids: torch.Tensor) -> torch.Tensor:
+         return draft_ids
+ 
+diff --git a/vllm/models/kimi_k3/nvidia/model.py b/vllm/models/kimi_k3/nvidia/model.py
+index 466d7d01ac24ff933547bd5ecadc22e894398a43..752caab89ae61ebad6f0bae705e282436a20fd3b 100644
+--- a/vllm/models/kimi_k3/nvidia/model.py
++++ b/vllm/models/kimi_k3/nvidia/model.py
+@@ -113,6 +113,7 @@ from vllm.models.kimi_k3.nvidia.tp_projection import (
+     gather_kimi_sharded_projection,
+     gather_kimi_sharded_projection_pair,
+     try_gather_kimi_sharded_projection_pair_topk,
++    try_select_kimi_routed_experts,
+ )
+ from vllm.multimodal import MULTIMODAL_REGISTRY
+ from vllm.multimodal.inputs import NestedTensors
+@@ -645,6 +646,26 @@ class KimiK3PrecomputedTopKRouter(FusedTopKBiasRouter):
+         input_ids: torch.Tensor | None = None,
+     ) -> tuple[torch.Tensor, torch.Tensor]:
+         num_tokens = hidden_states.shape[0]
++        if (
++            self.top_k == 16
++            and self.global_num_experts == 896
++            and self.scoring_func == "sigmoid"
++            and self.renormalize
++            and self.routed_scaling_factor == 1.0
++            and indices_type in (None, torch.int32)
++            and input_ids is None
++            and self.e_score_correction_bias is not None
++            and router_logits.shape == (num_tokens, 896)
++            and router_logits.dtype == torch.float32
++            and router_logits.device == hidden_states.device
++            and router_logits.is_contiguous()
++        ):
++            selected = try_select_kimi_routed_experts(
++                router_logits,
++                self.e_score_correction_bias.data,
++            )
++            if selected is not None:
++                return selected
+         if (
+             self.top_k == 16
+             and self.global_num_experts == 896
+@@ -1966,9 +1987,15 @@ class KimiK3ForConditionalGeneration(
+                 quant_config=self._maybe_ignore_quant_config(quant_config),
+                 prefix=maybe_prefix(prefix, "vision_tower"),
+             )
+-            if self._maybe_ignore_quant_config(quant_config) is not None:
++            vision_has_deferred_weights = any(
++                parameter.is_meta for parameter in self.vision_tower.parameters()
++            )
++            if (
++                self._maybe_ignore_quant_config(quant_config) is not None
++                and not vision_has_deferred_weights
++            ):
+                 self.vision_tower = self.vision_tower.to(device=self.device)
+-            else:
++            elif self._maybe_ignore_quant_config(quant_config) is None:
+                 self.vision_tower = self.vision_tower.to(
+                     device=self.device, dtype=model_config.dtype
+                 )
+@@ -2006,9 +2033,15 @@ class KimiK3ForConditionalGeneration(
+                 quant_config=self._maybe_ignore_quant_config(quant_config),
+                 prefix=maybe_prefix(prefix, "mm_projector"),
+             )
+-            if self._maybe_ignore_quant_config(quant_config) is not None:
++            projector_has_deferred_weights = any(
++                parameter.is_meta for parameter in self.mm_projector.parameters()
++            )
++            if (
++                self._maybe_ignore_quant_config(quant_config) is not None
++                and not projector_has_deferred_weights
++            ):
+                 self.mm_projector = self.mm_projector.to(device=self.device)
+-            else:
++            elif self._maybe_ignore_quant_config(quant_config) is None:
+                 self.mm_projector = self.mm_projector.to(
+                     device=self.device, dtype=model_config.dtype
+                 )
+diff --git a/vllm/models/kimi_k3/nvidia/tp_projection.py b/vllm/models/kimi_k3/nvidia/tp_projection.py
+index 480220fec971405643c0d470716f65ffb6b5878d..eca3ca3e30d6181a79a226bbda46a57711180a64 100644
+--- a/vllm/models/kimi_k3/nvidia/tp_projection.py
++++ b/vllm/models/kimi_k3/nvidia/tp_projection.py
+@@ -166,3 +166,17 @@ def try_gather_kimi_sharded_projection_pair_topk(
+         correction_bias,
+         _get_kimi_projection_group(),
+     )
++
++
++def try_select_kimi_routed_experts(
++    router_logits: torch.Tensor,
++    correction_bias: torch.Tensor,
++) -> tuple[torch.Tensor, torch.Tensor] | None:
++    """Use B12X CuTeDSL expert selection for assembled Kimi router logits."""
++    select_topk = getattr(dcp_alltoall, "try_b12x_kimi_topk16", None)
++    if select_topk is None:
++        return None
++    return select_topk(
++        router_logits,
++        correction_bias,
++    )
+diff --git a/vllm/renderers/kimi_k3.py b/vllm/renderers/kimi_k3.py
+index e0f937f2e6cea39b9175460a656ae3ff6c2740f3..a8eb2bece5f4e641b0b5c1742b7f9ca41251e29b 100644
+--- a/vllm/renderers/kimi_k3.py
++++ b/vllm/renderers/kimi_k3.py
+@@ -1,5 +1,6 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++from collections.abc import Mapping
+ from typing import Any, cast
+ 
+ from vllm.config import VllmConfig
+@@ -24,6 +25,7 @@ from .params import ChatParams
+ # and request-level media_io_kwargs still take precedence over this default.
+ _K3_MEDIA_IO_DEFAULTS: dict[str, dict[str, Any]] = {"image": {"image_mode": None}}
+ _K3_THINKING_EFFORTS = ("low", "high", "max")
++_K3_REASONING_KEYS = ("reasoning_content", "reasoning", "thinking")
+ 
+ 
+ def _merge_k3_media_io_kwargs(
+@@ -64,6 +66,92 @@ def _apply_k3_thinking_kwargs(kwargs: dict[str, Any]) -> None:
+         )
+ 
+ 
++def _is_prose_only_assistant(message: Mapping[str, Any]) -> bool:
++    """Return whether a message contains only assistant prose.
++
++    Args:
++        message: Chat message to classify.
++
++    Returns:
++        ``True`` when the message is an assistant message with string content
++        and no tool calls.
++    """
++    if message.get("role") != "assistant" or message.get("tool_calls"):
++        return False
++    return isinstance(message.get("content"), str)
++
++
++def _is_toolcall_only_assistant(message: Mapping[str, Any]) -> bool:
++    """Return whether a message contains only assistant tool calls.
++
++    Args:
++        message: Chat message to classify.
++
++    Returns:
++        ``True`` when the message is an assistant message with tool calls and
++        no non-whitespace prose.
++    """
++    if message.get("role") != "assistant" or not message.get("tool_calls"):
++        return False
++    content = message.get("content")
++    return content is None or (isinstance(content, str) and not content.strip())
++
++
++def _merge_k3_split_assistant_turns(
++    messages: list[ChatCompletionMessageParam],
++) -> list[ChatCompletionMessageParam]:
++    """Merge adjacent (prose-only, tool_calls-only) assistant pairs.
++
++    OpenAI-compatible gateways may split one logical assistant turn into a
++    prose-only message followed by a tool_calls-only message. K3's XTML
++    encoder renders each list entry as its own ``<|open|>message
++    role="assistant"`` block, so the split shape teaches the model
++    in-context that a prose-only assistant message with no tool section is a
++    normal terminal turn — measurably increasing prose-only stops mid-way
++    through agentic workflows. One logical turn must render as one XTML
++    message: prose in the response channel and calls in the tools section.
++
++    Only the exact split shape is merged. Pairs where both halves carry
++    reasoning fields are left untouched, so distinct reasoning payloads remain
++    distinct turns.
++
++    Args:
++        messages: Validated request messages before content parsing.
++
++    Returns:
++        A new message list with eligible adjacent assistant pairs merged.
++        Caller-owned message dictionaries are not mutated.
++    """
++    merged: list[ChatCompletionMessageParam] = []
++    index = 0
++    while index < len(messages):
++        message: Mapping[str, Any] = messages[index]
++        nxt: Mapping[str, Any] | None = (
++            messages[index + 1] if index + 1 < len(messages) else None
++        )
++        if (
++            nxt is not None
++            and _is_prose_only_assistant(message)
++            and _is_toolcall_only_assistant(nxt)
++            and not (
++                any(message.get(key) for key in _K3_REASONING_KEYS)
++                and any(nxt.get(key) for key in _K3_REASONING_KEYS)
++            )
++        ):
++            unified = dict(nxt)
++            unified["content"] = message.get("content")
++            for key in _K3_REASONING_KEYS:
++                value = message.get(key)
++                if value and not unified.get(key):
++                    unified[key] = value
++            merged.append(cast(ChatCompletionMessageParam, unified))
++            index += 2
++            continue
++        merged.append(messages[index])
++        index += 1
++    return merged
++
++
+ def _normalize_k3_tool_messages(
+     conversation: list[ConversationMessage],
+ ) -> list[dict[str, Any]]:
+@@ -177,8 +265,9 @@ class KimiK3Renderer(BaseRenderer[HfTokenizer]):
+         messages: list[ChatCompletionMessageParam],
+         params: ChatParams,
+     ) -> tuple[list[ConversationMessage], DictPrompt]:
++        merged_messages = _merge_k3_split_assistant_turns(messages)
+         conversation, mm_data, mm_uuids = parse_chat_messages(
+-            messages,
++            merged_messages,
+             self.model_config,
+             content_format="string",
+             media_io_kwargs=_merge_k3_media_io_kwargs(params.media_io_kwargs),
+@@ -201,8 +290,9 @@ class KimiK3Renderer(BaseRenderer[HfTokenizer]):
+         messages: list[ChatCompletionMessageParam],
+         params: ChatParams,
+     ) -> tuple[list[ConversationMessage], DictPrompt]:
++        merged_messages = _merge_k3_split_assistant_turns(messages)
+         conversation, mm_data, mm_uuids = await parse_chat_messages_async(
+-            messages,
++            merged_messages,
+             self.model_config,
+             content_format="string",
+             media_io_kwargs=_merge_k3_media_io_kwargs(params.media_io_kwargs),
+diff --git a/vllm/tool_parsers/kimi_k3_tool_parser.py b/vllm/tool_parsers/kimi_k3_tool_parser.py
+index 9f688f2270e4733fe143781b12edfc4437ca8bdc..7dea33d589adb2ca54a036a86e74a7c9ee7a7f96 100644
+--- a/vllm/tool_parsers/kimi_k3_tool_parser.py
++++ b/vllm/tool_parsers/kimi_k3_tool_parser.py
+@@ -37,6 +37,7 @@ from collections.abc import Sequence
+ import regex as re
+ from openai.types.responses import ToolChoiceFunction
+ 
++from vllm.entrypoints.chat_utils import make_tool_call_id
+ from vllm.entrypoints.openai.chat_completion.protocol import (
+     ChatCompletionNamedToolChoiceParam,
+     ChatCompletionRequest,
+@@ -69,6 +70,25 @@ def _partial_tag_overlap(text: str, tag: str) -> int:
+     return 0
+ 
+ 
++def _partial_pattern_overlap(text: str, pattern: re.Pattern) -> int:
++    """Return a trailing prefix accepted by a partial regular expression.
++
++    Args:
++        text: Generated text that may end inside a structural marker.
++        pattern: Complete structural-marker expression.
++
++    Returns:
++        The number of trailing characters that form an incomplete match.
++    """
++    candidate = text.rfind("<")
++    while candidate >= 0:
++        match = pattern.fullmatch(text[candidate:], partial=True)
++        if match is not None and match.partial:
++            return len(text) - candidate
++        candidate = text.rfind("<", 0, candidate)
++    return 0
++
++
+ class KimiK3ToolParser(ToolParser):
+     supports_required_and_named = False
+     # Enables the vLLM-side XTML structural tag builder
+@@ -86,6 +106,7 @@ class KimiK3ToolParser(ToolParser):
+         self.tools_close = "<|close|>tools<|sep|>"
+         self.response_open = "<|open|>response<|sep|>"
+         self.response_close = "<|close|>response<|sep|>"
++        self.argument_close = "<|close|>argument<|sep|>"
+ 
+         # Regexes operate on detokenized text. The XTML markers reach us as the
+         # literal strings <|open|>/<|close|>/<|sep|>. adjust_request keeps them
+@@ -127,6 +148,16 @@ class KimiK3ToolParser(ToolParser):
+             + _S,
+             re.DOTALL,
+         )
++        # Half-open variants: streaming needs to see a call/argument as soon as
++        # its opening marker lands, before the matching close marker exists.
++        self._call_open_re = re.compile(
++            _O + r"\s*call\s+(?P<attrs>" + _TEXT_UNTIL_SEP + r")" + _S
++        )
++        self._call_close_re = re.compile(_C + r"\s*call\s*" + _S)
++        self._arg_open_re = re.compile(
++            _O + r"\s*argument\s+(?P<attrs>" + _TEXT_UNTIL_SEP + r")" + _S
++        )
++        self._arg_close_re = re.compile(_C + r"\s*argument\s*" + _S)
+         # attr segment: key="value" (value already escaped on the encode side)
+         self._attr_re = re.compile(r'(?P<k>\w+)="(?P<v>[^"]*)"')
+         self._response_re = re.compile(
+@@ -136,7 +167,8 @@ class KimiK3ToolParser(ToolParser):
+ 
+         # streaming state
+         self._sent_content_idx = 0
+-        self._sent_tool_call_count = 0
++        # arguments already streamed, per tool-call index
++        self._streamed_args: list[str] = []
+ 
+         if not self.model_tokenizer:
+             raise ValueError(
+@@ -218,6 +250,17 @@ class KimiK3ToolParser(ToolParser):
+         """
+         call_attrs = self._attrs(attrs)
+         tool_name = call_attrs.get("tool", "")
++        if not tool_name:
++            return None
++        return ToolCall(
++            type="function",
++            function=FunctionCall(
++                name=tool_name,
++                arguments=json.dumps(self._decode_arguments(body), ensure_ascii=False),
++            ),
++        )
++
++    def _decode_arguments(self, body: str) -> dict:
+         arguments: dict = {}
+         for arg_match in self._arg_re.finditer(body):
+             arg_attrs = self._attrs(arg_match["attrs"])
+@@ -231,15 +274,37 @@ class KimiK3ToolParser(ToolParser):
+                     arguments[key] = json.loads(raw_value)
+                 except json.JSONDecodeError:
+                     arguments[key] = raw_value
+-        if not tool_name:
+-            return None
+-        return ToolCall(
+-            type="function",
+-            function=FunctionCall(
+-                name=tool_name,
+-                arguments=json.dumps(arguments, ensure_ascii=False),
+-            ),
+-        )
++        return arguments
++
++    def _partial_arguments(self, body: str) -> str:
++        """Serialize the arguments of a ``call`` block that has not closed yet.
++
++        Args:
++            body: The incomplete XTML call body.
++
++        Returns:
++            A prefix of the completed call's JSON arguments. String values can
++            stream as generated. Other argument types remain buffered until
++            their complete JSON literal is available.
++        """
++        closed_end = 0
++        for arg_match in self._arg_re.finditer(body):
++            closed_end = arg_match.end()
++        arguments = self._decode_arguments(body[:closed_end])
++
++        m_open = self._arg_open_re.search(body, closed_end)
++        if m_open is None:
++            # drop the closing "}" of the object
++            return json.dumps(arguments, ensure_ascii=False)[:-1]
++
++        arg_attrs = self._attrs(m_open["attrs"])
++        if arg_attrs.get("type", "string") != "string":
++            return json.dumps(arguments, ensure_ascii=False)[:-1]
++        raw_value = body[m_open.end() :]
++        held = _partial_pattern_overlap(raw_value, self._arg_close_re)
++        arguments[arg_attrs.get("key", "")] = raw_value[: len(raw_value) - held]
++        # drop the closing quote of the open value and the "}" of the object
++        return json.dumps(arguments, ensure_ascii=False)[:-2]
+ 
+     def _strip_response_content(self, text: str) -> str | None:
+         """Strip XTML response/message markers from generated response text.
+@@ -361,35 +426,60 @@ class KimiK3ToolParser(ToolParser):
+         delta_token_ids: Sequence[int],
+         request: ChatCompletionRequest,
+     ) -> DeltaMessage | None:
+-        # Conservative streaming: stream unwrapped response-channel text, then
+-        # buffer tool calls and emit each call once its block closes.
++        # Stream unwrapped response-channel text, then stream each tool call as
++        # it is generated: the open marker carries the name, and argument text
++        # is forwarded as it arrives rather than buffered until the call closes.
+         content = self._extract_response_content(current_text)
+ 
+-        # tools channel is open: parse fully-closed calls we have not emitted yet
+         m_tools = self._tools_open_re.search(current_text)
+         if m_tools is None:
+             return DeltaMessage(content=content) if content else None
+ 
+         section = current_text[m_tools.end() :]
+-        calls = [
+-            tc
+-            for m in self._call_re.finditer(section)
+-            if (tc := self._decode_call(m["attrs"], m["body"])) is not None
+-        ]
+-        if len(calls) <= self._sent_tool_call_count:
++        opens = list(self._call_open_re.finditer(section))
++        deltas: list[DeltaToolCall] = []
++        index = 0
++        for i, m_open in enumerate(opens):
++            end = opens[i + 1].start() if i + 1 < len(opens) else len(section)
++            body = section[m_open.end() : end]
++            name = self._attrs(m_open["attrs"]).get("tool", "")
++            if not name:
++                # an empty/garbage block is dropped, as in _decode_call
++                continue
++            m_close = self._call_close_re.search(body)
++            if m_close is None:
++                arguments = self._partial_arguments(body)
++            else:
++                arguments = json.dumps(
++                    self._decode_arguments(body[: m_close.start()]), ensure_ascii=False
++                )
++
++            if index == len(self._streamed_args):
++                self._streamed_args.append(arguments)
++                deltas.append(
++                    DeltaToolCall(
++                        index=index,
++                        id=make_tool_call_id(),
++                        type="function",
++                        function=DeltaFunctionCall(
++                            name=name, arguments=arguments
++                        ).model_dump(exclude_none=True),
++                    )
++                )
++            else:
++                sent = self._streamed_args[index]
++                if arguments != sent and arguments.startswith(sent):
++                    self._streamed_args[index] = arguments
++                    deltas.append(
++                        DeltaToolCall(
++                            index=index,
++                            function=DeltaFunctionCall(
++                                arguments=arguments[len(sent) :]
++                            ).model_dump(exclude_none=True),
++                        )
++                    )
++            index += 1
++
++        if not deltas:
+             return DeltaMessage(content=content) if content else None
+-        new = calls[self._sent_tool_call_count :]
+-
+-        deltas = [
+-            DeltaToolCall(
+-                index=self._sent_tool_call_count + i,
+-                id=tc.id,
+-                type="function",
+-                function=DeltaFunctionCall(
+-                    name=tc.function.name, arguments=tc.function.arguments
+-                ).model_dump(exclude_none=True),
+-            )
+-            for i, tc in enumerate(new)
+-        ]
+-        self._sent_tool_call_count = len(calls)
+         return DeltaMessage(content=content, tool_calls=deltas)
+diff --git a/vllm/v1/attention/ops/dcp_alltoall.py b/vllm/v1/attention/ops/dcp_alltoall.py
+index a5834df26a772193e1d74abf61a5a33205e63d56..e57e753da4e526d83d8f85bf0313a2af7de219d6 100644
+--- a/vllm/v1/attention/ops/dcp_alltoall.py
++++ b/vllm/v1/attention/ops/dcp_alltoall.py
+@@ -89,6 +89,15 @@ def _load_b12x_dcp_a2a_pool() -> Any | None:
+     return PCIeDCPA2APool
+ 
+ 
++@lru_cache(maxsize=1)
++def _load_b12x_kimi_topk16() -> Any | None:
++    try:
++        from b12x.comm.pcie import kimi_topk16
++    except (AttributeError, ImportError):
++        return None
++    return kimi_topk16
++
++
+ def _b12x_dcp_init_failed(
+     cp_group: GroupCoordinator,
+     device: torch.device,
+@@ -670,6 +679,57 @@ def try_dcp_b12x_all_gather_pair_kimi_topk(
+     return gathered_down, routing_payload
+ 
+ 
++def try_b12x_kimi_topk16(
++    router_logits: torch.Tensor,
++    correction_bias: torch.Tensor,
++) -> tuple[torch.Tensor, torch.Tensor] | None:
++    """Select Kimi-K3 experts after router-logit assembly.
++
++    This stateless CuTeDSL operation is local to each rank and does not create
++    PCIe communication channels. Unsupported inputs return ``None`` so the
++    caller can use the vLLM router.
++    """
++    if not envs.VLLM_USE_B12X_DCP_A2A or router_logits.ndim != 2:
++        return None
++    rows = int(router_logits.shape[0])
++    if (
++        rows < 1
++        or rows > _KIMI_PAIRED_MAX_BATCH_SIZE
++        or router_logits.shape != (rows, _KIMI_ROUTER_WIDTH)
++        or router_logits.dtype != torch.float32
++        or correction_bias.shape != (_KIMI_ROUTER_WIDTH,)
++        or correction_bias.dtype != torch.float32
++        or not router_logits.is_cuda
++        or not correction_bias.is_cuda
++        or router_logits.device != correction_bias.device
++        or not router_logits.is_contiguous()
++        or not correction_bias.is_contiguous()
++    ):
++        return None
++
++    kimi_topk16 = _load_b12x_kimi_topk16()
++    if kimi_topk16 is None:
++        return None
++
++    topk_weights = torch.empty(
++        (rows, _KIMI_ROUTER_TOPK),
++        device=router_logits.device,
++        dtype=torch.float32,
++    )
++    topk_ids = torch.empty(
++        (rows, _KIMI_ROUTER_TOPK),
++        device=router_logits.device,
++        dtype=torch.int32,
++    )
++    kimi_topk16(
++        router_logits,
++        correction_bias,
++        topk_weights,
++        topk_ids,
++    )
++    return topk_weights, topk_ids
++
++
+ def warmup_b12x_kimi_projection_gathers(
+     projection_group: GroupCoordinator,
+     *,
+@@ -730,6 +790,17 @@ def warmup_b12x_kimi_projection_gathers(
+         )
+         if batched is not None:
+             warmed += 1
++    router_logits = torch.zeros(
++        (_KIMI_PAIRED_MAX_BATCH_SIZE, _KIMI_ROUTER_WIDTH),
++        device=device,
++        dtype=torch.float32,
++    )
++    selected = try_b12x_kimi_topk16(
++        router_logits,
++        correction_bias,
++    )
++    if selected is not None:
++        warmed += 1
+     return warmed
+ 
+ 
+diff --git a/vllm/v1/core/kv_cache_coordinator.py b/vllm/v1/core/kv_cache_coordinator.py
+index 912e89d37f9614885b2f2ee700385392b61d8c5a..a0ca8fd9bf3504cf14a2ff84a65722f2a0957320 100644
+--- a/vllm/v1/core/kv_cache_coordinator.py
++++ b/vllm/v1/core/kv_cache_coordinator.py
+@@ -697,13 +697,34 @@ class HybridKVCacheCoordinator(KVCacheCoordinator):
+                     "full-attention, Mamba, and dcp_replicated groups, got: "
+                     f"{type(g.kv_cache_spec).__name__}."
+                 )
+-        # Partial hash hits are limited to full-attention + mamba ("align")
+-        # without context parallelism.
+-        self.enable_partial_hash_hits = dcp_world_size == 1 and any(
+-            isinstance(g.kv_cache_spec, MambaSpec)
+-            and g.kv_cache_spec.mamba_cache_mode == "align"
+-            and g.kv_cache_spec.block_size > hash_block_size
+-            for g in kv_cache_config.kv_cache_groups
++        # Fine-grained hash hits are safe when an aligned Mamba group can
++        # materialize recurrent state at every candidate boundary. Under DCP,
++        # full-attention blocks grow by the shard count while Mamba state stays
++        # replicated. Allow interior attention hits only when every aligned
++        # Mamba manager already has one complete state block per hash unit; this
++        # avoids requiring partial recurrent-state hand-off across DCP ranks.
++        aligned_mamba_managers = [
++            manager
++            for group, manager in zip(
++                kv_cache_config.kv_cache_groups,
++                self.single_type_managers,
++                strict=True,
++            )
++            if isinstance(group.kv_cache_spec, MambaSpec)
++            and group.kv_cache_spec.mamba_cache_mode == "align"
++        ]
++        has_fine_grained_group = any(
++            manager.supports_fine_grained_hash_lookup
++            and manager.block_size > hash_block_size
++            for manager in self.single_type_managers
++        )
++        dcp_mamba_states_are_hash_aligned = all(
++            manager.block_size == hash_block_size for manager in aligned_mamba_managers
++        )
++        self.enable_partial_hash_hits = (
++            bool(aligned_mamba_managers)
++            and has_fine_grained_group
++            and (dcp_world_size == 1 or dcp_mamba_states_are_hash_aligned)
+         )
+         self.verify_and_split_kv_cache_groups()
+ 
+diff --git a/vllm/v1/core/single_type_kv_cache_manager.py b/vllm/v1/core/single_type_kv_cache_manager.py
+index a334a8dde9da0a52cd18bf4b156506477d1656ed..686cae8257e609619943c4328d0e8690c8e4bd30 100644
+--- a/vllm/v1/core/single_type_kv_cache_manager.py
++++ b/vllm/v1/core/single_type_kv_cache_manager.py
+@@ -1597,6 +1597,7 @@ class MambaManager(SingleTypeKVCacheManager):
+             # `num_required_blocks` might be less than `len(req_blocks)` if blocks are
+             # over-allocated at last round.
+             if num_required_blocks <= len(req_blocks) and not has_partial_hit:
++                self._allocated_block_reqs.add(request_id)
+                 return []
+             else:
+                 prev_block_len = len(req_blocks)
+diff --git a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
+index 0d126f672c89c9bffbbcf40f9facd9721fb16026..c76ac56cdd6d3b2a3e78216a3c88e9cf969be7f8 100644
+--- a/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
++++ b/vllm/v1/worker/gpu/spec_decode/dspark/speculator.py
+@@ -30,6 +30,7 @@ import torch
+ import vllm.envs as envs
+ from vllm.config import VllmConfig
+ from vllm.config.compilation import CUDAGraphMode
++from vllm.logger import init_logger
+ from vllm.triton_utils import triton
+ from vllm.v1.worker.gpu.input_batch import InputBatch
+ from vllm.v1.worker.gpu.spec_decode.dflash.speculator import DFlashSpeculator
+@@ -40,6 +41,8 @@ from vllm.v1.worker.gpu.spec_decode.dspark.capacity import (
+ from vllm.v1.worker.gpu.spec_decode.dspark.online_sts import DSparkOnlineSTS
+ from vllm.v1.worker.gpu.spec_decode.dspark.utils import load_dspark_model
+ 
++logger = init_logger(__name__)
++
+ 
+ class DSparkSpeculator(DFlashSpeculator):
+     _speculator_name = "DSpark"
+@@ -67,6 +70,18 @@ class DSparkSpeculator(DFlashSpeculator):
+             self.max_num_tokens, draft_hidden, dtype=self.dtype, device=device
+         )
+ 
++        self._capture_sharded_markov = envs.VLLM_DSPARK_CAPTURE_SHARDED_MARKOV
++        if self._capture_sharded_markov and not envs.VLLM_DSPARK_SHARD_MARKOV_HEAD:
++            raise ValueError(
++                "VLLM_DSPARK_CAPTURE_SHARDED_MARKOV requires "
++                "VLLM_DSPARK_SHARD_MARKOV_HEAD=1."
++            )
++        self._markov_outside_cudagraph = (
++            envs.VLLM_DSPARK_SHARD_MARKOV_HEAD and not self._capture_sharded_markov
++        )
++        self._captured_markov_hidden: torch.Tensor | None = None
++        self._captured_base_logits: torch.Tensor | None = None
++
+         self._step_cols = torch.arange(
+             self.num_speculative_steps, dtype=torch.int32, device=device
+         )
+@@ -77,6 +92,7 @@ class DSparkSpeculator(DFlashSpeculator):
+         self._draft_topk: int | None = getattr(
+             self.draft_model_config.hf_config, "dspark_draft_topk", None
+         )
++        self._use_local_draft_argmax = False
+ 
+         self.draft_token_confidence_logits = torch.empty(
+             self.max_num_reqs,
+@@ -192,8 +208,93 @@ class DSparkSpeculator(DFlashSpeculator):
+                 dtype=self.draft_logits.dtype,
+                 device=self.device,
+             )
++        if envs.VLLM_DSPARK_SHARD_MARKOV_HEAD:
++            supports_local_argmax = getattr(model, "supports_local_draft_argmax", None)
++            if supports_local_argmax is None or not supports_local_argmax():
++                raise RuntimeError(
++                    "A TP-sharded DSpark Markov head requires matching "
++                    "rank-local target and Markov vocabulary projections."
++                )
++            if self._draft_topk is not None:
++                raise ValueError(
++                    "TP-sharded DSpark Markov sampling does not support "
++                    "dspark_draft_topk."
++                )
++            self._use_local_draft_argmax = True
++        if self._capture_sharded_markov:
++            if not getattr(model, "_b12x_dspark_argmax_enabled", False):
++                raise RuntimeError(
++                    "Captured TP-sharded Markov sampling requires B12X "
++                    "vocabulary argmax."
++                )
++            markov_head = model.model.markov_head
++            if not markov_head.replicate_w1:
++                from vllm.distributed.device_communicators.custom_all_reduce import (
++                    get_active_b12x_pcie_allreduce,
++                )
++
++                custom_allreduce = get_active_b12x_pcie_allreduce()
++                if custom_allreduce is None:
++                    raise RuntimeError(
++                        "Captured TP-sharded Markov sampling requires an active "
++                        "B12X TP all-reduce runtime."
++                    )
++                probe = torch.empty(
++                    self.max_num_reqs * self.num_speculative_steps,
++                    self.draft_model_config.hf_config.markov_rank,
++                    dtype=self.dtype,
++                    device=self.device,
++                )
++                if not custom_allreduce.should_custom_ar(probe):
++                    raise RuntimeError(
++                        "The active B12X TP all-reduce cannot capture the "
++                        f"Markov W1 output shape {tuple(probe.shape)}."
++                    )
++            logger.info_once(
++                "DSpark captures its TP-sharded Markov tail with B12X collectives."
++            )
++        elif self._markov_outside_cudagraph:
++            logger.info_once(
++                "DSpark keeps TP-sharded Markov collectives outside the draft "
++                "CUDA graph. The graph retains the draft backbone and local "
++                "base-logit projection."
++            )
+         return model
+ 
++    def _ensure_captured_markov_buffers(self) -> None:
++        """Allocate graph handoff buffers before stream capture begins."""
++        if (
++            self._captured_markov_hidden is not None
++            and self._captured_base_logits is not None
++        ):
++            return
++        if (
++            self._captured_markov_hidden is not None
++            or self._captured_base_logits is not None
++        ):
++            raise RuntimeError("DSpark graph handoff buffers are only partly set")
++        if torch.cuda.is_current_stream_capturing():
++            raise RuntimeError(
++                "DSpark graph handoff buffers must be allocated by eager "
++                "graph warmup before stream capture"
++            )
++
++        max_markov_rows = self.max_num_reqs * self.num_speculative_steps
++        local_vocab_size = self.model.lm_head.num_embeddings_per_partition
++        logits_dtype = self.model.logits_processor.head_dtype or self.dtype
++        self._captured_markov_hidden = torch.empty(
++            max_markov_rows,
++            self.draft_model_config.get_hidden_size(),
++            dtype=self.dtype,
++            device=self.device,
++        )
++        self._captured_base_logits = torch.empty(
++            max_markov_rows,
++            local_vocab_size,
++            dtype=logits_dtype,
++            device=self.device,
++        )
++
+     def _sample_logits(
+         self,
+         logits: torch.Tensor,
+@@ -227,22 +328,35 @@ class DSparkSpeculator(DFlashSpeculator):
+     def _sample_sequential(
+         self,
+         num_reqs: int,
+-        head_hidden: torch.Tensor,
++        head_hidden: torch.Tensor | None,
+         num_speculative_steps: int,
+         num_query_per_req: int,
+         is_profile: bool = False,
+         use_capacity: bool = True,
++        prepared_sample_hidden: torch.Tensor | None = None,
++        precomputed_base_logits: torch.Tensor | None = None,
+     ) -> None:
+         # Sequential Markov sampling over the backbone's output hidden states.
+         n_spec = num_speculative_steps
+         num_sample = num_reqs * n_spec
+         # Per-(req, position) head hidden, ordered (req, step).
+-        sample_hidden = head_hidden[self.sample_indices[:num_sample]]
+-        sample_hidden = sample_hidden.view(num_reqs, n_spec, -1)
++        if prepared_sample_hidden is None:
++            assert head_hidden is not None
++            sample_hidden = head_hidden[self.sample_indices[:num_sample]]
++            sample_hidden = sample_hidden.view(num_reqs, n_spec, -1)
++        else:
++            sample_hidden = prepared_sample_hidden.view(num_reqs, n_spec, -1)
+         # Draft-vocab logits; sampled ids are remapped to target vocab below.
+-        base_logits = self.model.compute_draft_logits(
+-            sample_hidden.reshape(num_sample, -1)
+-        )
++        if precomputed_base_logits is not None:
++            base_logits = precomputed_base_logits
++        elif self._use_local_draft_argmax:
++            base_logits = self.model.compute_local_draft_logits(
++                sample_hidden.reshape(num_sample, -1)
++            )
++        else:
++            base_logits = self.model.compute_draft_logits(
++                sample_hidden.reshape(num_sample, -1)
++            )
+         vocab_size = base_logits.shape[-1]
+         base_logits = base_logits.view(num_reqs, n_spec, vocab_size)
+         base_values = draft_indices = None
+@@ -279,7 +393,24 @@ class DSparkSpeculator(DFlashSpeculator):
+                     )
+                 confidence_logits[:, i] = confidence_i
+             if draft_indices is None:
+-                logits_i = base_logits[:, i] + self.model.markov_bias(markov_embed)
++                if self._use_local_draft_argmax:
++                    markov_bias = self.model.compute_local_markov_bias(markov_embed)
++                    if self.draft_logits is None:
++                        draft_sampled_i = self.model.sample_local_draft_logits(
++                            base_logits[:, i], markov_bias
++                        )
++                    else:
++                        logits_i = self.model.gather_local_draft_logits(
++                            base_logits[:, i], markov_bias
++                        )
++                        draft_sampled_i = self._sample_logits(
++                            logits_i, idx_map[:, i], sample_pos[:, i], i
++                        )
++                else:
++                    logits_i = base_logits[:, i] + self.model.markov_bias(markov_embed)
++                    draft_sampled_i = self._sample_logits(
++                        logits_i, idx_map[:, i], sample_pos[:, i], i
++                    )
+             else:
+                 assert base_values is not None
+                 logits_i = self.model.apply_markov_bias_gathered(
+@@ -288,9 +419,9 @@ class DSparkSpeculator(DFlashSpeculator):
+                     base_values[:, i],
+                     draft_indices[:, i],
+                 )
+-            draft_sampled_i = self._sample_logits(
+-                logits_i, idx_map[:, i], sample_pos[:, i], i
+-            )
++                draft_sampled_i = self._sample_logits(
++                    logits_i, idx_map[:, i], sample_pos[:, i], i
++                )
+             valid_prefix.logical_and_(
+                 (draft_sampled_i >= 0) & (draft_sampled_i < self.vocab_size)
+             )
+@@ -424,6 +555,7 @@ class DSparkSpeculator(DFlashSpeculator):
+         cudagraph_runtime_mode: CUDAGraphMode = CUDAGraphMode.NONE,
+         is_profile: bool = False,
+         num_query_per_req: int | None = None,
++        capture_only: bool = False,
+     ) -> None:
+         if num_query_per_req is None:
+             num_query_per_req = self.num_query_per_req
+@@ -437,6 +569,24 @@ class DSparkSpeculator(DFlashSpeculator):
+             num_tokens_across_dp,
+             cudagraph_runtime_mode,
+         )
++        if self._markov_outside_cudagraph and (
++            capture_only or torch.cuda.is_current_stream_capturing()
++        ):
++            self._ensure_captured_markov_buffers()
++            assert self._captured_markov_hidden is not None
++            assert self._captured_base_logits is not None
++            num_sample = num_reqs * num_speculative_steps
++            if num_sample > self._captured_markov_hidden.shape[0]:
++                raise ValueError(
++                    "DSpark graph handoff buffer is too small: "
++                    f"rows={num_sample}, "
++                    f"capacity={self._captured_markov_hidden.shape[0]}."
++                )
++            sample_hidden = head_hidden[self.sample_indices[:num_sample]]
++            base_logits = self.model.compute_local_draft_logits(sample_hidden)
++            self._captured_markov_hidden[:num_sample].copy_(sample_hidden)
++            self._captured_base_logits[:num_sample].copy_(base_logits)
++            return
+         self._sample_sequential(
+             num_reqs,
+             head_hidden,
+@@ -448,3 +598,31 @@ class DSparkSpeculator(DFlashSpeculator):
+                 or num_reqs >= self.capacity_activation_batch_size
+             ),
+         )
++
++    def _finish_captured_draft(
++        self,
++        *,
++        num_reqs: int,
++        num_tokens_padded: int,
++        num_query_per_req: int,
++        is_profile: bool,
++    ) -> None:
++        if not self._markov_outside_cudagraph:
++            return
++        assert self._captured_markov_hidden is not None
++        assert self._captured_base_logits is not None
++        num_speculative_steps = self._speculative_steps_for_query_len(num_query_per_req)
++        num_sample = num_reqs * num_speculative_steps
++        self._sample_sequential(
++            num_reqs,
++            None,
++            num_speculative_steps,
++            num_query_per_req,
++            is_profile=is_profile,
++            use_capacity=(
++                self.capacity_activation_batch_size <= 0
++                or num_reqs >= self.capacity_activation_batch_size
++            ),
++            prepared_sample_hidden=self._captured_markov_hidden[:num_sample],
++            precomputed_base_logits=self._captured_base_logits[:num_sample],
++        )

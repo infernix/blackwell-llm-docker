@@ -19,6 +19,11 @@
       "number": 224,
       "head": "15b0e65cee3a7b3e9f079ce3d353cefff5fcc1ad",
       "title": "Batch Kimi top-16 expert selection"
+    },
+    {
+      "number": 226,
+      "head": "8c6f5a38fbbfea918df977f1e1f549f21fc5294a",
+      "title": "Reuse fixed route arenas for prefill tails"
     }
   ]
 }

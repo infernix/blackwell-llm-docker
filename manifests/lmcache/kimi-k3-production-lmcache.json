@@ -5,7 +5,7 @@
   "base_ref": "refs/heads/release/v0.5.2-glm52-dcp-base",
   "composition_strategy": "pinned_branch",
   "composition_ref": "refs/heads/agent/kimi-k3-production-engine-driven-20260817",
-  "composition_commit": "b19c80dccb3976f93e40c76e0dd4f496a2cf9386",
+  "composition_commit": "0c7eb0de6d7b7f098e30cbc39539efc1caa8e414",
   "pull_requests": [
     {
       "number": 7,
@@ -74,7 +74,7 @@
     },
     {
       "number": 24,
-      "head": "31ca93b2240ca61b5ca85549021c268f90f73d29",
+      "head": "f7504adfbf340621c0e0dac359fd1628a3ca5f5f",
       "title": "Preserve replicated Mamba restore geometry"
     },
     {

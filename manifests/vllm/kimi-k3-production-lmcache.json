@@ -4,68 +4,28 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817",
-  "composition_commit": "770c13fb9d430a4361ad32f490c8b27d10de8f8a",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r2",
+  "composition_commit": "39424c101284682993569b7126a7274989899630",
   "pull_requests": [
     {
-      "number": 382,
-      "head": "3912977cc57fafab6eb7227a63918b0ad2bad573",
-      "title": "Load Kimi checkpoints with bounded staging"
-    },
-    {
-      "number": 383,
-      "head": "d900666e308f05c47e2e0a848a567230d78a7bdf",
-      "title": "Define Kimi hybrid cache geometry"
-    },
-    {
-      "number": 384,
-      "head": "eb4d7342f4b7b2786fa7f1fe444caf60ff11f59b",
-      "title": "Run DCP collectives through B12X"
-    },
-    {
-      "number": 385,
-      "head": "17b9f73216cc872e0d165eaf0db3f2d29b7cedac",
-      "title": "Shard Kimi projections without padding checkpoint weights"
-    },
-    {
-      "number": 386,
-      "head": "64c430abdfcd34a9676b3383fd27ebdc99c21a17",
-      "title": "Fuse Kimi routed-MoE projection transport"
-    },
-    {
-      "number": 387,
-      "head": "fe2416a7f9bc562c33fc35607d99c4febf895b0c",
-      "title": "Execute Kimi dense MLA with decode context parallelism"
-    },
-    {
-      "number": 388,
-      "head": "6411832f616599c1aab060e7ee59eeccfa7b8e4c",
-      "title": "Support external Kimi speculative draft runtimes"
-    },
-    {
-      "number": 389,
-      "head": "1c6ba6c33ba240169c6e1f54590e908732228d7e",
-      "title": "Bound and shard Kimi DSpark state"
-    },
-    {
       "number": 390,
-      "head": "77c874cc4de3da759b71c90ced3b02183be06e9c",
+      "head": "904327c9aa46be2bd5cad28dcb5788384c9181f6",
       "title": "Sample Kimi DSpark proposals from vocabulary shards"
     },
     {
       "number": 391,
-      "head": "08d15da19e84e5f7abb0f456056c7cb74f1b1261",
+      "head": "22ce7307ba709d3f31e2b2ea9749a54b9c4f0a36",
       "title": "Select the B12X all-reduce limit by tensor-parallel size"
     },
     {
-      "number": 400,
-      "head": "8a4485f6ada46c492d944aa47cab1c026f3b4cd5",
-      "title": "Select assembled Kimi router logits with CuTeDSL"
+      "number": 395,
+      "head": "b37a8c6c56b77822f06aedb1b419fae1efadb516",
+      "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
     },
     {
-      "number": 395,
-      "head": "a5004ada3f2e8c1e480a8d0885f98121a94ccc0d",
-      "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
+      "number": 400,
+      "head": "76d287efb4a488e0801f8b903040e869f49b8c41",
+      "title": "Select assembled Kimi router logits with CuTeDSL"
     },
     {
       "number": 401,
@@ -76,6 +36,16 @@
       "number": 404,
       "head": "f04051235a8ceecee3c3d538426f3eeaf987cf48",
       "title": "Bound Kimi-K3 vision loading and preprocessing memory"
+    },
+    {
+      "number": 413,
+      "head": "efbaa9581032d01e9ce111849ab2d92a26b16757",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "title": "Preserve Mamba CoW after external prefix hits"
     }
   ]
 }

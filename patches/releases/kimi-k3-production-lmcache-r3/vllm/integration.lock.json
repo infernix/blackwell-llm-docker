@@ -1,0 +1,105 @@
+{
+  "base": {
+    "commit": "4766b51528c950daa910f8eff38c22c528314154",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "repository": "https://github.com/local-inference-lab/vllm.git"
+  },
+  "composition": {
+    "commit": "39424c101284682993569b7126a7274989899630",
+    "ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r2"
+  },
+  "composition_strategy": "pinned_branch",
+  "manifest": {
+    "sha256": "9635dbf988e1839eeef4e0733af027baa5f638d39e959290b222fb9fd971fa1f"
+  },
+  "name": "kimi-k3-production-vllm",
+  "pull_requests": [
+    {
+      "commits": [
+        "904327c9aa46be2bd5cad28dcb5788384c9181f6"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "904327c9aa46be2bd5cad28dcb5788384c9181f6",
+      "number": 390,
+      "ref": "refs/pull/390/head",
+      "title": "Sample Kimi DSpark proposals from vocabulary shards"
+    },
+    {
+      "commits": [
+        "22ce7307ba709d3f31e2b2ea9749a54b9c4f0a36"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "22ce7307ba709d3f31e2b2ea9749a54b9c4f0a36",
+      "number": 391,
+      "ref": "refs/pull/391/head",
+      "title": "Select the B12X all-reduce limit by tensor-parallel size"
+    },
+    {
+      "commits": [
+        "b37a8c6c56b77822f06aedb1b419fae1efadb516"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "b37a8c6c56b77822f06aedb1b419fae1efadb516",
+      "number": 395,
+      "ref": "refs/pull/395/head",
+      "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
+    },
+    {
+      "commits": [
+        "76d287efb4a488e0801f8b903040e869f49b8c41"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "76d287efb4a488e0801f8b903040e869f49b8c41",
+      "number": 400,
+      "ref": "refs/pull/400/head",
+      "title": "Select assembled Kimi router logits with CuTeDSL"
+    },
+    {
+      "commits": [
+        "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1",
+      "number": 401,
+      "ref": "refs/pull/401/head",
+      "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
+    },
+    {
+      "commits": [
+        "f04051235a8ceecee3c3d538426f3eeaf987cf48"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "f04051235a8ceecee3c3d538426f3eeaf987cf48",
+      "number": 404,
+      "ref": "refs/pull/404/head",
+      "title": "Bound Kimi-K3 vision loading and preprocessing memory"
+    },
+    {
+      "commits": [
+        "efbaa9581032d01e9ce111849ab2d92a26b16757"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "efbaa9581032d01e9ce111849ab2d92a26b16757",
+      "number": 413,
+      "ref": "refs/pull/413/head",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "commits": [
+        "990a63debf7201ae5446436a712609fcc8ffaef7"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "number": 414,
+      "ref": "refs/pull/414/head",
+      "title": "Preserve Mamba CoW after external prefix hits"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "03c44b2ff6bb1c0e19d9ea94304ee2fed54eca4c6c5b00b23c198c1807abf7a6",
+    "tree": "f315a756df18dd7c59e69e8624712f56e0585d32"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
