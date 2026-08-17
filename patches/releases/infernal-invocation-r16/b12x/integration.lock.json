@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "ea3c40a20ace6d394e3d09097373208c4f831568a92c9d0e04e0fbd9638f258d"
+    "sha256": "1f401d05dc67e9b78933fbc36935e7f4172187ac691c6b324c73180be9e255a6"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -33,20 +33,20 @@
     },
     {
       "commits": [
-        "27897e85f12a2eaea141d9b51229adc3d6fd3071"
+        "e99775f552c4f28cf1f345ded28bb77a57ea6a83"
       ],
       "disposition": "merged",
-      "head": "27897e85f12a2eaea141d9b51229adc3d6fd3071",
+      "head": "e99775f552c4f28cf1f345ded28bb77a57ea6a83",
       "number": 223,
       "ref": "refs/pull/223/head",
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
     },
     {
       "commits": [
-        "6a41770fb1514c4db03b4ff552380ec6821a3ae9"
+        "e38436d76a95c586c57e06646f8ea5b8c8ed11c7"
       ],
       "disposition": "merged",
-      "head": "6a41770fb1514c4db03b4ff552380ec6821a3ae9",
+      "head": "e38436d76a95c586c57e06646f8ea5b8c8ed11c7",
       "number": 227,
       "ref": "refs/pull/227/head",
       "title": "Honor inactive routes in native W4A16 microkernels"
@@ -84,8 +84,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "0cc36dbbef0b8c24fea172f962c4945a0c38d0154d6dfac8ac566bf726191397",
-    "tree": "6965c4873e170d956431390c3dec3d99c828eea1"
+    "patch_sha256": "c485907ec981f6445ea079f52dc34ff44b3acc2b6b3e63ec424efaa50a12ea38",
+    "tree": "a4a0bc8a8f5e56dbef85f9b46b0d74f6e8edb491"
   },
   "schema_version": 1,
   "source_patches": []
