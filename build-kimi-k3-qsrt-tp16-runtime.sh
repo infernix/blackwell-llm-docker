@@ -5,14 +5,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-release_root=patches/releases/kimi-k3-production-lmcache-r5
+release_root=patches/releases/kimi-k3-production-lmcache-r6
 vllm_lock="${release_root}/vllm/integration.lock.json"
 b12x_lock="${release_root}/b12x/integration.lock.json"
 lmcache_lock="${release_root}/lmcache/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
 release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache}"
 release_date="${RELEASE_DATE:-20260817}"
-revision="${REVISION:-r5}"
+revision="${REVISION:-r6}"
 
 for path in \
   "${vllm_lock}" \
@@ -30,17 +30,23 @@ done
 read_lock() {
   local lock=$1 prefix=$2 component=$3
   local patch="${release_root}/${component}/integration.patch"
-  local expected_patch_sha
+  local expected_patch_sha repo ref commit integration_tree lock_sha prs
   expected_patch_sha="$(jq -er '.result.patch_sha256' "${lock}")"
   echo "${expected_patch_sha}  ${patch}" | sha256sum -c - >/dev/null
-  export "${prefix}_REPO=$(jq -er '.base.repository' "${lock}")"
-  export "${prefix}_REF=$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${lock}")"
-  export "${prefix}_COMMIT=$(jq -er '.base.commit' "${lock}")"
+  repo="$(jq -er '.base.repository' "${lock}")"
+  ref="$(jq -er '.base.ref | sub("^refs/heads/"; "")' "${lock}")"
+  commit="$(jq -er '.base.commit' "${lock}")"
+  integration_tree="$(jq -er '.result.tree' "${lock}")"
+  lock_sha="$(sha256sum "${lock}" | cut -d' ' -f1)"
+  prs="$(jq -er '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${lock}")"
+  export "${prefix}_REPO=${repo}"
+  export "${prefix}_REF=${ref}"
+  export "${prefix}_COMMIT=${commit}"
   export "${prefix}_PATCH_FILE=${patch}"
   export "${prefix}_PATCH_SHA256=${expected_patch_sha}"
-  export "${prefix}_INTEGRATION_TREE=$(jq -er '.result.tree' "${lock}")"
-  export "${prefix}_INTEGRATION_LOCK_SHA256=$(sha256sum "${lock}" | cut -d' ' -f1)"
-  export "${prefix}_PRS=$(jq -er '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${lock}")"
+  export "${prefix}_INTEGRATION_TREE=${integration_tree}"
+  export "${prefix}_INTEGRATION_LOCK_SHA256=${lock_sha}"
+  export "${prefix}_PRS=${prs}"
 }
 
 read_lock "${vllm_lock}" VLLM vllm

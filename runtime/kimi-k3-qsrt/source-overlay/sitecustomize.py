@@ -1,9 +1,9 @@
 """Run a source-locked vLLM tree with extensions from a binary image.
 
-Set ``VLLM_SOURCE_OVERLAY_ROOT`` to the repository root and
-``VLLM_BINARY_PACKAGE_DIR`` to the image's compiled ``vllm`` package. This
-module activates only when its directory is explicitly prepended to
-``PYTHONPATH``.
+Set ``VLLM_SOURCE_OVERLAY_ACTIVE=1``, ``VLLM_SOURCE_OVERLAY_ROOT`` to the
+repository root, and ``VLLM_BINARY_PACKAGE_DIR`` to the image's compiled
+``vllm`` package. Kimi serving launchers enable the overlay explicitly so
+unrelated Python processes do not import vLLM during interpreter startup.
 """
 
 from __future__ import annotations
@@ -16,10 +16,12 @@ import sys
 from pathlib import Path
 
 
-source_root = os.environ.get("VLLM_SOURCE_OVERLAY_ROOT")
-binary_package_dir = os.environ.get("VLLM_BINARY_PACKAGE_DIR")
+def _activate_vllm_source_overlay() -> None:
+    source_root = os.environ.get("VLLM_SOURCE_OVERLAY_ROOT")
+    binary_package_dir = os.environ.get("VLLM_BINARY_PACKAGE_DIR")
+    if not source_root:
+        raise RuntimeError("VLLM_SOURCE_OVERLAY_ROOT is not configured")
 
-if source_root:
     source_root = str(Path(source_root).resolve())
     if source_root in sys.path:
         sys.path.remove(source_root)
@@ -77,3 +79,13 @@ if source_root:
         )
         if binary_flash_attention_dir not in flash_attention.__path__:
             flash_attention.__path__.append(binary_flash_attention_dir)
+
+
+if os.environ.get("VLLM_SOURCE_OVERLAY_ACTIVE") == "1":
+    try:
+        _activate_vllm_source_overlay()
+    except Exception as exc:
+        # site.execsitecustomize catches ordinary exceptions and lets Python
+        # continue. SystemExit preserves the source-identity invariant by
+        # terminating startup before an unintended vLLM package can execute.
+        raise SystemExit(f"vLLM source overlay activation failed: {exc}") from exc

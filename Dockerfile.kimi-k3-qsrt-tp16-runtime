@@ -130,6 +130,7 @@ COPY --chmod=0755 launchers/lmcache-mp-wrapper.sh /usr/local/bin/lmcache-mp-wrap
 COPY --chmod=0755 launchers/serve-kimi-k3-production-dspark-ii /usr/local/bin/serve-kimi-k3-production-dspark-ii
 
 RUN set -eux; \
+    export VLLM_SOURCE_OVERLAY_ACTIVE=1; \
     test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/b12x write-tree)" = "${B12X_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/lmcache write-tree)" = "${LMCACHE_INTEGRATION_TREE}"; \

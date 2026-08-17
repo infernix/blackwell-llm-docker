@@ -40,6 +40,7 @@ printf -v speculative_config \
   "${DRAFT_MODEL}"
 
 export HF_MODULES_CACHE="${HF_MODULES_CACHE:-/tmp/huggingface-modules}"
+export VLLM_SOURCE_OVERLAY_ACTIVE=1
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export CUDA_MODULE_LOADING="${CUDA_MODULE_LOADING:-LAZY}"
 export CUDA_MODULE_DATA_LOADING="${CUDA_MODULE_DATA_LOADING:-LAZY}"

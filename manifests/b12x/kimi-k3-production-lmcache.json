@@ -6,26 +6,6 @@
   "composition_strategy": "merge",
   "pull_requests": [
     {
-      "number": 215,
-      "head": "b3c2c162064ea9fab118f08922577aca5912e7e6",
-      "title": "Preserve unaligned multi-row FP8 linear outputs"
-    },
-    {
-      "number": 220,
-      "head": "dba993834192b4ce7d62c33bf2f0fe5f132f04bf",
-      "title": "Add TP16 equal-quarter PCIe all-reduce"
-    },
-    {
-      "number": 224,
-      "head": "15b0e65cee3a7b3e9f079ce3d353cefff5fcc1ad",
-      "title": "Batch Kimi top-16 expert selection"
-    },
-    {
-      "number": 226,
-      "head": "8c6f5a38fbbfea918df977f1e1f549f21fc5294a",
-      "title": "Reuse fixed route arenas for prefill tails"
-    },
-    {
       "number": 227,
       "head": "debaafe156c9824396178d53e01e5f15d2a2a04a",
       "title": "Honor inactive routes in native W4A16 microkernels"

@@ -19,7 +19,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
 PROMPT_SEED = (
     "External prefix-cache qualification uses a deterministic technical document. "
     "Each paragraph describes the same cache-transfer invariant: the serving engine "
@@ -254,8 +253,8 @@ def main() -> None:
 
     _reset_local(args.base_url)
     external_clear = _clear_external(args.cache_url)
-    before_vllm_text, before_vllm = _metrics(f"{args.base_url}/metrics")
-    before_cache_text, before_cache = _metrics(f"{args.cache_url}/metrics")
+    before_vllm_text, _before_vllm = _metrics(f"{args.base_url}/metrics")
+    before_cache_text, _before_cache = _metrics(f"{args.cache_url}/metrics")
 
     cold_response, cold_seconds = _complete(args.base_url, args.model, tokens)
     time.sleep(args.store_wait_seconds)

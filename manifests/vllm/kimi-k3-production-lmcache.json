@@ -4,38 +4,13 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r4",
-  "composition_commit": "0a36e5564db6b62ce063b5b983b4d45b163f5ced",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r6",
+  "composition_commit": "a25a92563935839ff857a76ae6218a81c88c8fab",
   "pull_requests": [
     {
-      "number": 390,
-      "head": "995383357ecf99b8e6420289fe5ce2505a80a2a0",
-      "title": "Sample Kimi DSpark proposals from vocabulary shards"
-    },
-    {
-      "number": 391,
-      "head": "0f1690c18fb8a6370b512a8fcdb4318561a93fa9",
-      "title": "Select the B12X all-reduce limit by tensor-parallel size"
-    },
-    {
-      "number": 395,
-      "head": "8aaf4fc1380d7145a0e4c7edc9dea1cf35ac0d9e",
-      "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
-    },
-    {
-      "number": 400,
-      "head": "a6b0dfef1b7050b4f7b40417e807b21949090528",
-      "title": "Select assembled Kimi router logits with CuTeDSL"
-    },
-    {
-      "number": 401,
-      "head": "4e6c2102fe7dea8e97848f75b95a3b54f4848774",
-      "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
-    },
-    {
-      "number": 404,
-      "head": "a1962ab8250a24ed3fa258524e53210789ad335b",
-      "title": "Bound Kimi-K3 vision loading and preprocessing memory"
+      "number": 310,
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
+      "title": "Preserve replicated DFlash-family draft semantics under DCP"
     },
     {
       "number": 413,
