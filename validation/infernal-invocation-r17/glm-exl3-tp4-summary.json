@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmc53cc73-b12xc0a44a1-fi1ac6942-cu133-torch213-20260817-r17",
+  "registry_digest": "sha256:c5e96c5bcc5a073f7ce6b56173d88538de3a416900cff97c88b4bf7967fe1dc0",
+  "checkpoint": {
+    "repository": "brandonmusic/GLM-5.2-EXL3-TR3v4-3.5bpw-MTP78",
+    "revision": "9ab9579774cc432df91567a36f6e9e863e0d4c9f",
+    "served_name": "GLM-5.2-EXL3-R7-3.5bpw"
+  },
+  "hardware": {
+    "host": "192.168.0.69",
+    "gpu_ids": [4, 5, 6, 7],
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "gpu_memory_gib": 96,
+    "topology": "direct-attached PCIe root ports"
+  },
+  "configuration": {
+    "tensor_parallel_size": 4,
+    "decode_context_parallel_size": 1,
+    "speculative_tokens": 3,
+    "max_num_seqs": 1,
+    "max_cuda_graph_capture_size": 4,
+    "max_model_len": 32768,
+    "max_num_batched_tokens": 2048,
+    "gpu_memory_utilization": 0.98,
+    "moe_backend": "b12x",
+    "mtp_moe_backend": "triton",
+    "checkpoint_quantization": "exl3",
+    "online_quantization": "trellis-mcg-b6",
+    "kv_cache_dtype": "nvfp4_ds_mla",
+    "load_format": "instanttensor",
+    "instanttensor_backend": "BUFFERED",
+    "instanttensor_copy": false
+  },
+  "startup": {
+    "model_weight_memory_gib_per_rank": 86.61,
+    "maximum_observed_model_load_seconds": 95.92,
+    "online_k6_cache_hits": 444,
+    "projection_mixed_k5_layers_observed": 4,
+    "piecewise_prefill_graph": "captured",
+    "full_prefill_graph": "captured",
+    "full_decode_graph": "captured",
+    "cuda_graph_memory_gib_per_rank": 0.14
+  },
+  "correctness": {
+    "chat_completion": "pass: finish_reason=stop with coherent final content",
+    "tracebacks": 0,
+    "cuda_runtime_errors": 0,
+    "xid_events": 0,
+    "engine_fatal_events": 0
+  },
+  "decode_cc1": {
+    "measurement_seconds": 19.987285,
+    "aggregate_tokens_per_second": 94.05979830032224,
+    "active_user_tokens_per_second": 94.35094877274577,
+    "target_steps_per_second": 33.42124748117833,
+    "effective_accept_length": 2.81437125748503,
+    "speculative_acceptance_rate": 0.6047904191616766,
+    "errors": 0
+  },
+  "comparison": {
+    "reference": "Infernal Invocation r16 with the same checkpoint, host, topology, and serving configuration",
+    "reference_aggregate_tokens_per_second": 88.6856012092603,
+    "reference_active_user_tokens_per_second": 87.27068381116842,
+    "reference_target_steps_per_second": 33.33217291499286,
+    "conclusion": "Target-step throughput differs by 0.27 percent; the higher emitted-token rate is attributable to run-level speculative acceptance variance rather than a kernel throughput change."
+  },
+  "artifacts": {
+    "raw_decode_benchmark": "validation/infernal-invocation-r17/glm-exl3-tp4-cc1.json",
+    "compose": "examples/docker-compose-glm52-exl3-infernal-invocation-r17.yml"
+  }
+}

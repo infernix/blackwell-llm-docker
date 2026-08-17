@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Release qualification receipt for the GLM-5.2 projection-mixed EXL3 serving profile",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmc53cc73-b12xc0a44a1-fi1ac6942-cu133-torch213-20260817-r17",
+  "image_id": "sha256:4d99eda4dcb235f4f17612b403442fc1f35de9b20748553ef46c0a1a64492424",
+  "registry_digest": "sha256:c5e96c5bcc5a073f7ce6b56173d88538de3a416900cff97c88b4bf7967fe1dc0",
+  "image_size_bytes": 30769624779,
+  "validated_at": "2026-08-17",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [4, 5, 6, 7],
+  "source_trees": {
+    "vllm": "c53cc73dd64992f013842edf53513f604457c402",
+    "b12x": "c0a44a16f884222faab1ff52ed5db0875bf61971",
+    "lmcache": "e045d729bc5c4c63a40e13d032f42923de97812f"
+  },
+  "source_composition": {
+    "docker_commit": "076b08c0d5c9e4365c678c881f1bbe256edf59f9",
+    "vllm_base": "dev/infernal-invocation@d6e0bb7c813264f1293288b9de0d18f277be7c9f",
+    "vllm_pull_request_300": "1b0c1c49f3517406db33f9b08aa7b476ce8d3e34",
+    "b12x_base": "master@c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
+    "b12x_pull_request_223": "35c7ed0b7ac2430ceb8d07a6fb05734ac5f3878e",
+    "source_patches": []
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r17.vllmc53cc73.b12xc0a44a1",
+    "b12x": "1.2.3",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5",
+    "instanttensor": "0.1.9"
+  },
+  "implemented_contracts": {
+    "projection_mixed_experts": "Checkpoint-native Trellis K3, K4, and K5 routed-expert projections retain independent bitrate maps and execute through the B12X W4A16 owner.",
+    "uniform_rank_slices": "Uniform rank-sliced routed-expert payloads are prepared through the native BTX layout contract before B12X adopts their storage without copying.",
+    "route_pack_warmup": "Route-pack warmup keys include token count, top-k width, caller-owned route slots, route blocks, block size, expert count, route dtype, expert mapping, and device.",
+    "online_dense_quantization": "Eligible BF16 dense projections are encoded as persistent Trellis MCG K6 payloads and reused by checkpoint revision.",
+    "cuda_graphs": "The qualified TP4 profile captured PIECEWISE and FULL prefill graphs and a FULL decode graph."
+  },
+  "runtime_validation": {
+    "glm_exl3_tp4": "qualified",
+    "glm_exl3_artifact": "validation/infernal-invocation-r17/glm-exl3-tp4-summary.json",
+    "glm_nvfp4_tp8": "source-qualified",
+    "deepseek_v4_flash_tp2": "source-qualified"
+  },
+  "result": "The GLM-5.2 projection-mixed EXL3 checkpoint loaded without source overlays, captured the configured CUDA graphs, produced coherent output, and sustained 33.42 target steps per second in the C1 gate without a runtime failure.",
+  "limitations": [
+    "GLM-5.2 NVFP4 TP8 was not executed against this image.",
+    "DeepSeek-V4-Flash was not executed against this image.",
+    "The C1 gate used MAX_NUM_SEQS=1 and a CUDA graph cap of 4 to isolate the routed-expert runtime contract."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r17",
+    "deepseek_compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r17.yml",
+    "glm_exl3_compose": "examples/docker-compose-glm52-exl3-infernal-invocation-r17.yml",
+    "glm_nvfp4_compose": "examples/docker-compose-glm52-nvfp4-infernal-invocation-r17.yml",
+    "source_merge_contract": "https://github.com/local-inference-lab/rtx6kpro/issues/73"
+  }
+}
