@@ -4,37 +4,37 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r2",
-  "composition_commit": "ba6c5d4660ea9f3587fc4f98ac10970ba810b908",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r3",
+  "composition_commit": "e9d1d9178e0054ecf30109235efe6e6af9c17218",
   "pull_requests": [
     {
       "number": 390,
-      "head": "904327c9aa46be2bd5cad28dcb5788384c9181f6",
+      "head": "995383357ecf99b8e6420289fe5ce2505a80a2a0",
       "title": "Sample Kimi DSpark proposals from vocabulary shards"
     },
     {
       "number": 391,
-      "head": "22ce7307ba709d3f31e2b2ea9749a54b9c4f0a36",
+      "head": "0f1690c18fb8a6370b512a8fcdb4318561a93fa9",
       "title": "Select the B12X all-reduce limit by tensor-parallel size"
     },
     {
       "number": 395,
-      "head": "b37a8c6c56b77822f06aedb1b419fae1efadb516",
+      "head": "8aaf4fc1380d7145a0e4c7edc9dea1cf35ac0d9e",
       "title": "Preserve Kimi reasoning while merging assistant tool-call turns"
     },
     {
       "number": 400,
-      "head": "76d287efb4a488e0801f8b903040e869f49b8c41",
+      "head": "a6b0dfef1b7050b4f7b40417e807b21949090528",
       "title": "Select assembled Kimi router logits with CuTeDSL"
     },
     {
       "number": 401,
-      "head": "b6e8d9d70789d3d9f4a357ffbf2de7c903de77c1",
+      "head": "4e6c2102fe7dea8e97848f75b95a3b54f4848774",
       "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
     },
     {
       "number": 404,
-      "head": "f04051235a8ceecee3c3d538426f3eeaf987cf48",
+      "head": "a1962ab8250a24ed3fa258524e53210789ad335b",
       "title": "Bound Kimi-K3 vision loading and preprocessing memory"
     },
     {
@@ -46,6 +46,16 @@
       "number": 414,
       "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
       "title": "Preserve Mamba CoW after external prefix hits"
+    },
+    {
+      "number": 415,
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "title": "Preserve the DSpark CUDA-graph capture contract"
+    },
+    {
+      "number": 416,
+      "head": "45cd24f2d112a54a93c6a3ec645b84a26615b299",
+      "title": "Encode Kimi precomputed padding as safe zero-weight routes"
     }
   ]
 }

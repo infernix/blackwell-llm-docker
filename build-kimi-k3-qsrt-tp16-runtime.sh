@@ -12,7 +12,7 @@ lmcache_lock="${release_root}/lmcache/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
 release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache}"
 release_date="${RELEASE_DATE:-20260817}"
-revision="${REVISION:-r3}"
+revision="${REVISION:-r4}"
 
 for path in \
   "${vllm_lock}" \
