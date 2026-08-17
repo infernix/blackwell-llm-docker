@@ -135,9 +135,11 @@ assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TRE
 assert_label local-inference.flash-attention.forward.sha256 \
   f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449
 
-docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
+docker run --rm --env VLLM_SOURCE_OVERLAY_ACTIVE=1 \
+  --entrypoint /opt/venv/bin/python "${image}" -c \
   'import pathlib, vllm; expected=pathlib.Path("/opt/kimi-k3-qsrt/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'
-docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
+docker run --rm --env VLLM_SOURCE_OVERLAY_ACTIVE=1 \
+  --entrypoint /opt/venv/bin/python "${image}" -c \
   'import lmcache, pathlib; expected=pathlib.Path("/opt/kimi-k3-qsrt/lmcache"); assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(expected)'
 docker run --rm --entrypoint /bin/bash "${image}" -lc \
   'sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py'
