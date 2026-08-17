@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r3",
-  "composition_commit": "e9d1d9178e0054ecf30109235efe6e6af9c17218",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r4",
+  "composition_commit": "0a36e5564db6b62ce063b5b983b4d45b163f5ced",
   "pull_requests": [
     {
       "number": 390,
@@ -51,11 +51,6 @@
       "number": 415,
       "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
       "title": "Preserve the DSpark CUDA-graph capture contract"
-    },
-    {
-      "number": 416,
-      "head": "45cd24f2d112a54a93c6a3ec645b84a26615b299",
-      "title": "Encode Kimi precomputed padding as safe zero-weight routes"
     }
   ]
 }
