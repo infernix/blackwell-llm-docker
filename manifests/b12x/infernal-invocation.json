@@ -16,7 +16,7 @@
     },
     {
       "number": 223,
-      "head": "35c7ed0b7ac2430ceb8d07a6fb05734ac5f3878e",
+      "head": "3df80ee36e2a060b602897b00af377687efd9118",
       "title": "Execute projection-mixed MCG K3/K4/K5 experts"
     },
     {
@@ -42,6 +42,12 @@
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 231,
+      "head": "17d0ef65925543bf678cf7c73cd87bd236b36c1f",
+      "disposition": "research-only",
+      "reason": "KVarN packed-latent staging and its native reader implement an alternative KV representation. No DeepSeek V4 or GLM-5.2 profile in this release is qualified with KVarN storage."
+    },
     {
       "number": 222,
       "head": "d86c94252e75c86bd626897c3b3fa74df075c6bf",
