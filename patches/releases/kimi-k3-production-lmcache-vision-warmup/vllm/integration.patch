@@ -1,9 +1,9 @@
 diff --git a/tests/models/kimi_k3/test_vision_warmup.py b/tests/models/kimi_k3/test_vision_warmup.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..a9e1dfd45e5937d7a81472d325968ab2d7cffc2a
+index 0000000000000000000000000000000000000000..7fc562b31fd3b8f76c76fc2dac3a675c2a9bc0a4
 --- /dev/null
 +++ b/tests/models/kimi_k3/test_vision_warmup.py
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,59 @@
 +# SPDX-License-Identifier: Apache-2.0
 +# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 +
@@ -45,20 +45,24 @@ index 0000000000000000000000000000000000000000..a9e1dfd45e5937d7a81472d325968ab2
 +
 +def test_kimi_warmup_runs_vision_before_kda_state_exists(monkeypatch) -> None:
 +    model = torch.nn.Linear(2, 2)
-+    warm_vision = Mock(return_value=1)
++    calls = []
++    warm_vision = Mock(side_effect=lambda model: calls.append("vision") or 1)
++    get_kda_layer = Mock(side_effect=lambda worker: calls.append("kda"))
 +    monkeypatch.setattr(kimi_k3_triton_warmup.current_platform, "is_cuda", lambda: True)
 +    monkeypatch.setattr(
 +        kimi_k3_triton_warmup,
 +        "_warm_vision_position_interpolation",
 +        warm_vision,
 +    )
-+    monkeypatch.setattr(kimi_k3_triton_warmup, "_get_kda_layer", lambda worker: None)
++    monkeypatch.setattr(kimi_k3_triton_warmup, "_get_kda_layer", get_kda_layer)
 +
 +    kimi_k3_triton_warmup.kimi_k3_triton_warmup(
 +        SimpleNamespace(get_model=lambda: model)
 +    )
 +
 +    warm_vision.assert_called_once_with(model)
++    get_kda_layer.assert_called_once()
++    assert calls == ["vision", "kda"]
 diff --git a/tests/reasoning/test_kimi_k3_reasoning_parser.py b/tests/reasoning/test_kimi_k3_reasoning_parser.py
 index 4f831e851e9b6ed6ef6b028e5ae0faca7dfac4fa..83ee0b5d0951e0f58074d0ee2d56e94b914fe649 100644
 --- a/tests/reasoning/test_kimi_k3_reasoning_parser.py
@@ -1191,14 +1195,23 @@ index 58c59fcbb5cbf653760dd8a543ea3d3226db41b6..929beae39207a8e6c31f95eef65eb85f
              cache_config=cache_config,
              quant_config=quant_config,
 diff --git a/vllm/model_executor/warmup/kimi_k3_triton_warmup.py b/vllm/model_executor/warmup/kimi_k3_triton_warmup.py
-index 257c8a8bceadca0b59c300408c1b51d91c239f30..3b930614c8b9d6a299dc3f9637b9a230b4ce96bd 100644
+index 257c8a8bceadca0b59c300408c1b51d91c239f30..83162b5d3591fce9bf78d5aa6a26a022dd8df913 100644
 --- a/vllm/model_executor/warmup/kimi_k3_triton_warmup.py
 +++ b/vllm/model_executor/warmup/kimi_k3_triton_warmup.py
-@@ -18,6 +18,25 @@ if TYPE_CHECKING:
+@@ -18,6 +18,34 @@ if TYPE_CHECKING:
  logger = init_logger(__name__)
  
  
 +def _warm_vision_position_interpolation(model: torch.nn.Module) -> int:
++    """Compile Kimi vision interpolation before KV-cache allocation.
++
++    Args:
++        model: Loaded model whose module tree may contain Kimi vision position
++            embeddings.
++
++    Returns:
++        Number of Kimi vision interpolation modules invoked.
++    """
 +    from vllm.model_executor.models.kimi_k25_vit import (
 +        Learnable2DInterpPosEmbDivided_fixed,
 +        get_rope_shape,
@@ -1220,7 +1233,7 @@ index 257c8a8bceadca0b59c300408c1b51d91c239f30..3b930614c8b9d6a299dc3f9637b9a230
  def _get_kda_layer(worker: Worker) -> KimiK3DeltaAttention | None:
      from vllm.models.kimi_k3.nvidia.kda import KimiK3DeltaAttention
  
-@@ -187,6 +206,15 @@ def kimi_k3_triton_warmup(worker: Worker) -> None:
+@@ -187,6 +215,15 @@ def kimi_k3_triton_warmup(worker: Worker) -> None:
      if not current_platform.is_cuda():
          return
  

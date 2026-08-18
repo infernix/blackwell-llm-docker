@@ -5,7 +5,7 @@
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
   "composition_ref": "refs/heads/agent/kimi-k3-production-vision-warmup-20260818",
-  "composition_commit": "c3b9432ffc2b8e683cc438556e6b2e221fe82896",
+  "composition_commit": "3dca3a5e032bcd452c51c1a034bba55e912abbf5",
   "pull_requests": [
     {
       "number": 310,
@@ -52,7 +52,7 @@
     },
     {
       "number": 428,
-      "head": "04e5ac11921481cf59d091162484cb42cc13b289",
+      "head": "45962db4c38a0e430450a087843fc2762a38beb4",
       "title": "Warm Kimi vision interpolation before KV allocation"
     }
   ]

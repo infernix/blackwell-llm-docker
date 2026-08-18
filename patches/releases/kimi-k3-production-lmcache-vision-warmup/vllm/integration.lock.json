@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "c3b9432ffc2b8e683cc438556e6b2e221fe82896",
+    "commit": "3dca3a5e032bcd452c51c1a034bba55e912abbf5",
     "ref": "refs/heads/agent/kimi-k3-production-vision-warmup-20260818"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "b30329abffbac0da122ea4215b46699ac51a6c70fa9a405c1245ce1a795bc391"
+    "sha256": "d4bf2c3efd22802b56db6991784befea601c099ea1b0521f95b63735a865b1ff"
   },
   "name": "kimi-k3-production-vllm",
   "pull_requests": [
@@ -96,10 +96,10 @@
     },
     {
       "commits": [
-        "04e5ac11921481cf59d091162484cb42cc13b289"
+        "45962db4c38a0e430450a087843fc2762a38beb4"
       ],
       "disposition": "recorded_in_composition",
-      "head": "04e5ac11921481cf59d091162484cb42cc13b289",
+      "head": "45962db4c38a0e430450a087843fc2762a38beb4",
       "number": 428,
       "ref": "refs/pull/428/head",
       "title": "Warm Kimi vision interpolation before KV allocation"
@@ -107,8 +107,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "f0433136114d1d2ce0888c2c90ffca60a1c64cd66de1fcded23134240cd9f23d",
-    "tree": "2a859f7d001d174367a69dedd49e55388ead6652"
+    "patch_sha256": "746c8355ed883d2d5345b654ff90e822041c67a1a2122f6b3772c3b8a3e0d05b",
+    "tree": "227d058dc47cf61699af4c2b087834ac8dfdec95"
   },
   "schema_version": 1,
   "source_patches": []
