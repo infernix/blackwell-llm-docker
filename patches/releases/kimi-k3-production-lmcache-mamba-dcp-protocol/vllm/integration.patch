@@ -1,3 +1,84 @@
+diff --git a/tests/kernels/test_safe_mla_query_bmm.py b/tests/kernels/test_safe_mla_query_bmm.py
+index db745e4b86724e803ce8eef69edda57ba66da69f..cbdd1fa1ecf7c4c56d1f5ec7111c1c54290c8623 100644
+--- a/tests/kernels/test_safe_mla_query_bmm.py
++++ b/tests/kernels/test_safe_mla_query_bmm.py
+@@ -15,6 +15,7 @@ def _require_safe_mla_query_bmm():
+ @pytest.mark.parametrize(
+     "heads,tokens,q_dim",
+     [
++        (6, 14, 128),
+         (8, 1, 512),
+         (8, 6, 512),
+         (8, 11, 512),
+diff --git a/tests/models/kimi_k3/test_mla_padding.py b/tests/models/kimi_k3/test_mla_padding.py
+index 437976d4a98d448883fa3defeba8638fb6c0b537..299416bf26dcc3ea81fe0cc590b2316d2cfdd6d1 100644
+--- a/tests/models/kimi_k3/test_mla_padding.py
++++ b/tests/models/kimi_k3/test_mla_padding.py
+@@ -6,6 +6,64 @@ from types import SimpleNamespace
+ import torch
+ 
+ 
++def test_kimi_mla_absorbed_weight_preallocation_uses_local_heads():
++    from vllm.model_executor.layers.attention.mla_attention import (
++        _preallocate_absorbed_mla_weights,
++    )
++
++    projection = torch.nn.Module()
++    projection.weight = torch.nn.Parameter(torch.empty((1, 1)))
++    attention = SimpleNamespace(
++        num_heads=96,
++        num_local_heads=6,
++        kv_lora_rank=512,
++        qk_nope_head_dim=128,
++        v_head_dim=128,
++        kv_b_proj=projection,
++    )
++
++    w_uv, w_uk_t = _preallocate_absorbed_mla_weights(attention, torch.bfloat16)
++
++    assert w_uv is not None
++    assert w_uk_t is not None
++    assert w_uv.shape == (6, 512, 128)
++    assert w_uk_t.shape == (6, 128, 512)
++    assert w_uv.is_contiguous()
++    assert w_uk_t.is_contiguous()
++
++
++def test_kimi_mla_decode_query_uses_allocation_safe_bmm(monkeypatch):
++    from vllm.models.kimi_k3.nvidia import mla
++
++    attention = object.__new__(mla.MultiHeadLatentAttention)
++    torch.nn.Module.__init__(attention)
++    attention.kv_lora_rank = 5
++    attention.W_UK_T = torch.nn.Parameter(
++        torch.randn((2, 3, 5), dtype=torch.bfloat16), requires_grad=False
++    )
++    query_storage = torch.randn((4, 2, 7), dtype=torch.bfloat16)
++    query = query_storage[..., :3]
++    calls = []
++
++    def safe_bmm(q, weight, output, *, use_safe_op):
++        calls.append((q, weight, use_safe_op))
++        torch.bmm(q.contiguous(), weight, out=output)
++
++    monkeypatch.setattr(mla, "_run_mla_query_bmm", safe_bmm)
++
++    result = attention._absorb_decode_query(query)
++
++    assert len(calls) == 1
++    captured_query, captured_weight, use_safe_op = calls[0]
++    assert captured_query.data_ptr() == query.data_ptr()
++    assert captured_query.shape == query.transpose(0, 1).shape
++    assert captured_query.stride() == query.transpose(0, 1).stride()
++    assert captured_weight is attention.W_UK_T
++    assert use_safe_op is True
++    expected = torch.bmm(query.transpose(0, 1).contiguous(), attention.W_UK_T)
++    torch.testing.assert_close(result, expected.transpose(0, 1))
++
++
+ def test_kimi_mla_defines_graph_padding_before_output_projection(monkeypatch):
+     from vllm.models.kimi_k3.nvidia import mla
+ 
 diff --git a/tests/reasoning/test_kimi_k3_reasoning_parser.py b/tests/reasoning/test_kimi_k3_reasoning_parser.py
 index 4f831e851e9b6ed6ef6b028e5ae0faca7dfac4fa..83ee0b5d0951e0f58074d0ee2d56e94b914fe649 100644
 --- a/tests/reasoning/test_kimi_k3_reasoning_parser.py
@@ -1054,6 +1135,25 @@ index 186d49a038c2bbb8e481c037d9e4757fc038efed..ddcf0c171dcab4a7d00d0ed1cf2fcba1
 +    assert impl.total_cp_world_size == 1
 +    assert impl.total_cp_rank == 0
 +    assert impl.need_to_return_lse_for_decode is False
+diff --git a/vllm/model_executor/layers/attention/mla_attention.py b/vllm/model_executor/layers/attention/mla_attention.py
+index 3950830dd697abbe2af7255d788ce4b9590d846b..b92e96a9a21e5eee183314837358b0947ca9c624 100644
+--- a/vllm/model_executor/layers/attention/mla_attention.py
++++ b/vllm/model_executor/layers/attention/mla_attention.py
+@@ -419,9 +419,12 @@ def _preallocate_absorbed_mla_weights(
+         RuntimeError: If neither the source projection nor reusable absorbed
+             weights identify the target device.
+     """
+-    w_uv_shape = (layer.num_heads, layer.kv_lora_rank, layer.v_head_dim)
++    # Model-specific MLA wrappers may retain the global head count while their
++    # absorbed projection is tensor-parallel and therefore uses local heads.
++    num_heads = getattr(layer, "num_local_heads", layer.num_heads)
++    w_uv_shape = (num_heads, layer.kv_lora_rank, layer.v_head_dim)
+     w_uk_t_shape = (
+-        layer.num_heads,
++        num_heads,
+         layer.qk_nope_head_dim,
+         layer.kv_lora_rank,
+     )
 diff --git a/vllm/model_executor/models/qwen3_dflash.py b/vllm/model_executor/models/qwen3_dflash.py
 index 58c59fcbb5cbf653760dd8a543ea3d3226db41b6..929beae39207a8e6c31f95eef65eb85fbfe79459 100644
 --- a/vllm/model_executor/models/qwen3_dflash.py
@@ -1129,6 +1229,82 @@ index 58c59fcbb5cbf653760dd8a543ea3d3226db41b6..929beae39207a8e6c31f95eef65eb85f
              head_dim=getattr(config, "head_dim", None),
              cache_config=cache_config,
              quant_config=quant_config,
+diff --git a/vllm/models/kimi_k3/nvidia/mla.py b/vllm/models/kimi_k3/nvidia/mla.py
+index c8cb06259e485a0d6e9d76320941fa04393910be..1bdffb61195ff5601bb04c9edcaf587a251da06d 100644
+--- a/vllm/models/kimi_k3/nvidia/mla.py
++++ b/vllm/models/kimi_k3/nvidia/mla.py
+@@ -52,6 +52,10 @@ from vllm.model_executor.layers.attention.attention import (
+     set_default_quant_scales,
+     should_load_quant_weights,
+ )
++from vllm.model_executor.layers.attention.mla_attention import (
++    _preallocate_absorbed_mla_weights,
++    _run_mla_query_bmm,
++)
+ from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+ from vllm.model_executor.layers.layernorm import RMSNorm
+ from vllm.model_executor.layers.linear import (
+@@ -526,6 +530,7 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+         projected into latent space by ``W_UK_T`` and the attention output is
+         projected back to ``v`` by ``W_UV`` -- avoiding materializing full K/V.
+         """
++        pre_w_uv, pre_w_uk_t = _preallocate_absorbed_mla_weights(self, act_dtype)
+         kv_b_proj_weight = get_and_maybe_dequant_weights(
+             self.kv_b_proj, out_dtype=act_dtype
+         ).T
+@@ -542,9 +547,17 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+             [self.qk_nope_head_dim, self.v_head_dim], dim=-1
+         )
+         # (L, N, V) -> (N, L, V)
+-        replace_parameter(self, "W_UV", W_UV.transpose(0, 1), prefer_copy=True)
++        w_uv = W_UV.transpose(0, 1)
++        if pre_w_uv is not None:
++            pre_w_uv.copy_(w_uv)
++            w_uv = pre_w_uv
++        replace_parameter(self, "W_UV", w_uv, prefer_copy=True)
+         # (L, N, P) -> (N, P, L)
+-        replace_parameter(self, "W_UK_T", W_UK.permute(1, 2, 0), prefer_copy=True)
++        w_uk_t = W_UK.permute(1, 2, 0)
++        if pre_w_uk_t is not None:
++            pre_w_uk_t.copy_(w_uk_t)
++            w_uk_t = pre_w_uk_t
++        replace_parameter(self, "W_UK_T", w_uk_t, prefer_copy=True)
+ 
+         quant_method = (
+             self.quant_config.get_quant_method(self, prefix=self.layer_name)
+@@ -573,6 +586,23 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+         # (N, B, L) x (N, L, V) -> (N, B, V) written transposed into (B, N, V)
+         torch.bmm(x, self.W_UV, out=out.transpose(0, 1))
+ 
++    def _absorb_decode_query(self, q_nope: torch.Tensor) -> torch.Tensor:
++        """Project a tight Kimi decode-query view into MLA latent space.
++
++        The query is a non-contiguous view into the combined NoPE/RoPE
++        projection. The allocation-safe MLA BMM supplies explicit leading
++        dimensions so cuBLAS does not read beyond that view's backing storage.
++        """
++        query = q_nope.transpose(0, 1)
++        output = query.new_empty((query.shape[0], query.shape[1], self.kv_lora_rank))
++        _run_mla_query_bmm(
++            query,
++            self.W_UK_T,
++            output,
++            use_safe_op=True,
++        )
++        return output.transpose(0, 1)
++
+     def _attn_read_kv_cache(self) -> torch.Tensor:
+         """Latent cache as seen by the attention read kernels (decode / context).
+ 
+@@ -760,7 +790,7 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+                 [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+             )
+             # BMM1: absorb q_nope into latent space. (N,B,P) x (N,P,L) -> (B,N,L)
+-            ql_nope = torch.bmm(mqa_q_nope.transpose(0, 1), self.W_UK_T).transpose(0, 1)
++            ql_nope = self._absorb_decode_query(mqa_q_nope)
+             # Fused: concat mqa_q = [ql_nope | q_pe] and insert the decode-token
+             # latent into the paged cache (one launch, right before forward_mqa).
+             mqa_q = self._decode_concat_cache(
 diff --git a/vllm/parser/kimi_k3.py b/vllm/parser/kimi_k3.py
 index 380e2cce5f91182fda7f95469d40d9af07a2746d..e3f58d25f4d7b76598f448d358b10709336d998a 100644
 --- a/vllm/parser/kimi_k3.py

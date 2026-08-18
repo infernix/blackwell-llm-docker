@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "444084d8b573ce940bcedb83602f427b25b2f74c",
-    "ref": "refs/heads/agent/kimi-k3-production-hybrid-kv-load-failure-20260818"
+    "commit": "234974af2249e1714a77015d46b7d484d06e584f",
+    "ref": "refs/heads/agent/kimi-k3-production-safe-query-bmm-20260818"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "d7d235ed0ff24381ef4ef98956d778aa6d62e0974d7fe65d1ad8f699f190477f"
+    "sha256": "3debd63b419b3b1dec8f4d0cb25bb6fca0114088e6c0f802151cb9d41e603560"
   },
   "name": "kimi-k3-production-vllm",
   "pull_requests": [
@@ -79,16 +79,26 @@
         "6bafa633153a44ba1aa54eb7c5bafac248fe68e6"
       ],
       "disposition": "recorded_in_composition",
-      "head": "6bafa633153a44ba1aa54eb7c5bafac248fe68e6",
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
       "number": 422,
       "ref": "refs/pull/422/head",
       "title": "Handle KV load failures across hybrid cache groups"
+    },
+    {
+      "commits": [
+        "025f6fb9cfbcc36a9d2d42ec4984e1cb56b7f874"
+      ],
+      "disposition": "recorded_in_composition",
+      "head": "025f6fb9cfbcc36a9d2d42ec4984e1cb56b7f874",
+      "number": 427,
+      "ref": "refs/pull/427/head",
+      "title": "Make Kimi-K3 MLA query absorption allocation-safe"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "28307e5d60dbaed271f709d9c74765f296401496d2b9d598c0ccee01947d2287",
-    "tree": "449ee263cf0859cc64ac3ef4e220b189c1f667eb"
+    "patch_sha256": "ad71fb4e7a5fcf6995e90a27b9253a891f64afc1faba7892b3c436a8010d1b8b",
+    "tree": "21e96f7ddb0df1213bd42a1dc0819ec40fb02e2b"
   },
   "schema_version": 1,
   "source_patches": []
