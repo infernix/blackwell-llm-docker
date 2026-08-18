@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-safe-query-bmm-20260818",
-  "composition_commit": "91fedff0bfdd4843d78affc2a6d75752a9cf054a",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-vision-warmup-20260818",
+  "composition_commit": "c3b9432ffc2b8e683cc438556e6b2e221fe82896",
   "pull_requests": [
     {
       "number": 310,
@@ -49,6 +49,11 @@
       "number": 427,
       "head": "0ad95065da12e45c28d585d8c758a87d3a708b1f",
       "title": "Materialize Kimi-K3 interleaved MLA decode queries"
+    },
+    {
+      "number": 428,
+      "head": "04e5ac11921481cf59d091162484cb42cc13b289",
+      "title": "Warm Kimi vision interpolation before KV allocation"
     }
   ]
 }
