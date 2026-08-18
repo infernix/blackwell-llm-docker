@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-mamba-dcp-protocol-20260818",
-  "composition_commit": "d411203e7093ef7c124f5a6c44109ed40be56fd3",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-hybrid-kv-load-failure-20260818",
+  "composition_commit": "444084d8b573ce940bcedb83602f427b25b2f74c",
   "pull_requests": [
     {
       "number": 310,
@@ -36,6 +36,11 @@
       "number": 419,
       "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
       "title": "Keep Kimi K3 protocol markers out of streamed content"
+    },
+    {
+      "number": 422,
+      "head": "6bafa633153a44ba1aa54eb7c5bafac248fe68e6",
+      "title": "Handle KV load failures across hybrid cache groups"
     }
   ]
 }
