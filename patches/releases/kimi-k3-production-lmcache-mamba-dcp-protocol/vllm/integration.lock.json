@@ -5,12 +5,12 @@
     "repository": "https://github.com/local-inference-lab/vllm.git"
   },
   "composition": {
-    "commit": "234974af2249e1714a77015d46b7d484d06e584f",
+    "commit": "91fedff0bfdd4843d78affc2a6d75752a9cf054a",
     "ref": "refs/heads/agent/kimi-k3-production-safe-query-bmm-20260818"
   },
   "composition_strategy": "pinned_branch",
   "manifest": {
-    "sha256": "3debd63b419b3b1dec8f4d0cb25bb6fca0114088e6c0f802151cb9d41e603560"
+    "sha256": "e8650ddc8d6b729bdb6d02c0039821e00faa7b4553b9eaf7e6b26b4ce3c03c2c"
   },
   "name": "kimi-k3-production-vllm",
   "pull_requests": [
@@ -86,19 +86,19 @@
     },
     {
       "commits": [
-        "025f6fb9cfbcc36a9d2d42ec4984e1cb56b7f874"
+        "0ad95065da12e45c28d585d8c758a87d3a708b1f"
       ],
       "disposition": "recorded_in_composition",
-      "head": "025f6fb9cfbcc36a9d2d42ec4984e1cb56b7f874",
+      "head": "0ad95065da12e45c28d585d8c758a87d3a708b1f",
       "number": 427,
       "ref": "refs/pull/427/head",
-      "title": "Make Kimi-K3 MLA query absorption allocation-safe"
+      "title": "Materialize Kimi-K3 interleaved MLA decode queries"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ad71fb4e7a5fcf6995e90a27b9253a891f64afc1faba7892b3c436a8010d1b8b",
-    "tree": "21e96f7ddb0df1213bd42a1dc0819ec40fb02e2b"
+    "patch_sha256": "a7bd3a0dead9ffeb1a7be1112dfd1c324b75284435c27fe6689c5616dfc6e3bd",
+    "tree": "f67105dd807842a3c1f1fc07931e1e4dadc0b68c"
   },
   "schema_version": 1,
   "source_patches": []

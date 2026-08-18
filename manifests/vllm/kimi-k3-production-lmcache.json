@@ -5,7 +5,7 @@
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
   "composition_ref": "refs/heads/agent/kimi-k3-production-safe-query-bmm-20260818",
-  "composition_commit": "234974af2249e1714a77015d46b7d484d06e584f",
+  "composition_commit": "91fedff0bfdd4843d78affc2a6d75752a9cf054a",
   "pull_requests": [
     {
       "number": 310,
@@ -47,8 +47,8 @@
     },
     {
       "number": 427,
-      "head": "025f6fb9cfbcc36a9d2d42ec4984e1cb56b7f874",
-      "title": "Make Kimi-K3 MLA query absorption allocation-safe"
+      "head": "0ad95065da12e45c28d585d8c758a87d3a708b1f",
+      "title": "Materialize Kimi-K3 interleaved MLA decode queries"
     }
   ]
 }

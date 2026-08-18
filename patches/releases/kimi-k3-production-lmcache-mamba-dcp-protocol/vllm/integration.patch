@@ -1,17 +1,43 @@
 diff --git a/tests/kernels/test_safe_mla_query_bmm.py b/tests/kernels/test_safe_mla_query_bmm.py
-index db745e4b86724e803ce8eef69edda57ba66da69f..cbdd1fa1ecf7c4c56d1f5ec7111c1c54290c8623 100644
+index db745e4b86724e803ce8eef69edda57ba66da69f..f53c208863195e0817d852c37a1f7e33a26cd67e 100644
 --- a/tests/kernels/test_safe_mla_query_bmm.py
 +++ b/tests/kernels/test_safe_mla_query_bmm.py
-@@ -15,6 +15,7 @@ def _require_safe_mla_query_bmm():
- @pytest.mark.parametrize(
-     "heads,tokens,q_dim",
-     [
-+        (6, 14, 128),
-         (8, 1, 512),
-         (8, 6, 512),
-         (8, 11, 512),
+@@ -75,3 +75,33 @@ def test_safe_mla_query_bmm_cuda_graph_replay():
+     expected = torch.bmm(query.contiguous(), weight)
+ 
+     torch.testing.assert_close(output.float(), expected.float(), rtol=5e-2, atol=5e-2)
++
++
++def test_safe_mla_query_bmm_kimi_materialized_query():
++    _require_safe_mla_query_bmm()
++    device = torch.device("cuda")
++    heads = 6
++    tokens = 14
++    q_dim = 128
++    latent_dim = 512
++    torch.manual_seed(2)
++
++    query_storage = torch.randn(
++        tokens, heads, q_dim + 64, dtype=torch.bfloat16, device=device
++    )
++    interleaved_query = query_storage[..., :q_dim].transpose(0, 1)
++    query = interleaved_query.contiguous()
++    weight = torch.randn(heads, q_dim, latent_dim, dtype=torch.bfloat16, device=device)
++    output = torch.empty(heads, tokens, latent_dim, dtype=torch.bfloat16, device=device)
++
++    assert not interleaved_query.is_contiguous()
++    assert query.is_contiguous()
++    torch.ops._C.safe_mla_query_bmm(query, weight, output)
++    expected = torch.bmm(query, weight)
++
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        torch.ops._C.safe_mla_query_bmm(query, weight, output)
++    graph.replay()
++
++    torch.testing.assert_close(output.float(), expected.float(), rtol=5e-2, atol=5e-2)
 diff --git a/tests/models/kimi_k3/test_mla_padding.py b/tests/models/kimi_k3/test_mla_padding.py
-index 437976d4a98d448883fa3defeba8638fb6c0b537..299416bf26dcc3ea81fe0cc590b2316d2cfdd6d1 100644
+index 437976d4a98d448883fa3defeba8638fb6c0b537..31f1c259858446e5cba7a2f1fa10eb089a4d289d 100644
 --- a/tests/models/kimi_k3/test_mla_padding.py
 +++ b/tests/models/kimi_k3/test_mla_padding.py
 @@ -6,6 +6,64 @@ from types import SimpleNamespace
@@ -44,7 +70,7 @@ index 437976d4a98d448883fa3defeba8638fb6c0b537..299416bf26dcc3ea81fe0cc590b2316d
 +    assert w_uk_t.is_contiguous()
 +
 +
-+def test_kimi_mla_decode_query_uses_allocation_safe_bmm(monkeypatch):
++def test_kimi_mla_decode_query_materializes_interleaved_heads(monkeypatch):
 +    from vllm.models.kimi_k3.nvidia import mla
 +
 +    attention = object.__new__(mla.MultiHeadLatentAttention)
@@ -67,9 +93,9 @@ index 437976d4a98d448883fa3defeba8638fb6c0b537..299416bf26dcc3ea81fe0cc590b2316d
 +
 +    assert len(calls) == 1
 +    captured_query, captured_weight, use_safe_op = calls[0]
-+    assert captured_query.data_ptr() == query.data_ptr()
++    assert captured_query.data_ptr() != query.data_ptr()
 +    assert captured_query.shape == query.transpose(0, 1).shape
-+    assert captured_query.stride() == query.transpose(0, 1).stride()
++    assert captured_query.is_contiguous()
 +    assert captured_weight is attention.W_UK_T
 +    assert use_safe_op is True
 +    expected = torch.bmm(query.transpose(0, 1).contiguous(), attention.W_UK_T)
@@ -1230,7 +1256,7 @@ index 58c59fcbb5cbf653760dd8a543ea3d3226db41b6..929beae39207a8e6c31f95eef65eb85f
              cache_config=cache_config,
              quant_config=quant_config,
 diff --git a/vllm/models/kimi_k3/nvidia/mla.py b/vllm/models/kimi_k3/nvidia/mla.py
-index c8cb06259e485a0d6e9d76320941fa04393910be..1bdffb61195ff5601bb04c9edcaf587a251da06d 100644
+index c8cb06259e485a0d6e9d76320941fa04393910be..8dff5a91389bffaca8d4cdec51251a731ca41dfc 100644
 --- a/vllm/models/kimi_k3/nvidia/mla.py
 +++ b/vllm/models/kimi_k3/nvidia/mla.py
 @@ -52,6 +52,10 @@ from vllm.model_executor.layers.attention.attention import (
@@ -1272,18 +1298,20 @@ index c8cb06259e485a0d6e9d76320941fa04393910be..1bdffb61195ff5601bb04c9edcaf587a
  
          quant_method = (
              self.quant_config.get_quant_method(self, prefix=self.layer_name)
-@@ -573,6 +586,23 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+@@ -573,6 +586,25 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
          # (N, B, L) x (N, L, V) -> (N, B, V) written transposed into (B, N, V)
          torch.bmm(x, self.W_UV, out=out.transpose(0, 1))
  
 +    def _absorb_decode_query(self, q_nope: torch.Tensor) -> torch.Tensor:
-+        """Project a tight Kimi decode-query view into MLA latent space.
++        """Project the Kimi decode query into MLA latent space.
 +
-+        The query is a non-contiguous view into the combined NoPE/RoPE
-+        projection. The allocation-safe MLA BMM supplies explicit leading
-+        dimensions so cuBLAS does not read beyond that view's backing storage.
++        The NoPE component is an interleaved head view of the combined
++        NoPE/RoPE projection. Tensor-core cuBLAS batched-GEMM algorithms may
++        issue vector reads beyond the logical matrix when the batch stride is
++        smaller than a matrix's storage span. Materializing head-major storage
++        gives every batch matrix an independent contiguous range.
 +        """
-+        query = q_nope.transpose(0, 1)
++        query = q_nope.transpose(0, 1).contiguous()
 +        output = query.new_empty((query.shape[0], query.shape[1], self.kv_lora_rank))
 +        _run_mla_query_bmm(
 +            query,
@@ -1296,7 +1324,7 @@ index c8cb06259e485a0d6e9d76320941fa04393910be..1bdffb61195ff5601bb04c9edcaf587a
      def _attn_read_kv_cache(self) -> torch.Tensor:
          """Latent cache as seen by the attention read kernels (decode / context).
  
-@@ -760,7 +790,7 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
+@@ -760,7 +792,7 @@ class MultiHeadLatentAttention(nn.Module, AttentionLayerBase):
                  [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
              )
              # BMM1: absorb q_nope into latent space. (N,B,P) x (N,P,L) -> (B,N,L)
