@@ -3,20 +3,20 @@
   "status": "qualified",
   "qualified_at_utc": "2026-08-18",
   "image": {
-    "name": "voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllm2a859f7-b12xec6edd9-cu133-torch213-20260818-vision-warmup",
-    "registry_digest": "sha256:f2e59a0d2f6308c55a73c4729e70fb51c0f62d4b2a8a1cf9b5987b418bdd8fa6",
-    "local_image_id": "sha256:3e4a9f8d879c21705df7626f46645b2f9ed3aa10d58f9c07ea001784d0630a53",
-    "size_bytes": 31058327135,
-    "recipe_commit": "c000662e489a778c186ce2a3f231b4a8f4fa0257"
+    "name": "voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllm227d058-b12xec6edd9-cu133-torch213-20260818-vision-warmup",
+    "registry_digest": "sha256:ef507800a48532978c6bc95df06d38b68252d74b5ea35a605817bc9201296444",
+    "local_image_id": "sha256:33e09eb15fae5d591d0c33171279d84945381f4ebfce199853475cd6f6da2efb",
+    "size_bytes": 31058332870,
+    "recipe_commit": "c793832c146277d40c77ae3d4113835ddc26b9ff"
   },
   "source_composition": {
     "vllm": {
       "base_branch": "dev/infernal-invocation",
       "base_commit": "6dc2f516688fe6f84c6994dcd20fddf296853a6c",
       "composition_branch": "agent/kimi-k3-production-vision-warmup-20260818",
-      "composition_commit": "c3b9432ffc2b8e683cc438556e6b2e221fe82896",
-      "integration_tree": "2a859f7d001d174367a69dedd49e55388ead6652",
-      "vision_warmup_pull_request": "428@04e5ac11921481cf59d091162484cb42cc13b289"
+      "composition_commit": "3dca3a5e032bcd452c51c1a034bba55e912abbf5",
+      "integration_tree": "227d058dc47cf61699af4c2b087834ac8dfdec95",
+      "vision_warmup_pull_request": "428@45962db4c38a0e430450a087843fc2762a38beb4"
     },
     "b12x": {
       "integration_tree": "ec6edd9da4687f83519fd37bd7322ea0800f0ace"
@@ -48,8 +48,8 @@
     "reason": "multimodal inputs are sharded across tensor-parallel workers, so a worker can receive its first vision item after startup; compiling the interpolation at that point requires a transient benchmark allocation that does not fit beside the one-million-token KV cache",
     "worker_confirmations": 16,
     "expected_worker_confirmations": 16,
-    "warmup_timestamp_utc": "2026-08-18T20:31:00Z",
-    "kv_allocation_timestamp_utc": "2026-08-18T20:31:05Z",
+    "warmup_timestamp_utc": "2026-08-18T20:49:31Z",
+    "kv_allocation_timestamp_utc": "2026-08-18T20:49:37Z",
     "warmup_preceded_kv_allocation": true,
     "unit_validation": {
       "tests": 3,
@@ -60,8 +60,8 @@
   },
   "startup": {
     "instanttensor_weight_read_tib": 1.41,
-    "weight_load_seconds": 165.77,
-    "engine_initialization_seconds": 88.28,
+    "weight_load_seconds": 166.65,
+    "engine_initialization_seconds": 88.48,
     "container_restart_count_after_qualification": 0,
     "direct_health_http_status": 200,
     "llmconduit_models_http_status": 200
@@ -70,46 +70,46 @@
     {
       "image_count": 1,
       "distinct_image_hashes": 1,
-      "prompt_tokens": 1450,
-      "completion_tokens": 186,
-      "elapsed_seconds": 2.662952,
+      "prompt_tokens": 1451,
+      "completion_tokens": 200,
+      "elapsed_seconds": 2.84968,
       "http_status": 200,
       "finish_reason": "stop",
       "model_confirmed_image_count": true,
-      "response_sha256": "a68f09635c35c11b9c28b95e97077664abe41e2223655aa7f487f4b0a46785c4"
+      "response_sha256": "3ae199555c9e03c3993b93850f763459001121b2f19cceda907cea868a61180e"
     },
     {
       "image_count": 2,
       "distinct_image_hashes": 2,
-      "prompt_tokens": 2791,
-      "completion_tokens": 152,
-      "elapsed_seconds": 2.918703,
+      "prompt_tokens": 2793,
+      "completion_tokens": 131,
+      "elapsed_seconds": 2.71792,
       "http_status": 200,
       "finish_reason": "stop",
       "model_confirmed_image_count": true,
-      "response_sha256": "4b9ff6993ce0b0112de1005e272f90aaf7d2fd6a8736d46f1544d3b8cc739519"
+      "response_sha256": "4ab7d6fff888f5499c07b703182ff9b18ee961a8c186bc496219ee3a7cdac7de"
     },
     {
       "image_count": 4,
       "distinct_image_hashes": 4,
-      "prompt_tokens": 5475,
-      "completion_tokens": 197,
-      "elapsed_seconds": 4.216277,
+      "prompt_tokens": 5474,
+      "completion_tokens": 98,
+      "elapsed_seconds": 1.491019,
       "http_status": 200,
       "finish_reason": "stop",
       "model_confirmed_image_count": true,
-      "response_sha256": "b74eb7533839e05e512ae9f0148e182646a4bc2da7d5cdf5a3e47ebbe5bc147f"
+      "response_sha256": "1b3df929225991a268083922361f73570d734ee6efadd90ca529a4ac858a0362"
     },
     {
       "image_count": 5,
       "distinct_image_hashes": 5,
       "prompt_tokens": 6816,
-      "completion_tokens": 470,
-      "elapsed_seconds": 6.530756,
+      "completion_tokens": 507,
+      "elapsed_seconds": 13.824592,
       "http_status": 200,
       "finish_reason": "stop",
       "model_confirmed_image_count": true,
-      "response_sha256": "87030dda89ec461dd0c368ff3fb6021834283a592ce6bc0e53a15c986c3c1080"
+      "response_sha256": "b0193a5a9bddb3c258b22eef254bb20e14f353667eff7e0661b2c10ebdcdfa5c"
     }
   ],
   "coding_decode": {
@@ -117,11 +117,11 @@
     "prompt_tokens": 119,
     "completion_tokens_per_run": 512,
     "tokens_per_second": [
-      125.05722695793655,
-      110.46892214239078,
-      121.21152457784326
+      122.17796288005863,
+      134.4001165238829,
+      97.72990699847847
     ],
-    "median_tokens_per_second": 121.21152457784326,
+    "median_tokens_per_second": 122.17796288005863,
     "previous_image_median_tokens_per_second": 114.68,
     "conclusion": "The vision warmup image preserves the qualified DSpark coding decode rate within workload and run-to-run variation."
   },
@@ -131,11 +131,11 @@
     "engine_dead_markers": 0,
     "container_restarts": 0
   },
-  "artifact_root": "/mnt/luke/kimi-k3-runs/vision-warmup-image-qualification-20260818",
+  "artifact_root": "/mnt/luke/kimi-k3-runs/vision-warmup-final-image-qualification-20260818",
   "artifact_hashes": {
-    "runtime_evidence_log": "26626ff7d3a51a6994a2974b085abd5e3f9a767d06bc977257634a124e0738c4",
-    "coding_run_1_metrics": "0ee1965fda62a892e549cb43f60396d7d077e586f77eee5cfb7f240c8169b834",
-    "coding_run_2_metrics": "2cbd1ef0e77804c943ad4625ddd332d38d1d6b8f5f06e0b68337e3d873bf2d69",
-    "coding_run_3_metrics": "35693ef5e0e7bd56db34ffb4e7abfecab59b19376ba5ec1a5dd34c34dfe5fea9"
+    "runtime_evidence_log": "87ae0f8471cd10fbe1f95879f52da51605da27b37141977cbb8c0ef4e40a9023",
+    "coding_run_1_metrics": "688990439d00eec50b472144db32c76c49a41239dfa7b48d41f2cda9343178b0",
+    "coding_run_2_metrics": "cf983aa0856923a70aac1c08171fcc24782fa768e58ca1c2c92957ca01ec206e",
+    "coding_run_3_metrics": "9c364242bcb82753d9c3182e9f248295b41ce304026788afdec453ce9a1c0d80"
   }
 }
