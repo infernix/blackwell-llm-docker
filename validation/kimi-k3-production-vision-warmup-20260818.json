@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "qualified_at_utc": "2026-08-18",
+  "image": {
+    "name": "voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllm2a859f7-b12xec6edd9-cu133-torch213-20260818-vision-warmup",
+    "registry_digest": "sha256:f2e59a0d2f6308c55a73c4729e70fb51c0f62d4b2a8a1cf9b5987b418bdd8fa6",
+    "local_image_id": "sha256:3e4a9f8d879c21705df7626f46645b2f9ed3aa10d58f9c07ea001784d0630a53",
+    "size_bytes": 31058327135,
+    "recipe_commit": "c000662e489a778c186ce2a3f231b4a8f4fa0257"
+  },
+  "source_composition": {
+    "vllm": {
+      "base_branch": "dev/infernal-invocation",
+      "base_commit": "6dc2f516688fe6f84c6994dcd20fddf296853a6c",
+      "composition_branch": "agent/kimi-k3-production-vision-warmup-20260818",
+      "composition_commit": "c3b9432ffc2b8e683cc438556e6b2e221fe82896",
+      "integration_tree": "2a859f7d001d174367a69dedd49e55388ead6652",
+      "vision_warmup_pull_request": "428@04e5ac11921481cf59d091162484cb42cc13b289"
+    },
+    "b12x": {
+      "integration_tree": "ec6edd9da4687f83519fd37bd7322ea0800f0ace"
+    },
+    "lmcache": {
+      "integration_tree": "e045d729bc5c4c63a40e13d032f42923de97812f"
+    }
+  },
+  "hardware": {
+    "gpu_count": 16,
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "tensor_parallel_size": 16,
+    "decode_context_parallel_size": 16
+  },
+  "model": {
+    "target_repository": "moonshotai/Kimi-K3",
+    "target_revision": "2496450e92e425c886db095102a52a6682ca3970",
+    "target_weight_format": "official MXFP4",
+    "draft_repository": "Inferact/Kimi-K3-DSpark",
+    "draft_revision": "cf6b8244620e7ea4b0651d214f28e89eac75bed6",
+    "speculative_tokens": 7,
+    "target_kv_cache_dtype": "FP8",
+    "maximum_model_length_tokens": 1000000,
+    "physical_target_kv_tokens": 1033126,
+    "load_format": "instanttensor"
+  },
+  "vision_interpolation_warmup": {
+    "operation": "compile and autotune the Kimi vision position interpolation for a 64-by-64 image-token grid on every CUDA worker before fixed KV-cache allocation",
+    "reason": "multimodal inputs are sharded across tensor-parallel workers, so a worker can receive its first vision item after startup; compiling the interpolation at that point requires a transient benchmark allocation that does not fit beside the one-million-token KV cache",
+    "worker_confirmations": 16,
+    "expected_worker_confirmations": 16,
+    "warmup_timestamp_utc": "2026-08-18T20:31:00Z",
+    "kv_allocation_timestamp_utc": "2026-08-18T20:31:05Z",
+    "warmup_preceded_kv_allocation": true,
+    "unit_validation": {
+      "tests": 3,
+      "passed": 3,
+      "ruff_check": "passed",
+      "ruff_format": "passed"
+    }
+  },
+  "startup": {
+    "instanttensor_weight_read_tib": 1.41,
+    "weight_load_seconds": 165.77,
+    "engine_initialization_seconds": 88.28,
+    "container_restart_count_after_qualification": 0,
+    "direct_health_http_status": 200,
+    "llmconduit_models_http_status": 200
+  },
+  "multimodal_requests": [
+    {
+      "image_count": 1,
+      "distinct_image_hashes": 1,
+      "prompt_tokens": 1450,
+      "completion_tokens": 186,
+      "elapsed_seconds": 2.662952,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "model_confirmed_image_count": true,
+      "response_sha256": "a68f09635c35c11b9c28b95e97077664abe41e2223655aa7f487f4b0a46785c4"
+    },
+    {
+      "image_count": 2,
+      "distinct_image_hashes": 2,
+      "prompt_tokens": 2791,
+      "completion_tokens": 152,
+      "elapsed_seconds": 2.918703,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "model_confirmed_image_count": true,
+      "response_sha256": "4b9ff6993ce0b0112de1005e272f90aaf7d2fd6a8736d46f1544d3b8cc739519"
+    },
+    {
+      "image_count": 4,
+      "distinct_image_hashes": 4,
+      "prompt_tokens": 5475,
+      "completion_tokens": 197,
+      "elapsed_seconds": 4.216277,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "model_confirmed_image_count": true,
+      "response_sha256": "b74eb7533839e05e512ae9f0148e182646a4bc2da7d5cdf5a3e47ebbe5bc147f"
+    },
+    {
+      "image_count": 5,
+      "distinct_image_hashes": 5,
+      "prompt_tokens": 6816,
+      "completion_tokens": 470,
+      "elapsed_seconds": 6.530756,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "model_confirmed_image_count": true,
+      "response_sha256": "87030dda89ec461dd0c368ff3fb6021834283a592ce6bc0e53a15c986c3c1080"
+    }
+  ],
+  "coding_decode": {
+    "prompt": "Implement a production-quality Python LRU cache with O(1) get and put operations, type annotations, thread safety, and concise tests. Return only the code",
+    "prompt_tokens": 119,
+    "completion_tokens_per_run": 512,
+    "tokens_per_second": [
+      125.05722695793655,
+      110.46892214239078,
+      121.21152457784326
+    ],
+    "median_tokens_per_second": 121.21152457784326,
+    "previous_image_median_tokens_per_second": 114.68,
+    "conclusion": "The vision warmup image preserves the qualified DSpark coding decode rate within workload and run-to-run variation."
+  },
+  "runtime_failures": {
+    "cuda_out_of_memory_markers": 0,
+    "traceback_markers": 0,
+    "engine_dead_markers": 0,
+    "container_restarts": 0
+  },
+  "artifact_root": "/mnt/luke/kimi-k3-runs/vision-warmup-image-qualification-20260818",
+  "artifact_hashes": {
+    "runtime_evidence_log": "26626ff7d3a51a6994a2974b085abd5e3f9a767d06bc977257634a124e0738c4",
+    "coding_run_1_metrics": "0ee1965fda62a892e549cb43f60396d7d077e586f77eee5cfb7f240c8169b834",
+    "coding_run_2_metrics": "2cbd1ef0e77804c943ad4625ddd332d38d1d6b8f5f06e0b68337e3d873bf2d69",
+    "coding_run_3_metrics": "35693ef5e0e7bd56db34ffb4e7abfecab59b19376ba5ec1a5dd34c34dfe5fea9"
+  }
+}
