@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Native vLLM CPU and filesystem KV-tier restart qualification",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmf0fa1ce-b12x75787c7-fi1ac6942-cu133-torch213-20260818-r18",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 4,
+    "max_cuda_graph_rows": 24,
+    "max_model_len": 131072,
+    "cpu_tier_gib": 2,
+    "filesystem_tier_gib": 64,
+    "filesystem_path": "/cache/native-kv/r18",
+    "allocator_expandable_segments": false
+  },
+  "cold_store": {
+    "concurrent_outputs": ["17", "29"],
+    "concurrent_elapsed_seconds": [7.597545962315053, 7.59658098872751],
+    "same_process_replay_output": "17",
+    "same_process_replay_elapsed_seconds": 0.5296872672624886,
+    "quiescent_block_files": 695,
+    "quiescent_temporary_files": 0
+  },
+  "post_restart": {
+    "concurrent_outputs": ["17", "29"],
+    "concurrent_elapsed_seconds": [1.0635957950726151, 1.06254530698061],
+    "replay_output": "17",
+    "replay_elapsed_seconds": 0.3876203061081469,
+    "block_files": 695,
+    "temporary_files": 0,
+    "filesystem_bytes": 1394892800,
+    "external_prefix_cache_hits_total": 71936,
+    "filesystem_read_bytes_total": 607357440
+  },
+  "result": "A complete vLLM process restart preserved all 695 published filesystem objects, restored exact concurrent and replay outputs, and left no temporary publication files.",
+  "artifact_note": "native-l2-cold.json records the helper at request completion while asynchronous publication still had 400 visible blocks and 7 temporary files. The writer quiesced to 695 blocks and zero temporary files before process restart.",
+  "artifacts": {
+    "cold_request": "validation/infernal-invocation-r18/native-l2-cold.json",
+    "post_restart_request": "validation/infernal-invocation-r18/native-l2-post-restart.json"
+  }
+}
