@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r6",
-  "composition_commit": "a25a92563935839ff857a76ae6218a81c88c8fab",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-mamba-dcp-protocol-20260818",
+  "composition_commit": "d411203e7093ef7c124f5a6c44109ed40be56fd3",
   "pull_requests": [
     {
       "number": 310,
@@ -26,6 +26,16 @@
       "number": 415,
       "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
       "title": "Preserve the DSpark CUDA-graph capture contract"
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "title": "Keep recurrent cache position state unsharded under DCP"
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "title": "Keep Kimi K3 protocol markers out of streamed content"
     }
   ]
 }
