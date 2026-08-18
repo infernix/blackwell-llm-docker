@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-composition-20260817-r6",
-  "composition_commit": "a25a92563935839ff857a76ae6218a81c88c8fab",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-safe-query-bmm-20260818",
+  "composition_commit": "91fedff0bfdd4843d78affc2a6d75752a9cf054a",
   "pull_requests": [
     {
       "number": 310,
@@ -26,6 +26,29 @@
       "number": 415,
       "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
       "title": "Preserve the DSpark CUDA-graph capture contract"
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "title": "Keep recurrent cache position state unsharded under DCP"
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "title": "Keep Kimi K3 protocol markers out of streamed content"
+    },
+    {
+      "number": 422,
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
+      "commits": [
+        "6bafa633153a44ba1aa54eb7c5bafac248fe68e6"
+      ],
+      "title": "Handle KV load failures across hybrid cache groups"
+    },
+    {
+      "number": 427,
+      "head": "0ad95065da12e45c28d585d8c758a87d3a708b1f",
+      "title": "Materialize Kimi-K3 interleaved MLA decode queries"
     }
   ]
 }
