@@ -1,0 +1,1001 @@
+diff --git a/b12x/moe/_shared/kernels/micro.py b/b12x/moe/_shared/kernels/micro.py
+index 3bec68a848f50f3a042d4d2c872f2ad4fb3f11ff..039fcd8a18eb1145335aea8953dabe00250e4953 100644
+--- a/b12x/moe/_shared/kernels/micro.py
++++ b/b12x/moe/_shared/kernels/micro.py
+@@ -406,6 +406,7 @@ class MoEMicroKernelBackend:
+         weight_layout: str = "modelopt",
+         trellis_bits: int | None = None,
+         trellis_coupled: bool = False,
++        stage_inactive_routes: bool = False,
+     ):
+         activation = normalize_moe_activation(activation)
+         if int(compile_time_phase) not in {0, 1, 2}:
+@@ -473,8 +474,10 @@ class MoEMicroKernelBackend:
+         self.weight_layout_trellis256 = weight_layout == "trellis_t256"
+         self.trellis_bits = 0 if trellis_bits is None else int(trellis_bits)
+         self.trellis_coupled = bool(trellis_coupled)
++        self.stage_inactive_routes = bool(stage_inactive_routes)
+         self.trellis_ksplit = 1
+         self.trellis_scratch_u32 = 0
++        self.route_slots = 0
+         self._cfg = None
+         self.m_const = 0
+         self.m1_fc2_onepass = False
+@@ -497,6 +500,7 @@ class MoEMicroKernelBackend:
+             self.weight_layout,
+             self.trellis_bits,
+             self.trellis_coupled,
++            self.stage_inactive_routes,
+             self.trellis_ksplit,
+             self.scale_format,
+             self.e8m0_scale_layout,
+@@ -511,6 +515,7 @@ class MoEMicroKernelBackend:
+             self.m1_fc2_onepass,
+             self.m1_fc2_rows_per_cta,
+             self.launch_block_dim,
++            self.route_slots,
+         )
+ 
+     @cute.jit
+@@ -548,6 +553,32 @@ class MoEMicroKernelBackend:
+             )
+         return fp4_dot4_sum_f32acc(u_packed, x0, x1, x2, x3)
+ 
++    @cute.jit
++    def _fc2_route(
++        self,
++        topk_ids: cute.Tensor,
++        topk_weights: cute.Tensor,
++        eid_addr: Int32,
++        route_expert_limit: Int32,
++    ) -> Tuple[Int32, Float32]:
++        """Return an addressable expert and its effective router weight.
++
++        Fixed-M fused launches receive a route table sanitized in shared
++        memory before FC1 and FC2 execute. The FC2-only endpoint instead uses
++        runtime M with a compile-time expert-capacity bucket, so it must check
++        each route against the resident expert count supplied by the caller.
++        Invalid routes address expert zero with an exact-zero effective weight.
++        """
++        if cutlass.const_expr(self.compile_time_phase == 2):
++            raw_expert = Int64(topk_ids[eid_addr])
++            expert = Int32(0)
++            weight = Float32(0.0)
++            if raw_expert >= Int64(0) and raw_expert < Int64(route_expert_limit):
++                expert = Int32(raw_expert)
++                weight = Float32(topk_weights[eid_addr])
++            return expert, weight
++        return Int32(topk_ids[eid_addr]), Float32(topk_weights[eid_addr])
++
+     @cute.jit
+     def _scale_byte_to_f32(self, byte: Uint32) -> Float32:
+         """Decode one block-scale byte to f32 (E8M0 in MXFP4 mode, else E4M3)."""
+@@ -894,6 +925,7 @@ class MoEMicroKernelBackend:
+         self.m1_fc2_rows_per_cta = m1_fc2_rows
+         self.launch_block_dim = _K_PER_CTA * 16 if m1_half_cta_fc2 else _BLOCK_DIM
+         self.grid_x = grid_x
++        self.route_slots = m * cfg.num_topk
+         # Required inter_fp32 element count: the per-token intermediate plus
+         # the trellis K-split scratch tail. Callers must zero-initialize; the
+         # kernel restores the tail to zero after each use.
+@@ -933,6 +965,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -965,8 +998,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1165,6 +1199,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1190,8 +1225,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1405,6 +1441,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1445,8 +1482,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1636,6 +1674,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1673,8 +1712,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -1870,6 +1910,7 @@ class MoEMicroKernelBackend:
+         w2_alphas: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+     ):
+         cfg = self._cfg
+@@ -1919,8 +1960,9 @@ class MoEMicroKernelBackend:
+ 
+         for kk in cutlass.range_constexpr(cfg.num_topk):
+             eid_addr = t * Int32(cfg.num_topk) + Int32(kk)
+-            eid = Int32(topk_ids[eid_addr])
+-            router_w = topk_weights[eid_addr]
++            eid, router_w = self._fc2_route(
++                topk_ids, topk_weights, eid_addr, route_expert_limit
++            )
+             if cutlass.const_expr(
+                 self.w4a16_mode
+                 and (not self.is_gated)
+@@ -2393,12 +2435,44 @@ class MoEMicroKernelBackend:
+         barrier_epoch: cute.Tensor,
+         trellis_lut: cute.Tensor,
+         trellis_rotations: cute.Tensor,
++        route_expert_limit: Int32,
+         m_val: Int32,
+     ):
+         cfg = self._cfg
+         bidx_x, _, _ = cute.arch.block_idx()
+         tidx, _, _ = cute.arch.thread_idx()
+         gdim_x, _, _ = cute.arch.grid_dim()
++        if cutlass.const_expr(self.stage_inactive_routes):
++            # The native direct path bypasses dynamic route packing, so stage
++            # its bounded route table once per CTA. Invalid IDs receive an
++            # addressable placeholder and an exact-zero effective weight.
++            # Inner FC1/FC2 loops then retain their unchecked hot path while
++            # caller-owned route tensors remain unchanged across graph replay.
++            staged_ids_ptr = cute.arch.alloc_smem(Int32, self.route_slots)
++            staged_weights_ptr = cute.arch.alloc_smem(Float32, self.route_slots)
++            staged_ids = cute.make_tensor(
++                staged_ids_ptr, cute.make_layout(self.route_slots)
++            )
++            staged_weights = cute.make_tensor(
++                staged_weights_ptr, cute.make_layout(self.route_slots)
++            )
++            route_slot = Int32(tidx)
++            while route_slot < Int32(self.route_slots):
++                raw_expert = Int64(topk_ids[route_slot])
++                expert = Int32(0)
++                weight = Float32(0.0)
++                if (
++                    raw_expert >= Int64(0)
++                    and raw_expert < Int64(route_expert_limit)
++                ):
++                    expert = Int32(raw_expert)
++                    weight = Float32(topk_weights[route_slot])
++                staged_ids[route_slot] = expert
++                staged_weights[route_slot] = weight
++                route_slot += Int32(self.launch_block_dim)
++            cute.arch.sync_threads()
++            topk_ids = staged_ids
++            topk_weights = staged_weights
+         if cutlass.const_expr(self.compile_time_phase == 2):
+             self._run_fc2(
+                 Int32(bidx_x),
+@@ -2412,6 +2486,7 @@ class MoEMicroKernelBackend:
+                 intermediate,
+                 topk_ids,
+                 topk_weights,
++                route_expert_limit,
+                 scatter_output,
+                 trellis_lut,
+             )
+@@ -5500,6 +5575,7 @@ class MoEMicroKernelBackend:
+             intermediate,
+             topk_ids,
+             topk_weights,
++            route_expert_limit,
+             scatter_output,
+             trellis_lut,
+         )
+@@ -5631,6 +5707,7 @@ class MoEMicroKernelBackend:
+         intermediate: cute.Tensor,
+         topk_ids: cute.Tensor,
+         topk_weights: cute.Tensor,
++        route_expert_limit: Int32,
+         scatter_output: cute.Tensor,
+         trellis_lut: cute.Tensor,
+     ):
+@@ -5674,6 +5751,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     else:
+@@ -5687,6 +5765,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+             else:
+@@ -5703,6 +5782,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     else:
+@@ -5716,6 +5796,7 @@ class MoEMicroKernelBackend:
+                             w2_alphas,
+                             topk_ids,
+                             topk_weights,
++                            route_expert_limit,
+                             scatter_output,
+                         )
+                     fc2_task += Int32(gdim_x)
+@@ -5740,6 +5821,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 elif cutlass.const_expr(cfg.fc2_n_chunks > 1):
+@@ -5753,6 +5835,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 else:
+@@ -5766,6 +5849,7 @@ class MoEMicroKernelBackend:
+                         w2_alphas,
+                         topk_ids,
+                         topk_weights,
++                        route_expert_limit,
+                         scatter_output,
+                     )
+                 fc2_task += Int32(gdim_x)
+@@ -5788,6 +5872,7 @@ class MoEMicroKernelBackend:
+         out_ptr: cute.Pointer,
+         barrier_count: cute.Tensor,
+         barrier_epoch: cute.Tensor,
++        route_expert_limit: Int32,
+         m_val: Int32,
+         grid_x: Int32,
+         stream,
+@@ -5888,6 +5973,7 @@ class MoEMicroKernelBackend:
+                 if cutlass.const_expr(trellis_rot_ptr is not None)
+                 else barrier_count
+             ),
++            route_expert_limit,
+             m_val,
+         ).launch(
+             grid=(grid_x, Int32(1), Int32(1)),
+@@ -5950,6 +6036,7 @@ class MoEMicroKernelBackend:
+             ptr(cutlass.BFloat16, out),
+             barrier_count,
+             barrier_epoch,
++            Int32(w1_alphas.numel()),
+             Int32(m),
+             Int32(grid_x),
+             stream,
+diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels/w4a16/kernel.py
+index af2ca4c205bc547eb15ea9500530edf6982a2e69..5b3ffe3a1443f34a14a8aa7d8aa9ddd7ec6b0a01 100644
+--- a/b12x/moe/_shared/kernels/w4a16/kernel.py
++++ b/b12x/moe/_shared/kernels/w4a16/kernel.py
+@@ -771,6 +771,9 @@ class MoEMicroKernelW4A16SmallMDirect(MoEMicroKernelBackend):
+             swiglu_beta=swiglu_beta,
+             w13_layout=w13_layout,
+             compile_time_phase=compile_time_phase,
++            # Fused direct launches have a compile-time route-table extent.
++            # FC2-only uses runtime M and sanitizes each route inside FC2.
++            stage_inactive_routes=int(compile_time_phase) != 2,
+         )
+ 
+ 
+@@ -8504,12 +8507,13 @@ def _compile_w4a16_small_m_direct(
+         dummy(cutlass.BFloat16),
+         barrier_fake,
+         barrier_fake,
++        Int32(num_experts),
+         Int32(m),
+         Int32(kernel.grid_x),
+         current_cuda_stream(),
+         compile_spec=KernelCompileSpec.from_facts(
+             "moe.w4a16.small_m_direct",
+-            2,
++            3,
+             ("device_index", None if device is None else int(device.index or 0)),
+             ("m", int(m)),
+             ("hidden_size", int(hidden_size)),
+@@ -8641,12 +8645,13 @@ def _compile_w4a16_fc2_direct(
+         dummy(cutlass.BFloat16),
+         barrier_fake,
+         barrier_fake,
++        Int32(expert_capacity),
+         Int32(2),
+         Int32(kernel.grid_x),
+         current_cuda_stream(),
+         compile_spec=KernelCompileSpec.from_facts(
+             "moe.w4a16.fc2_direct",
+-            4,
++            5,
+             ("device_index", int(device.index or 0)),
+             ("hidden_size", int(hidden_size)),
+             ("intermediate_size", int(intermediate_size)),
+@@ -9863,6 +9868,7 @@ def _w4a16_small_m_direct_launch_flat(
+         ptr(cutlass.BFloat16, output),
+         barrier_count,
+         barrier_epoch,
++        Int32(num_experts),
+         Int32(m),
+         Int32(direct_launch.grid_x),
+         cuda.CUstream(stream_int),
+@@ -10010,6 +10016,7 @@ def _w4a16_fc2_direct_launch_flat(
+         ptr(cutlass.BFloat16, output),
+         barrier_count,
+         barrier_epoch,
++        Int32(num_experts),
+         Int32(m),
+         Int32(launch.grid_x),
+         cuda.CUstream(stream_int),
+diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
+index 343061ac1b5c79590f7c018dca3c02c3a476f5ab..df69acd5bb85d0046e33892a6a840196d176f3e3 100644
+--- a/b12x/moe/fused_moe/_impl.py
++++ b/b12x/moe/fused_moe/_impl.py
+@@ -8137,6 +8137,7 @@ def _get_micro_kernel(
+         dummy(cutlass.BFloat16),  # out_ptr
+         barrier_fake,  # barrier_count
+         barrier_fake,  # barrier_epoch
++        Int32(weight_E),  # route_expert_limit
+         Int32(compile_m),  # m_val
+         Int32(1),  # grid_x
+         current_cuda_stream(),  # stream
+diff --git a/tests/moe/test_moe_launch_param_regression.py b/tests/moe/test_moe_launch_param_regression.py
+index e6d35b7d2c6a80c08aca46cebfe2054c6589b971..f427ef7b0eecb0e209cac4b3df0d85bbe798e107 100644
+--- a/tests/moe/test_moe_launch_param_regression.py
++++ b/tests/moe/test_moe_launch_param_regression.py
+@@ -132,6 +132,7 @@ def _direct_micro_launchable(
+     weight_E: int = 256,
+     k: int = 4096,
+     num_topk: int = 10,
++    compile_time_phase: int = 0,
+ ) -> bool:
+     from b12x.moe.fused_moe._impl import (
+         _DIRECT_MICRO_BLOCK_DIM,
+@@ -153,6 +154,7 @@ def _direct_micro_launchable(
+         activation="silu",
+         quant_mode=quant_mode,
+         device=torch.device("cuda"),
++        compile_time_phase=compile_time_phase,
+     )
+     return _compiled_direct_micro_accepts_block_dim(compiled, _DIRECT_MICRO_BLOCK_DIM)
+ 
+@@ -163,6 +165,21 @@ def test_nvfp4_direct_micro_launches_qwen_bs8_shape() -> None:
+     assert _direct_micro_launchable("nvfp4", 8, 256, weight_E=512)
+ 
+ 
++@pytest.mark.parametrize("compile_time_phase", [1, 2])
++def test_nvfp4_split_micro_compile_signature_matches_runtime_launch(
++    compile_time_phase: int,
++) -> None:
++    _skip_if_no_sm120()
++
++    assert _direct_micro_launchable(
++        "nvfp4",
++        1,
++        256,
++        weight_E=512,
++        compile_time_phase=compile_time_phase,
++    )
++
++
+ @pytest.mark.parametrize("case", ["alphas", "scales"])
+ def test_b12x_moe_accepts_parameter_backed_launch_args(case: str) -> None:
+     """The static path should not segfault on Parameter-backed scale tensors."""
+diff --git a/tests/moe/test_w4a16_e2e.py b/tests/moe/test_w4a16_e2e.py
+index 6d63a02e6512a5b84296dc68a9e8181500b0c1c1..0790bf6eb24b3c698f25cf8cab7e190843a9c999 100644
+--- a/tests/moe/test_w4a16_e2e.py
++++ b/tests/moe/test_w4a16_e2e.py
+@@ -62,6 +62,19 @@ def test_w4a16_small_m_host_barrier_reset_kill_switch(
+     assert not _small_m_direct_host_barrier_reset_enabled()
+ 
+ 
++def test_w4a16_fc2_runtime_m_does_not_use_fixed_route_staging() -> None:
++    kernel = MoEMicroKernelW4A16SmallMDirect(
++        activation="silu",
++        fast_math=False,
++        share_input_across_experts=False,
++        share_expert_scales=True,
++        single_token=False,
++        scale_format="e8m0_k32",
++        compile_time_phase=2,
++    )
++    assert not kernel.stage_inactive_routes
++
++
+ @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+ @pytest.mark.parametrize("host_barrier_reset", [False, True])
+ def test_w4a16_small_m_direct_barrier_modes_eager_and_graph(
+@@ -1088,6 +1101,163 @@ def test_w4a16_e8m0_native_micro_matches_raw_e8m0_oracle(
+         _assert_matches_oracle(buffers.output, expected, activation=activation)
+ 
+ 
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
++@pytest.mark.parametrize(
++    ("m", "route_ids_dtype"),
++    [
++        (1, torch.int32),
++        (2, torch.int32),
++        (4, torch.int32),
++        (8, torch.int32),
++        (1, torch.int64),
++    ],
++)
++def test_w4a16_e8m0_native_micro_ignores_inactive_routes_during_graph_replay(
++    m: int,
++    route_ids_dtype: torch.dtype,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Native small-M execution must not address weights for inactive routes."""
++    import b12x.moe._shared.kernels.w4a16.kernel as w4a16_kernel
++
++    monkeypatch.setenv("B12X_W4A16_SMALL_M_DIRECT", "1")
++    direct_launches = 0
++    real_direct_launch = w4a16_kernel._w4a16_small_m_direct_launch_flat
++
++    def spy_direct_launch(*args, **kwargs) -> None:
++        nonlocal direct_launches
++        direct_launches += 1
++        real_direct_launch(*args, **kwargs)
++
++    monkeypatch.setattr(
++        w4a16_kernel,
++        "_w4a16_small_m_direct_launch_flat",
++        spy_direct_launch,
++    )
++    experts, hidden_size, intermediate_size = 4, 128, 192
++    topk, activation = 2, "situ"
++    rows = 2 * intermediate_size
++    torch.manual_seed(20260817 + m)
++    w13 = torch.randint(
++        0,
++        256,
++        (experts, rows, hidden_size // 2),
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    w2 = torch.randint(
++        0,
++        256,
++        (experts, hidden_size, intermediate_size // 2),
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    w13_scale = _pattern_e8m0((experts, rows, hidden_size // 32))
++    w2_scale = _pattern_e8m0((experts, hidden_size, intermediate_size // 32), offset=1)
++    global_scale = torch.ones(experts, dtype=torch.float32, device="cuda")
++    prepared = prepare_w4a16_e8m0_native_weights(
++        w13,
++        w13_scale,
++        global_scale,
++        w2,
++        w2_scale,
++        global_scale,
++        activation=activation,
++        params_dtype=torch.bfloat16,
++        w13_layout="w31",
++    )
++    buffers = make_w4a16_buffers(
++        prepared,
++        m=m,
++        topk=topk,
++        dtype=torch.bfloat16,
++        device=torch.device("cuda"),
++    )
++    fc2_n_chunks = ((intermediate_size // 2) + 127) // 128
++    intermediate_cache2 = torch.zeros(
++        2 * m * fc2_n_chunks * 128 * topk,
++        dtype=torch.bfloat16,
++        device="cuda",
++    )
++    inputs = torch.randn(m, hidden_size, dtype=torch.bfloat16, device="cuda")
++    topk_ids = torch.randint(
++        0, experts, (m, topk), dtype=route_ids_dtype, device="cuda"
++    )
++    topk_weights = torch.rand(m, topk, dtype=torch.float32, device="cuda")
++
++    def launch() -> torch.Tensor:
++        return run_w4a16_moe(
++            inputs,
++            prepared,
++            topk_weights,
++            topk_ids,
++            activation=activation,
++            intermediate_cache13=buffers.intermediate_cache13,
++            intermediate_cache2=intermediate_cache2,
++            output=buffers.output,
++            fc1_c_tmp=buffers.fc1_c_tmp,
++            fc2_c_tmp=buffers.fc2_c_tmp,
++            packed_route_indices=buffers.packed_route_indices,
++            block_expert_ids=buffers.block_expert_ids,
++            packed_route_count=buffers.packed_route_count,
++            expert_offsets=buffers.expert_offsets,
++        )
++
++    valid_eager = launch().clone()
++    torch.cuda.synchronize()
++    assert direct_launches == 1
++    assert bool(torch.isfinite(valid_eager).all().item())
++    assert bool((valid_eager.abs().sum(dim=1) > 0).all().item())
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        captured = launch()
++    assert direct_launches == 2
++
++    inactive_ids = topk_ids.clone()
++    invalid_upper = 1 << 32 if route_ids_dtype == torch.int64 else experts
++    inactive_ids[-1] = torch.tensor(
++        [-1, invalid_upper], dtype=route_ids_dtype, device="cuda"
++    )
++    if m > 1:
++        inactive_ids[0, 0] = -1
++    topk_ids.copy_(inactive_ids)
++    original_weights = topk_weights.clone()
++    active = (inactive_ids >= 0) & (inactive_ids < experts)
++    reference_ids = torch.where(active, inactive_ids, torch.zeros_like(inactive_ids))
++    reference_weights = torch.where(
++        active, topk_weights, torch.zeros_like(topk_weights)
++    )
++    expected = moe_reference_w4a16_fp4_e8m0_k32(
++        inputs,
++        w13,
++        w13_scale,
++        global_scale,
++        w2,
++        w2_scale,
++        global_scale,
++        reference_ids,
++        reference_weights,
++        experts,
++        hidden_size,
++        intermediate_size,
++        activation=activation,
++        w13_layout="w31",
++    )
++
++    eager = launch().clone()
++    torch.cuda.synchronize()
++    _assert_matches_oracle(eager, expected, activation=activation)
++    torch.testing.assert_close(eager[-1], torch.zeros_like(eager[-1]), rtol=0, atol=0)
++
++    captured.fill_(float("nan"))
++    graph.replay()
++    torch.cuda.synchronize()
++    assert bool(torch.isfinite(captured).all().item())
++    torch.testing.assert_close(captured, eager, rtol=0, atol=0)
++    torch.testing.assert_close(topk_ids, inactive_ids, rtol=0, atol=0)
++    torch.testing.assert_close(topk_weights, original_weights, rtol=0, atol=0)
++
++
+ @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+ def test_w4a16_e8m0_native_aligned_generic_fc1_uses_k32_scale_stride() -> None:
+     """K/32 scales keep their native expert stride in aligned generic FC1."""
+@@ -3256,6 +3426,78 @@ def test_w4a16_fc2_only_consumes_contiguous_bf16_and_native_mxfp4() -> None:
+     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+ 
+ 
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
++@pytest.mark.parametrize("intermediate_size", [256, 512])
++@pytest.mark.parametrize("route_ids_dtype", [torch.int32, torch.int64])
++def test_w4a16_fc2_only_zeroes_invalid_routes_at_runtime_m3(
++    intermediate_size: int,
++    route_ids_dtype: torch.dtype,
++) -> None:
++    experts, hidden_size, routes = 2, 128, 3
++    w2 = torch.empty(
++        (experts, hidden_size, intermediate_size // 2),
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    w2[0].fill_(0x11)
++    w2[1].fill_(0x22)
++    scales = torch.full(
++        (experts, hidden_size, intermediate_size // 32),
++        127,
++        dtype=torch.uint8,
++        device="cuda",
++    )
++    intermediate = torch.ones(
++        (routes, intermediate_size), dtype=torch.bfloat16, device="cuda"
++    )
++    invalid_upper = 1 << 32 if route_ids_dtype == torch.int64 else experts
++    route_ids = torch.tensor(
++        [0, -1, invalid_upper], dtype=route_ids_dtype, device="cuda"
++    )
++    route_weights = torch.tensor([0.25, 0.5, 1.0], dtype=torch.float32, device="cuda")
++    original_ids = route_ids.clone()
++    original_weights = route_weights.clone()
++
++    prepared = prepare_w4a16_fc2_e8m0(w2, scales)
++    actual = run_w4a16_fc2_e8m0(
++        intermediate,
++        prepared,
++        route_ids,
++        route_weights,
++    )
++    expected_values = torch.tensor(
++        [intermediate_size / 8.0, 0.0, 0.0],
++        dtype=torch.bfloat16,
++        device="cuda",
++    )
++    expected = expected_values[:, None].expand_as(actual)
++
++    assert bool(torch.isfinite(actual).all().item())
++    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, original_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
++
++    graph_output = torch.empty_like(actual)
++    prewarm_w4a16_fc2_e8m0(prepared, route_ids_dtype=route_ids_dtype)
++    graph = torch.cuda.CUDAGraph()
++    with torch.cuda.graph(graph):
++        captured = run_w4a16_fc2_e8m0(
++            intermediate,
++            prepared,
++            route_ids,
++            route_weights,
++            output=graph_output,
++        )
++    captured.fill_(float("nan"))
++    graph.replay()
++    torch.cuda.synchronize()
++    assert captured is graph_output
++    assert bool(torch.isfinite(captured).all().item())
++    torch.testing.assert_close(captured, expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, original_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
++
++
+ @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     experts, hidden_size, intermediate_size, routes = 5, 128, 256, 7
+@@ -3275,15 +3517,11 @@ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     intermediate = torch.ones(
+         (routes, intermediate_size), dtype=torch.bfloat16, device="cuda"
+     )
+-    route_ids = torch.tensor(
+-        [0, 1, 2, 3, 4, 0, 2], dtype=torch.int32, device="cuda"
+-    )
++    route_ids = torch.tensor([0, 1, 0, 1, 0, 1, 0], dtype=torch.int32, device="cuda")
+     route_weights = torch.linspace(
+         0.125, 0.875, routes, dtype=torch.float32, device="cuda"
+     )
+-    output = torch.empty(
+-        (routes, hidden_size), dtype=torch.bfloat16, device="cuda"
+-    )
++    output = torch.empty((routes, hidden_size), dtype=torch.bfloat16, device="cuda")
+ 
+     prepared = prepare_w4a16_fc2_e8m0(w2, scales)
+     prewarm_w4a16_fc2_e8m0(prepared, route_ids_dtype=torch.int32)
+@@ -3301,14 +3539,46 @@ def test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output() -> None:
+     graph.replay()
+     torch.cuda.synchronize()
+ 
+-    expected = torch.empty_like(output)
++    valid_values = (
++        256.0
++        * route_weights
++        * torch.where(
++            route_ids == 0,
++            torch.tensor(0.5, device="cuda"),
++            torch.tensor(1.0, device="cuda"),
++        )
++    )
++    valid_expected = valid_values.to(torch.bfloat16)[:, None].expand_as(output)
++    torch.testing.assert_close(captured, valid_expected, rtol=0, atol=0)
++
++    invalid_ids = torch.tensor(
++        [0, -1, 1, experts, 0, -9, 1], dtype=torch.int32, device="cuda"
++    )
++    route_ids.copy_(invalid_ids)
++    original_weights = route_weights.clone()
++    invalid_values = torch.tensor(
++        [16.0, 0.0, 96.0, 0.0, 80.0, 0.0, 224.0],
++        dtype=torch.bfloat16,
++        device="cuda",
++    )
++    invalid_expected = invalid_values[:, None].expand_as(output)
++
++    eager = torch.empty_like(output)
+     run_w4a16_fc2_e8m0(
+         intermediate,
+         prepared,
+         route_ids,
+         route_weights,
+-        output=expected,
++        output=eager,
+     )
+     torch.cuda.synchronize()
++    torch.testing.assert_close(eager, invalid_expected, rtol=0, atol=0)
++
++    captured.fill_(float("nan"))
++    graph.replay()
++    torch.cuda.synchronize()
+     assert captured is output
+-    torch.testing.assert_close(captured, expected, rtol=0, atol=0)
++    assert bool(torch.isfinite(captured).all().item())
++    torch.testing.assert_close(captured, invalid_expected, rtol=0, atol=0)
++    torch.testing.assert_close(route_ids, invalid_ids, rtol=0, atol=0)
++    torch.testing.assert_close(route_weights, original_weights, rtol=0, atol=0)
+diff --git a/validation/performance/w4a16_inactive_routes_sm120.md b/validation/performance/w4a16_inactive_routes_sm120.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3fe4b6dd201a4d7fd698b910946e05c172bfa5bf
+--- /dev/null
++++ b/validation/performance/w4a16_inactive_routes_sm120.md
+@@ -0,0 +1,217 @@
++# Native W4A16 inactive-route validation on SM120
++
++Status: **qualified** for native ModelOpt W4A16 fused small-M execution and
++FC2-only runtime-M execution on NVIDIA RTX PRO 6000 Blackwell GPUs.
++
++## Operation contract
++
++An expert identifier outside `[0, resident_expert_count)` is an inactive route.
++The operation must not read weights or scales through that identifier, and its
++contribution must be exactly zero. Valid routes retain their identifiers and
++weights. Caller-owned route tensors remain unchanged in eager execution and
++CUDA Graph replay.
++
++Route validity is evaluated at the source tensor width. An `int64` identifier
++is narrowed to the kernel's `int32` expert address only after the range check,
++so values such as `2**32` cannot alias a resident expert.
++
++Fixed-M fused launches sanitize their compile-time-bounded route table in
++shared memory. FC2-only launches accept runtime M, so they validate each route
++inline against the runtime resident-expert count. The FC2 implementation must
++not index shared route storage whose extent was compiled for a smaller M.
++
++## Source and runtime identity
++
++- Repository: `local-inference-lab/b12x`
++- Runtime implementation revision: `af354efdbadb8b722da7c696e41d7e35b849b1ec`
++- Runtime implementation tree: `dc1d9340849219f99b5ba93e915b0fbd10967028`
++- Test-complete revision: `6a41770fb1514c4db03b4ff552380ec6821a3ae9`
++- Test-complete tree: `5ea752169a9c4a2863f51f16ed77cc85371f1353`
++- Compile-ABI qualification revision:
++  `97dfe7f837fa5383c5424cbdb2ccfabf57c4480c`
++- Route-width qualification revision:
++  `0e167cdd7d32fbb5b6dcaed88c263ac1fa236c26`
++- Production composition base revision:
++  `c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5`
++- Runtime-code qualification tree:
++  `9b916c2641c85c0ac78a2fa6c4bea0214a0d2cd8`
++- Comparison revision for valid FC2 routes:
++  `debaafe156c9824396178d53e01e5f15d2a2a04a`
++- Comparison tree: `ec6edd9da4687f83519fd37bd7322ea0800f0ace`
++- Implementation worktree:
++  `/root/vllm/worktrees/b12x-ii-w4a16-inactive-routes-v2-20260817`
++- Comparison worktree:
++  `/mnt/luke/kimi-k3-runs/pr227-fc2-review-20260817/b12x-debaafe`
++- GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition, SM120
++- Driver: 610.57.04
++- Runtime: CUDA 13.3, PyTorch 2.13.0, CUTLASS DSL 4.6.2
++- Test image:
++  `voipmonitor/vllm@sha256:ffb25774eaa90850b4cacfb88ed9e55072818e99bad977f1315c7118e7a730b2`
++
++## Correctness and memory safety
++
++The targeted test command selected the staging invariant, an established valid
++FC2 case, both narrow and wide invalid-route M=3 cases, and the eager plus CUDA
++Graph M=7 case:
++
++```bash
++docker run --rm --gpus device=0 --ipc=host \
++  --entrypoint /opt/venv/bin/python3 \
++  -e PYTHONPATH=/workspace \
++  -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
++  -e CUDA_MODULE_LOADING=LAZY \
++  -e TORCH_CUDA_ARCH_LIST=12.0a \
++  -e B12X_COMPILE_CACHE_DIR=/cache/compile \
++  -e B12X_CUTE_COMPILE_CACHE_DIR=/cache/cute \
++  -e CUDA_CACHE_PATH=/cache/cuda \
++  -e CUTE_DSL_CACHE_DIR=/cache/cute-dsl \
++  -v /root/vllm/worktrees/b12x-ii-w4a16-inactive-routes-v2-20260817:/workspace:ro \
++  -v /mnt/luke/kimi-k3-cache/pr227-fc2-review-20260817:/cache:rw \
++  voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllmdf13924-b12xec6edd9-cu133-torch213-20260817-r6 \
++  -m pytest -q -s \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_runtime_m_does_not_use_fixed_route_staging \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_only_consumes_contiguous_bf16_and_native_mxfp4 \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_only_zeroes_invalid_routes_at_runtime_m3 \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output
++```
++
++Result: five parametrized tests passed. The invalid identifiers included `-1`,
++`-9`, and the first upper-bound identifier. The M=3 test exercised 256- and
++512-element intermediate widths. Assertions covered finite output, nonzero
++valid-route output, exact-zero inactive rows, an independent constant oracle,
++stable graph replay, and immutable route inputs.
++
++Source-width validation used the same CUDA 13.3, PyTorch 2.13, and CUTLASS DSL
++4.6.2 runtime:
++
++```bash
++python -m pytest -q tests/moe/test_w4a16_e2e.py \
++  -k 'test_w4a16_e8m0_native_micro_ignores_inactive_routes_during_graph_replay or test_w4a16_fc2_only_zeroes_invalid_routes_at_runtime_m3' \
++  --maxfail=1
++```
++
++Result: nine tests passed. Fused execution covered `int32` route tables at
++M=1, 2, 4, and 8 plus an `int64` route table at M=1. FC2-only execution covered
++`int32` and `int64` route tables with 256- and 512-element intermediate widths.
++Both `int64` paths used `2**32` as an inactive identifier. The tests verify
++eager output, CUDA Graph replay, exact-zero inactive contributions, valid-route
++oracle parity, and immutable route tensors.
++
++The same invalid-route cases were executed under Compute Sanitizer:
++
++```bash
++docker run --rm --gpus device=0 --ipc=host \
++  --entrypoint /usr/local/cuda/bin/compute-sanitizer \
++  -e PYTHONPATH=/workspace \
++  -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
++  -e CUDA_MODULE_LOADING=LAZY \
++  -e TORCH_CUDA_ARCH_LIST=12.0a \
++  -e B12X_COMPILE_CACHE_DIR=/cache/compile \
++  -e B12X_CUTE_COMPILE_CACHE_DIR=/cache/cute \
++  -e CUDA_CACHE_PATH=/cache/cuda \
++  -e CUTE_DSL_CACHE_DIR=/cache/cute-dsl \
++  -v /root/vllm/worktrees/b12x-ii-w4a16-inactive-routes-v2-20260817:/workspace:ro \
++  -v /mnt/luke/kimi-k3-cache/pr227-fc2-review-20260817:/cache:rw \
++  voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllmdf13924-b12xec6edd9-cu133-torch213-20260817-r6 \
++  --tool memcheck --error-exitcode=99 \
++  /opt/venv/bin/python3 -m pytest -q -s \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_only_zeroes_invalid_routes_at_runtime_m3 \
++  /workspace/tests/moe/test_w4a16_e2e.py::test_w4a16_fc2_only_is_cuda_graph_safe_with_preallocated_output
++```
++
++Result: three parametrized tests passed and Compute Sanitizer reported
++`ERROR SUMMARY: 0 errors`.
++
++The generic direct-micro compiler receives the resident-expert limit before
++the runtime M, grid extent, and CUDA stream arguments. GPU compile tests cover
++the fused body and both split phases, preventing a positional ABI change from
++binding the stream as an integer launch parameter.
++
++A composed source qualification applied this implementation to B12X master
++`c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5`. The following suites produced
++329 passes and 18 skips:
++
++- `tests/moe/test_w4a16_e2e.py`
++- `tests/moe/test_w4a16_mixed_trellis.py`
++- `tests/moe/test_w4a16_route_pack.py`
++- `tests/moe/test_moe_launch_param_regression.py`
++- `tests/test_packaging.py`
++
++The result covers native and Trellis routes, fused and split NVFP4 compilation,
++eager execution, CUDA Graph replay, mixed K3/K4/K5 dispatch, route packing,
++and packaged source availability.
++
++## FC2 valid-route latency diagnostic
++
++The diagnostic used valid routes, a caller-owned output, 200 graph warmups,
++nine samples, and 5,000 CUDA Graph replays per sample. Lower latency is better;
++the reported ratio is implementation latency divided by comparison latency.
++
++| Source | M | Raw microseconds per replay | Median |
++|---|---:|---|---:|
++| comparison `debaafe1` | 2 | 2.226042, 2.201734, 2.150394, 2.139565, 2.154854, 2.202118, 2.181280, 2.181818, 2.180480 | 2.181280 |
++| implementation `af354efd` | 2 | 2.170336, 2.137523, 2.150829, 2.141190, 2.157146, 2.165818, 2.146022, 2.139597, 2.221146 | 2.150829 |
++| implementation `af354efd` | 7 | 4.098701, 4.098419, 4.098074, 4.097894, 4.098157, 4.097914, 4.098016, 4.097914, 4.098009 | 4.098016 |
++
++The M=2 median ratio is 0.9860. This diagnostic establishes that runtime route
++validation did not produce a measurable valid-route FC2 regression. It is not
++a speedup claim because the arms were measured sequentially without a locked
++clock.
++
++## Full-model integration
++
++The candidate image copied the implementation-revision `b12x` package over the
++published integration image without changing vLLM, LMCache, model weights, or
++launch arguments:
++
++- Candidate image ID:
++  `sha256:d2060dab541504dfec43e352a817e353e9672eec34231fab734db340b69c3154`
++- Base image digest:
++  `sha256:ffb25774eaa90850b4cacfb88ed9e55072818e99bad977f1315c7118e7a730b2`
++- Candidate Dockerfile SHA-256:
++  `0707481e9ea583cf8ac13524c730e6d1913a60d53aa5409d5c7b0227fc2d3549`
++
++Conditions were the official Kimi-K3 MXFP4 target, the Inferact seven-token
++DSpark draft, TP16/DCP16, FP8 target KV cache, a 1,000,000-token model limit,
++native vision, LMCache, and CUDA Graph capture size eight. InstantTensor loaded
++90.48 GiB per GPU. Physical target KV capacity was 1,033,126 tokens. CUDA Graph
++capture completed and the API became healthy.
++
++The benchmark program is
++[`benchmark-kimi-k3-dspark-decode.py`](https://github.com/local-inference-lab/rtx6kpro/blob/a82029c0ffa9c1cccfa9215e927c3db0ae2aeb57/models/kimi-k3/tools/benchmark-kimi-k3-dspark-decode.py),
++SHA-256 `b465fb785fc11b5b2941510eca1cfbdd159a55d8258c827a3db110309768023b`.
++The command used 256 stored prompt tokens, 1,024 generated tokens, temperature
++zero, seed one, two warmups, and eight measured runs:
++
++```bash
++python3 models/kimi-k3/tools/benchmark-kimi-k3-dspark-decode.py \
++  --url http://127.0.0.1:8001 \
++  --model Kimi-K3-MXFP4-DSpark7-DCP16-1M \
++  --token-file models/kimi-k3/tools/decode-baseline-256-token-ids.json \
++  --prompt-tokens 256 --max-tokens 1024 --warmups 2 --runs 8 \
++  --output-dir full-model-dspark-normalized-256x1024
++```
++
++Target-cycle rate is the acceptance-independent performance metric. Higher is
++better; the reported ratio is candidate median divided by base-image median.
++
++| Arm | Raw target cycles/s | Median |
++|---|---|---:|
++| base image | 31.384470, 31.589480, 31.633320, 31.563746, 31.237360, 31.340825, 31.474961, 31.232879 | 31.429716 |
++| candidate image | 31.391607, 31.526917, 31.527495, 31.454522, 31.589554, 31.332777, 31.679354, 31.512322 | 31.519620 |
++
++The candidate/base median ratio is 1.0029. Emitted throughput was 130.446
++tokens/s for the candidate and 118.773 tokens/s for the base image, but that
++difference is not attributed to the kernel because median draft acceptance was
++0.4476 and 0.3973 respectively.
++
++During a separate sustained 4,096-token candidate run, all 16 GPUs remained in
++P1 at 100% utilization, memory clocks were 13,365 MHz, SM clocks ranged from
++2,670 to 2,865 MHz, and the active clock-event mask was zero on every GPU. The
++run measured 30.918 target cycles/s. GPU 0 was
++`GPU-d8438b2d-f000-a617-5dcc-0197ce0365a3`.
++
++Conclusion: the implementation satisfies inactive-route address safety and
++zero-contribution semantics for fused fixed-M and FC2 runtime-M execution. The
++qualified full-model profile loads, captures, and decodes without a target-cycle
++regression.

@@ -4,8 +4,8 @@
   "repository": "https://github.com/local-inference-lab/vllm.git",
   "base_ref": "refs/heads/dev/infernal-invocation",
   "composition_strategy": "pinned_branch",
-  "composition_ref": "refs/heads/agent/kimi-k3-production-vision-warmup-20260818",
-  "composition_commit": "3dca3a5e032bcd452c51c1a034bba55e912abbf5",
+  "composition_ref": "refs/heads/agent/kimi-k3-production-sampler-overlay-20260819",
+  "composition_commit": "86529c1ec06d5db98a14e1e6a9fde1f40a0d069b",
   "pull_requests": [
     {
       "number": 310,
@@ -54,6 +54,11 @@
       "number": 428,
       "head": "45962db4c38a0e430450a087843fc2762a38beb4",
       "title": "Warm Kimi vision interpolation before KV allocation"
+    },
+    {
+      "number": 433,
+      "head": "9151d114e270250fb0367333b2dc5a49c6383796",
+      "title": "Enforce cached MRV2 logits-processing state"
     }
   ]
 }

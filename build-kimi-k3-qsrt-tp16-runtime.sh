@@ -5,14 +5,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-release_root=patches/releases/kimi-k3-production-lmcache-vision-warmup
+release_root=patches/releases/kimi-k3-production-lmcache-sampler-overlay
 vllm_lock="${release_root}/vllm/integration.lock.json"
 b12x_lock="${release_root}/b12x/integration.lock.json"
 lmcache_lock="${release_root}/lmcache/integration.lock.json"
 base_image="${BASE_IMAGE:-voipmonitor/vllm@sha256:01b973d1ae132882bcc1bf62ea232f6aabe649dd4a89b961d81f3c41cc53f971}"
 release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache}"
-release_date="${RELEASE_DATE:-20260818}"
-revision="${REVISION:-vision-warmup}"
+release_date="${RELEASE_DATE:-20260819}"
+revision="${REVISION:-source-overlay}"
 
 for path in \
   "${vllm_lock}" \
@@ -135,10 +135,10 @@ assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TRE
 assert_label local-inference.flash-attention.forward.sha256 \
   f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449
 
-docker run --rm --env VLLM_SOURCE_OVERLAY_ACTIVE=1 \
+docker run --rm \
   --entrypoint /opt/venv/bin/python "${image}" -c \
-  'import pathlib, vllm; expected=pathlib.Path("/opt/kimi-k3-qsrt/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'
-docker run --rm --env VLLM_SOURCE_OVERLAY_ACTIVE=1 \
+  'import pathlib, sys; assert "vllm" not in sys.modules; import vllm; expected=pathlib.Path("/opt/kimi-k3-qsrt/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'
+docker run --rm \
   --entrypoint /opt/venv/bin/python "${image}" -c \
   'import lmcache, pathlib; expected=pathlib.Path("/opt/kimi-k3-qsrt/lmcache"); assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(expected)'
 docker run --rm --entrypoint /bin/bash "${image}" -lc \

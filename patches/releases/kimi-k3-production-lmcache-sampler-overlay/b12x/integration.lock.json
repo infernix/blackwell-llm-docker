@@ -1,0 +1,32 @@
+{
+  "base": {
+    "commit": "c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "merge",
+  "manifest": {
+    "sha256": "940bd92bc2f7f1d35202df39581b1f362d9a0cea74f8437896962243501f7fe2"
+  },
+  "name": "kimi-k3-production-b12x",
+  "pull_requests": [
+    {
+      "commits": [
+        "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9"
+      ],
+      "disposition": "merged",
+      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
+      "number": 227,
+      "ref": "refs/pull/227/head",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "655bc17d72ab6f97f33f9f27958d8298705c5000ff5a82c08d107c382cb99981",
+    "tree": "468c31256b585c8078782c63ba723e404c04eb76"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

@@ -40,6 +40,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV VLLM_SOURCE_OVERLAY_ROOT=/opt/kimi-k3-qsrt/vllm \
     VLLM_BINARY_PACKAGE_DIR=/opt/infernal-invocation/vllm/vllm \
+    VLLM_SOURCE_OVERLAY_ACTIVE=1 \
     SPARKINFER_DIR=/opt/kimi-k3-qsrt/b12x \
     PYTHONPATH=/opt/kimi-k3-qsrt/lmcache:/opt/kimi-k3-qsrt/b12x:/opt/kimi-k3-qsrt/source-overlay:/opt/exllamav3:/opt/infernal-invocation/vllm:/opt/infernal-invocation/b12x \
     PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -130,12 +131,12 @@ COPY --chmod=0755 launchers/lmcache-mp-wrapper.sh /usr/local/bin/lmcache-mp-wrap
 COPY --chmod=0755 launchers/serve-kimi-k3-production-dspark-ii /usr/local/bin/serve-kimi-k3-production-dspark-ii
 
 RUN set -eux; \
-    export VLLM_SOURCE_OVERLAY_ACTIVE=1; \
     test "$(git -C /opt/kimi-k3-qsrt/vllm write-tree)" = "${VLLM_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/b12x write-tree)" = "${B12X_INTEGRATION_TREE}"; \
     test "$(git -C /opt/kimi-k3-qsrt/lmcache write-tree)" = "${LMCACHE_INTEGRATION_TREE}"; \
     test "$(sha256sum /opt/infernal-invocation/vllm/vllm/vllm_flash_attn/cute/flash_fwd.py | cut -d' ' -f1)" = \
       f8dfc8321baef79d8ad4ce5f8e18365e215f567da631638498b26330a5aca449; \
+    /opt/venv/bin/python -c 'import sys; assert "vllm" not in sys.modules'; \
     /opt/venv/bin/python -c 'import pathlib, vllm; assert pathlib.Path(vllm.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/vllm"))'; \
     /opt/venv/bin/python -c 'import b12x, pathlib; assert pathlib.Path(b12x.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/b12x"))'; \
     /opt/venv/bin/python -c 'import lmcache, pathlib; assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(pathlib.Path("/opt/kimi-k3-qsrt/lmcache"))'; \
