@@ -4,9 +4,9 @@
   "purpose": "Compile the Kimi-K3 production runtime from an auditable merge stack rooted at dev/infernal-invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/build/kimi-k3-clean-integration-20260819-r2",
-    "commit": "9b1ac36efd2beb9a5adb60302cb9431ff2c11050",
-    "tree": "768a4fc36104cb9ffa09d562192dd6deb5bbf3f2"
+    "ref": "refs/heads/build/kimi-k3-native-offload-production-20260819",
+    "commit": "1b42692f711e7c61787ff61211bcced3eb30e334",
+    "tree": "95114d4e367b24a923e77af33b38f3c795c3f000"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -79,6 +79,12 @@
       "head": "9151d114e270250fb0367333b2dc5a49c6383796",
       "merge_commit": "9b1ac36efd2beb9a5adb60302cb9431ff2c11050",
       "title": "Enforce cached MRV2 logits-processing state"
+    },
+    {
+      "number": 441,
+      "head": "8164755964b0df12815ef6abf0507df700c38ccf",
+      "merge_commit": "1b42692f711e7c61787ff61211bcced3eb30e334",
+      "title": "Preserve Kimi parallel-draft KV group identity"
     }
   ],
   "source_patches": []
