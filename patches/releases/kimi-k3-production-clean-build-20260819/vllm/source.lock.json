@@ -4,9 +4,9 @@
   "purpose": "Compile the Kimi-K3 production runtime from an auditable merge stack rooted at dev/infernal-invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/build/kimi-k3-native-offload-production-20260819-r2",
-    "commit": "1057b63a6844b7e3816e4eaeac06d913a09c3e9d",
-    "tree": "95114d4e367b24a923e77af33b38f3c795c3f000"
+    "ref": "refs/heads/build/kimi-k3-native-offload-production-20260819-r3",
+    "commit": "910bf43ca6b6a524fe469c3561e89b951c109057",
+    "tree": "726b2348584e75857ffe8b6eb19ef117b0b85c57"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -82,8 +82,8 @@
     },
     {
       "number": 441,
-      "head": "8164755964b87be9b13e3fe76e8bd7d0d0a37559",
-      "merge_commit": "1057b63a6844b7e3816e4eaeac06d913a09c3e9d",
+      "head": "9a8aa110a7c73db97be767485f5033040cd9e433",
+      "merge_commit": "910bf43ca6b6a524fe469c3561e89b951c109057",
       "title": "Preserve Kimi parallel-draft KV group identity"
     }
   ],
