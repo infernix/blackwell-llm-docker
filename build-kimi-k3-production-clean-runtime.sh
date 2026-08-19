@@ -8,7 +8,7 @@ cd "${repo_root}"
 source_root=patches/releases/kimi-k3-production-clean-build-20260819
 release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache-clean}"
 release_date="${RELEASE_DATE:-20260819}"
-revision="${REVISION:-r1}"
+revision="${REVISION:-r2}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
 
 read_source_lock() {
