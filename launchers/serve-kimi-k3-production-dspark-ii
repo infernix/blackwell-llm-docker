@@ -14,6 +14,15 @@ export LMCACHE_EXPECTED_SOURCE_ROOT="${LMCACHE_EXPECTED_SOURCE_ROOT:-/opt/kimi-k
 export LMCACHE_SHM_NAME="${LMCACHE_SHM_NAME-}"
 export LMCACHE_SEPARATE_OBJECT_GROUPS="${LMCACHE_SEPARATE_OBJECT_GROUPS:-1}"
 export LMCACHE_SERVER_ENV="${LMCACHE_SERVER_ENV-CUDA_VISIBLE_DEVICES= CUDA_MODULE_LOADING=LAZY}"
+# Pickle-mode restores share a Python/ZMQ control loop with heartbeat traffic.
+# A large TP16 restore may occupy that loop for more than the generic 10-second
+# interval even while the local cache server is healthy. The wrapper monitors
+# the server process directly, while failed cache reads fall back to model
+# recomputation, so a 30-second heartbeat preserves liveness without turning
+# a transient control-plane delay into an empty API response.
+export LMCACHE_HEARTBEAT_INTERVAL="${LMCACHE_HEARTBEAT_INTERVAL:-30}"
+export LMCACHE_WORKER_REAP_TIMEOUT="${LMCACHE_WORKER_REAP_TIMEOUT:-120}"
+export LMCACHE_KV_LOAD_FAILURE_POLICY="${LMCACHE_KV_LOAD_FAILURE_POLICY:-recompute}"
 # Kimi-K3 DCP16 exposes 768-token scheduler blocks and 12,288-token MLA
 # transfer groups. LMCache chunks must preserve both granularities.
 export LMCACHE_CHUNK_SIZE="${LMCACHE_CHUNK_SIZE:-12288}"

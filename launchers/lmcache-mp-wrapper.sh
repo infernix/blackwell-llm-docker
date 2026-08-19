@@ -85,6 +85,21 @@ case "${lmcache_transfer_mode}" in
     ;;
 esac
 
+lmcache_kv_load_failure_policy="${LMCACHE_KV_LOAD_FAILURE_POLICY:-recompute}"
+lmcache_kv_load_failure_policy="${lmcache_kv_load_failure_policy,,}"
+case "${lmcache_kv_load_failure_policy}" in
+  recompute|fail) ;;
+  *)
+    echo "ERROR: LMCACHE_KV_LOAD_FAILURE_POLICY must be recompute or fail; got ${lmcache_kv_load_failure_policy}" >&2
+    exit 2
+    ;;
+esac
+
+lmcache_mq_timeout="${LMCACHE_MQ_TIMEOUT:-60}"
+lmcache_heartbeat_interval="${LMCACHE_HEARTBEAT_INTERVAL:-10}"
+lmcache_worker_reap_timeout="${LMCACHE_WORKER_REAP_TIMEOUT:-120}"
+lmcache_worker_registration_grace="${LMCACHE_WORKER_REGISTRATION_GRACE:-3600}"
+
 lmcache_separate_object_groups="${LMCACHE_SEPARATE_OBJECT_GROUPS:-0}"
 lmcache_separate_object_groups="${lmcache_separate_object_groups,,}"
 case "${lmcache_separate_object_groups}" in
@@ -114,6 +129,8 @@ server_args=(
   --l2-store-policy default
   --l2-prefetch-policy retain
   --http-port "${lmcache_http_port}"
+  --worker-reap-timeout-seconds "${lmcache_worker_reap_timeout}"
+  --worker-registration-grace-seconds "${lmcache_worker_registration_grace}"
 )
 
 # An explicitly empty shared-memory name selects bounded per-request transfer
@@ -161,20 +178,69 @@ transfer_config="$(
   LMCACHE_JSON_HOST="${lmcache_host}" \
   LMCACHE_JSON_PORT="${lmcache_port}" \
   LMCACHE_JSON_TRANSFER_MODE="${lmcache_transfer_mode}" \
+  LMCACHE_JSON_LOAD_FAILURE_POLICY="${lmcache_kv_load_failure_policy}" \
+  LMCACHE_JSON_MQ_TIMEOUT="${lmcache_mq_timeout}" \
+  LMCACHE_JSON_HEARTBEAT_INTERVAL="${lmcache_heartbeat_interval}" \
+  LMCACHE_JSON_WORKER_REAP_TIMEOUT="${lmcache_worker_reap_timeout}" \
+  LMCACHE_JSON_WORKER_REGISTRATION_GRACE="${lmcache_worker_registration_grace}" \
     python3 - <<'PY'
 import json
+import math
 import os
+
+mq_timeout = float(os.environ["LMCACHE_JSON_MQ_TIMEOUT"])
+heartbeat_interval = float(os.environ["LMCACHE_JSON_HEARTBEAT_INTERVAL"])
+worker_reap_timeout = float(os.environ["LMCACHE_JSON_WORKER_REAP_TIMEOUT"])
+worker_registration_grace = float(
+    os.environ["LMCACHE_JSON_WORKER_REGISTRATION_GRACE"]
+)
+for name, value in (
+    ("LMCACHE_MQ_TIMEOUT", mq_timeout),
+    ("LMCACHE_HEARTBEAT_INTERVAL", heartbeat_interval),
+    ("LMCACHE_WORKER_REAP_TIMEOUT", worker_reap_timeout),
+    ("LMCACHE_WORKER_REGISTRATION_GRACE", worker_registration_grace),
+):
+    if not math.isfinite(value):
+        raise SystemExit(f"{name} must be finite; got {value}")
+if mq_timeout <= 0:
+    raise SystemExit(f"LMCACHE_MQ_TIMEOUT must be positive; got {mq_timeout}")
+if heartbeat_interval <= 0:
+    raise SystemExit(
+        "LMCACHE_HEARTBEAT_INTERVAL must be positive; "
+        f"got {heartbeat_interval}"
+    )
+if worker_reap_timeout != 0 and worker_reap_timeout < 30:
+    raise SystemExit(
+        "LMCACHE_WORKER_REAP_TIMEOUT must be 0 or at least 30 seconds; "
+        f"got {worker_reap_timeout}"
+    )
+if worker_registration_grace < worker_reap_timeout:
+    raise SystemExit(
+        "LMCACHE_WORKER_REGISTRATION_GRACE must be at least "
+        f"LMCACHE_WORKER_REAP_TIMEOUT; got {worker_registration_grace} "
+        f"and {worker_reap_timeout}"
+    )
+if worker_reap_timeout and 3 * heartbeat_interval > worker_reap_timeout:
+    raise SystemExit(
+        "LMCACHE_WORKER_REAP_TIMEOUT must be at least three heartbeat "
+        f"intervals; got {worker_reap_timeout} and {heartbeat_interval}"
+    )
 
 print(
     json.dumps(
         {
             "kv_connector": "LMCacheMPConnector",
             "kv_role": "kv_both",
+            # A cache-tier failure is not a model failure. Recompute discards
+            # the affected external blocks and preserves the API request.
+            "kv_load_failure_policy": os.environ[
+                "LMCACHE_JSON_LOAD_FAILURE_POLICY"
+            ],
             "kv_connector_extra_config": {
                 "lmcache.mp.host": f"tcp://{os.environ['LMCACHE_JSON_HOST']}",
                 "lmcache.mp.port": int(os.environ["LMCACHE_JSON_PORT"]),
-                "lmcache.mp.mq_timeout": 60,
-                "lmcache.mp.heartbeat_interval": 5,
+                "lmcache.mp.mq_timeout": mq_timeout,
+                "lmcache.mp.heartbeat_interval": heartbeat_interval,
                 "lmcache.mp.mp_transfer_mode": os.environ[
                     "LMCACHE_JSON_TRANSFER_MODE"
                 ],
@@ -261,9 +327,10 @@ if [[ "${ready}" != 1 ]]; then
   exit 1
 fi
 
-printf 'LMCache ready: mode=%s transfer=%s L1=%sGB chunk=%s L2=%s health=http://%s:%s/healthcheck metrics=http://%s:%s/metrics log=%s\n' \
+printf 'LMCache ready: mode=%s transfer=%s L1=%sGB chunk=%s L2=%s load_failure=%s heartbeat=%ss health=http://%s:%s/healthcheck metrics=http://%s:%s/metrics log=%s\n' \
   "${mode}" "${lmcache_transfer_mode}" "${lmcache_l1_gb}" "${lmcache_chunk_size}" \
-  "${lmcache_l2_path}" "${lmcache_host}" "${lmcache_http_port}" \
+  "${lmcache_l2_path}" "${lmcache_kv_load_failure_policy}" \
+  "${lmcache_heartbeat_interval}" "${lmcache_host}" "${lmcache_http_port}" \
   "${lmcache_host}" "${lmcache_http_port}" "${lmcache_log}"
 
 "$@" --kv-transfer-config "${transfer_config}" &

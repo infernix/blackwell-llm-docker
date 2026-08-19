@@ -84,6 +84,9 @@ grep -Fq -- '--l1-size-gb 2' "${tmp_root}/ram-server.args"
 grep -Fq -- '--max-gpu-workers 8' "${tmp_root}/ram-server.args"
 grep -Fq -- '--chunk-size 512' "${tmp_root}/ram-server.args"
 grep -Fq -- '--supported-transfer-mode auto' "${tmp_root}/ram-server.args"
+grep -Fq -- '--worker-reap-timeout-seconds 120' "${tmp_root}/ram-server.args"
+grep -Fq -- '--worker-registration-grace-seconds 3600' \
+  "${tmp_root}/ram-server.args"
 if grep -Fq -- '--shm-name' "${tmp_root}/ram-server.args"; then
   echo 'Default LMCache mode unexpectedly configured shared memory' >&2
   exit 1
@@ -100,6 +103,11 @@ grep -Fq -- '--kv-transfer-config' "${tmp_root}/ram-model.args"
 grep -Fq -- '"lmcache.mp.port":5557' "${tmp_root}/ram-model.args"
 grep -Fq -- '"lmcache.mp.mp_transfer_mode":"auto"' \
   "${tmp_root}/ram-model.args"
+grep -Fq -- '"kv_load_failure_policy":"recompute"' \
+  "${tmp_root}/ram-model.args"
+grep -Fq -- '"lmcache.mp.mq_timeout":60.0' "${tmp_root}/ram-model.args"
+grep -Fq -- '"lmcache.mp.heartbeat_interval":10.0' \
+  "${tmp_root}/ram-model.args"
 grep -Fxq 'expandable_segments:False' "${tmp_root}/ram-model.env"
 
 # Engine-driven transfers keep the standalone server CPU-only. GPU visibility
@@ -109,6 +117,11 @@ LMCACHE_MODE=ram \
 LMCACHE_TRANSFER_MODE=engine_driven \
 LMCACHE_SHM_NAME= \
 LMCACHE_SEPARATE_OBJECT_GROUPS=1 \
+LMCACHE_KV_LOAD_FAILURE_POLICY=fail \
+LMCACHE_MQ_TIMEOUT=90 \
+LMCACHE_HEARTBEAT_INTERVAL=20 \
+LMCACHE_WORKER_REAP_TIMEOUT=90 \
+LMCACHE_WORKER_REGISTRATION_GRACE=900 \
 LMCACHE_L1_GB=2 \
 LMCACHE_LOG="${tmp_root}/engine.log" \
 LMCACHE_TEST_SERVER_ARGS="${tmp_root}/engine-server.args" \
@@ -124,6 +137,16 @@ grep -Fq -- "--shm-name ''" "${tmp_root}/engine-server.args"
 grep -Fq -- '--separate-object-groups' "${tmp_root}/engine-server.args"
 grep -Fq -- '"lmcache.mp.mp_transfer_mode":"engine_driven"' \
   "${tmp_root}/engine-model.args"
+grep -Fq -- '"kv_load_failure_policy":"fail"' \
+  "${tmp_root}/engine-model.args"
+grep -Fq -- '"lmcache.mp.mq_timeout":90.0' \
+  "${tmp_root}/engine-model.args"
+grep -Fq -- '"lmcache.mp.heartbeat_interval":20.0' \
+  "${tmp_root}/engine-model.args"
+grep -Fq -- '--worker-reap-timeout-seconds 90' \
+  "${tmp_root}/engine-server.args"
+grep -Fq -- '--worker-registration-grace-seconds 900' \
+  "${tmp_root}/engine-server.args"
 sed -n '1p' "${tmp_root}/engine-server.env" | grep -Fxq ''
 sed -n '2p' "${tmp_root}/engine-server.env" | grep -Fxq 'LAZY'
 grep -Fxq '0,1' "${tmp_root}/engine-model-cuda.env"
@@ -218,6 +241,28 @@ if PATH="${tmp_root}/bin:${PATH}" \
   bash "${lmcache_wrapper}" \
     "${tmp_root}/model-server"; then
   echo 'Invalid LMCache mode unexpectedly succeeded' >&2
+  exit 1
+fi
+
+if PATH="${tmp_root}/bin:${PATH}" \
+  LMCACHE_MODE=ram \
+  LMCACHE_KV_LOAD_FAILURE_POLICY=discard \
+  bash "${lmcache_wrapper}" \
+    "${tmp_root}/model-server"; then
+  echo 'Invalid KV load failure policy unexpectedly succeeded' >&2
+  exit 1
+fi
+
+if PATH="${tmp_root}/bin:${PATH}" \
+  LMCACHE_MODE=ram \
+  LMCACHE_HEARTBEAT_INTERVAL=20 \
+  LMCACHE_WORKER_REAP_TIMEOUT=30 \
+  LMCACHE_LOG="${tmp_root}/invalid-heartbeat.log" \
+  LMCACHE_TEST_SERVER_ARGS="${tmp_root}/invalid-heartbeat-server.args" \
+  LMCACHE_TEST_MODEL_ARGS="${tmp_root}/invalid-heartbeat-model.args" \
+  bash "${lmcache_wrapper}" \
+    "${tmp_root}/model-server"; then
+  echo 'Incoherent heartbeat and worker reap timeouts unexpectedly succeeded' >&2
   exit 1
 fi
 
