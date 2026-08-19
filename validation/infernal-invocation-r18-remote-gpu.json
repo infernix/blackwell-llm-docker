@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "Release qualification receipt for DeepSeek-V4-Flash and source qualification for the packaged GLM-5.2 profiles",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmf0fa1ce-b12x75787c7-fi1ac6942-cu133-torch213-20260818-r18",
+  "image_id": "sha256:955e088a85b5378b00275842bc839eea8cb04ca0782ed79eaa3a967d11fd22e5",
+  "registry_digest": "sha256:414ec7d0d28358cfd8af0697f330f5c8acbb80e4dc4e5ba69c9fd5b5855ea804",
+  "image_size_bytes": 30770950858,
+  "validated_at": "2026-08-18",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "source_trees": {
+    "vllm": "f0fa1cefc1865d316c2478525f550e7646addc40",
+    "b12x": "75787c7a7431b3bea414d2ebf5f2b8671b23eb33",
+    "lmcache": "e045d729bc5c4c63a40e13d032f42923de97812f"
+  },
+  "source_composition": {
+    "docker_commit": "d56878858bcb651ca3f0ae7bfd104580e8dd37f6",
+    "vllm_base": "dev/infernal-invocation@6dc2f516688fe6f84c6994dcd20fddf296853a6c",
+    "b12x_base": "master@c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
+    "lmcache_base": "release/v0.5.2-glm52-dcp-base@a128b2e286ebb3556cb43124149e600ff99fe481",
+    "source_patches": []
+  },
+  "runtime_packages": {
+    "vllm": "0.26.1rc0+infernal.invocation.cu133.r18.vllmf0fa1ce.b12x75787c7",
+    "b12x": "1.2.3",
+    "torch": "2.13.0",
+    "cuda": "13.3",
+    "nccl": "2.31.2",
+    "cutlass_dsl": "4.6.2",
+    "flashinfer": "0.6.18+cu133",
+    "lmcache": "0.5.2+glm52dcp.5",
+    "xgrammar": "0.2.5",
+    "instanttensor": "0.1.9",
+    "pytest": "8.4.1"
+  },
+  "implemented_contracts": {
+    "ds4_graph_metadata": "The C128A sparse-metadata buffer uses its physical graph capacity as the head stride.",
+    "ds4_sparse_topk": "Sparse top-k consumes exactly the active row count and rejects stale trailing rows.",
+    "ds4_metadata_performance": "GPU-native sparse metadata updates replace per-step host scalar extraction without changing checksums.",
+    "glm_sparse_prefill": "Prefill preserves the sparse attention mask and exact row semantics required by GLM-5.2.",
+    "mrv2_state": "Cached logits-processing state is reset for each request and cannot retain stale thinking state.",
+    "hybrid_kv_recovery": "External KV load failures restore per-group block-table rows for heterogeneous attention caches.",
+    "persistent_kv": "Native filesystem tiering and LMCache disk tiering both preserve exact results across complete process restarts."
+  },
+  "runtime_validation": {
+    "deepseek_v4_flash_tp2": "qualified",
+    "deepseek_artifact": "validation/infernal-invocation-r18/runtime-summary.json",
+    "native_l2": "qualified",
+    "native_l2_artifact": "validation/infernal-invocation-r18/native-l2-restart-summary.json",
+    "lmcache_disk": "qualified",
+    "lmcache_disk_artifact": "validation/infernal-invocation-r18/lmcache-disk-restart-summary.json",
+    "glm_exl3_tp4": "source-qualified",
+    "glm_nvfp4_tp8": "source-qualified"
+  },
+  "upstream_vllm_main_audit": {
+    "audited_commit": "8f4a7f45c53ab52b17023d3ca804e477daa36a23",
+    "result": "No additional DS4 or GLM runtime change is required. The commits after 203926c477 modify only ROCm CI configuration and its metadata test."
+  },
+  "result": "The immutable image passed the release suites and qualified DeepSeek-V4-Flash TP2/DCP1 fixed probabilistic DSpark K5, FULL CUDA graph execution, strict structured output, native filesystem KV restart replay, and LMCache disk restart replay.",
+  "limitations": [
+    "GLM-5.2 EXL3 runtime files are rank-sliced for TP4 and reject TP2 by contract. GPUs 4 and 5 were unavailable for this qualification, so the required TP4 geometry was not executed.",
+    "GLM-5.2 NVFP4 requires TP8 and was not executed against this image.",
+    "The GLM-5.2 TP4 runtime evidence remains attached to Infernal Invocation r17 and is not claimed as r18 runtime evidence."
+  ],
+  "artifacts": {
+    "source_lock_directory": "patches/releases/infernal-invocation-r18",
+    "deepseek_compose": "examples/docker-compose-ds4-infernal-invocation-cu133-r18.yml",
+    "glm_exl3_compose": "examples/docker-compose-glm52-exl3-infernal-invocation-r18.yml",
+    "glm_nvfp4_compose": "examples/docker-compose-glm52-nvfp4-infernal-invocation-r18.yml",
+    "source_merge_contract": "validation/infernal-invocation-r18/source-merge-contract.md"
+  }
+}

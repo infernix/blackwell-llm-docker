@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "DeepSeek-V4-Flash DSpark runtime qualification for CUDA graph coverage, structured output, and persistent KV cache replay",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmf0fa1ce-b12x75787c7-fi1ac6942-cu133-torch213-20260818-r18",
+  "image_id": "sha256:955e088a85b5378b00275842bc839eea8cb04ca0782ed79eaa3a967d11fd22e5",
+  "registry_digest": "sha256:414ec7d0d28358cfd8af0697f330f5c8acbb80e4dc4e5ba69c9fd5b5855ea804",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731",
+  "checkpoint_revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "validator_host": "192.168.0.69",
+  "gpu_ids": [6, 7],
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "backend": "B12X W4A8 with B12X compressed MLA",
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 32,
+    "max_num_batched_tokens": 4096,
+    "max_cuda_graph_rows": 192,
+    "max_model_len": 262144,
+    "gpu_memory_utilization": 0.975,
+    "kv_cache": "FP8 compressed MLA",
+    "native_kv_offload": "disabled for the decode gate",
+    "lmcache": "disabled for the decode gate",
+    "cuda_graph_mode": "FULL_AND_PIECEWISE"
+  },
+  "cuda_graph_capture": {
+    "target_full": true,
+    "dspark_full": true,
+    "dflash_context_kv_full": true,
+    "piecewise": true
+  },
+  "c1_decode": {
+    "measurement_seconds": 19.999294,
+    "aggregate_output_tokens_per_second": 164.45580826727712,
+    "active_per_user_output_tokens_per_second": 165.132419919547,
+    "engine_steps_per_second": 64.40227456620643,
+    "draft_acceptance_rate": 0.3107142857142857,
+    "mean_acceptance_length": 2.553571428571429,
+    "errors": 0,
+    "infernal_invocation_r16_control": {
+      "image": "voipmonitor/vllm:infernal-invocation-vllm5beffc4-b12xa4a0bc8-fi1ac6942-cu133-torch213-20260817-r16",
+      "aggregate_output_tokens_per_second": 172.9318277866406,
+      "engine_steps_per_second": 64.03029782091409,
+      "engine_step_delta_percent": 0.581,
+      "interpretation": "The target-model execution rate did not regress. Aggregate emitted-token throughput differs because the probabilistic draft accepted 2.55 tokens per target step in this run and 2.70 tokens per target step in the control."
+    }
+  },
+  "strict_tool_modes": {
+    "modes": [
+      "required tool choice with omitted parallel_tool_calls",
+      "named tool choice with parallel_tool_calls=false",
+      "automatic tool choice with parallel_tool_calls=true"
+    ],
+    "transports": ["buffered", "streaming"],
+    "repetitions_per_transport": 2,
+    "result": "All responses satisfied their tool-call schema and the server remained healthy."
+  },
+  "strict_tool_soak": {
+    "requests": 160,
+    "concurrency": 8,
+    "completion_tokens": 22908,
+    "elapsed_seconds": 35.39733631396666,
+    "valid_responses": 160,
+    "failures": 0,
+    "latency_seconds": {
+      "minimum": 0.8925882190233096,
+      "median": 1.301390905980952,
+      "p95": 3.158451383933425,
+      "maximum": 4.3932894739555195
+    },
+    "server_healthy_after": true
+  },
+  "persistent_kv_cache": {
+    "native_filesystem": "qualified; see validation/infernal-invocation-r18/native-l2-restart-summary.json",
+    "lmcache_disk": "qualified; see validation/infernal-invocation-r18/lmcache-disk-restart-summary.json"
+  },
+  "result": "The immutable image captured FULL target, DSpark, and DFlash context-KV graphs; preserved the r16 target-step rate; completed 160 concurrent strict-tool requests; and restored exact persistent-KV results after complete process restarts.",
+  "limitations": [
+    "Aggregate DSpark token throughput depends on the generated trajectory and draft acceptance. Engine steps per second are the acceptance-normalized runtime control.",
+    "Runtime qualification covers TP2/DCP1 fixed probabilistic DSpark K5 on GPUs 6 and 7 of the direct-attached validation host.",
+    "The receipt does not qualify DCP greater than one, TP other than two, fixed K7, dynamic draft depth, or the full 1048576-token context limit.",
+    "GLM-5.2 runtime qualification is not inherited from another image; the r18 GLM source remains source-qualified."
+  ],
+  "artifacts": {
+    "decode_benchmark": "validation/infernal-invocation-r18/ds4-tp2-k5-cc1.json",
+    "repeat_decode_benchmark": "validation/infernal-invocation-r18/ds4-tp2-k5-cc1-mns16.json",
+    "strict_tool_soak": "validation/infernal-invocation-r18/strict-c8-160.json",
+    "native_filesystem_restart": "validation/infernal-invocation-r18/native-l2-restart-summary.json",
+    "lmcache_disk_restart": "validation/infernal-invocation-r18/lmcache-disk-restart-summary.json"
+  }
+}

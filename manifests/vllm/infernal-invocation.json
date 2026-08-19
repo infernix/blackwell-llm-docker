@@ -25,11 +25,6 @@
       "title": "Enforce the B12X mHC input-shape contract for DeepSeek V4 MTP"
     },
     {
-      "number": 289,
-      "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
-      "title": "Bound DeepSeek V4 sparse metadata to active context"
-    },
-    {
       "number": 290,
       "head": "c13a214bd70319938136fa38757a9ea739569639",
       "title": "Profile serving-reachable shapes before KV cache sizing"
@@ -40,19 +35,14 @@
       "title": "Enforce canonical B12X package identifiers"
     },
     {
-      "number": 293,
-      "head": "0e41faa811ce46df77acce3e9e7c6887954925de",
-      "title": "Recover hybrid KV cache load failures across cache groups"
-    },
-    {
       "number": 294,
-      "head": "826bb4088f4671fe79e01183e0301f79134662c1",
+      "head": "a18a86e1faf246e4d022071d72645e57c90b71cf",
       "title": "Preserve grammar bitmask source widths after draft trimming"
     },
     {
       "number": 295,
-      "head": "71b93dc6f3d59e004c18535cf08b8fe750b64c19",
-      "title": "Stop XGrammar draft validation at grammar termination"
+      "head": "634b1973b041df52e1861b48f77ab1772389b77c",
+      "title": "Preserve XGrammar termination across token batches"
     },
     {
       "number": 296,
@@ -105,18 +95,112 @@
       "title": "Validate speculative structured output before commit"
     },
     {
+      "number": 415,
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "title": "Preserve the DSpark CUDA-graph capture contract"
+    },
+    {
       "number": 417,
       "head": "2511e5df2b1e4dfd2360a28e89899c90b7b3fcc7",
       "title": "Parse legacy direct DeepSeek V4 DSML tool calls"
     },
     {
-      "number": 415,
-      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
-      "title": "Preserve the DSpark CUDA-graph capture contract"
+      "number": 422,
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
+      "title": "Handle KV load failures across hybrid cache groups"
+    },
+    {
+      "number": 423,
+      "head": "ed907e57ec7a22c1ce88729a2f26bbb44c0dfbd5",
+      "title": "Skip absent fused MTP indexer targets for split EXL3 projections"
+    },
+    {
+      "number": 429,
+      "head": "8850b616789351b8836b962041bca38575782cb5",
+      "title": "Keep DeepSeek V4 indexer scoring in breakable CUDA graphs"
+    },
+    {
+      "number": 430,
+      "head": "131ec3c6ee7e42bc2d17023c533fe104db7ef600",
+      "title": "Fix DS4 C128A CUDA-graph metadata stride"
+    },
+    {
+      "number": 431,
+      "head": "03cccf4adab72a5764854a49f83c0e6c252b1842",
+      "title": "Enforce the DeepSeek V4 sparse top-k row-length contract"
+    },
+    {
+      "number": 432,
+      "head": "6532ff6a7c9ee963a245d9ebc68371a804be93f6",
+      "title": "Preserve GLM sparse attention semantics during prefill"
+    },
+    {
+      "number": 433,
+      "head": "9151d114e270250fb0367333b2dc5a49c6383796",
+      "title": "Enforce cached MRV2 logits-processing state"
+    },
+    {
+      "number": 434,
+      "head": "2822782cb76c7bcef952a661f4999992b6527c98",
+      "title": "Optimize DeepSeek V4 sparse metadata kernels"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 289,
+      "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
+      "disposition": "superseded",
+      "reason": "Pull request #430 preserves the C128A metadata allocation stride required by FULL CUDA graphs while bounding active work separately. Pull request #289 packed rows with a batch-dependent stride, which allowed inactive graph rows to retain stale metadata."
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "disposition": "out_of_scope",
+      "reason": "Unsharded recurrent-cache position state serves Mamba-style recurrent model architectures. DeepSeek V4 and GLM-5.2 use MLA cache groups and do not allocate recurrent cache state."
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "disposition": "out_of_scope",
+      "reason": "Kimi-K3 streamed protocol-marker filtering belongs to the Kimi-K3 parser. DeepSeek V4 and GLM-5.2 use different tool-call parser contracts."
+    },
+    {
+      "number": 420,
+      "head": "944fbb8bed46ef5e935febcc6e70ee52fcc7d5a6",
+      "disposition": "out_of_scope",
+      "reason": "FLA tail-alignment specialization changes linear-attention kernels. The DeepSeek V4 and GLM-5.2 profiles qualified by this manifest use MLA attention and do not dispatch FLA kernels."
+    },
+    {
+      "number": 424,
+      "head": "264de6f6e06ba81578b9c58fb768aba8b695bf61",
+      "disposition": "research-only",
+      "reason": "KVarN cache formats and scheduler sizing define an alternative packed KV representation. No DeepSeek V4 or GLM-5.2 profile in this release is qualified with KVarN storage."
+    },
+    {
+      "number": 425,
+      "head": "273c65d9f38d01b2e30b8994a2dd6a3872695b67",
+      "disposition": "research-only",
+      "reason": "The KVarN MLA backend and packed Triton operators require model-quality, graph-replay, capacity, and throughput qualification before they can replace the supported FP8 and NVFP4 MLA cache paths."
+    },
+    {
+      "number": 426,
+      "head": "34537ff162585b98acaacef1cd20221c42fc8eab",
+      "disposition": "research-only",
+      "reason": "KVarN physical cache ownership across scheduling and speculative decode is part of the unqualified KVarN runtime. The supported cache formats retain their existing scheduler ownership contracts."
+    },
+    {
+      "number": 428,
+      "head": "45962db4c38a0e430450a087843fc2762a38beb4",
+      "disposition": "out_of_scope",
+      "reason": "Vision interpolation warmup serves the multimodal Kimi-K3 runtime. DeepSeek-V4-Flash and the qualified GLM-5.2 profiles are text-only deployments."
+    },
+    {
+      "number": 293,
+      "head": "0e41faa811ce46df77acce3e9e7c6887954925de",
+      "disposition": "superseded",
+      "reason": "Pull request #422 implements the same hybrid KV load-failure contract using the cache manager's per-group block mapping and retains the mixed-block-size, shared-block, downstream-eviction, and service-liveness coverage. Applying both changes would duplicate scheduler ownership of recovery boundaries."
+    },
     {
       "number": 399,
       "head": "aa172aa86a4b34cafa6af9415342c37ad6fdc730",

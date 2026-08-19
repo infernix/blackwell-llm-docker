@@ -8,13 +8,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
-release_date=${RELEASE_DATE:-20260817}
-revision=${REVISION:-r17}
-composition_root=patches/releases/infernal-invocation-r17
+release_date=${RELEASE_DATE:-20260818}
+revision=${REVISION:-r18}
+composition_root=patches/releases/infernal-invocation-r18
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
-instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://github.com/1g4-mirror/libaio.git}
+instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://pagure.io/libaio.git}
 instanttensor_libaio_commit=${INSTANTTENSOR_LIBAIO_COMMIT:-1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448}
 instanttensor_libaio_tree=${INSTANTTENSOR_LIBAIO_TREE:-c9442e111b747e9329ea782c6edb9d13a827cc08}
 exllamav3_repo=${EXLLAMAV3_REPO:-https://github.com/brandonmmusic-max/exllamav3.git}

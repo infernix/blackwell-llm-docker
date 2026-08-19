@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "purpose": "LMCache MP persistent filesystem replay qualification",
+  "image": "voipmonitor/vllm:infernal-invocation-vllmf0fa1ce-b12x75787c7-fi1ac6942-cu133-torch213-20260818-r18",
+  "checkpoint": "deepseek-ai/DeepSeek-V4-Flash-0731@9e165c30e2704aec5d9d593cce3eebd58bbef1cb",
+  "configuration": {
+    "tp": 2,
+    "dcp": 1,
+    "dspark": "fixed probabilistic K5",
+    "max_num_seqs": 4,
+    "max_cuda_graph_rows": 24,
+    "max_model_len": 131072,
+    "l1_gib": 2,
+    "l2_gib": 64,
+    "l2_adapter": "fs_native",
+    "l2_path": "/cache/lmcache/r18",
+    "allocator_expandable_segments": false
+  },
+  "cold_store": {
+    "prompt_tokens": 24349,
+    "cached_tokens": 0,
+    "elapsed_seconds": 1.9386339359916747,
+    "completion_sha256": "9d3dcd6699ae22a7d31ca493d8dbee975121aad91e8db31d7674a950e1beba37",
+    "stored_chunks": 94,
+    "l2_bytes_for_qualified_prefix": 827952000
+  },
+  "post_restart": {
+    "prompt_tokens": 24349,
+    "cached_tokens": 24064,
+    "elapsed_seconds": 0.3981001521460712,
+    "completion_sha256": "9d3dcd6699ae22a7d31ca493d8dbee975121aad91e8db31d7674a950e1beba37",
+    "l2_prefetch_hit_chunks": 94,
+    "l2_prefetch_loaded_chunks": 94
+  },
+  "result": "A complete LMCache and vLLM process restart removed process-local cache state, restored all 94 persistent chunks, reported 24064 cached tokens, and reproduced the exact completion.",
+  "artifacts": {
+    "cold_request": "validation/infernal-invocation-r18/lmcache-cold.json",
+    "post_restart_request": "validation/infernal-invocation-r18/lmcache-post-restart.json",
+    "post_restart_metrics": "validation/infernal-invocation-r18/lmcache-post-restart.prom"
+  }
+}
