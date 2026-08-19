@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "status": "qualified",
+  "qualified_at_utc": "2026-08-19",
+  "image": {
+    "name": "voipmonitor/vllm:kimi-k3-production-dspark-lmcache-vllm12776c0-b12x468c312-cu133-torch213-20260819-source-overlay",
+    "registry_digest": "sha256:a54da4e2432138d42334cac54555f3a51188489cb66029da0d96e4b39162d726",
+    "local_image_id": "sha256:e5950412b5f95f1dbf1720998af51c0c824265d4ee08d75934dbd150b699b909",
+    "size_bytes": 31058501689,
+    "recipe_commit": "f9cc49c187f7525453b65ed8b4a1733f6d97471a"
+  },
+  "source_composition": {
+    "vllm": {
+      "base_branch": "dev/infernal-invocation",
+      "base_commit": "6dc2f516688fe6f84c6994dcd20fddf296853a6c",
+      "integration_tree": "12776c0df15ca4087b636c43004b5bc1fde61434",
+      "included_pull_requests": [
+        "310@f85d3d87e196546eff162c2a61b49aab13f2e625",
+        "413@3ebc8967dab28a9df103d8c66bff9688525263bc",
+        "414@990a63debf7201ae5446436a712609fcc8ffaef7",
+        "415@c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+        "418@6b18a8a767f406f08a519757ca6d5ef118b18296",
+        "419@04a6acfe467f4a208c7231a18fc99faf656d016a",
+        "422@3c296be28b31dba5c4a0ced714d2e21dabe246af",
+        "427@0ad95065da12e45c28d585d8c758a87d3a708b1f",
+        "428@45962db4c38a0e430450a087843fc2762a38beb4",
+        "433@9151d114e270250fb0367333b2dc5a49c6383796"
+      ],
+      "base_contains_pull_request": "401@f8390f93a8057833803f866dcddf619c7606ecde"
+    },
+    "b12x": {
+      "base_branch": "master",
+      "base_commit": "c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5",
+      "integration_tree": "468c31256b585c8078782c63ba723e404c04eb76",
+      "included_pull_request": "227@0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9"
+    },
+    "lmcache": {
+      "base_branch": "release/v0.5.2-glm52-dcp-base",
+      "base_commit": "a128b2e286ebb3556cb43124149e600ff99fe481",
+      "integration_tree": "e045d729bc5c4c63a40e13d032f42923de97812f"
+    }
+  },
+  "source_activation": {
+    "behavior": "Every Python process uses the pinned vLLM and B12X source trees without requiring launcher-specific environment variables.",
+    "vllm_import_path": "/opt/kimi-k3-qsrt/vllm/vllm/__init__.py",
+    "b12x_import_path": "/opt/kimi-k3-qsrt/b12x/b12x/__init__.py",
+    "binary_extension_fallback": "/opt/infernal-invocation/vllm/vllm",
+    "lazy_startup": true,
+    "shell_regression_test": "passed",
+    "custom_command_smoke_test": "passed"
+  },
+  "hardware": {
+    "gpu_count": 16,
+    "gpu_model": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "tensor_parallel_size": 16,
+    "decode_context_parallel_size": 16
+  },
+  "model": {
+    "target_repository": "moonshotai/Kimi-K3",
+    "target_revision": "2496450e92e425c886db095102a52a6682ca3970",
+    "target_weight_format": "official MXFP4",
+    "draft_repository": "Inferact/Kimi-K3-DSpark",
+    "draft_revision": "cf6b8244620e7ea4b0651d214f28e89eac75bed6",
+    "speculative_tokens": 7,
+    "target_kv_cache_dtype": "FP8",
+    "maximum_model_length_tokens": 1000000,
+    "physical_target_kv_tokens": 1033126,
+    "load_format": "instanttensor"
+  },
+  "startup": {
+    "instanttensor_weight_read_tib": 1.41,
+    "target_weight_load_seconds": 164.32,
+    "draft_weight_load_seconds": 1.60,
+    "vision_warmup_worker_confirmations": 16,
+    "vision_warmup_preceded_kv_allocation": true,
+    "direct_health_http_status": 200,
+    "llmconduit_models_http_status": 200,
+    "container_restart_count": 0
+  },
+  "regression_tests": {
+    "vllm_dcp_hybrid_prefix_cache": {
+      "passed": 2,
+      "failed": 0
+    },
+    "vllm_hybrid_kv_load_failure": {
+      "passed": 6,
+      "failed": 0,
+      "test_environment": "PYTORCH_CUDA_ALLOC_CONF was unset because the NIXL unit-test fixture rejects the production expandable-segments setting without a CuMem allocator."
+    },
+    "vllm_cached_logits_processing": {
+      "passed": 26,
+      "failed": 0
+    },
+    "b12x_w4a16_routing_and_packaging": {
+      "passed": 329,
+      "skipped": 18,
+      "failed": 0
+    }
+  },
+  "runtime_prefix_cache": {
+    "producer_prompt_tokens": 44449,
+    "producer_elapsed_seconds": 30.91897300898563,
+    "consumer_prompt_tokens": 44609,
+    "consumer_local_prefix_hit_tokens": 43008,
+    "consumer_external_prefix_hit_tokens": 0,
+    "consumer_elapsed_seconds": 1.7410800389479846,
+    "conclusion": "The DCP16 hybrid-cache runtime reuses the complete recurrent-state boundary implemented by vLLM pull request 401."
+  },
+  "coding_decode": {
+    "prompt": "Implement a production-quality Python LRU cache with O(1) get and put operations, type annotations, thread safety, and concise tests. Return only the code",
+    "prompt_tokens": 119,
+    "completion_tokens_per_run": 512,
+    "measurement_window": "first streamed output token through last streamed output token",
+    "tokens_per_second": [
+      133.55250999206902,
+      118.71812053347531,
+      91.05369924939329
+    ],
+    "median_tokens_per_second": 118.71812053347531,
+    "comparison_image_median_tokens_per_second": 122.17796288005863,
+    "conclusion": "The source-activated image preserves the qualified DSpark coding decode rate within the observed run-to-run range."
+  },
+  "multimodal_requests": [
+    {
+      "image_count": 1,
+      "prompt_tokens": 1619,
+      "completion_tokens": 75,
+      "elapsed_seconds": 1.8328974549658597,
+      "http_status": 200,
+      "finish_reason": "stop",
+      "response_sha256": "579e75c828989380bc39b5157130acbf8f9c19d72667559feaf26f67d9a52271"
+    },
+    {
+      "image_count": 5,
+      "prompt_tokens": 1910,
+      "completion_tokens": 200,
+      "elapsed_seconds": 2.5871672990033403,
+      "http_status": 200,
+      "finish_reason": "length",
+      "model_confirmed_image_count": true,
+      "response_sha256": "e67c84da0c076250c5e2a3c59bbbd640969a04bb3a520eeaf61c9534c8d56cd0"
+    }
+  ],
+  "runtime_failures": {
+    "cuda_out_of_memory_markers": 0,
+    "traceback_markers": 0,
+    "engine_dead_markers": 0,
+    "container_restarts": 0
+  },
+  "running_container": {
+    "name": "kimi-k3-production-dspark-lmcache-12776c0",
+    "vllm_address": "http://127.0.0.1:8001",
+    "llmconduit_address": "http://127.0.0.1:8003"
+  }
+}
