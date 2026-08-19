@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "component": "vllm",
+  "purpose": "Compile the Kimi-K3 production runtime from an auditable merge stack rooted at dev/infernal-invocation.",
+  "source": {
+    "repository": "https://github.com/voipmonitor/vllm.git",
+    "ref": "refs/heads/build/kimi-k3-clean-integration-20260819",
+    "commit": "e8aa0d0c6df9e8e516d703dc4b27af34b918deaf",
+    "tree": "d54f1739c01d13ea9057c9814628febb3da92c80"
+  },
+  "upstream_base": {
+    "repository": "https://github.com/local-inference-lab/vllm.git",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "commit": "6dc2f516688fe6f84c6994dcd20fddf296853a6c"
+  },
+  "upstream_includes": [
+    {
+      "number": 401,
+      "merge_commit": "f8390f93a8057833803f866dcddf619c7606ecde",
+      "title": "Allow hash-aligned DCP hybrid prefix-cache hits"
+    },
+    {
+      "number": 427,
+      "merge_commit": "6dc2f516688fe6f84c6994dcd20fddf296853a6c",
+      "title": "Materialize Kimi-K3 interleaved MLA decode queries"
+    }
+  ],
+  "pull_requests": [
+    {
+      "number": 310,
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
+      "merge_commit": "65d54fb3a9349993efe31f8b545025e7d9da381b",
+      "title": "Preserve replicated DFlash-family draft semantics under DCP"
+    },
+    {
+      "number": 413,
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
+      "merge_commit": "fa0d135689c9112295e381db363c240452ffc8fe",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "merge_commit": "27d4234264616eec61c961728a3abd24ff49cd83",
+      "title": "Preserve recurrent-cache copy-on-write after external prefix hits"
+    },
+    {
+      "number": 415,
+      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "merge_commit": "931f0b5290d03d34c18267e3ddad4652ba8f5242",
+      "title": "Preserve the DSpark CUDA Graph capture interface"
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "merge_commit": "e4f59987997e0eec59fd17881f561f0b8aa84fc3",
+      "title": "Keep recurrent cache position state unsharded under DCP"
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "merge_commit": "0053e31bf463bf1f1a1be2157aa7c4e09e04c6eb",
+      "title": "Keep Kimi protocol markers out of streamed output"
+    },
+    {
+      "number": 422,
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
+      "merge_commit": "bee1f5b418ab57d50969cf6c7878ecf98d84a233",
+      "title": "Handle external KV load failures across hybrid cache groups"
+    },
+    {
+      "number": 428,
+      "head": "45962db4c38a0e430450a087843fc2762a38beb4",
+      "merge_commit": "43a24b60fbd2d48a854b803357f0b813441c004a",
+      "title": "Compile Kimi vision interpolation before fixed KV allocation"
+    },
+    {
+      "number": 433,
+      "head": "9151d114e270250fb0367333b2dc5a49c6383796",
+      "merge_commit": "e8aa0d0c6df9e8e516d703dc4b27af34b918deaf",
+      "title": "Enforce cached MRV2 logits-processing state"
+    }
+  ],
+  "source_patches": []
+}

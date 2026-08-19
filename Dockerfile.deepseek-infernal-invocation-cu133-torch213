@@ -13,6 +13,8 @@ ARG VLLM_PATCH_SHA256
 ARG VLLM_INTEGRATION_TREE
 ARG VLLM_INTEGRATION_LOCK_SHA256
 ARG VLLM_PRS
+ARG VLLM_UPSTREAM_BASE
+ARG VLLM_MERGE_HEADS
 ARG B12X_REPO
 ARG B12X_REF
 ARG B12X_COMMIT
@@ -21,6 +23,8 @@ ARG B12X_PATCH_SHA256
 ARG B12X_INTEGRATION_TREE
 ARG B12X_INTEGRATION_LOCK_SHA256
 ARG B12X_PRS
+ARG B12X_UPSTREAM_BASE
+ARG B12X_MERGE_HEADS
 ARG LMCACHE_REPO
 ARG LMCACHE_REF
 ARG LMCACHE_COMMIT
@@ -29,6 +33,8 @@ ARG LMCACHE_PATCH_SHA256
 ARG LMCACHE_INTEGRATION_TREE
 ARG LMCACHE_INTEGRATION_LOCK_SHA256
 ARG LMCACHE_PRS
+ARG LMCACHE_UPSTREAM_BASE
+ARG LMCACHE_MERGE_HEADS
 ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.5
 ARG INSTANTTENSOR_REPO=https://github.com/voipmonitor/InstantTensor.git
 ARG INSTANTTENSOR_COMMIT=49b4010afc1cae0441e71fe0b0bffc24fa05e932
@@ -106,16 +112,43 @@ COPY patches /tmp/release-patches
 # Git tree is the runtime identity; a branch name alone is not sufficient.
 RUN set -eux; \
     mkdir -p /opt/infernal-invocation; \
+    verify_merge_stack() { \
+      destination="$1"; tip="$2"; upstream_base="$3"; merge_heads="$4"; \
+      test -n "${upstream_base}" || return 0; \
+      if test -z "${merge_heads}"; then \
+        test "${tip}" = "${upstream_base}"; \
+        return 0; \
+      fi; \
+      IFS=',' read -r -a expected_heads <<< "${merge_heads}"; \
+      current="${tip}"; \
+      for ((index=${#expected_heads[@]} - 1; index >= 0; index--)); do \
+        read -r -a commit_and_parents <<< \
+          "$(git -C "${destination}" rev-list --parents -n 1 "${current}")"; \
+        test "${#commit_and_parents[@]}" -eq 3; \
+        test "${commit_and_parents[2]}" = "${expected_heads[index]}"; \
+        current="${commit_and_parents[1]}"; \
+      done; \
+      test "${current}" = "${upstream_base}"; \
+    }; \
     compose_source() { \
       component="$1"; destination="$2"; repository="$3"; reference="$4"; \
       commit="$5"; patch_file="$6"; patch_sha256="$7"; expected_tree="$8"; \
+      upstream_base="${9:-}"; merge_heads="${10:-}"; \
       git clone --filter=blob:none --no-checkout "${repository}" "${destination}"; \
       git -C "${destination}" fetch --filter=blob:none origin "${reference}"; \
       git -C "${destination}" checkout --detach "${commit}"; \
       test "$(git -C "${destination}" rev-parse HEAD)" = "${commit}"; \
-      patch_path="/tmp/release-patches/${patch_file}"; \
-      echo "${patch_sha256}  ${patch_path}" | sha256sum -c -; \
-      if test -s "${patch_path}"; then git -C "${destination}" apply "${patch_path}"; fi; \
+      verify_merge_stack "${destination}" "${commit}" \
+        "${upstream_base}" "${merge_heads}"; \
+      if test -n "${patch_file}"; then \
+        patch_path="/tmp/release-patches/${patch_file}"; \
+        echo "${patch_sha256}  ${patch_path}" | sha256sum -c -; \
+        if test -s "${patch_path}"; then \
+          git -C "${destination}" apply "${patch_path}"; \
+        fi; \
+      else \
+        test -z "${patch_sha256}"; \
+      fi; \
       git -C "${destination}" add -A; \
       actual_tree="$(git -C "${destination}" write-tree)"; \
       test "${actual_tree}" = "${expected_tree}" || { \
@@ -124,13 +157,16 @@ RUN set -eux; \
     }; \
     compose_source vllm /opt/infernal-invocation/vllm \
       "${VLLM_REPO}" "${VLLM_REF}" "${VLLM_COMMIT}" \
-      "${VLLM_PATCH_FILE}" "${VLLM_PATCH_SHA256}" "${VLLM_INTEGRATION_TREE}"; \
+      "${VLLM_PATCH_FILE}" "${VLLM_PATCH_SHA256}" "${VLLM_INTEGRATION_TREE}" \
+      "${VLLM_UPSTREAM_BASE}" "${VLLM_MERGE_HEADS}"; \
     compose_source b12x /opt/infernal-invocation/b12x \
       "${B12X_REPO}" "${B12X_REF}" "${B12X_COMMIT}" \
-      "${B12X_PATCH_FILE}" "${B12X_PATCH_SHA256}" "${B12X_INTEGRATION_TREE}"; \
+      "${B12X_PATCH_FILE}" "${B12X_PATCH_SHA256}" "${B12X_INTEGRATION_TREE}" \
+      "${B12X_UPSTREAM_BASE}" "${B12X_MERGE_HEADS}"; \
     compose_source lmcache /opt/infernal-invocation/lmcache \
       "${LMCACHE_REPO}" "${LMCACHE_REF}" "${LMCACHE_COMMIT}" \
-      "${LMCACHE_PATCH_FILE}" "${LMCACHE_PATCH_SHA256}" "${LMCACHE_INTEGRATION_TREE}"; \
+      "${LMCACHE_PATCH_FILE}" "${LMCACHE_PATCH_SHA256}" "${LMCACHE_INTEGRATION_TREE}" \
+      "${LMCACHE_UPSTREAM_BASE}" "${LMCACHE_MERGE_HEADS}"; \
     rm -rf /tmp/release-patches
 
 # The virtual environment inherits CUDA, cuBLAS, cuDNN, NCCL, PyTorch,
@@ -266,6 +302,18 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       python -m pip install --no-build-isolation --no-deps --force-reinstall . \
  && test "$(python -c 'import importlib.metadata as m; print(m.version("vllm"))')" = \
       "${VLLM_PACKAGE_VERSION}" \
+ && site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
+ && installed_package="${site_packages}/vllm" \
+ && test -d "${installed_package}" \
+ && find /opt/infernal-invocation/vllm/vllm -maxdepth 1 -type f \
+      -name '*.abi3.so' -exec cp -a -t "${installed_package}" {} + \
+ && rm -rf "${installed_package}/vllm_flash_attn" \
+ && cp -a /opt/infernal-invocation/vllm/vllm/vllm_flash_attn \
+      "${installed_package}/vllm_flash_attn" \
+ && test -f "${installed_package}/_C_stable_libtorch.abi3.so" \
+ && test -f "${installed_package}/vllm_flash_attn/_vllm_fa2_C.abi3.so" \
+ && (cd / && env -u PYTHONPATH python -c \
+      'import pathlib, vllm; expected=pathlib.Path("/opt/venv/lib/python3.12/site-packages/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)') \
  && rm -rf /root/.cargo /root/.rustup target rust/target
 
 # LMCache is built against the same PyTorch ABI and includes only RAM and
@@ -404,6 +452,8 @@ LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13
       local-inference.vllm.integration.tree="${VLLM_INTEGRATION_TREE}" \
       local-inference.vllm.patch_sha256="${VLLM_PATCH_SHA256}" \
       local-inference.vllm.integration.lock_sha256="${VLLM_INTEGRATION_LOCK_SHA256}" \
+      local-inference.vllm.upstream-base="${VLLM_UPSTREAM_BASE}" \
+      local-inference.vllm.merge-heads="${VLLM_MERGE_HEADS}" \
       local-inference.vllm.package-version="${VLLM_PACKAGE_VERSION}" \
       local-inference.b12x.repo="${B12X_REPO}" \
       local-inference.b12x.branch="${B12X_REF}" \
@@ -412,6 +462,8 @@ LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13
       local-inference.b12x.integration.tree="${B12X_INTEGRATION_TREE}" \
       local-inference.b12x.patch_sha256="${B12X_PATCH_SHA256}" \
       local-inference.b12x.integration.lock_sha256="${B12X_INTEGRATION_LOCK_SHA256}" \
+      local-inference.b12x.upstream-base="${B12X_UPSTREAM_BASE}" \
+      local-inference.b12x.merge-heads="${B12X_MERGE_HEADS}" \
       local-inference.lmcache.repo="${LMCACHE_REPO}" \
       local-inference.lmcache.ref="${LMCACHE_REF}" \
       local-inference.lmcache.commit="${LMCACHE_COMMIT}" \
@@ -419,6 +471,8 @@ LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13
       local-inference.lmcache.integration.tree="${LMCACHE_INTEGRATION_TREE}" \
       local-inference.lmcache.patch_sha256="${LMCACHE_PATCH_SHA256}" \
       local-inference.lmcache.integration.lock_sha256="${LMCACHE_INTEGRATION_LOCK_SHA256}" \
+      local-inference.lmcache.upstream-base="${LMCACHE_UPSTREAM_BASE}" \
+      local-inference.lmcache.merge-heads="${LMCACHE_MERGE_HEADS}" \
       local-inference.lmcache.version="${LMCACHE_BUILD_VERSION}" \
       local-inference.instanttensor.repo="${INSTANTTENSOR_REPO}" \
       local-inference.instanttensor.commit="${INSTANTTENSOR_COMMIT}" \
