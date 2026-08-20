@@ -63,6 +63,9 @@ export B12X_PCIE_DCP_BLOCK_LIMIT="${B12X_PCIE_DCP_BLOCK_LIMIT:-4}"
 export B12X_PCIE_KIMI_TOPK_THREADS="${B12X_PCIE_KIMI_TOPK_THREADS:-384}"
 
 export VLLM_K3_KV_GROUP_SIZE="${VLLM_K3_KV_GROUP_SIZE:-6}"
+# DCP16 target MLA pages span 12,288 tokens. Checkpoint recurrent KDA state on
+# the same logical boundary while the scheduler retains 4,096-token chunks.
+export MAMBA_BLOCK_SIZE="${MAMBA_BLOCK_SIZE:-12288}"
 export VLLM_MLA_CHUNKED_PREFILL_WORKSPACE_SIZE="${VLLM_MLA_CHUNKED_PREFILL_WORKSPACE_SIZE:-4096}"
 export VLLM_MEMORY_PROFILE_INCLUDE_ATTN="${VLLM_MEMORY_PROFILE_INCLUDE_ATTN:-0}"
 export VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS="${VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS:-0}"
@@ -89,6 +92,7 @@ exec "${PYTHON_BIN}" -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --decode-context-parallel-size "${DCP_SIZE}" \
   --dcp-comm-backend a2a \
   --dcp-kv-cache-interleave-size 1 \
+  --mamba-block-size "${MAMBA_BLOCK_SIZE}" \
   --load-format instanttensor \
   --moe-backend b12x \
   --linear-backend b12x \

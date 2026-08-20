@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r19-clean-ordered-20260820",
-    "commit": "7e3525378d7ceeb82767c7d7cbc147a333081be8",
-    "tree": "c8b7cc073fdea54f93647a910a1c88a0af10a295"
+    "ref": "refs/heads/integration/ii-kimi-k3-r20-final-source-locked-20260820",
+    "commit": "7efd5d8626e0455257a93d2da3dd4db7a7cdd401",
+    "tree": "b4b7649431b3039e31da5c3c38f69403a16af09d"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,7 +17,7 @@
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllmaaec04a-b12x84af810-cu133-torch213-20260820-r10",
     "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
     "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9",
-    "changed_paths_sha256": "087c4a1d9bb3257fe86744defbaa009c565412a51c87903cab668ab6d8c396d7"
+    "changed_paths_sha256": "43fd6cb414e805bea5a2a16ea17e611c0ed5ad56d76e762c1187581c458f5e88"
   },
   "pull_requests": [
     {
@@ -124,33 +124,39 @@
     },
     {
       "number": 448,
-      "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
-      "merge_commit": "6692634f1e69aa39f8ae3a815ad92f03284e05e0",
+      "head": "c40ce951f2131fdd8fb4c2f7a7eda1c6c78f8743",
+      "merge_commit": "31c6fc3dc8788b547c89d62d70e2f740255e09c7",
       "title": "Autotune Kimi Triton KDA before KV allocation"
     },
     {
       "number": 450,
       "head": "6ae80957d385ba9ea3f27235bbe12c8e76dcf722",
-      "merge_commit": "03d7819f569a458bb7d3790e7a8dd7984d38a003",
+      "merge_commit": "139b19161e200fe3e59e03ebb1029d5bfe96d8fa",
       "title": "Allow expandable CUDA segments for local KV offload"
     },
     {
       "number": 449,
       "head": "63aefcb847b5a9ad7a17bd889a5ea4516597bab6",
-      "merge_commit": "6a46a70cd6783d5376f545ece0749aac6c329a0d",
+      "merge_commit": "9424d84c344eac0f0bb02e63de0aa95c84321449",
       "title": "Bound Kimi-K3 KDA and MLA prefill projection memory"
     },
     {
       "number": 453,
       "head": "b56647ac920d607f67b0bb182c3c3d4f2aebe6fc",
-      "merge_commit": "5b9cdf1078b1cdef3e4299feb01e24153884b333",
+      "merge_commit": "dcf99b78c91285b434ee8ce9a70f8eb854105ada",
       "title": "Reuse Kimi-K3 prefill output storage"
     },
     {
       "number": 456,
-      "head": "3a55cc1fda0ae3cd6e2a202b62ca62d4d8d3e3f3",
-      "merge_commit": "7e3525378d7ceeb82767c7d7cbc147a333081be8",
+      "head": "860cdb7be6aab5872c677e914ebeb2fe47381535",
+      "merge_commit": "80879356c3eee6238fc70efde1e54234957b933c",
       "title": "Bound Kimi-K3 DSpark large-prefill auxiliary memory"
+    },
+    {
+      "number": 457,
+      "head": "308dd56de5cbc4d185ffcd57acd569ee4f7e60af",
+      "merge_commit": "7efd5d8626e0455257a93d2da3dd4db7a7cdd401",
+      "title": "Honor recurrent checkpoint cadence in hybrid KV offload"
     }
   ],
   "source_patches": []
