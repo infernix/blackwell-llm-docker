@@ -55,8 +55,15 @@ RUN set -eux; \
     git -C "$b12x_root" apply /tmp/qwen38-qsrt/b12x-reconciliation.patch; \
     git -C "$b12x_root" add -A; \
     test "$(git -C "$b12x_root" write-tree)" = "$B12X_RUNTIME_TREE"; \
-    /opt/venv/bin/pip install --quiet --no-deps --no-build-isolation \
-        --editable "$b12x_root"; \
+    mkdir -p /tmp/qwen38-qsrt/wheels; \
+    /opt/venv/bin/pip wheel --quiet --no-deps --no-build-isolation \
+        --wheel-dir /tmp/qwen38-qsrt/wheels "$b12x_root"; \
+    b12x_wheel=$(find /tmp/qwen38-qsrt/wheels -maxdepth 1 \
+        -type f -name 'b12x-*.whl' -print -quit); \
+    test -n "$b12x_wheel"; \
+    /opt/venv/bin/pip install --quiet --force-reinstall --no-deps "$b12x_wheel"; \
+    unzip -p "$b12x_wheel" '*/entry_points.txt' \
+        > "$b12x_root/b12x.egg-info/entry_points.txt"; \
     /opt/venv/bin/python -c 'import importlib.metadata as m; entries={(e.name,e.value) for e in m.entry_points(group="vllm.general_plugins")}; assert ("b12x_qsrt", "b12x.integration.vllm.qsrt_plugin:register_b12x_qsrt") in entries'; \
     cd "$b12x_root"; \
     PYTHONPATH=. /opt/venv/bin/python -m pytest -q tests/test_vllm_qsrt_plugin.py; \
@@ -86,4 +93,3 @@ LABEL org.opencontainers.image.title="Qwen3.8-27B QSRT K5 plus rank-16 runtime" 
       local-inference.qwen38.launcher.sha256="${LAUNCHER_SHA256}"
 
 ENTRYPOINT ["/usr/local/bin/serve-qwen38-qsrt-k5"]
-
