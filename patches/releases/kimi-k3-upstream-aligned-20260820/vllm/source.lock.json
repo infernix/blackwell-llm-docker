@@ -4,8 +4,8 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r8-native-vmm-20260820",
-    "commit": "9ae135980c111037f070431b6a81e0705ad59ae5",
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r9-ordered-20260820",
+    "commit": "11de5e109db2669fb63f908183cbbdb274a082b5",
     "tree": "8db1ea71fcf723a4b3f816f0042e40164ad316af"
   },
   "upstream_base": {
@@ -125,13 +125,13 @@
     {
       "number": 450,
       "head": "6ae80957d385ba9ea3f27235bbe12c8e76dcf722",
-      "merge_commit": "cc692ed13583e076e89ab50578e0198f4bb6a328",
+      "merge_commit": "e2c99ff75cb9093b57107228ab8dbdf254e348ff",
       "title": "Allow expandable CUDA segments for local KV offload"
     },
     {
       "number": 449,
       "head": "6cd5a4d813ef801e47f421c278e58fd14491f1a2",
-      "merge_commit": "9ae135980c111037f070431b6a81e0705ad59ae5",
+      "merge_commit": "11de5e109db2669fb63f908183cbbdb274a082b5",
       "title": "Bound Kimi-K3 KDA prefill reduction memory"
     }
   ],
