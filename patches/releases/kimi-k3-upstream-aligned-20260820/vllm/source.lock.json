@@ -5,8 +5,8 @@
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
     "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-20260820",
-    "commit": "039fb35c255e97bb304a09a6e2eb0e1654adca3b",
-    "tree": "09f54938158485ceab444cf80d1517e938bb5e67"
+    "commit": "01176fc8685b5d6fe65c23fb11aaebec32a4a929",
+    "tree": "d95a2f582517c7e880f64dd533efc64b7b753d0e"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -115,6 +115,12 @@
       "head": "097ad6ac495490b240aff8356479e5b50d0db78b",
       "merge_commit": "039fb35c255e97bb304a09a6e2eb0e1654adca3b",
       "title": "Reuse Kimi vision Q/K buffers for RoPE"
+    },
+    {
+      "number": 448,
+      "head": "ef2d37e3dfc8d2fba16cf9d2a37c58dce057fd24",
+      "merge_commit": "01176fc8685b5d6fe65c23fb11aaebec32a4a929",
+      "title": "Autotune Kimi Triton KDA before KV allocation"
     }
   ],
   "source_patches": []
