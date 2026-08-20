@@ -4,8 +4,8 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r6-strict-20260820",
-    "commit": "e83547c3bda86e2d26d5b27ca3e735db95e65908",
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r6-ordered-20260820",
+    "commit": "779fadead3fd50678558bc9c011bf7d4ce80c3af",
     "tree": "56b9ab7fe9b8e74bd138ce96cdf4eac0fb4fe90d"
   },
   "upstream_base": {
@@ -95,31 +95,31 @@
     {
       "number": 444,
       "head": "ff9eeb1941d4e97adccdb78cb059c24011375d99",
-      "merge_commit": "e83547c3bda86e2d26d5b27ca3e735db95e65908",
+      "merge_commit": "956ef263d963bd3f1380aa3a7a68d91ad3be6e52",
       "title": "Reserve manual KV storage before attention metadata"
     },
     {
       "number": 445,
       "head": "72c8292b22cbb4220d303efdf2712e969dbccad4",
-      "merge_commit": "70b773dfdf22617a57aacc50bc3a2e647ec5a047",
+      "merge_commit": "61e565107a2fe004ea615fb1387fe605ffaacfe8",
       "title": "Bound B12X MoE workspace per launch"
     },
     {
       "number": 446,
       "head": "4f41457e451a3597101128f925cbad7cbc51e379",
-      "merge_commit": "6bdb1a507dc7ee88bd0bec95bc8e5fd7ed81b21f",
+      "merge_commit": "7c1fa9a27fc820ed56f5772d08a10e0ada879de6",
       "title": "Reserve Kimi-K3 AttnRes prefill workspace"
     },
     {
       "number": 447,
       "head": "097ad6ac495490b240aff8356479e5b50d0db78b",
-      "merge_commit": "66e7d590bf71c294e711277c5ffaaff5fdb2239a",
+      "merge_commit": "7d98820633704339c28d680784f2f22bb7f5ba1e",
       "title": "Reuse Kimi vision Q/K buffers for RoPE"
     },
     {
       "number": 448,
       "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
-      "merge_commit": "cd2ec5b470acf3cbd0274af8977a3ff8286eaf83",
+      "merge_commit": "779fadead3fd50678558bc9c011bf7d4ce80c3af",
       "title": "Autotune Kimi Triton KDA before KV allocation"
     }
   ],
