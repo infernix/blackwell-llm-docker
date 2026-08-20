@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "component": "vllm",
+  "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
+  "source": {
+    "repository": "https://github.com/voipmonitor/vllm.git",
+    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-20260820",
+    "commit": "039fb35c255e97bb304a09a6e2eb0e1654adca3b",
+    "tree": "09f54938158485ceab444cf80d1517e938bb5e67"
+  },
+  "upstream_base": {
+    "repository": "https://github.com/local-inference-lab/vllm.git",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "commit": "337ef76dcd30198d8dd47f6c9e61ae1d8be73656"
+  },
+  "pull_requests": [
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "merge_commit": "52a0146744180f523417306d17c558e03f23bd27",
+      "title": "Preserve Mamba copy-on-write state after external prefix hits"
+    },
+    {
+      "number": 295,
+      "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
+      "merge_commit": "2083a2c9ade5fbc2d37c830c5d4716fcc198a250",
+      "title": "Backport XGrammar termination-safe token batches"
+    },
+    {
+      "number": 294,
+      "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
+      "merge_commit": "04295fdc540e9f10c8509f200f34131f7e3cc513",
+      "title": "Preserve grammar bitmask source widths after draft trimming"
+    },
+    {
+      "number": 320,
+      "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
+      "merge_commit": "21cd6c348979705b1b1c153ad5f383a50a9bbfbc",
+      "title": "Backport speculative structured-output commit validation"
+    },
+    {
+      "number": 413,
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
+      "merge_commit": "ae82d45f00ec5f150bee0c9cca427b7afa808f3f",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "number": 422,
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
+      "merge_commit": "00b65362ced9ace876a32348e65caa842e814a28",
+      "title": "Handle KV load failures across hybrid cache groups"
+    },
+    {
+      "number": 310,
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
+      "merge_commit": "f4847514e91dd380085788f31c890e4b2d0bf0bf",
+      "title": "Preserve replicated DFlash-family draft semantics under DCP"
+    },
+    {
+      "number": 415,
+      "head": "2e8535c70af889a07c42370c28387172c678212f",
+      "merge_commit": "3520b7f5a674d75468978db1d0947802a75f1dd9",
+      "title": "Preserve the DSpark CUDA Graph capture contract"
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "merge_commit": "e60c8df293816e91b68d173a4da42ea2512c942c",
+      "title": "Keep recurrent cache position state unsharded under DCP"
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "merge_commit": "58732d443622747f3b5d04012620a860ee836415",
+      "title": "Keep Kimi-K3 protocol markers out of streamed content"
+    },
+    {
+      "number": 428,
+      "head": "f5ff3aed3a5a3ea7f103c506b2af3a46313e91bb",
+      "merge_commit": "33c69cefdf7c491c7127e5cda19b03e75d6104d7",
+      "title": "Warm Kimi vision interpolation before KV allocation"
+    },
+    {
+      "number": 441,
+      "head": "9a8aa110a7c73db97be767485f5033040cd9e433",
+      "merge_commit": "40da833c8c95ebdc2929f45441777bd6d6e9b321",
+      "title": "Preserve Kimi parallel-draft KV group identity"
+    },
+    {
+      "number": 443,
+      "head": "b92553052a66913a59b4f1143b8dbc16a3a41896",
+      "merge_commit": "200c1a7598193eb59a87ca8602ca301ad32b8b78",
+      "title": "Restore native KV tails across mixed cache groups"
+    },
+    {
+      "number": 444,
+      "head": "2c6aa5eaab706f5095b483ccd9346651ad40e2d8",
+      "merge_commit": "55fdcf3e0684561a2a2580a7e769d6bbbdb53745",
+      "title": "Release allocator cache around manual KV setup"
+    },
+    {
+      "number": 445,
+      "head": "72c8292b22cbb4220d303efdf2712e969dbccad4",
+      "merge_commit": "a21ec3dbdea568e039a5e442162e8dc14211346f",
+      "title": "Bound B12X MoE workspace per launch"
+    },
+    {
+      "number": 446,
+      "head": "d71d65820b06f3a6f0db10327802bd62876b0d50",
+      "merge_commit": "a2120b6ca18ef0172137408f314f4116f268396f",
+      "title": "Reserve Kimi-K3 AttnRes prefill workspace"
+    },
+    {
+      "number": 447,
+      "head": "097ad6ac495490b240aff8356479e5b50d0db78b",
+      "merge_commit": "039fb35c255e97bb304a09a6e2eb0e1654adca3b",
+      "title": "Reuse Kimi vision Q/K buffers for RoPE"
+    }
+  ],
+  "source_patches": []
+}
