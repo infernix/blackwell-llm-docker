@@ -47,7 +47,7 @@ native_output="$(
 )"
 assert_line "${native_output}" 'HOST_KV_BACKEND=native'
 assert_line "${native_output}" 'LMCACHE_MODE=off'
-assert_line "${native_output}" 'PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False'
+assert_line "${native_output}" 'PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True'
 assert_line "${native_output}" 'MAX_NUM_BATCHED_TOKENS=4102'
 assert_line "${native_output}" 'B12X_MOE_WORKSPACE_TOKEN_LIMIT=4096'
 assert_line "${native_output}" 'B12X_W4A16_PREFILL_FUSED_SUM=1'
@@ -60,9 +60,11 @@ assert_line "${native_output}" 'ARG=--served-model-name'
 assert_line "${native_output}" 'ARG=test-model'
 
 native_override_output="$(
-  capture_launcher env KV_OFFLOADING_SIZE=48.5 "${launcher}"
+  capture_launcher env KV_OFFLOADING_SIZE=48.5 \
+    PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256 "${launcher}"
 )"
 assert_line "${native_override_output}" 'ARG=48.5'
+assert_line "${native_override_output}" 'PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256'
 
 lmcache_output="$(capture_launcher env LMCACHE_MODE=ram "${launcher}")"
 assert_line "${lmcache_output}" 'HOST_KV_BACKEND=lmcache'

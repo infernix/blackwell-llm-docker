@@ -68,9 +68,11 @@ host_kv_args=()
 case "${host_kv_backend}" in
   native)
     export LMCACHE_MODE=off
-    # OffloadingConnector registers stable KV-cache addresses. PyTorch's
-    # expandable CUDA allocator may remap those addresses after registration.
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
+    # CPUOffloadingSpec performs bounded local DMA copies and does not retain
+    # raw CUDA allocation addresses across allocator remaps. Preserve an
+    # operator override while enabling VMM-backed expandable segments by
+    # default to avoid fragmentation near the configured KV-cache limit.
+    export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
     host_kv_args=(
       --kv-offloading-size "${KV_OFFLOADING_SIZE:-32}"
       --kv-offloading-backend native

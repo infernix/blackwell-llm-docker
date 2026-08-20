@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r6-ordered-20260820",
-    "commit": "779fadead3fd50678558bc9c011bf7d4ce80c3af",
-    "tree": "56b9ab7fe9b8e74bd138ce96cdf4eac0fb4fe90d"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r8-native-vmm-20260820",
+    "commit": "9ae135980c111037f070431b6a81e0705ad59ae5",
+    "tree": "8db1ea71fcf723a4b3f816f0042e40164ad316af"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -121,6 +121,18 @@
       "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
       "merge_commit": "779fadead3fd50678558bc9c011bf7d4ce80c3af",
       "title": "Autotune Kimi Triton KDA before KV allocation"
+    },
+    {
+      "number": 450,
+      "head": "6ae80957d385ba9ea3f27235bbe12c8e76dcf722",
+      "merge_commit": "cc692ed13583e076e89ab50578e0198f4bb6a328",
+      "title": "Allow expandable CUDA segments for local KV offload"
+    },
+    {
+      "number": 449,
+      "head": "6cd5a4d813ef801e47f421c278e58fd14491f1a2",
+      "merge_commit": "9ae135980c111037f070431b6a81e0705ad59ae5",
+      "title": "Bound Kimi-K3 KDA prefill reduction memory"
     }
   ],
   "source_patches": []
