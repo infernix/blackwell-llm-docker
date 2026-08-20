@@ -63,7 +63,7 @@ source_lock_sha256="$({
 cache_fingerprint="cu133-torch213-kimi-k3-clean-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}-lmcache${LMCACHE_INTEGRATION_TREE:0:10}"
 vllm_package_version="${VLLM_PACKAGE_VERSION:-0.26.1rc0+kimi.k3.aligned.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}}"
 core_image="${CORE_IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-core-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
-image="${IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-lmcache-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
+image="${IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
 
 printf 'base=%s id=%s\n' "${base_image}" "${base_image_id}"
 printf 'vllm=%s tree=%s base=%s prs=%s\n' \
@@ -144,6 +144,7 @@ DOCKER_BUILDKIT=1 docker build \
 labels="$(docker image inspect "${image}" --format '{{json .Config.Labels}}')"
 jq -e --arg expected "${source_lock_sha256}" \
   '."local-inference.runtime.source-lock.sha256" == $expected and
+   ."local-inference.runtime.host-kv-default" == "native" and
    ."local-inference.runtime.source-mode" == "compiled-installed-package" and
    ."local-inference.runtime.source-overlay" == "absent"' \
   <<<"${labels}" >/dev/null
