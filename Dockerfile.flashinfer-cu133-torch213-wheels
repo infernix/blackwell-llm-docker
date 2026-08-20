@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2
+
+FROM ${BASE_IMAGE} AS wheel-build
+
+ARG FLASHINFER_REPO=https://github.com/voipmonitor/flashinfer.git
+ARG FLASHINFER_REF=integration/main-pr4393-pcie-ipc-qualified-20260807
+ARG FLASHINFER_COMMIT=1ac6942776b383c6b03c7a5805a22e72a3e3349f
+ARG FLASHINFER_VERSION=0.6.18+cu133
+ARG CUTLASS_DSL_VERSION=4.6.2
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ENV TORCH_CUDA_ARCH_LIST=12.0a \
+    FLASHINFER_CUDA_ARCH_LIST=12.0f \
+    FLASHINFER_LOCAL_VERSION=cu133 \
+    FLASHINFER_DISABLE_VERSION_CHECK=1 \
+    NVCC_THREADS=4
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade \
+      pip \
+      'setuptools>=77' \
+      'packaging>=24' \
+      wheel \
+      tqdm \
+      ninja \
+      requests \
+      numpy \
+      nvidia-ml-py \
+      'apache-tvm-ffi>=0.1,<0.2' \
+      "nvidia-cutlass-dsl[cu13]==${CUTLASS_DSL_VERSION}" \
+ && python -m pip install --force-reinstall --no-deps \
+      "nvidia-cutlass-dsl-libs-cu13==${CUTLASS_DSL_VERSION}"
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    git clone --filter=blob:none --no-checkout \
+      "${FLASHINFER_REPO}" /tmp/flashinfer-src \
+ && git -C /tmp/flashinfer-src fetch --depth=1 origin "${FLASHINFER_COMMIT}" \
+ && git -C /tmp/flashinfer-src checkout --detach "${FLASHINFER_COMMIT}" \
+ && test "$(git -C /tmp/flashinfer-src rev-parse HEAD)" = \
+      "${FLASHINFER_COMMIT}" \
+ && git -C /tmp/flashinfer-src submodule update --init --recursive \
+ && mkdir -p /opt/flashinfer-wheels \
+ && cd /tmp/flashinfer-src \
+ && FLASHINFER_ENABLE_SM90=0 BUILD_NVEP=0 BUILD_NCCL_EP=0 BUILD_NIXL_EP=0 \
+      MAX_JOBS=48 python -m pip wheel --no-build-isolation --no-deps \
+      -w /opt/flashinfer-wheels . \
+ && MAX_JOBS=48 python -m pip wheel --no-build-isolation --no-deps \
+      -w /opt/flashinfer-wheels ./flashinfer-jit-cache \
+ && test "$(find /opt/flashinfer-wheels -maxdepth 1 -type f \
+      -name 'flashinfer_python-*.whl' | wc -l)" -eq 1 \
+ && test "$(find /opt/flashinfer-wheels -maxdepth 1 -type f \
+      -name 'flashinfer_jit_cache-*.whl' | wc -l)" -eq 1 \
+ && rm -rf /tmp/flashinfer-src
+
+RUN python -m pip install --no-deps --force-reinstall \
+      /opt/flashinfer-wheels/flashinfer_python-*.whl \
+      /opt/flashinfer-wheels/flashinfer_jit_cache-*.whl \
+ && test "$(python -c 'import importlib.metadata as m; print(m.version(\"flashinfer-python\"))')" = \
+      "${FLASHINFER_VERSION}"
+
+# The published artifact contains only the pinned wheels. Consumers provide
+# their own CUDA/PyTorch runtime and verify the ABI identity through labels.
+FROM scratch AS artifact
+
+ARG BASE_IMAGE
+ARG BASE_IMAGE_ID
+ARG FLASHINFER_REPO
+ARG FLASHINFER_REF
+ARG FLASHINFER_COMMIT
+ARG FLASHINFER_VERSION
+ARG CUTLASS_DSL_VERSION
+ARG RELEASE_DATE
+ARG DOCKER_COMMIT
+
+COPY --from=wheel-build /opt/flashinfer-wheels /opt/flashinfer-wheels
+
+LABEL org.opencontainers.image.title="FlashInfer CUDA 13.3 PyTorch 2.13 wheel artifact" \
+      org.opencontainers.image.description="Pinned FlashInfer runtime and precompiled JIT-cache wheels for SM120" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
+      org.opencontainers.image.version="${RELEASE_DATE}" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference.runtime.base-image="${BASE_IMAGE}" \
+      local-inference.runtime.base-id="${BASE_IMAGE_ID}" \
+      local-inference.flashinfer.repo="${FLASHINFER_REPO}" \
+      local-inference.flashinfer.ref="${FLASHINFER_REF}" \
+      local-inference.flashinfer.commit="${FLASHINFER_COMMIT}" \
+      local-inference.flashinfer.version="${FLASHINFER_VERSION}" \
+      local-inference.cutlass-dsl.version="${CUTLASS_DSL_VERSION}" \
+      local-inference.cuda.version="13.3" \
+      local-inference.torch.version="2.13.0"

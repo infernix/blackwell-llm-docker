@@ -10,6 +10,10 @@ release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
 release_date="${RELEASE_DATE:-20260820}"
 revision="${REVISION:-r6}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
+flashinfer_wheel_image="${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1}"
+flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f
+flashinfer_version=0.6.18+cu133
+cutlass_dsl_version=4.6.2
 
 read_source_lock() {
   local component=$1 prefix=$2
@@ -53,6 +57,31 @@ if ! docker image inspect "${base_image}" >/dev/null 2>&1; then
 fi
 
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
+
+if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
+  docker pull "${flashinfer_wheel_image}" || \
+    BASE_IMAGE="${base_image}" IMAGE="${flashinfer_wheel_image}" \
+      FLASHINFER_COMMIT="${flashinfer_commit}" \
+      FLASHINFER_VERSION="${flashinfer_version}" \
+      CUTLASS_DSL_VERSION="${cutlass_dsl_version}" \
+      ./build-flashinfer-cu133-torch213-wheels.sh
+fi
+
+flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{json .Config.Labels}}')"
+jq -e \
+  --arg base_id "${base_image_id}" \
+  --arg commit "${flashinfer_commit}" \
+  --arg version "${flashinfer_version}" \
+  --arg cutlass "${cutlass_dsl_version}" \
+  '."local-inference.runtime.base-id" == $base_id and
+   ."local-inference.flashinfer.commit" == $commit and
+   ."local-inference.flashinfer.version" == $version and
+   ."local-inference.cutlass-dsl.version" == $cutlass' \
+  <<<"${flashinfer_labels}" >/dev/null
+flashinfer_wheel_image_id="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{.Id}}')"
+
 docker_commit="$(git rev-parse HEAD)"
 source_lock_sha256="$({
   sha256sum \
@@ -72,11 +101,15 @@ printf 'b12x=%s tree=%s base=%s prs=%s\n' \
   "${B12X_COMMIT}" "${B12X_INTEGRATION_TREE}" "${B12X_UPSTREAM_BASE}" "${B12X_PRS}"
 printf 'lmcache=%s tree=%s\n' "${LMCACHE_COMMIT}" "${LMCACHE_INTEGRATION_TREE}"
 printf 'core_image=%s\nimage=%s\n' "${core_image}" "${image}"
+printf 'flashinfer_wheels=%s\n' "${flashinfer_wheel_image}"
+printf 'flashinfer_wheels_id=%s\n' "${flashinfer_wheel_image_id}"
 
 DOCKER_BUILDKIT=1 docker build \
   --pull=false \
   --build-arg "BASE_IMAGE=${base_image}" \
   --build-arg "BASE_IMAGE_ID=${base_image_id}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE=${flashinfer_wheel_image}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE_ID=${flashinfer_wheel_image_id}" \
   --build-arg "VLLM_REPO=${VLLM_REPO}" \
   --build-arg "VLLM_REF=${VLLM_REF}" \
   --build-arg "VLLM_COMMIT=${VLLM_COMMIT}" \
@@ -113,9 +146,9 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg 'INSTANTTENSOR_LIBAIO_REPO=https://pagure.io/libaio.git' \
   --build-arg 'INSTANTTENSOR_LIBAIO_COMMIT=1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448' \
   --build-arg 'INSTANTTENSOR_LIBAIO_TREE=c9442e111b747e9329ea782c6edb9d13a827cc08' \
-  --build-arg 'CUTLASS_DSL_VERSION=4.6.2' \
+  --build-arg "CUTLASS_DSL_VERSION=${cutlass_dsl_version}" \
   --build-arg "VLLM_PACKAGE_VERSION=${vllm_package_version}" \
-  --build-arg 'FLASHINFER_VERSION=0.6.18+cu133' \
+  --build-arg "FLASHINFER_VERSION=${flashinfer_version}" \
   --build-arg "CACHE_FINGERPRINT=${cache_fingerprint}" \
   --build-arg "RELEASE_NAME=${release_name}-core" \
   --build-arg "RELEASE_DATE=${release_date}" \

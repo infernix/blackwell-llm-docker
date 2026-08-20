@@ -12,6 +12,7 @@ release_date=${RELEASE_DATE:-20260818}
 revision=${REVISION:-r18}
 composition_root=patches/releases/infernal-invocation-r18
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
+flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
 instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://pagure.io/libaio.git}
@@ -81,6 +82,25 @@ if ! docker image inspect "${base_image}" >/dev/null 2>&1; then
   }
 fi
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
+
+if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
+  docker pull "${flashinfer_wheel_image}" || \
+    BASE_IMAGE="${base_image}" IMAGE="${flashinfer_wheel_image}" \
+      FLASHINFER_VERSION="${flashinfer_version}" \
+      ./build-flashinfer-cu133-torch213-wheels.sh
+fi
+
+flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{json .Config.Labels}}')"
+jq -e \
+  --arg base_id "${base_image_id}" \
+  --arg version "${flashinfer_version}" \
+  '."local-inference.runtime.base-id" == $base_id and
+   ."local-inference.flashinfer.version" == $version' \
+  <<<"${flashinfer_labels}" >/dev/null
+flashinfer_wheel_image_id="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{.Id}}')"
+
 docker_commit="$(git rev-parse HEAD)"
 
 if [[ -n "$(git status --porcelain --untracked-files=all)" ]] \
@@ -100,6 +120,8 @@ DOCKER_BUILDKIT=1 docker build \
   --pull=false \
   --build-arg "BASE_IMAGE=${base_image}" \
   --build-arg "BASE_IMAGE_ID=${base_image_id}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE=${flashinfer_wheel_image}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE_ID=${flashinfer_wheel_image_id}" \
   --build-arg "VLLM_REPO=${VLLM_REPO}" \
   --build-arg "VLLM_REF=${VLLM_REF}" \
   --build-arg "VLLM_COMMIT=${VLLM_COMMIT}" \
