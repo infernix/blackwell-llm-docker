@@ -4,8 +4,8 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r9-ordered-20260820",
-    "commit": "174d05863d988073c8fc675094557b779092c5eb",
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r10-ordered-20260820",
+    "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
     "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9"
   },
   "upstream_base": {
@@ -137,7 +137,7 @@
     {
       "number": 453,
       "head": "dfb8400588161d6fcbabeb0b63454deb447235ca",
-      "merge_commit": "174d05863d988073c8fc675094557b779092c5eb",
+      "merge_commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
       "title": "Release Kimi-K3 dense MLP prefill intermediates"
     }
   ],
