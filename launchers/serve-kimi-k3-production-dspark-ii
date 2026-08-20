@@ -9,11 +9,10 @@ if [[ -n "${HOST_KV_BACKEND+x}" ]]; then
 elif [[ -z "${LMCACHE_MODE+x}" ]]; then
   host_kv_backend=native
 elif [[ "${LMCACHE_MODE}" == off ]]; then
-  # Preserve the established meaning of an explicitly supplied
-  # LMCACHE_MODE=off for uncached benchmark commands.
+  # An explicit LMCACHE_MODE=off selects uncached execution.
   host_kv_backend=off
 else
-  # Preserve commands that selected LMCache before HOST_KV_BACKEND existed.
+  # A configured LMCache mode selects the external cache backend.
   host_kv_backend=lmcache
 fi
 
