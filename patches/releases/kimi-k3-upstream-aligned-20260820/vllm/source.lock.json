@@ -5,8 +5,8 @@
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
     "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-20260820",
-    "commit": "01176fc8685b5d6fe65c23fb11aaebec32a4a929",
-    "tree": "d95a2f582517c7e880f64dd533efc64b7b753d0e"
+    "commit": "6c7844986856f73b0ca85c1b6029c7a465b5e0bc",
+    "tree": "0782a953ce909bdcd99c5087c7f3478d4b2ccfd0"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -118,8 +118,8 @@
     },
     {
       "number": 448,
-      "head": "ef2d37e3dfc8d2fba16cf9d2a37c58dce057fd24",
-      "merge_commit": "01176fc8685b5d6fe65c23fb11aaebec32a4a929",
+      "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
+      "merge_commit": "6c7844986856f73b0ca85c1b6029c7a465b5e0bc",
       "title": "Autotune Kimi Triton KDA before KV allocation"
     }
   ],
