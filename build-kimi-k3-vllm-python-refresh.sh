@@ -11,7 +11,7 @@ b12x_lock="${source_root}/b12x/source.lock.json"
 lmcache_lock="${source_root}/lmcache/source.lock.json"
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
 release_date="${RELEASE_DATE:-20260820}"
-revision="${REVISION:-r13}"
+revision="${REVISION:-r14}"
 
 vllm_repo="$(jq -er '.source.repository' "${vllm_lock}")"
 vllm_ref="$(jq -er '.source.ref | sub("^refs/heads/"; "")' "${vllm_lock}")"
