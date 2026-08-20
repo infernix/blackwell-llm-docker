@@ -68,7 +68,9 @@ host_kv_args=()
 case "${host_kv_backend}" in
   native)
     export LMCACHE_MODE=off
-    export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:False}"
+    # OffloadingConnector registers stable KV-cache addresses. PyTorch's
+    # expandable CUDA allocator may remap those addresses after registration.
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
     host_kv_args=(
       --kv-offloading-size "${KV_OFFLOADING_SIZE:-32}"
       --kv-offloading-backend native

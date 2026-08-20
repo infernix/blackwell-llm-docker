@@ -41,7 +41,10 @@ assert_no_line() {
   fi
 }
 
-native_output="$(capture_launcher "${launcher}" --served-model-name test-model)"
+native_output="$(
+  capture_launcher env PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+    "${launcher}" --served-model-name test-model
+)"
 assert_line "${native_output}" 'HOST_KV_BACKEND=native'
 assert_line "${native_output}" 'LMCACHE_MODE=off'
 assert_line "${native_output}" 'PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False'
