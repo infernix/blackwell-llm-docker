@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2
-ARG FLASHINFER_WHEEL_IMAGE=voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1
+ARG FLASHINFER_WHEEL_IMAGE=voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb
 
 # FlashInfer wheels are a durable OCI artifact keyed by the CUDA/PyTorch ABI,
 # FlashInfer commit, and CuTeDSL toolchain. Source-only vLLM and B12X changes
