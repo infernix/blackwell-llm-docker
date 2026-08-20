@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r15-clean-ordered-20260820",
-    "commit": "1de2a616b53710b9f02bb2ee0b28eee8866632c3",
-    "tree": "373871198710c4267f2f655faf420e54bc36cda9"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r16-clean-ordered-20260820",
+    "commit": "85b9d5637950ab6129b25c5544ad3d32c142f617",
+    "tree": "f90ab4ab1afadbe90e78af28494703215deff917"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -136,14 +136,14 @@
     },
     {
       "number": 449,
-      "head": "6cd5a4d813ef801e47f421c278e58fd14491f1a2",
-      "merge_commit": "864ef554252873e66f7d2ee22f5a0d6dd55abf7b",
+      "head": "b57264e2f8aab668f16966b28702ca0763cfbc06",
+      "merge_commit": "0bb08845f8c49df1244658fcd7bd21e80ade5667",
       "title": "Bound Kimi-K3 KDA prefill reduction memory"
     },
     {
       "number": 453,
       "head": "539ed9d40cec74a091aeb7ae9225a4ff45bbf5a3",
-      "merge_commit": "1de2a616b53710b9f02bb2ee0b28eee8866632c3",
+      "merge_commit": "85b9d5637950ab6129b25c5544ad3d32c142f617",
       "title": "Reuse Kimi-K3 prefill output storage"
     }
   ],
