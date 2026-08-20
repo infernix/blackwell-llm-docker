@@ -4,14 +4,20 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r10-ordered-20260820",
-    "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
-    "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r11-ordered-20260820",
+    "commit": "8ddbbdb60e1cac0cbf55d76437c8522b4b6fa2e2",
+    "tree": "b2e9743729cf0d81e5c62542e9750a00c097d345"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
     "ref": "refs/heads/dev/infernal-invocation",
     "commit": "337ef76dcd30198d8dd47f6c9e61ae1d8be73656"
+  },
+  "native_artifact_base": {
+    "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllmaaec04a-b12x84af810-cu133-torch213-20260820-r10",
+    "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
+    "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9",
+    "changed_paths_sha256": "a5114c25539af293cfa33328844e600084f2ac9d092e6a0bcd2f62a579cc32b7"
   },
   "pull_requests": [
     {
@@ -136,9 +142,9 @@
     },
     {
       "number": 453,
-      "head": "dfb8400588161d6fcbabeb0b63454deb447235ca",
-      "merge_commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
-      "title": "Release Kimi-K3 dense MLP prefill intermediates"
+      "head": "d5ae22e234201fe5c398bee2b8b28759712159b8",
+      "merge_commit": "8ddbbdb60e1cac0cbf55d76437c8522b4b6fa2e2",
+      "title": "Reuse Kimi-K3 dense prefill output storage"
     }
   ],
   "source_patches": []

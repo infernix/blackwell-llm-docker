@@ -1,0 +1,115 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG BASE_IMAGE
+ARG BASE_IMAGE_ID
+ARG BASE_VLLM_COMMIT
+ARG BASE_VLLM_TREE
+ARG VLLM_REPO
+ARG VLLM_REF
+ARG VLLM_COMMIT
+ARG VLLM_TREE
+ARG VLLM_UPSTREAM_BASE
+ARG VLLM_MERGE_HEADS
+ARG VLLM_PRS
+ARG VLLM_INTEGRATION_LOCK_SHA256
+ARG VLLM_CHANGED_PATHS_SHA256
+ARG VLLM_PACKAGE_VERSION
+ARG SOURCE_LOCK_SHA256
+ARG RELEASE_NAME
+ARG RELEASE_DATE
+ARG DOCKER_COMMIT
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Reuse native and Rust artifacts only when every source change is Python.
+# The exact changed-path manifest is part of the release lock, so a CMake,
+# CUDA, C++, Rust, package-data, or dependency change fails this build instead
+# of silently retaining an incompatible binary.
+RUN set -eux; \
+    source_dir=/opt/infernal-invocation/vllm; \
+    installed_package=/opt/venv/lib/python3.12/site-packages/vllm; \
+    test "$(git -C "${source_dir}" rev-parse HEAD)" = "${BASE_VLLM_COMMIT}"; \
+    test "$(git -C "${source_dir}" write-tree)" = "${BASE_VLLM_TREE}"; \
+    git -C "${source_dir}" fetch --filter=blob:none "${VLLM_REPO}" "${VLLM_REF}"; \
+    test "$(git -C "${source_dir}" rev-parse "${VLLM_COMMIT}^{commit}")" = \
+      "${VLLM_COMMIT}"; \
+    git -C "${source_dir}" diff --name-only --no-renames \
+      "${BASE_VLLM_COMMIT}" "${VLLM_COMMIT}" | LC_ALL=C sort \
+      > /tmp/vllm-changed-paths; \
+    test -s /tmp/vllm-changed-paths; \
+    while IFS= read -r path; do \
+      case "${path}" in \
+        *.py) ;; \
+        *) echo "Native artifact reuse rejects changed path: ${path}" >&2; exit 1 ;; \
+      esac; \
+    done < /tmp/vllm-changed-paths; \
+    echo "${VLLM_CHANGED_PATHS_SHA256}  /tmp/vllm-changed-paths" \
+      | sha256sum -c -; \
+    verify_merge_stack() { \
+      current="${VLLM_COMMIT}"; \
+      IFS=',' read -r -a expected_heads <<< "${VLLM_MERGE_HEADS}"; \
+      for ((index=${#expected_heads[@]} - 1; index >= 0; index--)); do \
+        read -r -a commit_and_parents <<< \
+          "$(git -C "${source_dir}" rev-list --parents -n 1 "${current}")"; \
+        test "${#commit_and_parents[@]}" -eq 3; \
+        test "${commit_and_parents[2]}" = "${expected_heads[index]}"; \
+        current="${commit_and_parents[1]}"; \
+      done; \
+      test "${current}" = "${VLLM_UPSTREAM_BASE}"; \
+    }; \
+    verify_merge_stack; \
+    git -C "${source_dir}" checkout --detach "${VLLM_COMMIT}"; \
+    test "$(git -C "${source_dir}" write-tree)" = "${VLLM_TREE}"; \
+    (cd "${installed_package}" && \
+      find . -type f \( -name '*.so' -o -name 'vllm-rs' \) -print0 \
+        | tar --null --files-from=- --create --file=/tmp/vllm-native.tar); \
+    find "${installed_package}" -maxdepth 1 -type f -name '_rust_*.so' \
+      -exec cp -a -t "${source_dir}/vllm" {} +; \
+    cp -a "${installed_package}/vllm-rs" "${source_dir}/vllm/vllm-rs"; \
+    cd "${source_dir}"; \
+    VLLM_TARGET_DEVICE=empty \
+      VLLM_USE_PRECOMPILED_RUST=1 \
+      VLLM_REQUIRE_RUST_FRONTEND=1 \
+      VLLM_VERSION_OVERRIDE="${VLLM_PACKAGE_VERSION}" \
+      python -m pip install --no-build-isolation --no-deps --force-reinstall .; \
+    installed_package=/opt/venv/lib/python3.12/site-packages/vllm; \
+    tar --extract --file=/tmp/vllm-native.tar --directory="${installed_package}"; \
+    test "$(python -c 'import importlib.metadata as m; print(m.version("vllm"))')" = \
+      "${VLLM_PACKAGE_VERSION}"; \
+    test "$(sha256sum "${installed_package}/models/kimi_k3/nvidia/model.py" | cut -d' ' -f1)" = \
+      "$(sha256sum "${source_dir}/vllm/models/kimi_k3/nvidia/model.py" | cut -d' ' -f1)"; \
+    test -f "${installed_package}/_C_stable_libtorch.abi3.so"; \
+    test -f "${installed_package}/_rust_tool_parser.abi3.so"; \
+    test -x "${installed_package}/vllm-rs"; \
+    (cd / && env -u PYTHONPATH python -c \
+      'import pathlib, vllm; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(root)'); \
+    rm -f /tmp/vllm-native.tar /tmp/vllm-changed-paths
+
+LABEL org.opencontainers.image.title="Kimi-K3 compiled production runtime" \
+      org.opencontainers.image.description="Kimi-K3 MXFP4 runtime with source-verified Python refresh over ABI-identical native artifacts" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
+      org.opencontainers.image.version="${RELEASE_DATE}" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference.release.name="${RELEASE_NAME}" \
+      local-inference.docker.commit="${DOCKER_COMMIT}" \
+      local-inference.runtime.source-lock.sha256="${SOURCE_LOCK_SHA256}" \
+      local-inference.runtime.source-mode="compiled-installed-package" \
+      local-inference.runtime.source-overlay="absent" \
+      local-inference.runtime.native-artifact-base-image="${BASE_IMAGE}" \
+      local-inference.runtime.native-artifact-base-id="${BASE_IMAGE_ID}" \
+      local-inference.runtime.native-artifact-base-vllm-commit="${BASE_VLLM_COMMIT}" \
+      local-inference.runtime.native-artifact-base-vllm-tree="${BASE_VLLM_TREE}" \
+      local-inference.runtime.native-artifact-reuse="python-only-diff-verified" \
+      local-inference.vllm.repo="${VLLM_REPO}" \
+      local-inference.vllm.branch="${VLLM_REF}" \
+      local-inference.vllm.commit="${VLLM_COMMIT}" \
+      local-inference.vllm.integration.tree="${VLLM_TREE}" \
+      local-inference.vllm.integration.prs="${VLLM_PRS}" \
+      local-inference.vllm.integration.lock_sha256="${VLLM_INTEGRATION_LOCK_SHA256}" \
+      local-inference.vllm.upstream-base="${VLLM_UPSTREAM_BASE}" \
+      local-inference.vllm.merge-heads="${VLLM_MERGE_HEADS}" \
+      local-inference.vllm.package-version="${VLLM_PACKAGE_VERSION}" \
+      local-inference.vllm.changed-paths.sha256="${VLLM_CHANGED_PATHS_SHA256}"
