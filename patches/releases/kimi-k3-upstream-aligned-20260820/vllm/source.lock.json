@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r18-clean-ordered-20260820",
-    "commit": "5b9cdf1078b1cdef3e4299feb01e24153884b333",
-    "tree": "ea29d7c5a9703b35e16d88c0cfc6eb8dfd1f25d7"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r19-clean-ordered-20260820",
+    "commit": "7e3525378d7ceeb82767c7d7cbc147a333081be8",
+    "tree": "c8b7cc073fdea54f93647a910a1c88a0af10a295"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,7 +17,7 @@
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllmaaec04a-b12x84af810-cu133-torch213-20260820-r10",
     "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
     "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9",
-    "changed_paths_sha256": "a8b87659d48b9d3d555a3d507f72c51ba2d95057f7e9e716da70e4d47190af31"
+    "changed_paths_sha256": "087c4a1d9bb3257fe86744defbaa009c565412a51c87903cab668ab6d8c396d7"
   },
   "pull_requests": [
     {
@@ -145,6 +145,12 @@
       "head": "b56647ac920d607f67b0bb182c3c3d4f2aebe6fc",
       "merge_commit": "5b9cdf1078b1cdef3e4299feb01e24153884b333",
       "title": "Reuse Kimi-K3 prefill output storage"
+    },
+    {
+      "number": 456,
+      "head": "3a55cc1fda0ae3cd6e2a202b62ca62d4d8d3e3f3",
+      "merge_commit": "7e3525378d7ceeb82767c7d7cbc147a333081be8",
+      "title": "Bound Kimi-K3 DSpark large-prefill auxiliary memory"
     }
   ],
   "source_patches": []
