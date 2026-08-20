@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r17-clean-ordered-20260820",
-    "commit": "be2dd8e3eb71f1581b67bc7b594ca35a06159eee",
-    "tree": "59c24dc1a66f10a84ea32305c7676c2f8daa92d6"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r18-clean-ordered-20260820",
+    "commit": "5b9cdf1078b1cdef3e4299feb01e24153884b333",
+    "tree": "ea29d7c5a9703b35e16d88c0cfc6eb8dfd1f25d7"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -142,8 +142,8 @@
     },
     {
       "number": 453,
-      "head": "539ed9d40cec74a091aeb7ae9225a4ff45bbf5a3",
-      "merge_commit": "be2dd8e3eb71f1581b67bc7b594ca35a06159eee",
+      "head": "b56647ac920d607f67b0bb182c3c3d4f2aebe6fc",
+      "merge_commit": "5b9cdf1078b1cdef3e4299feb01e24153884b333",
       "title": "Reuse Kimi-K3 prefill output storage"
     }
   ],
