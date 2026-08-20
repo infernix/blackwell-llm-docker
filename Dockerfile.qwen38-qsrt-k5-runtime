@@ -1,0 +1,89 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE=voipmonitor/vllm@sha256:ff9d4f2402ed88b1ae7ca3a6886c80a64d72993f1a593380c8cb6f193437567d
+FROM ${BASE_IMAGE}
+
+ARG BASE_IMAGE
+ARG BASE_IMAGE_ID
+ARG B12X_REPO=https://github.com/local-inference-lab/b12x.git
+ARG B12X_BASE_COMMIT=c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5
+ARG B12X_BASE_TREE=a4a0bc8a8f5e56dbef85f9b46b0d74f6e8edb491
+ARG B12X_PR_COMMIT=95399f1da70364b6b0a9be2cf8f5987371854bc5
+ARG B12X_PR_CHANGED_PATHS_SHA256=bbc89ff67b3846e6bf57d2abe7e412d14168051b6e771c72344d6822c3903624
+ARG B12X_RUNTIME_TREE=2cacec9132314dfc37dd0f04a611e218a1b657b9
+ARG B12X_RECONCILIATION_SHA256=76caff049086c7c53a1c9429e220a6cb77f7580d6b858a97e7fd553ee81faa39
+ARG VLLM_RUNTIME_TREE=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a
+ARG QSRT_PACKAGER_COMMIT=824dba65ccae6a4e6c3a9b4d13568dd0b8d2e2ea
+ARG VLLM_PRS
+ARG B12X_PRS
+ARG RELEASE_DATE
+ARG DOCKER_COMMIT
+ARG LAUNCHER_SHA256
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+COPY patches/qwen38-qsrt/b12x-pr236-r16-reconciliation.patch /tmp/qwen38-qsrt/b12x-reconciliation.patch
+COPY --chmod=0755 launchers/serve-qwen38-qsrt-k5 /usr/local/bin/serve-qwen38-qsrt-k5
+
+# The base image contains qualified aggregate vLLM and B12X trees. Qwen PR 236
+# is overlaid at an immutable commit, then the three overlapping B12X hot-path
+# files and the CUTLASS dependency pins are reconciled to preserve both source
+# contracts. The exact combined tree is the runtime source identity.
+RUN set -eux; \
+    vllm_root=/opt/infernal-invocation/vllm; \
+    b12x_root=/opt/infernal-invocation/b12x; \
+    test "$(git -C "$vllm_root" write-tree)" = "$VLLM_RUNTIME_TREE"; \
+    test "$(git -C "$b12x_root" rev-parse HEAD)" = "$B12X_BASE_COMMIT"; \
+    test "$(git -C "$b12x_root" write-tree)" = "$B12X_BASE_TREE"; \
+    echo "$B12X_RECONCILIATION_SHA256  /tmp/qwen38-qsrt/b12x-reconciliation.patch" \
+        | sha256sum -c -; \
+    git clone --filter=blob:none --no-checkout "$B12X_REPO" /tmp/qwen38-qsrt/b12x-pr; \
+    git -C /tmp/qwen38-qsrt/b12x-pr fetch --depth=1 origin "$B12X_BASE_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/b12x-pr fetch --depth=1 origin "$B12X_PR_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/b12x-pr checkout --detach "$B12X_PR_COMMIT"; \
+    test "$(git -C /tmp/qwen38-qsrt/b12x-pr rev-parse HEAD)" = "$B12X_PR_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/b12x-pr diff --name-only \
+        "$B12X_BASE_COMMIT..$B12X_PR_COMMIT" \
+        > /tmp/qwen38-qsrt/changed-paths.txt; \
+    echo "$B12X_PR_CHANGED_PATHS_SHA256  /tmp/qwen38-qsrt/changed-paths.txt" \
+        | sha256sum -c -; \
+    while IFS= read -r path; do \
+        test -f "/tmp/qwen38-qsrt/b12x-pr/$path"; \
+        install -D -m 0644 "/tmp/qwen38-qsrt/b12x-pr/$path" "$b12x_root/$path"; \
+    done < /tmp/qwen38-qsrt/changed-paths.txt; \
+    git -C "$b12x_root" apply --check /tmp/qwen38-qsrt/b12x-reconciliation.patch; \
+    git -C "$b12x_root" apply /tmp/qwen38-qsrt/b12x-reconciliation.patch; \
+    git -C "$b12x_root" add -A; \
+    test "$(git -C "$b12x_root" write-tree)" = "$B12X_RUNTIME_TREE"; \
+    /opt/venv/bin/pip install --quiet --no-deps --no-build-isolation \
+        --editable "$b12x_root"; \
+    /opt/venv/bin/python -c 'import importlib.metadata as m; entries={(e.name,e.value) for e in m.entry_points(group="vllm.general_plugins")}; assert ("b12x_qsrt", "b12x.integration.vllm.qsrt_plugin:register_b12x_qsrt") in entries'; \
+    cd "$b12x_root"; \
+    PYTHONPATH=. /opt/venv/bin/python -m pytest -q tests/test_vllm_qsrt_plugin.py; \
+    test "$(git -C "$vllm_root" write-tree)" = "$VLLM_RUNTIME_TREE"; \
+    test "$(git -C "$b12x_root" write-tree)" = "$B12X_RUNTIME_TREE"; \
+    echo "$LAUNCHER_SHA256  /usr/local/bin/serve-qwen38-qsrt-k5" \
+        | sha256sum -c -; \
+    rm -rf /tmp/qwen38-qsrt
+
+LABEL org.opencontainers.image.title="Qwen3.8-27B QSRT K5 plus rank-16 runtime" \
+      org.opencontainers.image.description="TP1 Qwen3.8 packed dense-MLP QSRT K5 serving on CUDA 13.3 and PyTorch 2.13" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
+      org.opencontainers.image.version="${RELEASE_DATE}" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference.release.name="qwen38-qsrt-k5-rank16" \
+      local-inference.docker.commit="${DOCKER_COMMIT}" \
+      local-inference.runtime.base-image="${BASE_IMAGE}" \
+      local-inference.runtime.base-id="${BASE_IMAGE_ID}" \
+      local-inference.vllm.integration.tree="${VLLM_RUNTIME_TREE}" \
+      local-inference.vllm.integration.prs="${VLLM_PRS}" \
+      local-inference.b12x.base.tree="${B12X_BASE_TREE}" \
+      local-inference.b12x.pr236.commit="${B12X_PR_COMMIT}" \
+      local-inference.b12x.integration.tree="${B12X_RUNTIME_TREE}" \
+      local-inference.b12x.integration.prs="${B12X_PRS}" \
+      local-inference.b12x.reconciliation.sha256="${B12X_RECONCILIATION_SHA256}" \
+      local-inference.qwen38.qsrt-packager.commit="${QSRT_PACKAGER_COMMIT}" \
+      local-inference.qwen38.launcher.sha256="${LAUNCHER_SHA256}"
+
+ENTRYPOINT ["/usr/local/bin/serve-qwen38-qsrt-k5"]
+
