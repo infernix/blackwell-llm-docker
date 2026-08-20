@@ -4,8 +4,8 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-20260820",
-    "commit": "6c7844986856f73b0ca85c1b6029c7a465b5e0bc",
+    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-r3-20260820",
+    "commit": "a2c3b80d3a779285120f8543dec96345e08169de",
     "tree": "0782a953ce909bdcd99c5087c7f3478d4b2ccfd0"
   },
   "upstream_base": {
@@ -119,7 +119,7 @@
     {
       "number": 448,
       "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
-      "merge_commit": "6c7844986856f73b0ca85c1b6029c7a465b5e0bc",
+      "merge_commit": "a2c3b80d3a779285120f8543dec96345e08169de",
       "title": "Autotune Kimi Triton KDA before KV allocation"
     }
   ],
