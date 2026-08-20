@@ -5,8 +5,8 @@
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
     "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r9-ordered-20260820",
-    "commit": "11de5e109db2669fb63f908183cbbdb274a082b5",
-    "tree": "8db1ea71fcf723a4b3f816f0042e40164ad316af"
+    "commit": "174d05863d988073c8fc675094557b779092c5eb",
+    "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -133,6 +133,12 @@
       "head": "6cd5a4d813ef801e47f421c278e58fd14491f1a2",
       "merge_commit": "11de5e109db2669fb63f908183cbbdb274a082b5",
       "title": "Bound Kimi-K3 KDA prefill reduction memory"
+    },
+    {
+      "number": 453,
+      "head": "dfb8400588161d6fcbabeb0b63454deb447235ca",
+      "merge_commit": "174d05863d988073c8fc675094557b779092c5eb",
+      "title": "Release Kimi-K3 dense MLP prefill intermediates"
     }
   ],
   "source_patches": []
