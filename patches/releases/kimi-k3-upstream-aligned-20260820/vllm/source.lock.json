@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-r4-20260820",
-    "commit": "e858496a4e6408672bfd52765bacade55f1a5080",
-    "tree": "0113b0ab13f5c586fc4bd3475475732c14bb483a"
+    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-r5-20260820",
+    "commit": "cd2ec5b470acf3cbd0274af8977a3ff8286eaf83",
+    "tree": "c474d1463eda009da6a4bef8b8786129e0997406"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,109 +17,109 @@
     {
       "number": 414,
       "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
-      "merge_commit": "b3e34a47d028b536dd5b84ef6ec3ea8eba2de348",
+      "merge_commit": "7bbff9d9a4472fe0240153f29147a7ebdd2efc02",
       "title": "Preserve Mamba copy-on-write state after external prefix hits"
     },
     {
       "number": 295,
       "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
-      "merge_commit": "0c5eee96038975bcfbc3b856cd37ddef35a5f1da",
+      "merge_commit": "0e482a1741e3858905c985acf6cf6626a4251449",
       "title": "Backport XGrammar termination-safe token batches"
     },
     {
       "number": 294,
       "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
-      "merge_commit": "88545e929a498e9d57657a8eb119fbca7491e9d8",
+      "merge_commit": "113aa144f15d00a8282105b6bf0051e40d564361",
       "title": "Preserve grammar bitmask source widths after draft trimming"
     },
     {
       "number": 320,
       "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
-      "merge_commit": "06a4109c89cf4791f3314b4a5bcacf9b9f3d85d0",
+      "merge_commit": "a588f8c5bc134aa79265580392b341f1b59f1296",
       "title": "Backport speculative structured-output commit validation"
     },
     {
       "number": 413,
       "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
-      "merge_commit": "e4075fbab8b7a54e2285efcd1e20964678ad45f3",
+      "merge_commit": "d5e0dccec57eb1ecea4e03c7cf402d3b16f10ab2",
       "title": "Stream Kimi-K3 tool arguments incrementally"
     },
     {
       "number": 422,
       "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
-      "merge_commit": "8a1f51eb251d11a56a7df797f49dcbd4c5107a1c",
+      "merge_commit": "0179df0f10019d11a70b4b567414ba47ce40c15d",
       "title": "Handle KV load failures across hybrid cache groups"
     },
     {
       "number": 310,
       "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
-      "merge_commit": "b55b1cbfd7f6474ecb05e70485be07e799f21b43",
+      "merge_commit": "dd822289834d4b6b6fc97088b3d2d199a514d733",
       "title": "Preserve replicated DFlash-family draft semantics under DCP"
     },
     {
       "number": 415,
       "head": "2e8535c70af889a07c42370c28387172c678212f",
-      "merge_commit": "db43dec1acec4c8d3e4580f26e1ccd4a9228ebd1",
+      "merge_commit": "be067d7d705e67236d6f4ca2d798b66b7b011d2c",
       "title": "Preserve the DSpark CUDA Graph capture contract"
     },
     {
       "number": 418,
       "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
-      "merge_commit": "6c7a5cfc5014d725c0775f7d304e61b3d79f810e",
+      "merge_commit": "c6fbf2b6cdca73c04ca3a90990668adeea294177",
       "title": "Keep recurrent cache position state unsharded under DCP"
     },
     {
       "number": 419,
       "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
-      "merge_commit": "7008e29c894d15bca7856f20a09b57a32d566570",
+      "merge_commit": "d88ca0a8aedff018075a96d6dd22e6b27840e0f4",
       "title": "Keep Kimi-K3 protocol markers out of streamed content"
     },
     {
       "number": 428,
       "head": "f5ff3aed3a5a3ea7f103c506b2af3a46313e91bb",
-      "merge_commit": "4c6c8360e29cd28837386e1f39e1ee2619daa5dc",
+      "merge_commit": "8d91358c554d2bdf1f77e70c7f5b1e63c40cfb20",
       "title": "Warm Kimi vision interpolation before KV allocation"
     },
     {
       "number": 441,
       "head": "9a8aa110a7c73db97be767485f5033040cd9e433",
-      "merge_commit": "5fa9f159b3fd6c08fa982e48023f57e9c043818a",
+      "merge_commit": "1239f055e7e89b320877b3095125770a9b2d9638",
       "title": "Preserve Kimi parallel-draft KV group identity"
     },
     {
       "number": 443,
       "head": "b92553052a66913a59b4f1143b8dbc16a3a41896",
-      "merge_commit": "c50cf737c999aa864c3439ca951d872488077121",
+      "merge_commit": "53bb8c36d1968a54652fe2b544c2e9038aaca74e",
       "title": "Restore native KV tails across mixed cache groups"
     },
     {
       "number": 444,
-      "head": "2c6aa5eaab706f5095b483ccd9346651ad40e2d8",
-      "merge_commit": "f12483a302496f4cfe0d181221cf18ee4439f6ff",
+      "head": "56123cc17b6908dac658fa28c6b78204ba3c0163",
+      "merge_commit": "0dfe137fb7380ffea01d353a1e868c3c4375e112",
       "title": "Release allocator cache around manual KV setup"
     },
     {
       "number": 445,
       "head": "72c8292b22cbb4220d303efdf2712e969dbccad4",
-      "merge_commit": "7c4fa1c630908ef5b2f83aa46db9dc69aa50669d",
+      "merge_commit": "70b773dfdf22617a57aacc50bc3a2e647ec5a047",
       "title": "Bound B12X MoE workspace per launch"
     },
     {
       "number": 446,
       "head": "4f41457e451a3597101128f925cbad7cbc51e379",
-      "merge_commit": "3cbce2f378dadd63c519c81c94bab2421d6e3e45",
+      "merge_commit": "6bdb1a507dc7ee88bd0bec95bc8e5fd7ed81b21f",
       "title": "Reserve Kimi-K3 AttnRes prefill workspace"
     },
     {
       "number": 447,
       "head": "097ad6ac495490b240aff8356479e5b50d0db78b",
-      "merge_commit": "bfbfae8a44d77a302408303d82bbd9d6f8fafffd",
+      "merge_commit": "66e7d590bf71c294e711277c5ffaaff5fdb2239a",
       "title": "Reuse Kimi vision Q/K buffers for RoPE"
     },
     {
       "number": 448,
       "head": "22dcd5d30e810cd155a9ab833392ff1f539c24e2",
-      "merge_commit": "e858496a4e6408672bfd52765bacade55f1a5080",
+      "merge_commit": "cd2ec5b470acf3cbd0274af8977a3ff8286eaf83",
       "title": "Autotune Kimi Triton KDA before KV allocation"
     }
   ],
