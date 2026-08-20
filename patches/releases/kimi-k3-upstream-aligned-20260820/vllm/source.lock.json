@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-r5-20260820",
-    "commit": "cd2ec5b470acf3cbd0274af8977a3ff8286eaf83",
-    "tree": "c474d1463eda009da6a4bef8b8786129e0997406"
+    "ref": "refs/heads/integration/ii-kimi-k3-upstream-aligned-r6-strict-20260820",
+    "commit": "e83547c3bda86e2d26d5b27ca3e735db95e65908",
+    "tree": "56b9ab7fe9b8e74bd138ce96cdf4eac0fb4fe90d"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -94,9 +94,9 @@
     },
     {
       "number": 444,
-      "head": "56123cc17b6908dac658fa28c6b78204ba3c0163",
-      "merge_commit": "0dfe137fb7380ffea01d353a1e868c3c4375e112",
-      "title": "Release allocator cache around manual KV setup"
+      "head": "ff9eeb1941d4e97adccdb78cb059c24011375d99",
+      "merge_commit": "e83547c3bda86e2d26d5b27ca3e735db95e65908",
+      "title": "Reserve manual KV storage before attention metadata"
     },
     {
       "number": 445,

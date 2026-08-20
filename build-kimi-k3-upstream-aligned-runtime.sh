@@ -8,7 +8,7 @@ cd "${repo_root}"
 source_root=patches/releases/kimi-k3-upstream-aligned-20260820
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
 release_date="${RELEASE_DATE:-20260820}"
-revision="${REVISION:-r5}"
+revision="${REVISION:-r6}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
 
 read_source_lock() {
