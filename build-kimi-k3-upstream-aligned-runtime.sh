@@ -5,10 +5,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-source_root=patches/releases/kimi-k3-upstream-aligned-20260820
+source_root=patches/releases/kimi-k3-upstream-aligned-20260821
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
-release_date="${RELEASE_DATE:-20260820}"
-revision="${REVISION:-r9}"
+release_date="${RELEASE_DATE:-20260821}"
+revision="${REVISION:-r21}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
 flashinfer_wheel_image="${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}"
 flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f
@@ -41,8 +41,8 @@ read_source_lock vllm VLLM
 read_source_lock b12x B12X
 read_source_lock lmcache LMCACHE
 
-test "${VLLM_UPSTREAM_BASE}" = 337ef76dcd30198d8dd47f6c9e61ae1d8be73656
-test "${B12X_UPSTREAM_BASE}" = c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5
+test "${VLLM_UPSTREAM_BASE}" = 87746648e3c4fe97f33e9486072c44f2ebd5d916
+test "${B12X_UPSTREAM_BASE}" = 36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8
 test "${LMCACHE_UPSTREAM_BASE}" = "${LMCACHE_COMMIT}"
 
 if [[ -n "$(git status --porcelain --untracked-files=all)" ]] \
