@@ -41,7 +41,7 @@ read_source_lock vllm VLLM
 read_source_lock b12x B12X
 read_source_lock lmcache LMCACHE
 
-test "${VLLM_UPSTREAM_BASE}" = 87746648e3c4fe97f33e9486072c44f2ebd5d916
+test "${VLLM_UPSTREAM_BASE}" = b5f995e73e6b7fe27c9927477e277a151ebcc9e9
 test "${B12X_UPSTREAM_BASE}" = 36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8
 test "${LMCACHE_UPSTREAM_BASE}" = "${LMCACHE_COMMIT}"
 

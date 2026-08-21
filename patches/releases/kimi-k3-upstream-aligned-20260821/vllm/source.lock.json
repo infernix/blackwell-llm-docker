@@ -4,98 +4,86 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r21-final-source-locked-20260821",
-    "commit": "4b6ac16375fccaf36d41079df50c01947be75b54",
-    "tree": "cf4ef5add6a0f89cf571011604148fc6a94ca0ae"
+    "ref": "refs/heads/integration/ii-kimi-k3-r21-qualified-source-locked-20260821",
+    "commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
+    "tree": "99c1c5f0f629ecda6f317a352e173a62cb6d307e"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
     "ref": "refs/heads/dev/infernal-invocation",
-    "commit": "87746648e3c4fe97f33e9486072c44f2ebd5d916"
+    "commit": "b5f995e73e6b7fe27c9927477e277a151ebcc9e9"
   },
   "native_artifact_base": {
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllmb4b7649-b12x84af810-cu133-torch213-20260820-r20",
     "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
     "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9",
-    "changed_paths_sha256": "5610f2174abd8ccce13457dbd9a90f0c2e0f96e4f8e0cb316551d053b7b71858"
+    "changed_paths_sha256": "0428dcfc6d81aaeebc37ba5c432f6b5685cfe3cf69123df5084dc80e0ec92909"
   },
   "pull_requests": [
     {
       "number": 414,
       "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
-      "merge_commit": "9de6b166aaf42e9080bae400ec72b4536581c5cb",
+      "merge_commit": "02a719a5d48caba5bcab73ae9ec43c9519e20d81",
       "title": "Preserve Mamba copy-on-write state after external prefix hits"
     },
     {
       "number": 295,
       "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
-      "merge_commit": "2cf113cad8578b60eea56542da954c6b3004971a",
+      "merge_commit": "4669a689a2e00e99aac035bd61f77ba11022db76",
       "title": "Backport XGrammar termination-safe token batches"
     },
     {
       "number": 294,
       "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
-      "merge_commit": "d83a113fccb98c2da0ed4cc366a5eddb170882a6",
+      "merge_commit": "5b7930cc049482125b3ad8b60e2215bf9d53c33f",
       "title": "Preserve grammar bitmask source widths after draft trimming"
     },
     {
       "number": 320,
       "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
-      "merge_commit": "5c959b7bb081bc038f0e79a32579682fe5b7e57b",
+      "merge_commit": "960b79671a9d7a1a28c6e345960a067700c353b3",
       "title": "Backport speculative structured-output commit validation"
     },
     {
       "number": 413,
       "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
-      "merge_commit": "739788704787b40f6c6b043ccb047ceea14b191d",
+      "merge_commit": "6e0cb040a87d578f2232d85def236924b77c851f",
       "title": "Stream Kimi-K3 tool arguments incrementally"
     },
     {
       "number": 422,
       "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
-      "merge_commit": "560f239723cb51346e2e7089aedc7fe20c0b3737",
+      "merge_commit": "2a922418077ddfde6d45b14960245566a12fcbe1",
       "title": "Handle KV load failures across hybrid cache groups"
     },
     {
       "number": 310,
       "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
-      "merge_commit": "7d8cba278dab4089802a647f1895d2166f7599dc",
+      "merge_commit": "48e23c8f14ff35424387badf3beca2201965fc30",
       "title": "Preserve replicated DFlash-family draft semantics under DCP"
     },
     {
       "number": 415,
       "head": "2e8535c70af889a07c42370c28387172c678212f",
-      "merge_commit": "c0fd9dd51bf04e1fa826fb25815719208138faff",
+      "merge_commit": "4c5edaa6d3434a25ef00031c9277f8c260dd2f84",
       "title": "Preserve the DSpark CUDA Graph capture contract"
     },
     {
       "number": 418,
       "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
-      "merge_commit": "0833a398e686bfdc9377dd4d3f9a50d612215d4e",
+      "merge_commit": "d80415b3f69abdbcb14ffe8a0c5400ffdad8bf4a",
       "title": "Keep recurrent cache position state unsharded under DCP"
     },
     {
       "number": 419,
       "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
-      "merge_commit": "21a49f5a192426fba11d5a10e9019e76122c817d",
+      "merge_commit": "c8f0e7ecd9fb98ecb6c65be0fcd9e5cff4fd54b0",
       "title": "Keep Kimi-K3 protocol markers out of streamed content"
-    },
-    {
-      "number": 456,
-      "head": "860cdb7be6aab5872c677e914ebeb2fe47381535",
-      "merge_commit": "bf8a8c39c175ac88d5ed24e1a7bbf548d282d210",
-      "title": "Bound Kimi-K3 DSpark large-prefill auxiliary memory"
-    },
-    {
-      "number": 457,
-      "head": "308dd56de5cbc4d185ffcd57acd569ee4f7e60af",
-      "merge_commit": "626a8207f1b9b59cb657761a6460325071d245b9",
-      "title": "Honor recurrent checkpoint cadence in hybrid KV offload"
     },
     {
       "number": 459,
       "head": "654b768c40e5e6e61fbbc7d16659607c2a26ac8b",
-      "merge_commit": "4b6ac16375fccaf36d41079df50c01947be75b54",
+      "merge_commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
       "title": "Bound Kimi vision RoPE memory to request grids"
     }
   ],
