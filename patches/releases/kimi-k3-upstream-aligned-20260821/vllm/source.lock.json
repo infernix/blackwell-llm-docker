@@ -4,7 +4,7 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r27-candidate-source-locked-20260821",
+    "ref": "refs/heads/integration/ii-kimi-k3-r27-source-locked-20260821",
     "commit": "b9ec06894bb37fa67a79e8255b64196bb238df6f",
     "tree": "96806454ea9f14e6b52c14898ae958cb516e9595"
   },
