@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r24-qualified-source-locked-20260821",
-    "commit": "934efcf178d5b2476fcb7378512eae731a079969",
-    "tree": "a2ac800bbe0e9ba20a5e4f23c34e6bd49f3bedbd"
+    "ref": "refs/heads/integration/ii-kimi-k3-r25-qualified-source-locked-20260821",
+    "commit": "1fbd8cf2463b63fb8be661154e1c54684042961b",
+    "tree": "ddf87d676505d4e1c920357d4f9da2a58e2c8ec7"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,7 +17,7 @@
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm99c1c5f-b12xf006681-cu133-torch213-20260821-r22",
     "commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
     "tree": "99c1c5f0f629ecda6f317a352e173a62cb6d307e",
-    "changed_paths_sha256": "46bc787c2bd8badd641bac0eabdc07ed8edb66888bf1f6ed02b39bd60f99318d"
+    "changed_paths_sha256": "f5702e6c7d81a02f87b95859eb36d98faf0b35c64bb56ca0a5656459602af1c0"
   },
   "pull_requests": [
     {
@@ -82,14 +82,14 @@
     },
     {
       "number": 459,
-      "head": "654b768c40e5e6e61fbbc7d16659607c2a26ac8b",
-      "merge_commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
-      "title": "Bound Kimi vision RoPE memory to request grids"
+      "head": "735b3c9c26fce984cd15ddba9015d318b10af75f",
+      "merge_commit": "fb1eb99af80666065fdcf9bb17831ce68dd637eb",
+      "title": "Bound Kimi vision allocation to request inputs"
     },
     {
       "number": 460,
       "head": "0a00dacd4f1e6c724c9de1b4ba65b26a2ad2f37c",
-      "merge_commit": "934efcf178d5b2476fcb7378512eae731a079969",
+      "merge_commit": "1fbd8cf2463b63fb8be661154e1c54684042961b",
       "title": "Use pre-norm AttnRes states for Kimi-K3 DFlash"
     }
   ],
