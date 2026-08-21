@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r23-qualified-source-locked-20260821",
-    "commit": "2eaae58156d3c169c451723d5ed55fb63955c551",
-    "tree": "16e8686ea27f40b60330f1e6a8ed133d75c1ad18"
+    "ref": "refs/heads/integration/ii-kimi-k3-r24-qualified-source-locked-20260821",
+    "commit": "934efcf178d5b2476fcb7378512eae731a079969",
+    "tree": "a2ac800bbe0e9ba20a5e4f23c34e6bd49f3bedbd"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -88,8 +88,8 @@
     },
     {
       "number": 460,
-      "head": "c27d1179ffaf14c796df0e1996d5a5b071902a8b",
-      "merge_commit": "2eaae58156d3c169c451723d5ed55fb63955c551",
+      "head": "0a00dacd4f1e6c724c9de1b4ba65b26a2ad2f37c",
+      "merge_commit": "934efcf178d5b2476fcb7378512eae731a079969",
       "title": "Use pre-norm AttnRes states for Kimi-K3 DFlash"
     }
   ],
