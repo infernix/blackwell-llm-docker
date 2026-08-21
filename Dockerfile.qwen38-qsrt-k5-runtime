@@ -10,8 +10,8 @@ ARG B12X_BASE_COMMIT=c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5
 ARG B12X_BASE_TREE=a4a0bc8a8f5e56dbef85f9b46b0d74f6e8edb491
 ARG B12X_PR_COMMIT=84f23c0e0bec2acdb6f404ecba044f4d5accf564
 ARG B12X_PR_CHANGED_PATHS_SHA256=bbc89ff67b3846e6bf57d2abe7e412d14168051b6e771c72344d6822c3903624
-ARG B12X_RUNTIME_TREE=62a2477e2406f8759ea6555f1f9dcf3eedd85e17
-ARG B12X_RECONCILIATION_SHA256=76caff049086c7c53a1c9429e220a6cb77f7580d6b858a97e7fd553ee81faa39
+ARG B12X_RUNTIME_TREE=f3a1076bd31663db2d628810b2591a476d48476e
+ARG B12X_RECONCILIATION_SHA256=249a29c47efb3a1637dbe9dd0923de38f4cbeaee1573dea9a88a00409568a0c3
 ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
 ARG VLLM_BASE_COMMIT=d6e0bb7c813264f1293288b9de0d18f277be7c9f
 ARG VLLM_BASE_RUNTIME_TREE=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a
@@ -88,6 +88,7 @@ RUN set -eux; \
     unzip -p "$b12x_wheel" '*/entry_points.txt' \
         > "$b12x_root/b12x.egg-info/entry_points.txt"; \
     /opt/venv/bin/python -c 'import importlib.metadata as m; entries={(e.name,e.value) for e in m.entry_points(group="vllm.general_plugins")}; assert ("b12x_qsrt", "b12x.integration.vllm.qsrt_plugin:register_b12x_qsrt") in entries'; \
+    /opt/venv/bin/python -c 'import inspect; from b12x.moe._shared.kernels.w4a16 import kernel; source=inspect.getsource(kernel._run_unpaired_trellis256); assert "hadamard_128 = _resolve_exl3_hadamard_128(hadamard_128)" not in source'; \
     cd "$b12x_root"; \
     PYTHONPATH=. /opt/venv/bin/python -m pytest -q tests/test_vllm_qsrt_plugin.py; \
     test "$(git -C "$vllm_root" write-tree)" = "$VLLM_RUNTIME_TREE"; \

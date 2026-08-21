@@ -166,7 +166,7 @@ diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels
          Int32(m),
          Int32(launch.grid_x),
          cuda.CUstream(stream_int),
-@@ -11655,6 +11665,49 @@ def _run_unpaired_trellis256(
+@@ -11655,6 +11665,48 @@ def _run_unpaired_trellis256(
      ):
          raise ValueError("c_tmp must be at least 16-byte aligned")
  
@@ -212,7 +212,6 @@ diff --git a/b12x/moe/_shared/kernels/w4a16/kernel.py b/b12x/moe/_shared/kernels
 +                c_tmp=c_tmp,
 +            )
 +
-+    hadamard_128 = _resolve_exl3_hadamard_128(hadamard_128)
      gemm_output = _trellis_dense_buffer(
          "gemm_output",
          gemm_output,
