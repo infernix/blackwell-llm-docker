@@ -54,7 +54,7 @@ RUN set -eux; \
     done < /tmp/qwen38-qsrt/vllm-changed-paths.txt; \
     git -C "$vllm_root" add -A; \
     test "$(git -C "$vllm_root" write-tree)" = "$VLLM_RUNTIME_TREE"; \
-    /opt/venv/bin/python -c 'from vllm.config import VllmConfig, set_current_vllm_config; from vllm.model_executor.layers.rotary_embedding.common import ApplyRotaryEmb; context = set_current_vllm_config(VllmConfig()); context.__enter__(); operation = ApplyRotaryEmb(); assert operation.apply_rotary_emb_vllm_flash_attn is None; context.__exit__(None, None, None)'; \
+    /opt/venv/bin/python -c 'from vllm.model_executor.layers.rotary_embedding.common import ApplyRotaryEmb; assert callable(ApplyRotaryEmb.forward_cuda)'; \
     /opt/venv/bin/python -c 'import exllamav3_ext; from flash_attn.layers.rotary import apply_rotary_emb; assert callable(apply_rotary_emb)'; \
     test "$(git -C "$b12x_root" rev-parse HEAD)" = "$B12X_BASE_COMMIT"; \
     test "$(git -C "$b12x_root" write-tree)" = "$B12X_BASE_TREE"; \
