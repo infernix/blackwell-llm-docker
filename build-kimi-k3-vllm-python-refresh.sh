@@ -5,13 +5,13 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-source_root=patches/releases/kimi-k3-upstream-aligned-20260820
+source_root=patches/releases/kimi-k3-upstream-aligned-20260821
 vllm_lock="${source_root}/vllm/source.lock.json"
 b12x_lock="${source_root}/b12x/source.lock.json"
 lmcache_lock="${source_root}/lmcache/source.lock.json"
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
-release_date="${RELEASE_DATE:-20260820}"
-revision="${REVISION:-r20}"
+release_date="${RELEASE_DATE:-20260821}"
+revision="${REVISION:-r23}"
 
 vllm_repo="$(jq -er '.source.repository' "${vllm_lock}")"
 vllm_ref="$(jq -er '.source.ref | sub("^refs/heads/"; "")' "${vllm_lock}")"

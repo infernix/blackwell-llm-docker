@@ -24,6 +24,8 @@ ARG DOCKER_COMMIT
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
+
 # Reuse native and Rust artifacts only when every source change is Python.
 # The exact changed-path manifest is part of the release lock, so a CMake,
 # CUDA, C++, Rust, package-data, or dependency change fails this build instead
