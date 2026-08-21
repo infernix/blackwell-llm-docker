@@ -8,7 +8,7 @@ cd "$repo_root"
 
 base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:ff9d4f2402ed88b1ae7ca3a6886c80a64d72993f1a593380c8cb6f193437567d}
 release_date=${RELEASE_DATE:-20260821}
-revision=${REVISION:-r2}
+revision=${REVISION:-r3}
 b12x_runtime_tree=62a2477e2406f8759ea6555f1f9dcf3eedd85e17
 vllm_runtime_tree=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a
 reconciliation=patches/qwen38-qsrt/b12x-pr236-r16-reconciliation.patch
