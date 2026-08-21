@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "component": "vllm",
+  "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
+  "source": {
+    "repository": "https://github.com/voipmonitor/vllm.git",
+    "ref": "refs/heads/integration/ii-kimi-k3-r20-final-source-locked-20260820",
+    "commit": "7efd5d8626e0455257a93d2da3dd4db7a7cdd401",
+    "tree": "b4b7649431b3039e31da5c3c38f69403a16af09d"
+  },
+  "upstream_base": {
+    "repository": "https://github.com/local-inference-lab/vllm.git",
+    "ref": "refs/heads/dev/infernal-invocation",
+    "commit": "337ef76dcd30198d8dd47f6c9e61ae1d8be73656"
+  },
+  "native_artifact_base": {
+    "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllmaaec04a-b12x84af810-cu133-torch213-20260820-r10",
+    "commit": "504695c77c8df150e93a3c70ea7fa3dc813954e5",
+    "tree": "aaec04aca25d2ee9ac24db12632b17197c927ec9",
+    "changed_paths_sha256": "43fd6cb414e805bea5a2a16ea17e611c0ed5ad56d76e762c1187581c458f5e88"
+  },
+  "pull_requests": [
+    {
+      "number": 414,
+      "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
+      "merge_commit": "241683cd2dd9f27afbbb6f8f4076f15dd17c084e",
+      "title": "Preserve Mamba copy-on-write state after external prefix hits"
+    },
+    {
+      "number": 295,
+      "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
+      "merge_commit": "197d9dfcf88aa62ca98a27f76375ebbbbbed7040",
+      "title": "Backport XGrammar termination-safe token batches"
+    },
+    {
+      "number": 294,
+      "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
+      "merge_commit": "e88978c2cbf6b66bc293959f1d90cf0ca95c4245",
+      "title": "Preserve grammar bitmask source widths after draft trimming"
+    },
+    {
+      "number": 320,
+      "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
+      "merge_commit": "b5fb1d21cbe1b6f4605fd9f2d3f75dfca6d383c0",
+      "title": "Backport speculative structured-output commit validation"
+    },
+    {
+      "number": 413,
+      "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
+      "merge_commit": "4fec9d800d89667194543fb90940fa8269557819",
+      "title": "Stream Kimi-K3 tool arguments incrementally"
+    },
+    {
+      "number": 422,
+      "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
+      "merge_commit": "557dfee30c53f9b2099cea025f813b875da29a4f",
+      "title": "Handle KV load failures across hybrid cache groups"
+    },
+    {
+      "number": 310,
+      "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
+      "merge_commit": "f317c704162bfebb9facb58774671e0538dab4a2",
+      "title": "Preserve replicated DFlash-family draft semantics under DCP"
+    },
+    {
+      "number": 415,
+      "head": "2e8535c70af889a07c42370c28387172c678212f",
+      "merge_commit": "8694548feb2d6b1eeb1d698c1f0d3772258b16ae",
+      "title": "Preserve the DSpark CUDA Graph capture contract"
+    },
+    {
+      "number": 418,
+      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "merge_commit": "dce4301073bbebff9f6b492c14ae3ad6ae28cd86",
+      "title": "Keep recurrent cache position state unsharded under DCP"
+    },
+    {
+      "number": 419,
+      "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
+      "merge_commit": "6f5eff612ded3a328369caa8dd831b5e3e3d7be9",
+      "title": "Keep Kimi-K3 protocol markers out of streamed content"
+    },
+    {
+      "number": 428,
+      "head": "f5ff3aed3a5a3ea7f103c506b2af3a46313e91bb",
+      "merge_commit": "731448d19a8e9684a3286d9c03c1bedf36211fbe",
+      "title": "Warm Kimi vision interpolation before KV allocation"
+    },
+    {
+      "number": 441,
+      "head": "9a8aa110a7c73db97be767485f5033040cd9e433",
+      "merge_commit": "1d46557b9195dd05d8244796a40765bfd43fa166",
+      "title": "Preserve Kimi parallel-draft KV group identity"
+    },
+    {
+      "number": 443,
+      "head": "b92553052a66913a59b4f1143b8dbc16a3a41896",
+      "merge_commit": "493ed6f1c1008d72b32df5cb3853583b51c60d6a",
+      "title": "Restore native KV tails across mixed cache groups"
+    },
+    {
+      "number": 444,
+      "head": "5a9fd4180c181614cd91189056b3618d90668c8c",
+      "merge_commit": "380098b8107e7966bcda6ddec9b73f7e5221b4c0",
+      "title": "Reserve manual KV storage before attention metadata"
+    },
+    {
+      "number": 445,
+      "head": "72c8292b22cbb4220d303efdf2712e969dbccad4",
+      "merge_commit": "86a6ee86b48ac0f3d79e99e61fc5ae934f539472",
+      "title": "Bound B12X MoE workspace per launch"
+    },
+    {
+      "number": 446,
+      "head": "69985b6df467383e288bf83e414e521b91cadd2f",
+      "merge_commit": "12ecee3fde267fcd94fc8ca84d9a88f4ee5caaa7",
+      "title": "Reserve Kimi-K3 AttnRes prefill workspace"
+    },
+    {
+      "number": 447,
+      "head": "097ad6ac495490b240aff8356479e5b50d0db78b",
+      "merge_commit": "9508f85708277d3ce0560de249e50e29661e9bf6",
+      "title": "Reuse Kimi vision Q/K buffers for RoPE"
+    },
+    {
+      "number": 448,
+      "head": "c40ce951f2131fdd8fb4c2f7a7eda1c6c78f8743",
+      "merge_commit": "31c6fc3dc8788b547c89d62d70e2f740255e09c7",
+      "title": "Autotune Kimi Triton KDA before KV allocation"
+    },
+    {
+      "number": 450,
+      "head": "6ae80957d385ba9ea3f27235bbe12c8e76dcf722",
+      "merge_commit": "139b19161e200fe3e59e03ebb1029d5bfe96d8fa",
+      "title": "Allow expandable CUDA segments for local KV offload"
+    },
+    {
+      "number": 449,
+      "head": "63aefcb847b5a9ad7a17bd889a5ea4516597bab6",
+      "merge_commit": "9424d84c344eac0f0bb02e63de0aa95c84321449",
+      "title": "Bound Kimi-K3 KDA and MLA prefill projection memory"
+    },
+    {
+      "number": 453,
+      "head": "b56647ac920d607f67b0bb182c3c3d4f2aebe6fc",
+      "merge_commit": "dcf99b78c91285b434ee8ce9a70f8eb854105ada",
+      "title": "Reuse Kimi-K3 prefill output storage"
+    },
+    {
+      "number": 456,
+      "head": "860cdb7be6aab5872c677e914ebeb2fe47381535",
+      "merge_commit": "80879356c3eee6238fc70efde1e54234957b933c",
+      "title": "Bound Kimi-K3 DSpark large-prefill auxiliary memory"
+    },
+    {
+      "number": 457,
+      "head": "308dd56de5cbc4d185ffcd57acd569ee4f7e60af",
+      "merge_commit": "7efd5d8626e0455257a93d2da3dd4db7a7cdd401",
+      "title": "Honor recurrent checkpoint cadence in hybrid KV offload"
+    }
+  ],
+  "source_patches": []
+}

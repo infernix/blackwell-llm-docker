@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "component": "b12x",
+  "purpose": "Compile Kimi-K3 kernels from a strict sequence of reviewed pull-request heads rooted at B12X master.",
+  "source": {
+    "repository": "https://github.com/voipmonitor/b12x.git",
+    "ref": "refs/heads/build/kimi-k3-upstream-aligned-merge-stack-20260820",
+    "commit": "cb835861f0b6a49fc83e394210a59646cf4fa45b",
+    "tree": "84af810224d6c6782afbfea4446605a9ea042c92"
+  },
+  "upstream_base": {
+    "repository": "https://github.com/local-inference-lab/b12x.git",
+    "ref": "refs/heads/master",
+    "commit": "c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5"
+  },
+  "pull_requests": [
+    {
+      "number": 227,
+      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
+      "merge_commit": "8b3c53783b39cf5d2b358bf26d72a31136281170",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    },
+    {
+      "number": 145,
+      "head": "7f88972df71d580951115220b75923078b769fe8",
+      "merge_commit": "eb4c3e235cfe98d6c0ab6617dc1860cca76554e7",
+      "title": "Qualify CUTLASS DSL 4.6.2"
+    },
+    {
+      "number": 238,
+      "head": "a347a473570798da42115d0ff5f2aeddf3357c61",
+      "merge_commit": "cb835861f0b6a49fc83e394210a59646cf4fa45b",
+      "title": "Bound W4A16 prefill route-reduction scratch"
+    }
+  ],
+  "source_patches": []
+}

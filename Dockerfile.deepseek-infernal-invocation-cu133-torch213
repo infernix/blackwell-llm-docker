@@ -1,6 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
 ARG BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2
+ARG FLASHINFER_WHEEL_IMAGE=voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb
+
+# FlashInfer wheels are a durable OCI artifact keyed by the CUDA/PyTorch ABI,
+# FlashInfer commit, and CuTeDSL toolchain. Source-only vLLM and B12X changes
+# therefore cannot invalidate the precompiled JIT package.
+FROM ${FLASHINFER_WHEEL_IMAGE} AS flashinfer-wheel-artifact
+
 FROM ${BASE_IMAGE}
 
 ARG BASE_IMAGE
@@ -38,6 +45,8 @@ ARG LMCACHE_MERGE_HEADS
 ARG LMCACHE_BUILD_VERSION=0.5.2+glm52dcp.5
 ARG INSTANTTENSOR_REPO=https://github.com/voipmonitor/InstantTensor.git
 ARG INSTANTTENSOR_COMMIT=49b4010afc1cae0441e71fe0b0bffc24fa05e932
+ARG FLASHINFER_WHEEL_IMAGE
+ARG FLASHINFER_WHEEL_IMAGE_ID
 ARG FLASHINFER_REPO=https://github.com/voipmonitor/flashinfer.git
 ARG FLASHINFER_REF=integration/main-pr4393-pcie-ipc-qualified-20260807
 ARG FLASHINFER_COMMIT=1ac6942776b383c6b03c7a5805a22e72a3e3349f
@@ -206,24 +215,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
  && python -m pip check
 
 # FlashInfer provides sampling and the optional DeepSeek attention backend.
-# The source revision contains the qualified PCIe IPC collective integration.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    git clone --filter=blob:none --no-checkout "${FLASHINFER_REPO}" /tmp/flashinfer-src \
- && git -C /tmp/flashinfer-src fetch --depth=1 origin "${FLASHINFER_COMMIT}" \
- && git -C /tmp/flashinfer-src checkout --detach "${FLASHINFER_COMMIT}" \
- && test "$(git -C /tmp/flashinfer-src rev-parse HEAD)" = "${FLASHINFER_COMMIT}" \
- && git -C /tmp/flashinfer-src submodule update --init --recursive \
- && python -m pip uninstall --yes flashinfer-python flashinfer-cubin flashinfer-jit-cache \
- && cd /tmp/flashinfer-src \
- && FLASHINFER_ENABLE_SM90=0 BUILD_NVEP=0 BUILD_NCCL_EP=0 BUILD_NIXL_EP=0 \
-      MAX_JOBS=48 python -m pip install --no-build-isolation --no-deps --force-reinstall . \
- && MAX_JOBS=48 python -m pip wheel --no-build-isolation --no-deps \
-      -w /tmp/flashinfer-wheels ./flashinfer-jit-cache \
+# Installing pinned wheels here leaves their expensive build stage independent
+# from vLLM, B12X, and LMCache source revisions.
+COPY --from=flashinfer-wheel-artifact /opt/flashinfer-wheels /tmp/flashinfer-wheels
+RUN python -m pip uninstall --yes \
+      flashinfer-python flashinfer-cubin flashinfer-jit-cache \
  && python -m pip install --no-deps --force-reinstall \
+      /tmp/flashinfer-wheels/flashinfer_python-*.whl \
       /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl \
  && test "$(python -c 'import importlib.metadata as m; print(m.version("flashinfer-python"))')" = \
       "${FLASHINFER_VERSION}" \
- && rm -rf /tmp/flashinfer-src /tmp/flashinfer-wheels
+ && rm -rf /tmp/flashinfer-wheels
 
 # DeepGEMM is the qualified dense linear backend for DeepSeek W4A8 serving.
 RUN git clone --filter=blob:none --no-checkout "${DEEPGEMM_REPO}" /tmp/deepgemm-src \
@@ -348,7 +350,7 @@ RUN git clone --filter=blob:none --no-checkout \
  && rm -rf /tmp/exllamav3-src
 
 ARG INSTANTTENSOR_VERSION=0.1.9
-ARG INSTANTTENSOR_LIBAIO_REPO=https://pagure.io/libaio.git
+ARG INSTANTTENSOR_LIBAIO_REPO=https://github.com/sailfishos-mirror/libaio.git
 ARG INSTANTTENSOR_LIBAIO_COMMIT=1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448
 ARG INSTANTTENSOR_LIBAIO_TREE=c9442e111b747e9329ea782c6edb9d13a827cc08
 ARG NCCL4PY_VERSION=0.3.1
@@ -481,6 +483,8 @@ LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13
       local-inference.instanttensor.libaio.commit="${INSTANTTENSOR_LIBAIO_COMMIT}" \
       local-inference.instanttensor.libaio.tree="${INSTANTTENSOR_LIBAIO_TREE}" \
       local-inference.flashinfer.repo="${FLASHINFER_REPO}" \
+      local-inference.flashinfer.wheel-image="${FLASHINFER_WHEEL_IMAGE}" \
+      local-inference.flashinfer.wheel-image-id="${FLASHINFER_WHEEL_IMAGE_ID}" \
       local-inference.flashinfer.commit="${FLASHINFER_COMMIT}" \
       local-inference.flashinfer.version="${FLASHINFER_VERSION}" \
       local-inference.deepgemm.repo="${DEEPGEMM_REPO}" \

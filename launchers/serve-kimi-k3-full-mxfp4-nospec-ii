@@ -78,6 +78,24 @@ if [[ -z "${COMPILATION_CONFIG:-}" ]]; then
   COMPILATION_CONFIG='{"mode":0,"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1],"pass_config":{"fuse_allreduce_rms":true}}'
 fi
 
+case "${ENABLE_PREFIX_CACHING:-0}" in
+  0)
+    cache_args=(--no-enable-prefix-caching)
+    ;;
+  1)
+    # DCP16 target MLA pages span 12,288 tokens. Prefix-cache checkpoints use
+    # the same logical boundary while scheduler chunks remain 4,096 tokens.
+    cache_args=(
+      --enable-prefix-caching
+      --mamba-block-size "${MAMBA_BLOCK_SIZE:-12288}"
+    )
+    ;;
+  *)
+    echo "ENABLE_PREFIX_CACHING must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
 cd "${VLLM_SOURCE_DIR}"
 exec "${PYTHON_BIN}" -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --served-model-name "${SERVED_MODEL_NAME:-Kimi-K3-MXFP4-DCP16-1M}" \
@@ -101,7 +119,7 @@ exec "${PYTHON_BIN}" -m vllm.entrypoints.cli.main serve "${MODEL}" \
   --max-num-seqs "${MAX_NUM_SEQS:-1}" \
   --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION:-0.985}" \
   --enable-chunked-prefill \
-  --no-enable-prefix-caching \
+  "${cache_args[@]}" \
   --compilation-config "${COMPILATION_CONFIG}" \
   --reasoning-parser kimi_k3 \
   --tool-call-parser kimi_k3 \

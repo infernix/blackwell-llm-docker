@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Compile Kimi-K3 from a verified Infernal Invocation and B12X merge stack.
+# Compile Kimi-K3 from verified Infernal Invocation and B12X merge stacks.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
-source_root=patches/releases/kimi-k3-production-clean-build-20260819
-release_name="${RELEASE_NAME:-kimi-k3-production-dspark-lmcache-clean}"
-release_date="${RELEASE_DATE:-20260819}"
-revision="${REVISION:-r5}"
+source_root=patches/releases/kimi-k3-upstream-aligned-20260821
+release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
+release_date="${RELEASE_DATE:-20260821}"
+revision="${REVISION:-r21}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
+flashinfer_wheel_image="${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}"
+flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f
+flashinfer_version=0.6.18+cu133
+cutlass_dsl_version=4.6.2
 
 read_source_lock() {
   local component=$1 prefix=$2
@@ -37,8 +41,8 @@ read_source_lock vllm VLLM
 read_source_lock b12x B12X
 read_source_lock lmcache LMCACHE
 
-test "${VLLM_UPSTREAM_BASE}" = 6dc2f516688fe6f84c6994dcd20fddf296853a6c
-test "${B12X_UPSTREAM_BASE}" = c25cdba2c1df7a69b2d7771e4243e12a8fbf19d5
+test "${VLLM_UPSTREAM_BASE}" = b5f995e73e6b7fe27c9927477e277a151ebcc9e9
+test "${B12X_UPSTREAM_BASE}" = 36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8
 test "${LMCACHE_UPSTREAM_BASE}" = "${LMCACHE_COMMIT}"
 
 if [[ -n "$(git status --porcelain --untracked-files=all)" ]] \
@@ -53,6 +57,31 @@ if ! docker image inspect "${base_image}" >/dev/null 2>&1; then
 fi
 
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
+
+if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
+  docker pull "${flashinfer_wheel_image}" || \
+    BASE_IMAGE="${base_image}" IMAGE="${flashinfer_wheel_image}" \
+      FLASHINFER_COMMIT="${flashinfer_commit}" \
+      FLASHINFER_VERSION="${flashinfer_version}" \
+      CUTLASS_DSL_VERSION="${cutlass_dsl_version}" \
+      ./build-flashinfer-cu133-torch213-wheels.sh
+fi
+
+flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{json .Config.Labels}}')"
+jq -e \
+  --arg base_id "${base_image_id}" \
+  --arg commit "${flashinfer_commit}" \
+  --arg version "${flashinfer_version}" \
+  --arg cutlass "${cutlass_dsl_version}" \
+  '."local-inference.runtime.base-id" == $base_id and
+   ."local-inference.flashinfer.commit" == $commit and
+   ."local-inference.flashinfer.version" == $version and
+   ."local-inference.cutlass-dsl.version" == $cutlass' \
+  <<<"${flashinfer_labels}" >/dev/null
+flashinfer_wheel_image_id="$(docker image inspect "${flashinfer_wheel_image}" \
+  --format '{{.Id}}')"
+
 docker_commit="$(git rev-parse HEAD)"
 source_lock_sha256="$({
   sha256sum \
@@ -61,9 +90,9 @@ source_lock_sha256="$({
     "${source_root}/lmcache/source.lock.json"
 } | sha256sum | cut -d' ' -f1)"
 cache_fingerprint="cu133-torch213-kimi-k3-clean-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}-lmcache${LMCACHE_INTEGRATION_TREE:0:10}"
-vllm_package_version="${VLLM_PACKAGE_VERSION:-0.26.1rc0+kimi.k3.clean.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}}"
-core_image="${CORE_IMAGE:-voipmonitor/vllm:kimi-k3-production-clean-core-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
-image="${IMAGE:-voipmonitor/vllm:kimi-k3-production-dspark-lmcache-clean-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
+vllm_package_version="${VLLM_PACKAGE_VERSION:-0.26.1rc0+kimi.k3.aligned.vllm${VLLM_INTEGRATION_TREE:0:7}.b12x${B12X_INTEGRATION_TREE:0:7}}"
+core_image="${CORE_IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-core-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
+image="${IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
 
 printf 'base=%s id=%s\n' "${base_image}" "${base_image_id}"
 printf 'vllm=%s tree=%s base=%s prs=%s\n' \
@@ -72,11 +101,15 @@ printf 'b12x=%s tree=%s base=%s prs=%s\n' \
   "${B12X_COMMIT}" "${B12X_INTEGRATION_TREE}" "${B12X_UPSTREAM_BASE}" "${B12X_PRS}"
 printf 'lmcache=%s tree=%s\n' "${LMCACHE_COMMIT}" "${LMCACHE_INTEGRATION_TREE}"
 printf 'core_image=%s\nimage=%s\n' "${core_image}" "${image}"
+printf 'flashinfer_wheels=%s\n' "${flashinfer_wheel_image}"
+printf 'flashinfer_wheels_id=%s\n' "${flashinfer_wheel_image_id}"
 
 DOCKER_BUILDKIT=1 docker build \
   --pull=false \
   --build-arg "BASE_IMAGE=${base_image}" \
   --build-arg "BASE_IMAGE_ID=${base_image_id}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE=${flashinfer_wheel_image}" \
+  --build-arg "FLASHINFER_WHEEL_IMAGE_ID=${flashinfer_wheel_image_id}" \
   --build-arg "VLLM_REPO=${VLLM_REPO}" \
   --build-arg "VLLM_REF=${VLLM_REF}" \
   --build-arg "VLLM_COMMIT=${VLLM_COMMIT}" \
@@ -113,9 +146,9 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg 'INSTANTTENSOR_LIBAIO_REPO=https://github.com/sailfishos-mirror/libaio.git' \
   --build-arg 'INSTANTTENSOR_LIBAIO_COMMIT=1b18bfafc6a2f7b9fa2c6be77a95afed8b7be448' \
   --build-arg 'INSTANTTENSOR_LIBAIO_TREE=c9442e111b747e9329ea782c6edb9d13a827cc08' \
-  --build-arg 'CUTLASS_DSL_VERSION=4.6.2' \
+  --build-arg "CUTLASS_DSL_VERSION=${cutlass_dsl_version}" \
   --build-arg "VLLM_PACKAGE_VERSION=${vllm_package_version}" \
-  --build-arg 'FLASHINFER_VERSION=0.6.18+cu133' \
+  --build-arg "FLASHINFER_VERSION=${flashinfer_version}" \
   --build-arg "CACHE_FINGERPRINT=${cache_fingerprint}" \
   --build-arg "RELEASE_NAME=${release_name}-core" \
   --build-arg "RELEASE_DATE=${release_date}" \
@@ -144,6 +177,7 @@ DOCKER_BUILDKIT=1 docker build \
 labels="$(docker image inspect "${image}" --format '{{json .Config.Labels}}')"
 jq -e --arg expected "${source_lock_sha256}" \
   '."local-inference.runtime.source-lock.sha256" == $expected and
+   ."local-inference.runtime.host-kv-default" == "native" and
    ."local-inference.runtime.source-mode" == "compiled-installed-package" and
    ."local-inference.runtime.source-overlay" == "absent"' \
   <<<"${labels}" >/dev/null
