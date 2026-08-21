@@ -12,7 +12,12 @@ ARG B12X_PR_COMMIT=84f23c0e0bec2acdb6f404ecba044f4d5accf564
 ARG B12X_PR_CHANGED_PATHS_SHA256=bbc89ff67b3846e6bf57d2abe7e412d14168051b6e771c72344d6822c3903624
 ARG B12X_RUNTIME_TREE=62a2477e2406f8759ea6555f1f9dcf3eedd85e17
 ARG B12X_RECONCILIATION_SHA256=76caff049086c7c53a1c9429e220a6cb77f7580d6b858a97e7fd553ee81faa39
-ARG VLLM_RUNTIME_TREE=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a
+ARG VLLM_REPO=https://github.com/local-inference-lab/vllm.git
+ARG VLLM_BASE_COMMIT=d6e0bb7c813264f1293288b9de0d18f277be7c9f
+ARG VLLM_BASE_RUNTIME_TREE=5beffc48f7cd9d4ade076e4b6d1f117ac8e79d4a
+ARG VLLM_PR461_COMMIT=0942707892ca26c5b379fb9a6b88b3f8468a5adc
+ARG VLLM_PR461_CHANGED_PATHS_SHA256=59ae0c411ac0e4c9ef4a99c5ae0648ad97fd7d271f34ff9c217269ac7acc3c2e
+ARG VLLM_RUNTIME_TREE=b4b3a1c973dc6cb087d783ef66ad6b0c2ebe8031
 ARG QSRT_PACKAGER_COMMIT=3fb7b0a1f020d2667d93e356ee92639fa34abfff
 ARG VLLM_PRS
 ARG B12X_PRS
@@ -25,14 +30,32 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 COPY patches/qwen38-qsrt/b12x-pr236-r16-reconciliation.patch /tmp/qwen38-qsrt/b12x-reconciliation.patch
 COPY --chmod=0755 launchers/serve-qwen38-qsrt-k5 /usr/local/bin/serve-qwen38-qsrt-k5
 
-# The base image contains qualified aggregate vLLM and B12X trees. Qwen PR 236
-# is overlaid at an immutable commit, then the three overlapping B12X hot-path
-# files and the CUTLASS dependency pins are reconciled to preserve both source
-# contracts. The exact combined tree is the runtime source identity.
+# The base image contains qualified aggregate vLLM and B12X trees. The rotary
+# compatibility change and Qwen PR 236 are overlaid at immutable commits. The
+# three overlapping B12X hot-path files and CUTLASS dependency pins are then
+# reconciled. The exact combined trees are the runtime source identities.
 RUN set -eux; \
     vllm_root=/opt/infernal-invocation/vllm; \
     b12x_root=/opt/infernal-invocation/b12x; \
+    test "$(git -C "$vllm_root" write-tree)" = "$VLLM_BASE_RUNTIME_TREE"; \
+    git clone --filter=blob:none --no-checkout "$VLLM_REPO" /tmp/qwen38-qsrt/vllm-pr; \
+    git -C /tmp/qwen38-qsrt/vllm-pr fetch --depth=1 origin "$VLLM_BASE_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/vllm-pr fetch --depth=1 origin "$VLLM_PR461_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/vllm-pr checkout --detach "$VLLM_PR461_COMMIT"; \
+    test "$(git -C /tmp/qwen38-qsrt/vllm-pr rev-parse HEAD)" = "$VLLM_PR461_COMMIT"; \
+    git -C /tmp/qwen38-qsrt/vllm-pr diff --name-only \
+        "$VLLM_BASE_COMMIT..$VLLM_PR461_COMMIT" \
+        > /tmp/qwen38-qsrt/vllm-changed-paths.txt; \
+    echo "$VLLM_PR461_CHANGED_PATHS_SHA256  /tmp/qwen38-qsrt/vllm-changed-paths.txt" \
+        | sha256sum -c -; \
+    while IFS= read -r path; do \
+        test -f "/tmp/qwen38-qsrt/vllm-pr/$path"; \
+        install -D -m 0644 "/tmp/qwen38-qsrt/vllm-pr/$path" "$vllm_root/$path"; \
+    done < /tmp/qwen38-qsrt/vllm-changed-paths.txt; \
+    git -C "$vllm_root" add -A; \
     test "$(git -C "$vllm_root" write-tree)" = "$VLLM_RUNTIME_TREE"; \
+    /opt/venv/bin/python -c 'from vllm.config import VllmConfig, set_current_vllm_config; from vllm.model_executor.layers.rotary_embedding.common import ApplyRotaryEmb; context = set_current_vllm_config(VllmConfig()); context.__enter__(); operation = ApplyRotaryEmb(); assert operation.apply_rotary_emb_vllm_flash_attn is None; context.__exit__(None, None, None)'; \
+    /opt/venv/bin/python -c 'import exllamav3_ext; from flash_attn.layers.rotary import apply_rotary_emb; assert callable(apply_rotary_emb)'; \
     test "$(git -C "$b12x_root" rev-parse HEAD)" = "$B12X_BASE_COMMIT"; \
     test "$(git -C "$b12x_root" write-tree)" = "$B12X_BASE_TREE"; \
     echo "$B12X_RECONCILIATION_SHA256  /tmp/qwen38-qsrt/b12x-reconciliation.patch" \

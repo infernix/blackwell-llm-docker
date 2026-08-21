@@ -14,7 +14,8 @@ max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS:-8192}
 max_num_seqs=${MAX_NUM_SEQS:-64}
 gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.90}
 kv_cache_dtype=${KV_CACHE_DTYPE:-auto}
-mm_limits=${MM_LIMITS:-{"image":0,"video":0}}
+default_mm_limits='{"image":0,"video":0}'
+mm_limits=${MM_LIMITS:-$default_mm_limits}
 
 if [[ ! -d "$model_path" ]]; then
     printf 'MODEL_PATH is not a directory: %s\n' "$model_path" >&2
@@ -53,4 +54,3 @@ fi
 
 exec /opt/venv/bin/python -m vllm.entrypoints.openai.api_server \
     "${arguments[@]}"
-
