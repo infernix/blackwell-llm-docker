@@ -4,9 +4,9 @@
   "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r26-qualified-source-locked-20260821",
-    "commit": "9ac2aaad9c81d3cc48d3a26b3154b6cd0c6dacbd",
-    "tree": "ddf87d676505d4e1c920357d4f9da2a58e2c8ec7"
+    "ref": "refs/heads/integration/ii-kimi-k3-r27-candidate-source-locked-20260821",
+    "commit": "b9ec06894bb37fa67a79e8255b64196bb238df6f",
+    "tree": "96806454ea9f14e6b52c14898ae958cb516e9595"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,79 +17,79 @@
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm99c1c5f-b12xf006681-cu133-torch213-20260821-r22",
     "commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
     "tree": "99c1c5f0f629ecda6f317a352e173a62cb6d307e",
-    "changed_paths_sha256": "f5702e6c7d81a02f87b95859eb36d98faf0b35c64bb56ca0a5656459602af1c0"
+    "changed_paths_sha256": "e372ee175c3e13327d6c7f4dfd872f64775a76c0ac37bbbda3e763c886248b65"
   },
   "pull_requests": [
     {
       "number": 414,
       "head": "990a63debf7201ae5446436a712609fcc8ffaef7",
-      "merge_commit": "1da77bee698a584a7401599530428acf2264a384",
+      "merge_commit": "6b5bd41be80e7f8ccde0c6dc3e7b947012ee89d6",
       "title": "Preserve Mamba copy-on-write state after external prefix hits"
     },
     {
       "number": 295,
       "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
-      "merge_commit": "e1c6f52424f0b9e79498cb546d2a2d10fdd247ba",
+      "merge_commit": "0e3734b159918bfcf5ff866a978d173f05bf4ee3",
       "title": "Backport XGrammar termination-safe token batches"
     },
     {
       "number": 294,
       "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
-      "merge_commit": "42a6c4250e0fe3d5447ef55e8226b6339dc6aec0",
+      "merge_commit": "559f5fc970e0bb1eb0c5767cca25dd58fed0c929",
       "title": "Preserve grammar bitmask source widths after draft trimming"
     },
     {
       "number": 320,
       "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
-      "merge_commit": "a17890849f767095d032d608a4e9153c3b437621",
+      "merge_commit": "1565d5927f96643fb9f637ac3fb5721a64e90648",
       "title": "Backport speculative structured-output commit validation"
     },
     {
       "number": 413,
       "head": "3ebc8967dab28a9df103d8c66bff9688525263bc",
-      "merge_commit": "c4fcc5c901c95ed6af6819302af9268f213a44fb",
+      "merge_commit": "e62bb7efdb3dbcc70d6c51cf18e9f31aae2f61e6",
       "title": "Stream Kimi-K3 tool arguments incrementally"
     },
     {
       "number": 422,
       "head": "3c296be28b31dba5c4a0ced714d2e21dabe246af",
-      "merge_commit": "204b8e3268572272eeebcfea820465d027b6dd6d",
+      "merge_commit": "9a85219679e6311ebace5acfd7cd1401f855fda2",
       "title": "Handle KV load failures across hybrid cache groups"
     },
     {
       "number": 310,
       "head": "f85d3d87e196546eff162c2a61b49aab13f2e625",
-      "merge_commit": "f94bf650852174ff1f1018d368ce37888aa81b5a",
+      "merge_commit": "d5dd9754e3e76a117ddea907c797b595cfe8ce7c",
       "title": "Preserve replicated DFlash-family draft semantics under DCP"
     },
     {
       "number": 415,
       "head": "2e8535c70af889a07c42370c28387172c678212f",
-      "merge_commit": "4aac9a38a9e83949dff3c70c44083a1fbb39a08b",
+      "merge_commit": "6ac211e211245c935c52519918e2e7e3be99bc9c",
       "title": "Preserve the DSpark CUDA Graph capture contract"
     },
     {
       "number": 418,
-      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
-      "merge_commit": "59553dc4a0e253f7a91ac4f83c6d369ceddc5283",
-      "title": "Keep recurrent cache position state unsharded under DCP"
+      "head": "4f34748d5862cf1ba97a588c99bd63956ce4f884",
+      "merge_commit": "f465c593549e8ab6b60b7dcf2adb531d253c252e",
+      "title": "Define per-cache DCP block-table geometry"
     },
     {
       "number": 419,
       "head": "04a6acfe467f4a208c7231a18fc99faf656d016a",
-      "merge_commit": "fd8d7ef1fc9e04622d0b38b4afb679ce6c0a7971",
+      "merge_commit": "f3fcaef17adff986c98d580a26c6664e60451aa7",
       "title": "Keep Kimi-K3 protocol markers out of streamed content"
     },
     {
       "number": 459,
       "head": "18d9e2789b1939fd4158b2e35ce4340437995a08",
-      "merge_commit": "8c8f06c0c3de135943afbbebdc3854c8ab431cc2",
+      "merge_commit": "13f450f95f4555a89b85156fb9e6e7713365f11c",
       "title": "Bound Kimi vision allocation to request inputs"
     },
     {
       "number": 460,
       "head": "0a00dacd4f1e6c724c9de1b4ba65b26a2ad2f37c",
-      "merge_commit": "9ac2aaad9c81d3cc48d3a26b3154b6cd0c6dacbd",
+      "merge_commit": "b9ec06894bb37fa67a79e8255b64196bb238df6f",
       "title": "Use pre-norm AttnRes states for Kimi-K3 DFlash"
     }
   ],
