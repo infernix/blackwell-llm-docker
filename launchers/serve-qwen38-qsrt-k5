@@ -45,7 +45,7 @@ arguments=(
     --limit-mm-per-prompt "$mm_limits"
     --no-enable-prefix-caching
     --disable-custom-all-reduce
-    --compilation-config '{"custom_ops":["-apply_rotary_emb"]}'
+    --compilation-config '{"cudagraph_mode":"NONE","custom_ops":["-apply_rotary_emb"]}'
 )
 
 if (( $# > 0 )); then
