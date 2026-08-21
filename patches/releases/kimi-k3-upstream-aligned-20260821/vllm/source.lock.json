@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "component": "vllm",
-  "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation, including recurrent-state resume indexing for prefix-cache hits.",
+  "purpose": "Compile Kimi-K3 from a strict sequence of reviewed pull-request heads rooted at Infernal Invocation, including recurrent-state resume indexing and bounded sharded-vision collectives.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r28-source-locked-20260821",
-    "commit": "fbe29aa9fcf4e5eeeac266df5560f3a240b8d022",
-    "tree": "e96c97b7ff8556a26fda87b6a3e7fe1cb4891e7f"
+    "ref": "refs/heads/integration/ii-kimi-k3-r29-source-locked-20260821",
+    "commit": "16cf8c34428ab8006418067486e55cdf680a0403",
+    "tree": "036b9adf727ff9993335ef688531cdacdbe628a0"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -17,7 +17,7 @@
     "image": "voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm99c1c5f-b12xf006681-cu133-torch213-20260821-r22",
     "commit": "96aaeca660b7ec8b9e39be2868ef26c0073f0f03",
     "tree": "99c1c5f0f629ecda6f317a352e173a62cb6d307e",
-    "changed_paths_sha256": "6094e13b61028a2f95eafffa9180db3e8e1381db5f85a9cd8e34c18eb21b39a2"
+    "changed_paths_sha256": "8e1667be878cb0fbfaab8ff45291ece30c1675d59020d2e7d1ce27a041692f57"
   },
   "pull_requests": [
     {
@@ -97,6 +97,12 @@
       "head": "edb1042d476275d1f1230d5db3dddd19cc003cb6",
       "merge_commit": "fbe29aa9fcf4e5eeeac266df5560f3a240b8d022",
       "title": "Resume Mamba prefix hits on the recurrent checkpoint grid"
+    },
+    {
+      "number": 464,
+      "head": "832b1c929e2c8cedca261817396533eb6d51b266",
+      "merge_commit": "16cf8c34428ab8006418067486e55cdf680a0403",
+      "title": "Gather uneven vision shards without TP padding"
     }
   ],
   "source_patches": []
