@@ -26,38 +26,10 @@ ENV PYTHONPATH=/opt/exllamav3:/opt/venv/lib/python3.12/site-packages \
     LMCACHE_EXPECTED_SOURCE_ROOT=/opt/venv/lib/python3.12/site-packages/lmcache \
     VLLM_SOURCE_OVERLAY_ACTIVE=0
 
-COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-nospec-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii
-COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dspark-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii
-COPY --chmod=0755 launchers/serve-kimi-k3-full-mxfp4-dflash-ii /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii
-COPY --chmod=0755 launchers/lmcache-mp-wrapper.sh /usr/local/bin/lmcache-mp-wrapper.sh
-COPY --chmod=0755 launchers/serve-kimi-k3-production-dspark-ii /usr/local/bin/serve-kimi-k3-production-dspark-ii
-
-RUN set -eux; \
-    test ! -e /opt/kimi-k3-qsrt; \
-    test "$(git -C /opt/infernal-invocation/vllm rev-parse HEAD)" = "${VLLM_COMMIT}"; \
-    test "$(git -C /opt/infernal-invocation/vllm rev-parse 'HEAD^{tree}')" = "${VLLM_TREE}"; \
-    test "$(git -C /opt/infernal-invocation/b12x rev-parse HEAD)" = "${B12X_COMMIT}"; \
-    test "$(git -C /opt/infernal-invocation/b12x rev-parse 'HEAD^{tree}')" = "${B12X_TREE}"; \
-    test "$(git -C /opt/infernal-invocation/lmcache rev-parse HEAD)" = "${LMCACHE_COMMIT}"; \
-    test "$(git -C /opt/infernal-invocation/lmcache rev-parse 'HEAD^{tree}')" = "${LMCACHE_TREE}"; \
-    /opt/venv/bin/python -c \
-      'import pathlib, vllm; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(root)' ; \
-    /opt/venv/bin/python -c \
-      'import b12x, pathlib; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages/b12x"); assert pathlib.Path(b12x.__file__).resolve().is_relative_to(root)' ; \
-    /opt/venv/bin/python -c \
-      'import lmcache, pathlib; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages/lmcache"); assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(root)' ; \
-    env -u PYTHONPATH /opt/venv/bin/python -c \
-      'import pathlib, vllm; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(root)' ; \
-    test -f /opt/venv/lib/python3.12/site-packages/vllm/_C_stable_libtorch.abi3.so; \
-    test -f /opt/venv/lib/python3.12/site-packages/vllm/vllm_flash_attn/_vllm_fa2_C.abi3.so; \
-    for launcher in \
-      /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
-      /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
-      /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii \
-      /usr/local/bin/lmcache-mp-wrapper.sh \
-      /usr/local/bin/serve-kimi-k3-production-dspark-ii; do \
-      bash -n "${launcher}"; \
-    done
+# The source build installs these launchers and compiled packages before this
+# config-only image is created. The build script validates their identities
+# from a disposable container. Keeping this stage free of filesystem changes
+# also keeps the runtime below Docker's rootfs layer-depth limit.
 
 LABEL org.opencontainers.image.title="Kimi-K3 compiled production runtime" \
       org.opencontainers.image.description="Kimi-K3 MXFP4 DSpark runtime with native vLLM host KV offload, compiled from an explicit Infernal Invocation and B12X pull-request merge stack" \

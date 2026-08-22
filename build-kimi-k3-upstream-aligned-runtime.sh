@@ -208,6 +208,34 @@ jq -e --arg expected "${source_lock_sha256}" \
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
   'import pathlib, vllm, b12x, lmcache; root=pathlib.Path("/opt/venv/lib/python3.12/site-packages"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(root); assert pathlib.Path(b12x.__file__).resolve().is_relative_to(root); assert pathlib.Path(lmcache.__file__).resolve().is_relative_to(root)'
 
+docker run --rm \
+  --env "EXPECTED_VLLM_COMMIT=${VLLM_COMMIT}" \
+  --env "EXPECTED_VLLM_TREE=${VLLM_INTEGRATION_TREE}" \
+  --env "EXPECTED_B12X_COMMIT=${B12X_COMMIT}" \
+  --env "EXPECTED_B12X_TREE=${B12X_INTEGRATION_TREE}" \
+  --env "EXPECTED_LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
+  --env "EXPECTED_LMCACHE_TREE=${LMCACHE_INTEGRATION_TREE}" \
+  --entrypoint /bin/bash "${image}" -lc '
+    set -euo pipefail
+    test ! -e /opt/kimi-k3-qsrt
+    test "$(git -C /opt/infernal-invocation/vllm rev-parse HEAD)" = "${EXPECTED_VLLM_COMMIT}"
+    test "$(git -C /opt/infernal-invocation/vllm rev-parse "HEAD^{tree}")" = "${EXPECTED_VLLM_TREE}"
+    test "$(git -C /opt/infernal-invocation/b12x rev-parse HEAD)" = "${EXPECTED_B12X_COMMIT}"
+    test "$(git -C /opt/infernal-invocation/b12x rev-parse "HEAD^{tree}")" = "${EXPECTED_B12X_TREE}"
+    test "$(git -C /opt/infernal-invocation/lmcache rev-parse HEAD)" = "${EXPECTED_LMCACHE_COMMIT}"
+    test "$(git -C /opt/infernal-invocation/lmcache rev-parse "HEAD^{tree}")" = "${EXPECTED_LMCACHE_TREE}"
+    test -f /opt/venv/lib/python3.12/site-packages/vllm/_C_stable_libtorch.abi3.so
+    test -f /opt/venv/lib/python3.12/site-packages/vllm/vllm_flash_attn/_vllm_fa2_C.abi3.so
+    for launcher in \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-nospec-ii \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-dspark-ii \
+      /usr/local/bin/serve-kimi-k3-full-mxfp4-dflash-ii \
+      /usr/local/bin/lmcache-mp-wrapper.sh \
+      /usr/local/bin/serve-kimi-k3-production-dspark-ii; do
+      bash -n "${launcher}"
+    done
+  '
+
 if [[ "${RUN_NCCL_SMOKE:-0}" == 1 ]]; then
   docker run --rm --gpus all --ipc=host \
     --ulimit memlock=-1 --ulimit stack=67108864 \
