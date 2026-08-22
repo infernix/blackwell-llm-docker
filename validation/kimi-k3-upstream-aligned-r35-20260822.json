@@ -35,6 +35,10 @@
     "vision_enabled_in_production_profile": true,
     "native_host_kv_gib": 32
   },
+  "comparison_control": {
+    "role": "Source composition with staged MXFP8 input and a temporary dense DFlash projection output",
+    "receipt": "validation/kimi-k3-upstream-aligned-r34-20260822.json"
+  },
   "profiles": {
     "no_speculation": {
       "status": "qualified",
@@ -42,7 +46,7 @@
       "normalized_decode_tokens_per_second_median": 55.80686016911199,
       "benchmark_runs": 3,
       "output_sha256": "d55ef2b797140202d4b4ea49b464d0285f53dee1ff6cbee6a2f65a76e90290da",
-      "relative_to_r34_percent": -0.008397,
+      "relative_to_control_percent": -0.008397,
       "server_log_sha256": "e8940ae0c4483ba547008b4e38982e53adb0a45d718f2fab3740286a8ad52bcb"
     },
     "dspark": {
@@ -54,7 +58,7 @@
       "emitted_tokens_per_target_cycle_median": 3.904580152671756,
       "benchmark_runs": 7,
       "output_sha256": "b78af224f6a8789fe001c473a81a593b24bb5b73f7b3d350c652204bae278cf8",
-      "relative_to_r34_percent": 0.011905,
+      "relative_to_control_percent": 0.011905,
       "openai_api": {
         "reasoning": "qualified",
         "tool_calls": "qualified",
@@ -80,7 +84,7 @@
       "emitted_tokens_per_target_cycle_median": 5.331606217616581,
       "benchmark_runs": 7,
       "output_sha256": "068a3bed7e94f0fdc4d87523cfe27754638535d8ebf087e2606a177a566b1db9",
-      "relative_to_r34_percent": 4.969089,
+      "relative_to_control_percent": 4.969089,
       "long_context": {
         "prompt_tokens": 524288,
         "completion_tokens": 64,
