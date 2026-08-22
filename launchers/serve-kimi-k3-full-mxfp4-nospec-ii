@@ -41,6 +41,9 @@ export VLLM_USE_BREAKABLE_CUDAGRAPH="${VLLM_USE_BREAKABLE_CUDAGRAPH:-1}"
 export VLLM_USE_B12X_MOE="${VLLM_USE_B12X_MOE:-1}"
 export B12X_MOE_FORCE_A16="${B12X_MOE_FORCE_A16:-1}"
 export B12X_MOE_WORKSPACE_TOKEN_LIMIT="${B12X_MOE_WORKSPACE_TOKEN_LIMIT:-2048}"
+# Prefill route rows use a canonical token-major order. Decode route sets stay
+# below the stable writer's threshold and retain the atomic low-latency path.
+export B12X_W4A16_STABLE_ROUTE_PACK="${B12X_W4A16_STABLE_ROUTE_PACK:-1}"
 export VLLM_DISABLE_SHARED_EXPERTS_STREAM="${VLLM_DISABLE_SHARED_EXPERTS_STREAM:-0}"
 
 export VLLM_KIMI_SHARD_QKV_A="${VLLM_KIMI_SHARD_QKV_A:-1}"

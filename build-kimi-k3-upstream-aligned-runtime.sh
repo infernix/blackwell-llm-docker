@@ -8,7 +8,7 @@ cd "${repo_root}"
 source_root=patches/releases/kimi-k3-upstream-aligned-20260822
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
 release_date="${RELEASE_DATE:-20260822}"
-revision="${REVISION:-r32}"
+revision="${REVISION:-r33}"
 base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
 flashinfer_wheel_image="${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}"
 flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f
