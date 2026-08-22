@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "component": "b12x",
+  "purpose": "Compile Kimi-K3 kernels from a strict sequence of reviewed pull-request heads rooted at B12X master.",
+  "source": {
+    "repository": "https://github.com/voipmonitor/b12x.git",
+    "ref": "refs/heads/build/kimi-k3-r21-upstream-aligned-merge-stack-20260821",
+    "commit": "f25c8bdd23aa45f0ba68161931e3417c6f008b3e",
+    "tree": "f0066813bd55e6e19b6a8d84ab47087510c12890"
+  },
+  "upstream_base": {
+    "repository": "https://github.com/local-inference-lab/b12x.git",
+    "ref": "refs/heads/master",
+    "commit": "36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8"
+  },
+  "pull_requests": [
+    {
+      "number": 227,
+      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
+      "merge_commit": "80b12b87257b22b75d5de3299fa188df98dd18d6",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    },
+    {
+      "number": 238,
+      "head": "a347a473570798da42115d0ff5f2aeddf3357c61",
+      "merge_commit": "f25c8bdd23aa45f0ba68161931e3417c6f008b3e",
+      "title": "Bound W4A16 prefill route-reduction scratch"
+    }
+  ],
+  "source_patches": []
+}
