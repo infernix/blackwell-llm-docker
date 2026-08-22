@@ -8,8 +8,10 @@ cd "${repo_root}"
 source_root=patches/releases/kimi-k3-upstream-aligned-20260822
 release_name="${RELEASE_NAME:-kimi-k3-upstream-aligned}"
 release_date="${RELEASE_DATE:-20260822}"
-revision="${REVISION:-r35}"
-base_image="${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}"
+revision="${REVISION:-r36}"
+runtime_foundation_image="${RUNTIME_FOUNDATION_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2}"
+base_image="${BASE_IMAGE:-${runtime_foundation_image}}"
+runtime_foundation="${RUNTIME_FOUNDATION:-1}"
 flashinfer_wheel_image="${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}"
 flashinfer_commit=1ac6942776b383c6b03c7a5805a22e72a3e3349f
 flashinfer_version=0.6.18+cu133
@@ -60,6 +62,18 @@ fi
 
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
 
+if [[ "${runtime_foundation}" = 1 ]]; then
+  foundation_labels="$(docker image inspect "${base_image}" \
+    --format '{{json .Config.Labels}}')"
+  jq -e \
+    '."local-inference.runtime.foundation.source-packages" == "absent" and
+     ."local-inference.cuda.version" == "13.3" and
+     ."local-inference.torch.version" == "2.13.0" and
+     ."local-inference.flashinfer.version" == "0.6.18+cu133" and
+     ."local-inference.rust.toolchain" == "1.95"' \
+    <<<"${foundation_labels}" >/dev/null
+fi
+
 if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
   docker pull "${flashinfer_wheel_image}" || \
     BASE_IMAGE="${base_image}" IMAGE="${flashinfer_wheel_image}" \
@@ -97,6 +111,8 @@ core_image="${CORE_IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-core-vllm${V
 image="${IMAGE:-voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-cu133-torch213-${release_date}-${revision}}"
 
 printf 'base=%s id=%s\n' "${base_image}" "${base_image_id}"
+printf 'runtime_foundation=%s image=%s\n' \
+  "${runtime_foundation}" "${runtime_foundation_image}"
 printf 'vllm=%s tree=%s base=%s prs=%s\n' \
   "${VLLM_COMMIT}" "${VLLM_INTEGRATION_TREE}" "${VLLM_UPSTREAM_BASE}" "${VLLM_PRS}"
 printf 'b12x=%s tree=%s base=%s prs=%s\n' \
@@ -110,6 +126,8 @@ DOCKER_BUILDKIT=1 docker build \
   --pull=false \
   --build-arg "BASE_IMAGE=${base_image}" \
   --build-arg "BASE_IMAGE_ID=${base_image_id}" \
+  --build-arg "RUNTIME_FOUNDATION=${runtime_foundation}" \
+  --build-arg "RUNTIME_FOUNDATION_IMAGE=${runtime_foundation_image}" \
   --build-arg "FLASHINFER_WHEEL_IMAGE=${flashinfer_wheel_image}" \
   --build-arg "FLASHINFER_WHEEL_IMAGE_ID=${flashinfer_wheel_image_id}" \
   --build-arg "VLLM_REPO=${VLLM_REPO}" \
