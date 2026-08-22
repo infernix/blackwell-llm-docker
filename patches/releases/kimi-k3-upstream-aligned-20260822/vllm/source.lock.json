@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "component": "vllm",
-  "purpose": "Compile Kimi-K3 from explicit Infernal Invocation pull-request heads with bounded vision memory, overlap-safe recurrent-state movement, alias-safe attention-state merging, correct AttnRes buffer ownership, and bounded DFlash auxiliary projection memory.",
+  "purpose": "Compile Kimi-K3 from explicit Infernal Invocation pull-request heads with bounded vision memory, overlap-safe recurrent-state movement, alias-safe attention-state merging, correct AttnRes buffer ownership, and active staged DFlash auxiliary projection.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r34-dflash-staged-20260822",
-    "commit": "b8ec39c45aea97522431739d35d0f39b702ca125",
-    "tree": "8cd5531d6199531f7b0d08cb28481a444d680f30"
+    "ref": "refs/heads/integration/ii-kimi-k3-r35-dflash-active-staged-20260822",
+    "commit": "37eb27ba58df694f9202ca8ae323a0d5a8687cb5",
+    "tree": "15413f73188b8d30afe8dc223779e7b7dda71b36"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -125,8 +125,9 @@
   ],
   "qualification_candidate_commits": [
     {
-      "head": "52b81e424bcb9fe0ad95878cc637bfee4321faf3",
-      "title": "Bound DFlash auxiliary projection memory"
+      "head": "da39db12990430b0c6c622a97497cec9297a456e",
+      "integration_commit": "37eb27ba58df694f9202ca8ae323a0d5a8687cb5",
+      "title": "Activate staged DFlash auxiliary projection with caller-owned output"
     }
   ],
   "source_patches": []
