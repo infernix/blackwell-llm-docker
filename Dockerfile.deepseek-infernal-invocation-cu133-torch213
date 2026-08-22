@@ -311,8 +311,12 @@ RUN git clone --filter=blob:none --no-checkout "${TRITON_KERNELS_REPO}" /tmp/tri
  && mkdir -p "${destination}" \
  && cp -a "${source_dir}/." "${destination}/" \
  && site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
- && test ! -e "${site_packages}/triton_kernels" \
- && ln -s "${destination}" "${site_packages}/triton_kernels" \
+ && if [[ -L "${site_packages}/triton_kernels" ]]; then \
+      test "$(readlink "${site_packages}/triton_kernels")" = "${destination}"; \
+    else \
+      test ! -e "${site_packages}/triton_kernels"; \
+      ln -s "${destination}" "${site_packages}/triton_kernels"; \
+    fi \
  && rm -rf /tmp/triton-kernels-src
 
 # The Python package install supplies metadata, CLI entry points, and Rust
