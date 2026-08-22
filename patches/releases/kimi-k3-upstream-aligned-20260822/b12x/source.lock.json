@@ -5,8 +5,8 @@
   "source": {
     "repository": "https://github.com/voipmonitor/b12x.git",
     "ref": "refs/heads/build/kimi-k3-r35-dflash-active-staged-pack-20260822",
-    "commit": "7848d136c866bf0748c30292446572853cb59819",
-    "tree": "122b2d7522e1e498375f4ff48f43c22f73a95c58"
+    "commit": "b8c7153c3e1ca13b1e0ef373d9a382a513ab892f",
+    "tree": "2d466e350e518193f9edd57809e050b3aa8b8dcb"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/b12x.git",
@@ -43,6 +43,11 @@
       "head": "aae6af3229ed224a475f71bf02521d16c024fbb2",
       "integration_commit": "7848d136c866bf0748c30292446572853cb59819",
       "title": "Support staged MXFP8 linear inputs and caller-owned outputs"
+    },
+    {
+      "head": "bebd334db301f200300e4a28393dc595588b662e",
+      "integration_commit": "b8c7153c3e1ca13b1e0ef373d9a382a513ab892f",
+      "title": "Record reproducible staged MXFP8 validation"
     }
   ],
   "source_patches": []
