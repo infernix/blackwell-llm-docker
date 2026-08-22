@@ -58,6 +58,8 @@ ARG EXLLAMAV3_COMMIT=704aefd743b390af4bd0fb429d1906f9b964c7d8
 ARG CUTLASS_DSL_VERSION=4.6.2
 ARG VLLM_PACKAGE_VERSION
 ARG CACHE_FINGERPRINT
+ARG RUNTIME_FOUNDATION=0
+ARG RUNTIME_FOUNDATION_IMAGE=none
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -180,16 +182,29 @@ RUN set -eux; \
 
 # The virtual environment inherits CUDA, cuBLAS, cuDNN, NCCL, PyTorch,
 # Torchvision, XGrammar, and Transformers from the NVIDIA-derived base.
-RUN python -m pip uninstall --yes grpcio-tools nvidia-resiliency-ext \
- && python -m venv --system-site-packages /opt/venv \
- && grep -v '^torch==' /opt/infernal-invocation/vllm/requirements/build/cuda.txt \
-      > /tmp/vllm-build-without-torch.txt
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" = 1 ]]; then \
+      test -x /opt/venv/bin/python; \
+      test "$(python -c 'import sys; print(sys.prefix)')" = /opt/venv; \
+    else \
+      python -m pip uninstall --yes grpcio-tools nvidia-resiliency-ext; \
+      python -m venv --system-site-packages /opt/venv; \
+      grep -v '^torch==' \
+        /opt/infernal-invocation/vllm/requirements/build/cuda.txt \
+        > /tmp/vllm-build-without-torch.txt; \
+    fi
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade pip \
- && python -m pip install -r /tmp/vllm-build-without-torch.txt \
- && python -m pip install -r /opt/infernal-invocation/vllm/requirements/common.txt \
- && python -m pip install \
+    set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" = 1 ]]; then \
+      python -c 'import torch; assert torch.__version__.startswith("2.13.0")'; \
+      CUTLASS_DSL_VERSION="${CUTLASS_DSL_VERSION}" python -c \
+        'import importlib.metadata as m, os; assert m.version("nvidia-cutlass-dsl") == os.environ["CUTLASS_DSL_VERSION"]'; \
+    else \
+      python -m pip install --upgrade pip; \
+      python -m pip install -r /tmp/vllm-build-without-torch.txt; \
+      python -m pip install -r /opt/infernal-invocation/vllm/requirements/common.txt; \
+      python -m pip install \
       'numba==0.65.0' \
       'fastsafetensors>=0.3.3' \
       'nvidia-cudnn-frontend>=1.19.1' \
@@ -204,39 +219,49 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       'apache-tvm-ffi==0.1.11' \
       'torch-c-dlpack-ext==0.1.5' \
       'z3-solver==4.15.4.0' \
-      'tokenspeed-triton==3.8.10.post20260721' \
- && python -m pip install --no-deps \
+      'tokenspeed-triton==3.8.10.post20260721'; \
+      python -m pip install --no-deps \
       'quack-kernels==0.6.4' \
       'humming-kernels[cu13]==0.1.12' \
       'tilelang==0.1.12' \
-      'tokenspeed-mla==0.1.8' \
- && python -m pip install --force-reinstall --no-deps \
-      "nvidia-cutlass-dsl-libs-cu13==${CUTLASS_DSL_VERSION}" \
- && python -m pip check
+      'tokenspeed-mla==0.1.8'; \
+      python -m pip install --force-reinstall --no-deps \
+        "nvidia-cutlass-dsl-libs-cu13==${CUTLASS_DSL_VERSION}"; \
+      python -m pip check; \
+    fi
 
 # FlashInfer provides sampling and the optional DeepSeek attention backend.
 # Installing pinned wheels here leaves their expensive build stage independent
 # from vLLM, B12X, and LMCache source revisions.
 COPY --from=flashinfer-wheel-artifact /opt/flashinfer-wheels /tmp/flashinfer-wheels
-RUN python -m pip uninstall --yes \
-      flashinfer-python flashinfer-cubin flashinfer-jit-cache \
- && python -m pip install --no-deps --force-reinstall \
-      /tmp/flashinfer-wheels/flashinfer_python-*.whl \
-      /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl \
- && test "$(python -c 'import importlib.metadata as m; print(m.version("flashinfer-python"))')" = \
-      "${FLASHINFER_VERSION}" \
- && rm -rf /tmp/flashinfer-wheels
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" != 1 ]]; then \
+      python -m pip uninstall --yes \
+        flashinfer-python flashinfer-cubin flashinfer-jit-cache; \
+      python -m pip install --no-deps --force-reinstall \
+        /tmp/flashinfer-wheels/flashinfer_python-*.whl \
+        /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl; \
+    fi; \
+    test "$(python -c 'import importlib.metadata as m; print(m.version("flashinfer-python"))')" = \
+      "${FLASHINFER_VERSION}"; \
+    rm -rf /tmp/flashinfer-wheels
 
 # DeepGEMM is the qualified dense linear backend for DeepSeek W4A8 serving.
-RUN git clone --filter=blob:none --no-checkout "${DEEPGEMM_REPO}" /tmp/deepgemm-src \
- && git -C /tmp/deepgemm-src fetch --depth=1 origin "${DEEPGEMM_COMMIT}" \
- && git -C /tmp/deepgemm-src checkout --detach "${DEEPGEMM_COMMIT}" \
- && test "$(git -C /tmp/deepgemm-src rev-parse HEAD)" = "${DEEPGEMM_COMMIT}" \
- && git -C /tmp/deepgemm-src submodule update --init --recursive \
- && cd /tmp/deepgemm-src \
- && DG_FORCE_BUILD=1 DG_USE_LOCAL_VERSION=1 \
-      python -m pip install --no-build-isolation --no-deps --force-reinstall . \
- && rm -rf /tmp/deepgemm-src
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" = 1 ]]; then \
+      python -c 'import deep_gemm'; \
+    else \
+      git clone --filter=blob:none --no-checkout \
+        "${DEEPGEMM_REPO}" /tmp/deepgemm-src; \
+      git -C /tmp/deepgemm-src fetch --depth=1 origin "${DEEPGEMM_COMMIT}"; \
+      git -C /tmp/deepgemm-src checkout --detach "${DEEPGEMM_COMMIT}"; \
+      test "$(git -C /tmp/deepgemm-src rev-parse HEAD)" = "${DEEPGEMM_COMMIT}"; \
+      git -C /tmp/deepgemm-src submodule update --init --recursive; \
+      cd /tmp/deepgemm-src; \
+      DG_FORCE_BUILD=1 DG_USE_LOCAL_VERSION=1 \
+        python -m pip install --no-build-isolation --no-deps --force-reinstall .; \
+      rm -rf /tmp/deepgemm-src; \
+    fi
 
 RUN python -m pip install --no-build-isolation --no-deps --force-reinstall \
       /opt/infernal-invocation/b12x
@@ -292,31 +317,36 @@ RUN git clone --filter=blob:none --no-checkout "${TRITON_KERNELS_REPO}" /tmp/tri
 
 # The Python package install supplies metadata, CLI entry points, and Rust
 # parsing binaries without replacing the native extension set above.
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-      | sh -s -- -y --default-toolchain none --no-modify-path \
- && source /root/.cargo/env \
- && rust_toolchain="$(sed -n 's/^channel = "\([^"]*\)"/\1/p' rust-toolchain.toml)" \
- && rustup toolchain install "${rust_toolchain}" \
- && rustup default "${rust_toolchain}" \
- && python tools/build_rust.py --release \
- && VLLM_TARGET_DEVICE=empty VLLM_VERSION_OVERRIDE="${VLLM_PACKAGE_VERSION}" \
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" != 1 ]]; then \
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain none --no-modify-path; \
+    fi; \
+    source /root/.cargo/env; \
+    rust_toolchain="$(sed -n 's/^channel = "\([^"]*\)"/\1/p' rust-toolchain.toml)"; \
+    if ! rustup toolchain list | grep -Fq "${rust_toolchain}"; then \
+      rustup toolchain install "${rust_toolchain}"; \
+    fi; \
+    rustup default "${rust_toolchain}"; \
+    python tools/build_rust.py --release; \
+    VLLM_TARGET_DEVICE=empty VLLM_VERSION_OVERRIDE="${VLLM_PACKAGE_VERSION}" \
       VLLM_REQUIRE_RUST_FRONTEND=1 \
-      python -m pip install --no-build-isolation --no-deps --force-reinstall . \
- && test "$(python -c 'import importlib.metadata as m; print(m.version("vllm"))')" = \
-      "${VLLM_PACKAGE_VERSION}" \
- && site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
- && installed_package="${site_packages}/vllm" \
- && test -d "${installed_package}" \
- && find /opt/infernal-invocation/vllm/vllm -maxdepth 1 -type f \
-      -name '*.abi3.so' -exec cp -a -t "${installed_package}" {} + \
- && rm -rf "${installed_package}/vllm_flash_attn" \
- && cp -a /opt/infernal-invocation/vllm/vllm/vllm_flash_attn \
-      "${installed_package}/vllm_flash_attn" \
- && test -f "${installed_package}/_C_stable_libtorch.abi3.so" \
- && test -f "${installed_package}/vllm_flash_attn/_vllm_fa2_C.abi3.so" \
- && (cd / && env -u PYTHONPATH python -c \
-      'import pathlib, vllm; expected=pathlib.Path("/opt/venv/lib/python3.12/site-packages/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)') \
- && rm -rf /root/.cargo /root/.rustup target rust/target
+      python -m pip install --no-build-isolation --no-deps --force-reinstall .; \
+    test "$(python -c 'import importlib.metadata as m; print(m.version("vllm"))')" = \
+      "${VLLM_PACKAGE_VERSION}"; \
+    site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')"; \
+    installed_package="${site_packages}/vllm"; \
+    test -d "${installed_package}"; \
+    find /opt/infernal-invocation/vllm/vllm -maxdepth 1 -type f \
+      -name '*.abi3.so' -exec cp -a -t "${installed_package}" {} +; \
+    rm -rf "${installed_package}/vllm_flash_attn"; \
+    cp -a /opt/infernal-invocation/vllm/vllm/vllm_flash_attn \
+      "${installed_package}/vllm_flash_attn"; \
+    test -f "${installed_package}/_C_stable_libtorch.abi3.so"; \
+    test -f "${installed_package}/vllm_flash_attn/_vllm_fa2_C.abi3.so"; \
+    (cd / && env -u PYTHONPATH python -c \
+      'import pathlib, vllm; expected=pathlib.Path("/opt/venv/lib/python3.12/site-packages/vllm"); assert pathlib.Path(vllm.__file__).resolve().is_relative_to(expected)'); \
+    rm -rf /root/.cargo /root/.rustup target rust/target
 
 # LMCache is built against the same PyTorch ABI and includes only RAM and
 # buffered filesystem dependencies in the serving runtime.
@@ -331,23 +361,30 @@ RUN BUILD_WITH_CUDA=1 TORCH_CUDA_ARCH_LIST=12.0 MAX_JOBS=48 \
 # The EXL3 checkpoint loader uses B12X kernels for rank-sliced inference. The
 # pinned ExLlamaV3 source and extension provide generic checkpoint parity and
 # the deterministic encoder used by the optional online K6 weight cache.
-RUN git clone --filter=blob:none --no-checkout \
-      "${EXLLAMAV3_REPO}" /tmp/exllamav3-src \
- && git -C /tmp/exllamav3-src fetch --depth=1 origin "${EXLLAMAV3_COMMIT}" \
- && git -C /tmp/exllamav3-src checkout --detach "${EXLLAMAV3_COMMIT}" \
- && test "$(git -C /tmp/exllamav3-src rev-parse HEAD)" = "${EXLLAMAV3_COMMIT}" \
- && cd /tmp/exllamav3-src \
- && TORCH_CUDA_ARCH_LIST=12.0a MAX_JOBS=48 python setup.py build_ext --inplace \
- && mapfile -t extensions < <(find . -maxdepth 1 -type f \
-      -name 'exllamav3_ext*.so' -print) \
- && test "${#extensions[@]}" -eq 1 \
- && test -f exllamav3/modules/quant/exl3_lib/quantize.py \
- && install -d /opt/exllamav3 /opt/exllamav3-python \
- && install -m 0755 "${extensions[0]}" /opt/exllamav3/ \
- && cp -a exllamav3 /opt/exllamav3-python/ \
- && VLLM_EXL3_EXT_PATH=/opt/exllamav3 python -c \
-      'import torch, importlib; assert hasattr(importlib.import_module("exllamav3_ext"), "exl3_gemm")' \
- && rm -rf /tmp/exllamav3-src
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" = 1 ]]; then \
+      VLLM_EXL3_EXT_PATH=/opt/exllamav3 python -c \
+        'import importlib; assert hasattr(importlib.import_module("exllamav3_ext"), "exl3_gemm")'; \
+      test -f /opt/exllamav3-python/exllamav3/modules/quant/exl3_lib/quantize.py; \
+    else \
+      git clone --filter=blob:none --no-checkout \
+        "${EXLLAMAV3_REPO}" /tmp/exllamav3-src; \
+      git -C /tmp/exllamav3-src fetch --depth=1 origin "${EXLLAMAV3_COMMIT}"; \
+      git -C /tmp/exllamav3-src checkout --detach "${EXLLAMAV3_COMMIT}"; \
+      test "$(git -C /tmp/exllamav3-src rev-parse HEAD)" = "${EXLLAMAV3_COMMIT}"; \
+      cd /tmp/exllamav3-src; \
+      TORCH_CUDA_ARCH_LIST=12.0a MAX_JOBS=48 python setup.py build_ext --inplace; \
+      mapfile -t extensions < <(find . -maxdepth 1 -type f \
+        -name 'exllamav3_ext*.so' -print); \
+      test "${#extensions[@]}" -eq 1; \
+      test -f exllamav3/modules/quant/exl3_lib/quantize.py; \
+      install -d /opt/exllamav3 /opt/exllamav3-python; \
+      install -m 0755 "${extensions[0]}" /opt/exllamav3/; \
+      cp -a exllamav3 /opt/exllamav3-python/; \
+      VLLM_EXL3_EXT_PATH=/opt/exllamav3 python -c \
+        'import importlib; assert hasattr(importlib.import_module("exllamav3_ext"), "exl3_gemm")'; \
+      rm -rf /tmp/exllamav3-src; \
+    fi
 
 ARG INSTANTTENSOR_VERSION=0.1.9
 ARG INSTANTTENSOR_LIBAIO_REPO=https://github.com/sailfishos-mirror/libaio.git
@@ -358,27 +395,36 @@ ARG NCCL4PY_VERSION=0.3.1
 # InstantTensor supplies the distributed Safetensors loader required by the
 # DeepSeek launchers. The canonical libaio repository is pinned to the
 # submodule object and tree recorded by the InstantTensor source revision.
-RUN git clone --filter=blob:none --no-checkout \
-      "${INSTANTTENSOR_REPO}" /tmp/instanttensor-src \
- && git -C /tmp/instanttensor-src fetch --depth=1 origin "${INSTANTTENSOR_COMMIT}" \
- && git -C /tmp/instanttensor-src checkout --detach "${INSTANTTENSOR_COMMIT}" \
- && test "$(git -C /tmp/instanttensor-src rev-parse HEAD)" = "${INSTANTTENSOR_COMMIT}" \
- && test "$(git -C /tmp/instanttensor-src ls-tree HEAD \
-      csrc/third_party/libaio | awk '{print $3}')" = \
-      "${INSTANTTENSOR_LIBAIO_COMMIT}" \
- && git -C /tmp/instanttensor-src config \
-      submodule.csrc/third_party/libaio.url "${INSTANTTENSOR_LIBAIO_REPO}" \
- && git -C /tmp/instanttensor-src submodule update --init --recursive \
- && test "$(git -C /tmp/instanttensor-src/csrc/third_party/libaio rev-parse HEAD)" = \
-      "${INSTANTTENSOR_LIBAIO_COMMIT}" \
- && test "$(git -C /tmp/instanttensor-src/csrc/third_party/libaio \
-      rev-parse 'HEAD^{tree}')" = "${INSTANTTENSOR_LIBAIO_TREE}" \
- && python -m pip install --no-build-isolation --no-deps \
-      --force-reinstall /tmp/instanttensor-src \
- && test "$(python -c 'import importlib.metadata as m; print(m.version("instanttensor"))')" = \
-      "${INSTANTTENSOR_VERSION}" \
- && rm -rf /tmp/instanttensor-src \
- && python -m pip install --no-deps "nccl4py==${NCCL4PY_VERSION}"
+RUN set -eux; \
+    if [[ "${RUNTIME_FOUNDATION}" = 1 ]]; then \
+      test "$(python -c 'import importlib.metadata as m; print(m.version("instanttensor"))')" = \
+        "${INSTANTTENSOR_VERSION}"; \
+      test "$(python -c 'import importlib.metadata as m; print(m.version("nccl4py"))')" = \
+        "${NCCL4PY_VERSION}"; \
+    else \
+      git clone --filter=blob:none --no-checkout \
+        "${INSTANTTENSOR_REPO}" /tmp/instanttensor-src; \
+      git -C /tmp/instanttensor-src fetch --depth=1 origin "${INSTANTTENSOR_COMMIT}"; \
+      git -C /tmp/instanttensor-src checkout --detach "${INSTANTTENSOR_COMMIT}"; \
+      test "$(git -C /tmp/instanttensor-src rev-parse HEAD)" = \
+        "${INSTANTTENSOR_COMMIT}"; \
+      test "$(git -C /tmp/instanttensor-src ls-tree HEAD \
+        csrc/third_party/libaio | awk '{print $3}')" = \
+        "${INSTANTTENSOR_LIBAIO_COMMIT}"; \
+      git -C /tmp/instanttensor-src config \
+        submodule.csrc/third_party/libaio.url "${INSTANTTENSOR_LIBAIO_REPO}"; \
+      git -C /tmp/instanttensor-src submodule update --init --recursive; \
+      test "$(git -C /tmp/instanttensor-src/csrc/third_party/libaio rev-parse HEAD)" = \
+        "${INSTANTTENSOR_LIBAIO_COMMIT}"; \
+      test "$(git -C /tmp/instanttensor-src/csrc/third_party/libaio \
+        rev-parse 'HEAD^{tree}')" = "${INSTANTTENSOR_LIBAIO_TREE}"; \
+      python -m pip install --no-build-isolation --no-deps \
+        --force-reinstall /tmp/instanttensor-src; \
+      test "$(python -c 'import importlib.metadata as m; print(m.version("instanttensor"))')" = \
+        "${INSTANTTENSOR_VERSION}"; \
+      rm -rf /tmp/instanttensor-src; \
+      python -m pip install --no-deps "nccl4py==${NCCL4PY_VERSION}"; \
+    fi
 
 COPY launchers /tmp/runtime-launchers
 RUN for script in /opt/infernal-invocation/vllm/serve-*.sh; do \
@@ -446,6 +492,8 @@ LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13
       local-inference.docker.commit="${DOCKER_COMMIT}" \
       local-inference.runtime.base-image="${BASE_IMAGE}" \
       local-inference.runtime.base-id="${BASE_IMAGE_ID}" \
+      local-inference.runtime.foundation.enabled="${RUNTIME_FOUNDATION}" \
+      local-inference.runtime.foundation.image="${RUNTIME_FOUNDATION_IMAGE}" \
       local-inference.cache.fingerprint="${CACHE_FINGERPRINT}" \
       local-inference.vllm.repo="${VLLM_REPO}" \
       local-inference.vllm.branch="${VLLM_REF}" \

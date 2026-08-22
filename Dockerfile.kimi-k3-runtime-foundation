@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+
+ARG SOURCE_IMAGE=voipmonitor/vllm@sha256:e009bb404211c67164f1009bda97823f35578285b6779a7614ed1f97c1f8c338
+FROM ${SOURCE_IMAGE}
+
+ARG SOURCE_IMAGE
+ARG SOURCE_IMAGE_ID
+ARG DOCKER_COMMIT
+ARG FOUNDATION_VERSION
+ARG RUST_TOOLCHAIN=1.95
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# The foundation retains the qualified CUDA/PyTorch ABI and expensive generic
+# dependencies. Model-runtime packages are removed so a source-refresh build
+# must install vLLM, B12X, and LMCache from verified source locks.
+RUN set -eux; \
+    source /root/.cargo/env 2>/dev/null || true; \
+    if ! command -v rustup >/dev/null; then \
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain none --no-modify-path; \
+      source /root/.cargo/env; \
+    fi; \
+    rustup toolchain install "${RUST_TOOLCHAIN}"; \
+    rustup default "${RUST_TOOLCHAIN}"; \
+    rustc --version | grep -F "rustc ${RUST_TOOLCHAIN}"; \
+    python -m pip uninstall --yes vllm b12x lmcache; \
+    site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')"; \
+    test "${site_packages}" = /opt/venv/lib/python3.12/site-packages; \
+    find "${site_packages}" -mindepth 1 -maxdepth 1 \
+      \( -name 'vllm' -o -name 'vllm-*.dist-info' \
+         -o -name 'b12x' -o -name 'b12x-*.dist-info' \
+         -o -name 'lmcache' -o -name 'lmcache-*.dist-info' \) \
+      -print -exec rm -rf -- {} +; \
+    rm -rf /opt/infernal-invocation; \
+    python -c 'import importlib.metadata as m; names={d.metadata["Name"].lower() for d in m.distributions()}; assert not ({"vllm", "b12x", "lmcache"} & names)'; \
+    python -c 'import torch; assert torch.__version__.startswith("2.13.0")'; \
+    python -c 'import importlib.metadata as m; assert m.version("flashinfer-python") == "0.6.18+cu133"; assert m.version("nvidia-cutlass-dsl") == "4.6.2"; assert m.version("instanttensor") == "0.1.9"; assert m.version("nccl4py") == "0.3.1"'; \
+    python -c 'import deep_gemm'; \
+    VLLM_EXL3_EXT_PATH=/opt/exllamav3 python -c \
+      'import importlib; assert hasattr(importlib.import_module("exllamav3_ext"), "exl3_gemm")'
+
+LABEL org.opencontainers.image.title="Kimi-K3 CUDA 13.3 PyTorch 2.13 runtime foundation" \
+      org.opencontainers.image.description="Source-neutral Kimi-K3 build foundation with qualified FlashInfer, DeepGEMM, ExLlamaV3, InstantTensor, and Rust dependencies" \
+      org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
+      org.opencontainers.image.revision="${DOCKER_COMMIT}" \
+      local-inference.runtime.foundation.version="${FOUNDATION_VERSION}" \
+      local-inference.runtime.foundation.source-image="${SOURCE_IMAGE}" \
+      local-inference.runtime.foundation.source-image-id="${SOURCE_IMAGE_ID}" \
+      local-inference.runtime.foundation.source-packages="absent" \
+      local-inference.cuda.version="13.3" \
+      local-inference.torch.version="2.13.0" \
+      local-inference.flashinfer.version="0.6.18+cu133" \
+      local-inference.cutlass-dsl.version="4.6.2" \
+      local-inference.instanttensor.version="0.1.9" \
+      local-inference.rust.toolchain="${RUST_TOOLCHAIN}"
+
+WORKDIR /
+ENTRYPOINT ["/bin/bash"]
