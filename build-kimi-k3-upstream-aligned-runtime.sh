@@ -61,6 +61,7 @@ if ! docker image inspect "${base_image}" >/dev/null 2>&1; then
 fi
 
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
+flashinfer_base_id="${base_image_id}"
 
 if [[ "${runtime_foundation}" = 1 ]]; then
   foundation_labels="$(docker image inspect "${base_image}" \
@@ -72,6 +73,8 @@ if [[ "${runtime_foundation}" = 1 ]]; then
      ."local-inference.flashinfer.version" == "0.6.18+cu133" and
      ."local-inference.rust.toolchain" == "1.95"' \
     <<<"${foundation_labels}" >/dev/null
+  flashinfer_base_id="$(jq -er '."local-inference.runtime.base-id"' \
+    <<<"${foundation_labels}")"
 fi
 
 if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
@@ -86,7 +89,7 @@ fi
 flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
   --format '{{json .Config.Labels}}')"
 jq -e \
-  --arg base_id "${base_image_id}" \
+  --arg base_id "${flashinfer_base_id}" \
   --arg commit "${flashinfer_commit}" \
   --arg version "${flashinfer_version}" \
   --arg cutlass "${cutlass_dsl_version}" \
