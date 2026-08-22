@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "component": "vllm",
-  "purpose": "Compile Kimi-K3 from explicit Infernal Invocation pull-request heads with bounded vision memory, overlap-safe recurrent-state movement, alias-safe attention-state merging, and correct AttnRes buffer ownership.",
+  "purpose": "Compile Kimi-K3 from explicit Infernal Invocation pull-request heads with bounded vision memory, overlap-safe recurrent-state movement, alias-safe attention-state merging, correct AttnRes buffer ownership, and bounded DFlash auxiliary projection memory.",
   "source": {
     "repository": "https://github.com/voipmonitor/vllm.git",
-    "ref": "refs/heads/integration/ii-kimi-k3-r32-clean-source-locked-20260822",
-    "commit": "1c93ca07c10d5922947fb24e49cae4de979b89b5",
-    "tree": "5c0918354d7398dcbe91fca624dff413aef6cd82"
+    "ref": "refs/heads/integration/ii-kimi-k3-r34-dflash-staged-20260822",
+    "commit": "b8ec39c45aea97522431739d35d0f39b702ca125",
+    "tree": "8cd5531d6199531f7b0d08cb28481a444d680f30"
   },
   "upstream_base": {
     "repository": "https://github.com/local-inference-lab/vllm.git",
@@ -121,6 +121,12 @@
       "head": "f7180bc7d20415d1d5f40ed69b0feddd4ce7d5dc",
       "merge_commit": "1c93ca07c10d5922947fb24e49cae4de979b89b5",
       "title": "Backport overlapping Mamba state-copy fix"
+    }
+  ],
+  "qualification_candidate_commits": [
+    {
+      "head": "52b81e424bcb9fe0ad95878cc637bfee4321faf3",
+      "title": "Bound DFlash auxiliary projection memory"
     }
   ],
   "source_patches": []
