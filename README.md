@@ -96,6 +96,13 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # dev/infernal-invocation-derived integration source and B12X composition.
 ./build-kimi-k3-infernal-invocation-cu133-torch213.sh
 
+# Build the source-neutral Kimi-K3 dependency foundation once. Subsequent
+# source-only vLLM, B12X, and LMCache changes reuse its compiled dependencies.
+./build-kimi-k3-runtime-foundation.sh
+
+# Build the qualified Kimi-K3 source composition from the pinned foundation.
+./build-kimi-k3-upstream-aligned-runtime.sh
+
 # Build the DeepSeek-V4-Flash-0731 runtime from the source-locked Infernal
 # Invocation, B12X, and LMCache integration trees on CUDA 13.3/PyTorch 2.13.
 ./build-deepseek-infernal-invocation-cu133-torch213.sh
@@ -113,6 +120,37 @@ IMAGE=voipmonitor/vllm:vllm-b12x-cu132 ./build-vllm-b12x-cu132.sh
 # manifests from scratch.
 ./build-gilded-gnosis-v20-final-cu132.sh
 ```
+
+### Kimi-K3 source-locked production runtime
+
+Status: **qualified**. `build-kimi-k3-upstream-aligned-runtime.sh` compiles
+vLLM, B12X, and LMCache from the source locks under
+`patches/releases/kimi-k3-upstream-aligned-20260822/`. It reuses the generic
+CUDA 13.3/PyTorch 2.13 dependencies in the source-neutral image produced by
+`build-kimi-k3-runtime-foundation.sh`. Updating a source lock therefore does
+not rebuild FlashInfer, DeepGEMM, ExLlamaV3, InstantTensor, or the Rust
+toolchain.
+
+Published images:
+
+```text
+Foundation:
+voipmonitor/vllm:kimi-k3-runtime-foundation-cu133-torch213-fi1ac6942-rust195-20260822-r1
+sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2
+
+Production runtime:
+voipmonitor/vllm:kimi-k3-upstream-aligned-dspark-nativekv-vllme755f87-b12x2d466e3-cu133-torch213-20260822-r36
+sha256:c41bf15095b2316c7335d305115ad26bab14ec4234f3109b1d1ebb807895a3ea
+```
+
+The production image contains target-only, Inferact DSpark, and modal-labs
+DFlash entrypoints. The default entrypoint enables DSpark, native vLLM host KV
+offload, vision, TP16/DCP16, and a 4,096-token scheduler chunk. Qualification
+against the preceding source-identical image measured 55.801 target-only,
+122.695 DSpark, and 155.069 DFlash decode tokens per second. All deterministic
+output hashes and speculative acceptance rates were identical. The complete
+source identities, cache capacities, and measurement receipts are recorded in
+`validation/kimi-k3-upstream-aligned-r36-20260822.json`.
 
 ### Kimi-K3 Heraldic Harbinger runtime
 
