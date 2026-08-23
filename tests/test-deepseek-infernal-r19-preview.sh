@@ -62,6 +62,7 @@ grep -Fq 'GPU_MEMORY_UTILIZATION: "0.975"' <<<"${config}"
 grep -Fq 'ALLREDUCE_MODE: auto' <<<"${config}"
 grep -Fq 'LOAD_FORMAT: instanttensor' <<<"${config}"
 grep -Fq 'INSTANTTENSOR_BACKEND: BUFFERED' <<<"${config}"
+grep -Fq 'NATIVE_L2_GB: ""' <<<"${config}"
 
 for component in VLLM B12X LMCACHE; do
   grep -Fq -- "--build-arg \"${component}_UPSTREAM_BASE=\${${component}_UPSTREAM_BASE}\"" "${builder}"
