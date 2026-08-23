@@ -47,6 +47,8 @@ read_lock() {
   export "${prefix}_INTEGRATION_TREE=$(jq -er '.result.tree' "${lock}")"
   export "${prefix}_INTEGRATION_LOCK_SHA256=$(sha256sum "${lock}" | cut -d' ' -f1)"
   export "${prefix}_PRS=$(jq -er '[.pull_requests[] | "\(.number)@\(.head)"] | join(",")' "${lock}")"
+  export "${prefix}_UPSTREAM_BASE=$(jq -r '.upstream_base.commit // .composition.upstream_base // ""' "${lock}")"
+  export "${prefix}_MERGE_HEADS=$(jq -r '(.merge_heads // .composition.merge_heads // []) | join(",")' "${lock}")"
 }
 
 read_lock vllm VLLM
@@ -130,6 +132,8 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "VLLM_INTEGRATION_TREE=${VLLM_INTEGRATION_TREE}" \
   --build-arg "VLLM_INTEGRATION_LOCK_SHA256=${VLLM_INTEGRATION_LOCK_SHA256}" \
   --build-arg "VLLM_PRS=${VLLM_PRS}" \
+  --build-arg "VLLM_UPSTREAM_BASE=${VLLM_UPSTREAM_BASE}" \
+  --build-arg "VLLM_MERGE_HEADS=${VLLM_MERGE_HEADS}" \
   --build-arg "B12X_REPO=${B12X_REPO}" \
   --build-arg "B12X_REF=${B12X_REF}" \
   --build-arg "B12X_COMMIT=${B12X_COMMIT}" \
@@ -138,6 +142,8 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "B12X_INTEGRATION_TREE=${B12X_INTEGRATION_TREE}" \
   --build-arg "B12X_INTEGRATION_LOCK_SHA256=${B12X_INTEGRATION_LOCK_SHA256}" \
   --build-arg "B12X_PRS=${B12X_PRS}" \
+  --build-arg "B12X_UPSTREAM_BASE=${B12X_UPSTREAM_BASE}" \
+  --build-arg "B12X_MERGE_HEADS=${B12X_MERGE_HEADS}" \
   --build-arg "LMCACHE_REPO=${LMCACHE_REPO}" \
   --build-arg "LMCACHE_REF=${LMCACHE_REF}" \
   --build-arg "LMCACHE_COMMIT=${LMCACHE_COMMIT}" \
@@ -146,6 +152,8 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "LMCACHE_INTEGRATION_TREE=${LMCACHE_INTEGRATION_TREE}" \
   --build-arg "LMCACHE_INTEGRATION_LOCK_SHA256=${LMCACHE_INTEGRATION_LOCK_SHA256}" \
   --build-arg "LMCACHE_PRS=${LMCACHE_PRS}" \
+  --build-arg "LMCACHE_UPSTREAM_BASE=${LMCACHE_UPSTREAM_BASE}" \
+  --build-arg "LMCACHE_MERGE_HEADS=${LMCACHE_MERGE_HEADS}" \
   --build-arg "LMCACHE_BUILD_VERSION=${lmcache_build_version}" \
   --build-arg "INSTANTTENSOR_REPO=${instanttensor_repo}" \
   --build-arg "INSTANTTENSOR_COMMIT=${instanttensor_commit}" \
