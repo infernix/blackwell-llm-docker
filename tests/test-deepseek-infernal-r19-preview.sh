@@ -67,3 +67,6 @@ for component in VLLM B12X LMCACHE; do
   grep -Fq -- "--build-arg \"${component}_UPSTREAM_BASE=\${${component}_UPSTREAM_BASE}\"" "${builder}"
   grep -Fq -- "--build-arg \"${component}_MERGE_HEADS=\${${component}_MERGE_HEADS}\"" "${builder}"
 done
+
+grep -Fq 'DS4 launch: mode=dspark depth=fixed backend=b12x-a8' "${builder}"
+grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' "${builder}"

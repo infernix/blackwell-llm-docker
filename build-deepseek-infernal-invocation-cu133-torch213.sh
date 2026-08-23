@@ -206,8 +206,10 @@ launcher_output="$(
     -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
 )"
 grep -Fq \
-  'Process-group interfaces: GLOO_SOCKET_IFNAME=lo NCCL_SOCKET_IFNAME=lo' \
+  'DS4 launch: mode=dspark depth=fixed backend=b12x-a8' \
   <<<"${launcher_output}"
+grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' <<<"${launcher_output}"
+grep -Fq -- '--attention-backend B12X_MLA_SPARSE' <<<"${launcher_output}"
 printf '%s\n' "${launcher_output}"
 
 glm_launcher_output="$(
