@@ -8,9 +8,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
-release_date=${RELEASE_DATE:-20260818}
-revision=${REVISION:-r18}
-composition_root=patches/releases/infernal-invocation-r18
+release_date=${RELEASE_DATE:-20260823}
+revision=${REVISION:-r19}
+composition_root=${COMPOSITION_ROOT:-patches/releases/infernal-invocation-r19}
 base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
 flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}

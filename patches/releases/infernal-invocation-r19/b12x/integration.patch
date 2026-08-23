@@ -1,0 +1,3810 @@
+diff --git a/b12x/comm/pcie/_cute_intrinsics.py b/b12x/comm/pcie/_cute_intrinsics.py
+index f65c6021..7f5c0791 100644
+--- a/b12x/comm/pcie/_cute_intrinsics.py
++++ b/b12x/comm/pcie/_cute_intrinsics.py
+@@ -143,6 +143,166 @@ def st_global_u32(addr: Int64, value: Uint32, *, loc=None, ip=None) -> None:
+     )
+ 
+ 
++@dsl_user_op
++def ld_volatile_global_v4_u32(
++    addr: Int64, *, loc=None, ip=None
++) -> Tuple[Uint32, Uint32, Uint32, Uint32]:
++    """Load one PCIe-visible 16-byte payload without retaining a cached value."""
++
++    result = llvm.inline_asm(
++        llvm.StructType.get_literal([T.i32(), T.i32(), T.i32(), T.i32()]),
++        [Int64(addr).ir_value(loc=loc, ip=ip)],
++        "ld.volatile.global.v4.b32 {$0, $1, $2, $3}, [$4];",
++        "=r,=r,=r,=r,l",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++    return tuple(
++        Uint32(llvm.extractvalue(T.i32(), result, [index], loc=loc, ip=ip))
++        for index in range(4)
++    )
++
++
++@dsl_user_op
++def st_volatile_global_v4_u32(
++    addr: Int64,
++    v0: Uint32,
++    v1: Uint32,
++    v2: Uint32,
++    v3: Uint32,
++    *,
++    loc=None,
++    ip=None,
++) -> None:
++    """Store one PCIe-visible 16-byte payload without compiler reordering."""
++
++    llvm.inline_asm(
++        None,
++        [
++            Int64(addr).ir_value(loc=loc, ip=ip),
++            Uint32(v0).ir_value(loc=loc, ip=ip),
++            Uint32(v1).ir_value(loc=loc, ip=ip),
++            Uint32(v2).ir_value(loc=loc, ip=ip),
++            Uint32(v3).ir_value(loc=loc, ip=ip),
++        ],
++        "st.volatile.global.v4.b32 [$0], {$1, $2, $3, $4};",
++        "l,r,r,r,r",
++        has_side_effects=True,
++        is_align_stack=False,
++        asm_dialect=llvm.AsmDialect.AD_ATT,
++        loc=loc,
++        ip=ip,
++    )
++
++
++@dsl_user_op
++def clear_pos_zero_u16x2(value: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Reserve positive zero in each 16-bit lane as an unpublished marker."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Uint32(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .pred lo_set, hi_set;
++                .reg .b32 lo, hi;
++                and.b32 lo, $1, 0x0000ffff;
++                and.b32 hi, $1, 0xffff0000;
++                setp.ne.u32 lo_set, lo, 0;
++                setp.ne.u32 hi_set, hi, 0;
++                selp.u32 lo, lo, 0x00008000, lo_set;
++                selp.u32 hi, hi, 0x80000000, hi_set;
++                or.b32 $0, lo, hi;
++            }
++            """,
++            "=r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def has_pos_zero_u16x2(value: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Return one while either 16-bit lane is still unpublished."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [Uint32(value).ir_value(loc=loc, ip=ip)],
++            """
++            {
++                .reg .pred lo_zero, hi_zero, waiting;
++                .reg .b32 lo, hi;
++                and.b32 lo, $1, 0x0000ffff;
++                and.b32 hi, $1, 0xffff0000;
++                setp.eq.u32 lo_zero, lo, 0;
++                setp.eq.u32 hi_zero, hi, 0;
++                or.pred waiting, lo_zero, hi_zero;
++                selp.u32 $0, 1, 0, waiting;
++            }
++            """,
++            "=r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def add_f16x2(left: Uint32, right: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Add two packed FP16 lanes with round-to-nearest semantics."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Uint32(left).ir_value(loc=loc, ip=ip),
++                Uint32(right).ir_value(loc=loc, ip=ip),
++            ],
++            "add.rn.f16x2 $0, $1, $2;",
++            "=r,r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
++@dsl_user_op
++def add_bf16x2(left: Uint32, right: Uint32, *, loc=None, ip=None) -> Uint32:
++    """Add two packed BF16 lanes with round-to-nearest semantics."""
++
++    return Uint32(
++        llvm.inline_asm(
++            T.i32(),
++            [
++                Uint32(left).ir_value(loc=loc, ip=ip),
++                Uint32(right).ir_value(loc=loc, ip=ip),
++            ],
++            "add.rn.bf16x2 $0, $1, $2;",
++            "=r,r,r",
++            has_side_effects=False,
++            is_align_stack=False,
++            asm_dialect=llvm.AsmDialect.AD_ATT,
++            loc=loc,
++            ip=ip,
++        )
++    )
++
++
+ @dsl_user_op
+ def st_global_f32(addr: Int64, value: Float32, *, loc=None, ip=None) -> None:
+     llvm.inline_asm(
+diff --git a/b12x/comm/pcie/_oneshot_cute.py b/b12x/comm/pcie/_oneshot_cute.py
+index d0b5ca09..9b430572 100644
+--- a/b12x/comm/pcie/_oneshot_cute.py
++++ b/b12x/comm/pcie/_oneshot_cute.py
+@@ -29,11 +29,17 @@ from b12x._lib.runtime_control import raise_if_kernel_resolution_frozen
+ from b12x._lib.utils import current_cuda_stream, make_ptr
+ 
+ from ._cute_intrinsics import (
++    add_bf16x2,
++    add_f16x2,
+     atomic_add_global_u32,
++    clear_pos_zero_u16x2,
+     f32_as_u32,
+     graph_epoch_arrive,
++    graph_epoch_arrive_serialized,
++    has_pos_zero_u16x2,
+     ld_global_f32,
+     ld_relaxed_gpu_u32,
++    ld_volatile_global_v4_u32,
+     pack_f32x2_to_bf16x2,
+     pack_f32x2_to_f16x2,
+     pcie_arrive_and_wait,
+@@ -41,6 +47,7 @@ from ._cute_intrinsics import (
+     spin_until_changed_acquire_gpu,
+     st_global_f32,
+     st_global_u32,
++    st_volatile_global_v4_u32,
+     threadfence_gpu,
+     unpack_bf16x2,
+     unpack_f16x2,
+@@ -80,13 +87,16 @@ class _PackedMath:
+         self._pack_elems = _DTYPE_PACK_ELEMS[dtype_name]
+ 
+     @cute.jit
+-    def _load_accumulate(
++    def _accumulate_words(
+         self,
+         accumulator: cute.Tensor,
+-        address: Int64,
++        word0: Uint32,
++        word1: Uint32,
++        word2: Uint32,
++        word3: Uint32,
+         initialize: cutlass.Constexpr[bool],
+     ) -> None:
+-        words = ld_global_v4_u32(address)
++        words = (word0, word1, word2, word3)
+         if cutlass.const_expr(self._dtype_name == "float32"):
+             for word in cutlass.range_constexpr(4):
+                 value = u32_as_f32(words[word])
+@@ -108,6 +118,23 @@ class _PackedMath:
+                     accumulator[lane] = accumulator[lane] + lo
+                     accumulator[lane + 1] = accumulator[lane + 1] + hi
+ 
++    @cute.jit
++    def _load_accumulate(
++        self,
++        accumulator: cute.Tensor,
++        address: Int64,
++        initialize: cutlass.Constexpr[bool],
++    ) -> None:
++        words = ld_global_v4_u32(address)
++        self._accumulate_words(
++            accumulator,
++            words[0],
++            words[1],
++            words[2],
++            words[3],
++            initialize,
++        )
++
+     @cute.jit
+     def _store_accumulator(self, address: Int64, accumulator: cute.Tensor) -> None:
+         if cutlass.const_expr(self._dtype_name == "float32"):
+@@ -153,14 +180,30 @@ class _OneshotLaunch(_PackedMath):
+         stage_input: bool,
+         device_slot_selection: bool,
+         slot_bias: int,
++        transport: str,
+         threads: int,
+     ) -> None:
+         super().__init__(dtype_name)
++        if transport not in (
++            "pull",
++            "tp2_remote_push",
++            "tp2_remote_push_stream",
++        ):
++            raise ValueError(f"invalid plain oneshot transport {transport!r}")
++        if transport.startswith("tp2_remote_push") and (
++            world_size != 2
++            or not stage_input
++            or dtype_name not in ("float16", "bfloat16")
++        ):
++            raise ValueError(
++                "TP2 remote push requires staged FP16 or BF16 input on two ranks"
++            )
+         self._world_size = int(world_size)
+         self._rank = int(rank)
+         self._stage_input = bool(stage_input)
+         self._device_slot_selection = bool(device_slot_selection)
+         self._slot_bias = int(slot_bias) & 1
++        self._transport = transport
+         self._threads = int(threads)
+ 
+     @cute.jit
+@@ -171,6 +214,11 @@ class _OneshotLaunch(_PackedMath):
+         input_ptr: cute.Pointer,
+         output_ptr: cute.Pointer,
+         size_packs: Int32,
++        plain_region_packs: Int64,
++        plain_local_slot0: Int64,
++        plain_peer_slot0: Int64,
++        plain_local_slot1: Int64,
++        plain_peer_slot1: Int64,
+         grid_x: Int32,
+         stream: cuda.CUstream,
+     ) -> None:
+@@ -180,6 +228,11 @@ class _OneshotLaunch(_PackedMath):
+             input_ptr,
+             output_ptr,
+             size_packs,
++            plain_region_packs,
++            plain_local_slot0,
++            plain_peer_slot0,
++            plain_local_slot1,
++            plain_peer_slot1,
+         ).launch(
+             grid=(grid_x, 1, 1),
+             block=[self._threads, 1, 1],
+@@ -233,6 +286,11 @@ class _OneshotLaunch(_PackedMath):
+         input_ptr: cute.Pointer,
+         output_ptr: cute.Pointer,
+         size_packs: Int32,
++        plain_region_packs: Int64,
++        plain_local_slot0: Int64,
++        plain_peer_slot0: Int64,
++        plain_local_slot1: Int64,
++        plain_peer_slot1: Int64,
+     ) -> None:
+         tidx, _, _ = cute.arch.thread_idx()
+         bidx, _, _ = cute.arch.block_idx()
+@@ -246,43 +304,145 @@ class _OneshotLaunch(_PackedMath):
+             # The existing block/peer barrier below proves every thread has
+             # consumed this load before any CTA can post its tail arrival.
+             slot = (generation + Uint32(self._slot_bias)) % Uint32(2)
+-            peer_ptrs = peer_ptrs + Int64(slot) * Int64(_MAX_RANKS)
++            if cutlass.const_expr(self._transport == "pull"):
++                peer_ptrs = peer_ptrs + Int64(slot) * Int64(_MAX_RANKS)
++
++            if cutlass.const_expr(self._transport != "pull"):
++                # Every CTA retains this invocation's slot before the final
++                # arrival advances the graph-local epoch. Same-stream launch
++                # ordering and alternating slots prevent premature reuse.
++                cute.arch.sync_threads()
++                if Int32(tidx) == Int32(0):
++                    self_signal = Int64(signal_ptrs[self._rank])
++                    graph_epoch_arrive_serialized(
++                        self_signal + Int64(_GRAPH_EPOCH_OFFSET),
++                        self_signal + Int64(_GRAPH_ARRIVED_OFFSET),
++                        Uint32(gdim),
++                    )
+ 
+         index = Int32(bidx) * Int32(self._threads) + Int32(tidx)
+         stride = Int32(gdim) * Int32(self._threads)
+-        if cutlass.const_expr(self._stage_input):
+-            staging_base = Int64(peer_ptrs[self._rank])
+-            stage_index = index
+-            while stage_index < size_packs:
+-                self._copy_pack(
+-                    input_base + Int64(stage_index) * Int64(16),
+-                    staging_base + Int64(stage_index) * Int64(16),
+-                )
+-                stage_index += stride
++        if cutlass.const_expr(self._transport == "pull"):
++            if cutlass.const_expr(self._stage_input):
++                staging_base = Int64(peer_ptrs[self._rank])
++                stage_index = index
++                while stage_index < size_packs:
++                    self._copy_pack(
++                        input_base + Int64(stage_index) * Int64(16),
++                        staging_base + Int64(stage_index) * Int64(16),
++                    )
++                    stage_index += stride
+ 
+-        self._multi_gpu_barrier(signal_ptrs)
++            self._multi_gpu_barrier(signal_ptrs)
+ 
+-        while index < size_packs:
+-            accumulator = cute.make_rmem_tensor((self._pack_elems,), cutlass.Float32)
+-            for peer_index in cutlass.range_constexpr(self._world_size):
+-                peer_rank = (self._rank + peer_index) % self._world_size
+-                peer_base = Int64(peer_ptrs[peer_rank])
+-                self._load_accumulate(
+-                    accumulator,
+-                    peer_base + Int64(index) * Int64(16),
+-                    peer_index == 0,
++            while index < size_packs:
++                accumulator = cute.make_rmem_tensor(
++                    (self._pack_elems,), cutlass.Float32
++                )
++                for peer_index in cutlass.range_constexpr(self._world_size):
++                    peer_rank = (self._rank + peer_index) % self._world_size
++                    peer_base = Int64(peer_ptrs[peer_rank])
++                    self._load_accumulate(
++                        accumulator,
++                        peer_base + Int64(index) * Int64(16),
++                        peer_index == 0,
++                    )
++                self._store_accumulator(
++                    output_base + Int64(index) * Int64(16), accumulator
+                 )
+-            self._store_accumulator(output_base + Int64(index) * Int64(16), accumulator)
+-            index += stride
++                index += stride
+ 
+-        if cutlass.const_expr(self._device_slot_selection):
+-            if Int32(tidx) == Int32(0):
+-                self_signal = Int64(signal_ptrs[self._rank])
+-                graph_epoch_arrive(
+-                    self_signal + Int64(_GRAPH_EPOCH_OFFSET),
+-                    self_signal + Int64(_GRAPH_ARRIVED_OFFSET),
+-                    Uint32(gdim),
++            if cutlass.const_expr(self._device_slot_selection):
++                if Int32(tidx) == Int32(0):
++                    self_signal = Int64(signal_ptrs[self._rank])
++                    graph_epoch_arrive(
++                        self_signal + Int64(_GRAPH_EPOCH_OFFSET),
++                        self_signal + Int64(_GRAPH_ARRIVED_OFFSET),
++                        Uint32(gdim),
++                    )
++        elif cutlass.const_expr(self._transport.startswith("tp2_remote_push")):
++            peer_rank = self._rank ^ 1
++            local_scratch_base = Int64(0)
++            peer_scratch_base = Int64(0)
++            if cutlass.const_expr(self._device_slot_selection):
++                if slot == Uint32(0):
++                    local_scratch_base = plain_local_slot0
++                    peer_scratch_base = plain_peer_slot0
++                else:
++                    local_scratch_base = plain_local_slot1
++                    peer_scratch_base = plain_peer_slot1
++            else:
++                local_scratch_base = Int64(peer_ptrs[self._rank])
++                peer_scratch_base = Int64(peer_ptrs[peer_rank])
++            peer_write_base = peer_scratch_base + plain_region_packs * Int64(16)
++            local_poll_base = local_scratch_base + plain_region_packs * Int64(16)
++
++            if cutlass.const_expr(self._transport == "tp2_remote_push"):
++                publish_index = index
++                while publish_index < size_packs:
++                    words = ld_global_v4_u32(
++                        input_base + Int64(publish_index) * Int64(16)
++                    )
++                    st_volatile_global_v4_u32(
++                        peer_write_base + Int64(publish_index) * Int64(16),
++                        clear_pos_zero_u16x2(words[0]),
++                        clear_pos_zero_u16x2(words[1]),
++                        clear_pos_zero_u16x2(words[2]),
++                        clear_pos_zero_u16x2(words[3]),
++                    )
++                    publish_index += stride
++
++            while index < size_packs:
++                local_words = ld_global_v4_u32(input_base + Int64(index) * Int64(16))
++                if cutlass.const_expr(self._transport == "tp2_remote_push_stream"):
++                    st_volatile_global_v4_u32(
++                        peer_write_base + Int64(index) * Int64(16),
++                        clear_pos_zero_u16x2(local_words[0]),
++                        clear_pos_zero_u16x2(local_words[1]),
++                        clear_pos_zero_u16x2(local_words[2]),
++                        clear_pos_zero_u16x2(local_words[3]),
++                    )
++                poll_address = local_poll_base + Int64(index) * Int64(16)
++                peer_words = ld_volatile_global_v4_u32(poll_address)
++                waiting = (
++                    has_pos_zero_u16x2(peer_words[0])
++                    | has_pos_zero_u16x2(peer_words[1])
++                    | has_pos_zero_u16x2(peer_words[2])
++                    | has_pos_zero_u16x2(peer_words[3])
++                )
++                while waiting != Uint32(0):
++                    peer_words = ld_volatile_global_v4_u32(poll_address)
++                    waiting = (
++                        has_pos_zero_u16x2(peer_words[0])
++                        | has_pos_zero_u16x2(peer_words[1])
++                        | has_pos_zero_u16x2(peer_words[2])
++                        | has_pos_zero_u16x2(peer_words[3])
++                    )
++                packed_sum = cute.make_rmem_tensor((4,), cutlass.Uint32)
++                for word in cutlass.range_constexpr(4):
++                    if cutlass.const_expr(self._dtype_name == "float16"):
++                        packed_sum[word] = add_f16x2(
++                            local_words[word], peer_words[word]
++                        )
++                    else:
++                        packed_sum[word] = add_bf16x2(
++                            local_words[word], peer_words[word]
++                        )
++                st_global_v4_u32(
++                    output_base + Int64(index) * Int64(16),
++                    packed_sum[0],
++                    packed_sum[1],
++                    packed_sum[2],
++                    packed_sum[3],
++                )
++                st_volatile_global_v4_u32(
++                    poll_address,
++                    Uint32(0),
++                    Uint32(0),
++                    Uint32(0),
++                    Uint32(0),
+                 )
++                index += stride
+ 
+ 
+ class _FusedOneshotLaunch(_PackedMath):
+@@ -957,6 +1117,7 @@ def _oneshot_process_key(
+     stage_input: bool,
+     device_slot_selection: bool,
+     slot_bias: int,
++    transport: str,
+     threads: int,
+     device_index: int,
+ ) -> tuple[object, ...]:
+@@ -967,6 +1128,7 @@ def _oneshot_process_key(
+         bool(stage_input),
+         bool(device_slot_selection),
+         int(slot_bias) & 1 if device_slot_selection else 0,
++        str(transport),
+         int(threads),
+         int(device_index),
+     )
+@@ -979,6 +1141,7 @@ def is_oneshot_launcher_prepared(
+     stage_input: bool,
+     device_slot_selection: bool,
+     slot_bias: int,
++    transport: str,
+     threads: int,
+     device_index: int,
+ ) -> bool:
+@@ -992,6 +1155,7 @@ def is_oneshot_launcher_prepared(
+             stage_input,
+             device_slot_selection,
+             slot_bias,
++            transport,
+             threads,
+             device_index,
+         )
+@@ -1007,6 +1171,7 @@ def get_oneshot_launcher(
+     stage_input: bool,
+     device_slot_selection: bool,
+     slot_bias: int,
++    transport: str,
+     threads: int,
+     device_index: int,
+ ) -> Callable[..., None]:
+@@ -1017,6 +1182,7 @@ def get_oneshot_launcher(
+         stage_input,
+         device_slot_selection,
+         slot_bias,
++        transport,
+         threads,
+         device_index,
+     )
+@@ -1029,6 +1195,7 @@ def get_oneshot_launcher(
+         stage_input,
+         device_slot_selection,
+         slot_bias,
++        transport,
+         threads,
+     )
+     cache_key = (
+@@ -1038,6 +1205,7 @@ def get_oneshot_launcher(
+         bool(stage_input),
+         bool(device_slot_selection),
+         slot_bias,
++        str(transport),
+         int(threads),
+     )
+     raise_if_kernel_resolution_frozen(
+@@ -1051,8 +1219,13 @@ def get_oneshot_launcher(
+         _dummy(cutlass.Uint32, 16),
+         1,
+         1,
++        1,
++        1,
++        1,
++        1,
++        1,
+         current_cuda_stream(),
+-        compile_spec=KernelCompileSpec.from_key("comm.pcie.oneshot", 1, cache_key),
++        compile_spec=KernelCompileSpec.from_key("comm.pcie.oneshot", 3, cache_key),
+     )
+ 
+     def run(
+@@ -1061,6 +1234,11 @@ def get_oneshot_launcher(
+         input_address: int,
+         output_address: int,
+         size_packs: int,
++        plain_region_packs: int,
++        plain_local_slot0: int,
++        plain_peer_slot0: int,
++        plain_local_slot1: int,
++        plain_peer_slot1: int,
+         grid_x: int,
+     ) -> None:
+         raw(
+@@ -1089,6 +1267,11 @@ def get_oneshot_launcher(
+                 assumed_align=16,
+             ),
+             int(size_packs),
++            int(plain_region_packs),
++            int(plain_local_slot0),
++            int(plain_peer_slot0),
++            int(plain_local_slot1),
++            int(plain_peer_slot1),
+             int(grid_x),
+             current_cuda_stream(),
+         )
+diff --git a/b12x/comm/pcie/pcie_allreduce.py b/b12x/comm/pcie/pcie_allreduce.py
+index 973d4707..ac6d14cd 100644
+--- a/b12x/comm/pcie/pcie_allreduce.py
++++ b/b12x/comm/pcie/pcie_allreduce.py
+@@ -34,7 +34,10 @@ from .pcie_oneshot import (
+     DEFAULT_MAX_SIZE,
+     DEFAULT_RANK_DATA_BYTES,
+     SUPPORTED_WORLD_SIZES as ONESHOT_WORLD_SIZES,
++    TP2_PLAIN_REMOTE_PUSH_MAX_BYTES,
++    TP4_PLAIN_ONESHOT_MAX_BYTES,
+     PCIeOneshotAllReducePool,
++    _tp2_plain_remote_push_enabled,
+ )
+ 
+ 
+@@ -61,13 +64,18 @@ def _algorithm_override() -> str:
+ def recommended_max_bytes(world_size: int, *, default: int = DEFAULT_MAX_SIZE) -> int:
+     """Largest all-reduce this runtime expects to win at, for this world size.
+ 
+-    Callers that force the equal-quarter implementation advertise its complete
+-    qualified capacity. Automatic consumers retain their existing limit
+-    because a CUDA-graph caller without explicit output storage cannot use the
+-    equal-quarter implementation for large messages and may otherwise replace
+-    a faster fallback collective with hierarchical all-reduce.
++    TP2 advertises the complete 4096-wide peer-push row envelope when that
++    transport is enabled. TP4 advertises the one-shot byte range measured
++    below its NCCL crossover. The runtime's ``should_route_plain_allreduce``
++    method selects only qualified tensors inside these allocation capacities.
++    TP12/TP16 advertise the equal-quarter capacity only when explicitly
++    selected because its CUDA-graph output contract is more restrictive.
+     """
+ 
++    if world_size == 2 and _tp2_plain_remote_push_enabled():
++        return max(default, TP2_PLAIN_REMOTE_PUSH_MAX_BYTES)
++    if world_size == 4:
++        return max(default, TP4_PLAIN_ONESHOT_MAX_BYTES)
+     if world_size in ISLAND_RS_WORLD_SIZES and _algorithm_override() == "island_rs":
+         return max(default, ISLAND_RS_MAX_BYTES)
+     return default
+diff --git a/b12x/comm/pcie/pcie_oneshot.py b/b12x/comm/pcie/pcie_oneshot.py
+index 4df34d6f..7ca115d4 100644
+--- a/b12x/comm/pcie/pcie_oneshot.py
++++ b/b12x/comm/pcie/pcie_oneshot.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import json
+ import logging
+ import os
+ import time
+@@ -25,6 +26,16 @@ SUPPORTED_WORLD_SIZES = (2, 4, 6, 8, 10)
+ SUPPORTED_DTYPES = (torch.float16, torch.bfloat16, torch.float32)
+ DEFAULT_MAX_SIZE = 8 * 1024 * 1024
+ DEFAULT_RANK_DATA_BYTES = 8 * 1024 * 1024
++TP2_PLAIN_REMOTE_PUSH_MAX_ROWS = 512
++TP2_PLAIN_REMOTE_PUSH_HIDDEN_SIZE = 4096
++TP2_PLAIN_REMOTE_PUSH_MAX_BYTES = (
++    TP2_PLAIN_REMOTE_PUSH_MAX_ROWS
++    * TP2_PLAIN_REMOTE_PUSH_HIDDEN_SIZE
++    * torch.bfloat16.itemsize
++)
++TP4_PLAIN_ONESHOT_MAX_BYTES = 256 * 1024
++PLAIN_ALLREDUCE_POLICY_ENV = "B12X_PCIE_PLAIN_ALLREDUCE_POLICY"
++PLAIN_ALLREDUCE_POLICY_VERSION = 1
+ AUTOTUNE_CEILING = 1 * 1024 * 1024
+ AUTOTUNE_FINE_STEP = 8 * 1024
+ IPC_SLAB_ALIGNMENT = 256
+@@ -42,6 +53,145 @@ _RETAINED_IPC_SETUP_GENERATIONS = count(1)
+ _SetupResult = TypeVar("_SetupResult")
+ 
+ 
++@dataclass(frozen=True)
++class PlainAllReduceRoutePolicy:
++    """Shape-specific B12X/NCCL decisions produced by the startup probe.
++
++    A policy is valid only for one tensor-parallel world, hidden size, and
++    dtype. Rows listed in ``measured_rows`` have an explicit decision; other
++    tensors continue through the static compatibility policy. This preserves
++    operator overrides and avoids extrapolating a benchmark beyond its input
++    contract.
++    """
++
++    world_size: int
++    hidden_size: int
++    dtype: torch.dtype
++    measured_rows: frozenset[int]
++    custom_rows: frozenset[int]
++
++    def __post_init__(self) -> None:
++        if self.world_size < 2:
++            raise ValueError("plain all-reduce policy world_size must be at least 2")
++        if self.hidden_size <= 0:
++            raise ValueError("plain all-reduce policy hidden_size must be positive")
++        if self.dtype not in SUPPORTED_DTYPES:
++            raise ValueError(f"unsupported plain all-reduce policy dtype {self.dtype}")
++        if not self.measured_rows:
++            raise ValueError("plain all-reduce policy measured_rows must not be empty")
++        if any(row <= 0 for row in self.measured_rows):
++            raise ValueError("plain all-reduce policy rows must be positive")
++        if not self.custom_rows.issubset(self.measured_rows):
++            raise ValueError(
++                "plain all-reduce policy custom_rows must be a subset of measured_rows"
++            )
++
++    def decision(self, inp: torch.Tensor) -> Optional[bool]:
++        """Return the measured route, or ``None`` outside the policy domain."""
++
++        if (
++            inp.dtype != self.dtype
++            or inp.ndim == 0
++            or int(inp.shape[-1]) != self.hidden_size
++            or inp.numel() % self.hidden_size != 0
++        ):
++            return None
++        rows = inp.numel() // self.hidden_size
++        if rows not in self.measured_rows:
++            return None
++        return rows in self.custom_rows
++
++    def contract(self) -> tuple[object, ...]:
++        """Return a rank-comparable representation of the routing contract."""
++
++        return (
++            PLAIN_ALLREDUCE_POLICY_VERSION,
++            self.world_size,
++            self.hidden_size,
++            str(self.dtype).removeprefix("torch."),
++            tuple(sorted(self.measured_rows)),
++            tuple(sorted(self.custom_rows)),
++        )
++
++    def to_json(self) -> str:
++        """Serialize the policy for ``B12X_PCIE_PLAIN_ALLREDUCE_POLICY``."""
++
++        return json.dumps(
++            {
++                "version": PLAIN_ALLREDUCE_POLICY_VERSION,
++                "world_size": self.world_size,
++                "hidden_size": self.hidden_size,
++                "dtype": str(self.dtype).removeprefix("torch."),
++                "measured_rows": sorted(self.measured_rows),
++                "custom_rows": sorted(self.custom_rows),
++            },
++            separators=(",", ":"),
++            sort_keys=True,
++        )
++
++
++def parse_plain_allreduce_route_policy(
++    value: Optional[str],
++    *,
++    world_size: int,
++) -> Optional[PlainAllReduceRoutePolicy]:
++    """Parse a startup-probe policy and validate its complete input domain."""
++
++    if value is None or not value.strip():
++        return None
++    try:
++        payload = json.loads(value)
++    except json.JSONDecodeError as exc:
++        raise ValueError("plain all-reduce policy must be valid JSON") from exc
++    if not isinstance(payload, dict):
++        raise ValueError("plain all-reduce policy must be a JSON object")
++    required = {
++        "version",
++        "world_size",
++        "hidden_size",
++        "dtype",
++        "measured_rows",
++        "custom_rows",
++    }
++    if set(payload) != required:
++        missing = sorted(required - set(payload))
++        unknown = sorted(set(payload) - required)
++        raise ValueError(
++            "plain all-reduce policy fields differ from the versioned schema; "
++            f"missing={missing}, unknown={unknown}"
++        )
++    if payload["version"] != PLAIN_ALLREDUCE_POLICY_VERSION:
++        raise ValueError(
++            f"unsupported plain all-reduce policy version {payload['version']!r}"
++        )
++    policy_world_size = int(payload["world_size"])
++    if policy_world_size != int(world_size):
++        raise ValueError(
++            "plain all-reduce policy world_size does not match the runtime: "
++            f"policy={policy_world_size}, runtime={world_size}"
++        )
++    dtype_names = {
++        "float16": torch.float16,
++        "bfloat16": torch.bfloat16,
++        "float32": torch.float32,
++    }
++    dtype_name = str(payload["dtype"])
++    if dtype_name not in dtype_names:
++        raise ValueError(f"unsupported plain all-reduce policy dtype {dtype_name!r}")
++    try:
++        measured_rows = frozenset(int(row) for row in payload["measured_rows"])
++        custom_rows = frozenset(int(row) for row in payload["custom_rows"])
++    except (TypeError, ValueError) as exc:
++        raise ValueError("plain all-reduce policy rows must be integer lists") from exc
++    return PlainAllReduceRoutePolicy(
++        world_size=policy_world_size,
++        hidden_size=int(payload["hidden_size"]),
++        dtype=dtype_names[dtype_name],
++        measured_rows=measured_rows,
++        custom_rows=custom_rows,
++    )
++
++
+ def parse_pcie_oneshot_max_size(value: str | int | None) -> Optional[int]:
+     """Parse a byte-size string, or return ``None`` for ``auto``."""
+ 
+@@ -120,6 +270,20 @@ def _tp2_remote_push_enabled() -> bool:
+     return os.getenv("B12X_PCIE_TP2_REMOTE_PUSH", "0") not in ("", "0")
+ 
+ 
++def _tp2_plain_remote_push_enabled() -> bool:
++    """Enable the qualified plain TP2 peer-push transport by default.
++
++    ``B12X_PCIE_TP2_REMOTE_PUSH`` remains a compatible global TP2 override
++    when the plain-specific variable is absent. This preserves explicit
++    deployment controls without changing the fused transport's default.
++    """
++
++    configured = os.getenv("B12X_PCIE_TP2_PLAIN_REMOTE_PUSH")
++    if configured is None:
++        configured = os.getenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    return configured not in ("", "0")
++
++
+ def _tp4_remote_push_enabled() -> bool:
+     """Enable the qualified fused TP4 remote-write transport."""
+ 
+@@ -134,11 +298,11 @@ def _tp8_owner_reduce_enabled() -> bool:
+ 
+ def _uses_sharded_eager_storage(
+     world_size: int,
+-    transport_policy: Optional[tuple[bool, bool, bool, bool]] = None,
++    transport_policy: Optional[tuple[bool, bool, bool, bool, bool]] = None,
+ ) -> bool:
+     """Return whether staged fused transport needs one shard per source."""
+ 
+-    push, tp2_remote, tp4_remote, tp8_owner = (
++    push, tp2_remote, _, tp4_remote, tp8_owner = (
+         _transport_policy_contract() if transport_policy is None else transport_policy
+     )
+     return push or (
+@@ -148,17 +312,53 @@ def _uses_sharded_eager_storage(
+     )
+ 
+ 
+-def _transport_policy_contract() -> tuple[bool, bool, bool, bool]:
++def _eager_storage_shards(
++    world_size: int,
++    transport_policy: Optional[tuple[bool, bool, bool, bool, bool]] = None,
++) -> int:
++    """Return fixed-size shards required by each eager staging slot.
++
++    Topology transports reserve one source shard per rank. TP2 plain
++    peer-push also reserves one isolated incoming shard so its unpublished
++    markers cannot alias payloads retained by fused or pull collectives.
++    """
++
++    policy = (
++        _transport_policy_contract() if transport_policy is None else transport_policy
++    )
++    base_shards = world_size if _uses_sharded_eager_storage(world_size, policy) else 1
++    plain_tp2_incoming = 1 if world_size == 2 and policy[2] else 0
++    return base_shards + plain_tp2_incoming
++
++
++def _transport_policy_contract() -> tuple[bool, bool, bool, bool, bool]:
+     """Values that must agree across ranks before IPC storage is allocated."""
+ 
+     return (
+         _push_mode_enabled(),
+         _tp2_remote_push_enabled(),
++        _tp2_plain_remote_push_enabled(),
+         _tp4_remote_push_enabled(),
+         _tp8_owner_reduce_enabled(),
+     )
+ 
+ 
++def _tp2_plain_remote_push_rows(inp: torch.Tensor) -> Optional[int]:
++    """Return the row count for the qualified TP2 peer-push tensor contract."""
++
++    if (
++        inp.dtype not in (torch.float16, torch.bfloat16)
++        or inp.ndim == 0
++        or int(inp.shape[-1]) != TP2_PLAIN_REMOTE_PUSH_HIDDEN_SIZE
++        or inp.numel() % TP2_PLAIN_REMOTE_PUSH_HIDDEN_SIZE != 0
++    ):
++        return None
++    rows = inp.numel() // TP2_PLAIN_REMOTE_PUSH_HIDDEN_SIZE
++    if rows < 1 or rows > TP2_PLAIN_REMOTE_PUSH_MAX_ROWS:
++        return None
++    return rows
++
++
+ def _is_weak_contiguous(inp: torch.Tensor) -> bool:
+     if inp.is_contiguous():
+         return True
+@@ -1253,8 +1453,15 @@ class _CuTeOneshotState:
+     eager_tables: Optional[tuple[int, int]] = None
+     eager_ptrs: Optional[tuple[tuple[int, ...], tuple[int, ...]]] = None
+     eager_buffer_bytes: Optional[int] = None
+-    transport_policy: tuple[bool, bool, bool, bool] = (False, False, False, False)
++    transport_policy: tuple[bool, bool, bool, bool, bool] = (
++        False,
++        False,
++        False,
++        False,
++        False,
++    )
+     sharded_eager_storage: bool = False
++    plain_remote_push_region_packs: int = 0
+     eager_slot: int = 0
+     device_slot_selection: bool = False
+     slot_bias: int = 0
+@@ -1367,7 +1574,7 @@ class _CuTeOneshotBackend:
+         pointers0: Sequence[int],
+         pointers1: Sequence[int],
+         eager_buffer_bytes: Optional[int] = None,
+-        transport_policy: Optional[tuple[bool, bool, bool, bool]] = None,
++        transport_policy: Optional[tuple[bool, bool, bool, bool, bool]] = None,
+     ) -> None:
+         state = self._state(handle)
+         ptrs0 = tuple(int(pointer) for pointer in pointers0)
+@@ -1388,6 +1595,13 @@ class _CuTeOneshotBackend:
+             state.world_size,
+             state.transport_policy,
+         )
++        if state.world_size == 2 and state.transport_policy[2]:
++            base_shards = state.world_size if state.sharded_eager_storage else 1
++            state.plain_remote_push_region_packs = (
++                base_shards * int(state.eager_buffer_bytes or 0) // 16
++            )
++        else:
++            state.plain_remote_push_region_packs = 0
+         state.registered_tables[ptrs0[state.rank]] = table0
+         state.registered_tables[ptrs1[state.rank]] = table1
+         state.eager_slot = 0
+@@ -1404,6 +1618,63 @@ class _CuTeOneshotBackend:
+         blocks = max(1, min(block_limit, (size_packs + threads - 1) // threads))
+         return threads, blocks
+ 
++    @staticmethod
++    def _tp2_plain_remote_push_geometry(
++        state: _CuTeOneshotState,
++        inp: torch.Tensor,
++    ) -> Optional[tuple[int, int, bool]]:
++        """Return the qualified TP2 peer-push geometry for a plain all-reduce.
++
++        The protocol is restricted to staged 4096-wide FP16/BF16 rows. Its
++        upper bound leaves large messages to the caller's collective selector,
++        where NCCL or a bulk B12X transport has lower latency.
++        """
++
++        if (
++            state.eager_tables is None
++            or state.world_size != 2
++            or not state.transport_policy[2]
++        ):
++            return None
++        rows = _tp2_plain_remote_push_rows(inp)
++        if rows is None:
++            return None
++        if rows == 1:
++            return 64, 128, False
++        if rows == 2:
++            return 128, 64, True
++        if rows <= 4:
++            return 256, 64, True
++        if rows <= 6:
++            return 64, 16, False
++        if rows <= 8:
++            return 256, 32, False
++        if rows <= 14:
++            return 64, 16, False
++        if rows <= 16:
++            return 64, 64, True
++        if rows <= 22:
++            return 128, 16, False
++        if rows <= 24:
++            return 128, 32, True
++        return 128, 16, False
++
++    @classmethod
++    def _plain_launch_config(
++        cls,
++        state: _CuTeOneshotState,
++        inp: torch.Tensor,
++    ) -> tuple[str, int, int]:
++        """Select a plain all-reduce transport and its launch geometry."""
++
++        remote_push = cls._tp2_plain_remote_push_geometry(state, inp)
++        if remote_push is not None:
++            threads, blocks, stream_mode = remote_push
++            transport = "tp2_remote_push_stream" if stream_mode else "tp2_remote_push"
++            return transport, threads, blocks
++        threads, blocks = cls._launch_geometry(inp.numel() * inp.element_size() // 16)
++        return "pull", threads, blocks
++
+     @staticmethod
+     def _fused_threads() -> int:
+         threads = int(os.getenv("B12X_PCIE_FUSED_THREADS", "256"))
+@@ -1427,7 +1698,7 @@ class _CuTeOneshotBackend:
+         if hidden <= 0 or inp.numel() % hidden != 0:
+             return None
+         rows = inp.numel() // hidden
+-        _, tp2_remote, tp4_remote, tp8_owner = state.transport_policy
++        _, tp2_remote, _, tp4_remote, tp8_owner = state.transport_policy
+         if (
+             state.world_size == 8
+             and tp8_owner
+@@ -1490,7 +1761,7 @@ class _CuTeOneshotBackend:
+         stage_input = state.eager_tables is not None
+         if not stage_input and int(inp.data_ptr()) not in state.registered_tables:
+             raise RuntimeError("input buffer is not registered")
+-        threads, _ = self._launch_geometry(inp.numel() * inp.element_size() // 16)
++        transport, threads, _ = self._plain_launch_config(state, inp)
+         from ._oneshot_cute import get_oneshot_launcher
+ 
+         device_index = self._device_index(inp.device)
+@@ -1503,6 +1774,7 @@ class _CuTeOneshotBackend:
+                 stage_input,
+                 device_slot_selection,
+                 slot_bias,
++                transport,
+                 threads,
+                 device_index,
+             )
+@@ -1569,7 +1841,7 @@ class _CuTeOneshotBackend:
+         state = self._state(handle)
+         capturing = _is_current_stream_capturing(inp.device)
+         size_packs = inp.numel() * inp.element_size() // 16
+-        threads, blocks = self._launch_geometry(size_packs)
++        transport, threads, blocks = self._plain_launch_config(state, inp)
+         device_index = self._device_index(inp.device)
+         prospective_device_selection = state.device_slot_selection or (
+             capturing and state.eager_tables is not None
+@@ -1587,6 +1859,7 @@ class _CuTeOneshotBackend:
+                 state.eager_tables is not None,
+                 prospective_device_selection,
+                 prospective_slot_bias,
++                transport,
+                 threads,
+                 device_index,
+             ):
+@@ -1606,6 +1879,18 @@ class _CuTeOneshotBackend:
+         table_address, stage_input = self._select_table(state, inp.data_ptr())
+         from ._oneshot_cute import get_oneshot_launcher
+ 
++        plain_slot_ptrs = (0, 0, 0, 0)
++        if transport.startswith("tp2_remote_push"):
++            if state.eager_ptrs is None:
++                raise RuntimeError("TP2 peer-push requires eager staging pointers")
++            peer_rank = state.rank ^ 1
++            plain_slot_ptrs = (
++                state.eager_ptrs[0][state.rank],
++                state.eager_ptrs[0][peer_rank],
++                state.eager_ptrs[1][state.rank],
++                state.eager_ptrs[1][peer_rank],
++            )
++
+         with torch.cuda.device(inp.device):
+             launcher = get_oneshot_launcher(
+                 _dtype_name(inp.dtype),
+@@ -1614,6 +1899,7 @@ class _CuTeOneshotBackend:
+                 stage_input,
+                 state.device_slot_selection,
+                 state.slot_bias,
++                transport,
+                 threads,
+                 device_index,
+             )
+@@ -1628,6 +1914,7 @@ class _CuTeOneshotBackend:
+                         stage_input,
+                         True,
+                         slot_bias,
++                        transport,
+                         threads,
+                         device_index,
+                     )
+@@ -1637,6 +1924,8 @@ class _CuTeOneshotBackend:
+                 inp.data_ptr(),
+                 out.data_ptr(),
+                 size_packs,
++                state.plain_remote_push_region_packs,
++                *plain_slot_ptrs,
+                 blocks,
+             )
+ 
+@@ -2012,6 +2301,9 @@ class PCIeOneshotAllReduce:
+                     self.eager_buffer_bytes,
+                     self._pending_eager_ptrs is not None,
+                     self._transport_policy,
++                    None
++                    if self._plain_route_policy is None
++                    else self._plain_route_policy.contract(),
+                 ),
+             )
+ 
+@@ -2042,7 +2334,7 @@ class PCIeOneshotAllReduce:
+         eager_buffer_ptrs0: Optional[Sequence[int]],
+         eager_buffer_ptrs1: Optional[Sequence[int]],
+         eager_buffer_bytes: Optional[int],
+-        transport_policy: tuple[bool, bool, bool, bool],
++        transport_policy: tuple[bool, bool, bool, bool, bool],
+         exchange_group: Optional[ProcessGroup],
+         ipc: Optional[CudaRTLibrary],
+         owned_buffers: Optional[Sequence[_OwnedSharedBuffer]],
+@@ -2062,6 +2354,10 @@ class PCIeOneshotAllReduce:
+             None if eager_buffer_bytes is None else int(eager_buffer_bytes)
+         )
+         self._transport_policy = tuple(bool(value) for value in transport_policy)
++        self._plain_route_policy = parse_plain_allreduce_route_policy(
++            os.getenv(PLAIN_ALLREDUCE_POLICY_ENV),
++            world_size=self.world_size,
++        )
+         self._sharded_eager_storage = _uses_sharded_eager_storage(
+             self.world_size,
+             self._transport_policy,
+@@ -2255,7 +2551,7 @@ class PCIeOneshotAllReduce:
+             exchange_group,
+             signal_bytes=signal_bytes,
+             eager_buffer_bytes=eager_buffer_bytes,
+-            sharded_eager_storage=_uses_sharded_eager_storage(
++            eager_storage_shards=_eager_storage_shards(
+                 world_size,
+                 transport_policy,
+             ),
+@@ -2544,7 +2840,7 @@ class PCIeOneshotAllReduce:
+         *,
+         signal_bytes: int,
+         eager_buffer_bytes: int,
+-        sharded_eager_storage: bool,
++        eager_storage_shards: int,
+         ipc: CudaRTLibrary,
+     ) -> _ChannelSharedBuffers:
+         signal_bytes = int(signal_bytes)
+@@ -2553,8 +2849,10 @@ class PCIeOneshotAllReduce:
+             raise ValueError("signal_bytes must be positive")
+         if eager_buffer_bytes <= 0:
+             raise ValueError("eager_buffer_bytes must be positive")
+-        if sharded_eager_storage:
+-            eager_buffer_bytes *= dist.get_world_size(group=exchange_group)
++        eager_storage_shards = int(eager_storage_shards)
++        if eager_storage_shards <= 0:
++            raise ValueError("eager_storage_shards must be positive")
++        eager_buffer_bytes *= eager_storage_shards
+ 
+         signal_offset = 0
+         eager0_offset = _align_up(signal_bytes, IPC_SLAB_ALIGNMENT)
+@@ -2619,6 +2917,44 @@ class PCIeOneshotAllReduce:
+             return False
+         return _is_weak_contiguous(inp)
+ 
++    def should_route_plain_allreduce(
++        self,
++        inp: torch.Tensor,
++        *,
++        generic_max_bytes: int,
++    ) -> bool:
++        """Return whether plain all-reduce should use B12X instead of NCCL.
++
++        ``should_allreduce`` defines functional support. This method adds the
++        qualified latency policy used by callers with an NCCL fallback. TP2
++        uses peer-push only for its 4096-wide FP16/BF16 contract; other TP2
++        shapes retain the caller's generic small-message band. A measured TP4
++        policy may extend that generic band for exact scheduler row counts,
++        while unmeasured TP4 tensors retain the generic route. Other world
++        sizes preserve the caller-supplied size policy.
++        """
++
++        if not self.should_allreduce(inp):
++            return False
++        generic_max_bytes = int(generic_max_bytes)
++        if generic_max_bytes < 0:
++            raise ValueError("generic_max_bytes must be non-negative")
++        if self._plain_route_policy is not None:
++            calibrated = self._plain_route_policy.decision(inp)
++            if calibrated is not None:
++                return calibrated
++        inp_bytes = inp.numel() * inp.element_size()
++        if self.world_size == 2:
++            remote_push = (
++                self._eager_ptrs is not None
++                and self._transport_policy[2]
++                and _tp2_plain_remote_push_rows(inp) is not None
++            )
++            return remote_push or inp_bytes <= generic_max_bytes
++        if self.world_size == 4:
++            return inp_bytes <= generic_max_bytes
++        return True
++
+     def register_buffer(self, peer_input_ptrs: Sequence[int]) -> None:
+         if self._closed:
+             raise RuntimeError("runtime is closed")
+@@ -3247,10 +3583,18 @@ class PCIeOneshotAllReducePool:
+             self.max_concurrent_channels,
+             self._transport_policy,
+         ) = normalized
++        self._plain_route_policy = parse_plain_allreduce_route_policy(
++            os.getenv(PLAIN_ALLREDUCE_POLICY_ENV),
++            world_size=self.world_size,
++        )
+         self._sharded_eager_storage = _uses_sharded_eager_storage(
+             self.world_size,
+             self._transport_policy,
+         )
++        self._eager_storage_shards = _eager_storage_shards(
++            self.world_size,
++            self._transport_policy,
++        )
+         self.exchange_group = resolved_group
+         self.process_group = self.exchange_group
+         self._channel_factory = channel_factory
+@@ -3301,6 +3645,9 @@ class PCIeOneshotAllReducePool:
+                     self.single_channel,
+                     self.max_concurrent_channels,
+                     self._transport_policy,
++                    None
++                    if self._plain_route_policy is None
++                    else self._plain_route_policy.contract(),
+                 ),
+             )
+             # A genuine single-channel pool has no independent eager/graph
+@@ -3365,6 +3712,7 @@ class PCIeOneshotAllReducePool:
+     def _new_channel(self, stream_key: Optional[int]) -> PCIeOneshotAllReduce:
+         if self._channel_factory is not None:
+             channel = self._channel_factory(stream_key)
++            channel._plain_route_policy = self._plain_route_policy
+             if self.single_channel:
+                 channel._stream_affine = False
+             channel._bind_stream_key(stream_key)
+@@ -3378,7 +3726,7 @@ class PCIeOneshotAllReducePool:
+             self.exchange_group,
+             signal_bytes=self._signal_bytes,
+             eager_buffer_bytes=self.eager_buffer_bytes,
+-            sharded_eager_storage=self._sharded_eager_storage,
++            eager_storage_shards=self._eager_storage_shards,
+             ipc=self._ipc,
+         )
+         owned_buffers = [channel_buffers.owned_buffer]
+@@ -3399,6 +3747,7 @@ class PCIeOneshotAllReducePool:
+             ext_module=self._ext,
+             stream_affine=not self.single_channel,
+         )
++        channel._plain_route_policy = self._plain_route_policy
+ 
+         def abort_native_runtime() -> None:
+             pointer = getattr(channel, "_ptr", 0)
+diff --git a/b12x/comm/pcie/plain_allreduce_calibration.py b/b12x/comm/pcie/plain_allreduce_calibration.py
+new file mode 100644
+index 00000000..191b85b9
+--- /dev/null
++++ b/b12x/comm/pcie/plain_allreduce_calibration.py
+@@ -0,0 +1,577 @@
++"""Cache a topology-specific B12X plain all-reduce routing policy.
++
++This controller runs :mod:`b12x.comm.pcie.plain_allreduce_probe` before a
++model server initializes CUDA.  Cache identity includes the selected GPU
++order, upstream PCIe target speed, collective environment, NCCL library, and
++the source that implements the probe and transport.  A cache record therefore
++cannot silently cross a different placement or transport implementation.
++
++The command writes only the validated policy JSON to standard output.  Status
++and diagnostics use standard error so a launcher can assign stdout directly to
++``B12X_PCIE_PLAIN_ALLREDUCE_POLICY``.
++"""
++
++from __future__ import annotations
++
++import argparse
++from contextlib import suppress
++import fcntl
++import hashlib
++import importlib.metadata
++import json
++import os
++from pathlib import Path
++import signal
++import subprocess
++import sys
++import tempfile
++from typing import Any, Sequence
++
++
++SCHEMA_VERSION = 1
++MIN_FREE_MIB = 2048
++POLICY_FIELDS = frozenset(
++    {
++        "version",
++        "world_size",
++        "hidden_size",
++        "dtype",
++        "measured_rows",
++        "custom_rows",
++    }
++)
++COLLECTIVE_ENV_PREFIXES = ("NCCL_", "B12X_PCIE_", "VLLM_PCIE_")
++FINGERPRINT_ENV_EXCLUSIONS = frozenset(
++    {
++        "B12X_PCIE_PLAIN_ALLREDUCE_POLICY",
++        "B12X_PCIE_PLAIN_ALLREDUCE_CALIBRATION",
++        "B12X_PCIE_PLAIN_ALLREDUCE_CALIBRATION_CACHE_DIR",
++        "B12X_PCIE_PLAIN_ALLREDUCE_CALIBRATION_TIMEOUT",
++    }
++)
++
++
++class CalibrationUnavailable(Exception):
++    """The host cannot run a calibration without disturbing other work."""
++
++
++class CalibrationFailure(Exception):
++    """The probe failed after launch and carries its complete diagnostic."""
++
++    def __init__(self, reason: str, detail: str = "") -> None:
++        super().__init__(reason)
++        self.reason = reason
++        self.detail = detail
++
++
++def _positive_ints(value: str) -> tuple[int, ...]:
++    try:
++        values = tuple(int(item.strip()) for item in value.split(",") if item.strip())
++    except ValueError as exc:
++        raise argparse.ArgumentTypeError(str(exc)) from exc
++    if (
++        not values
++        or any(item <= 0 for item in values)
++        or len(set(values)) != len(values)
++    ):
++        raise argparse.ArgumentTypeError(
++            "expected unique comma-separated positive integers"
++        )
++    return values
++
++
++def _package_version(name: str) -> str:
++    try:
++        return importlib.metadata.version(name)
++    except importlib.metadata.PackageNotFoundError:
++        return "unavailable"
++
++
++def _file_identity(value: str | None) -> dict[str, Any]:
++    if not value:
++        return {"path": "", "exists": False}
++    path = Path(value.split(":", 1)[0])
++    try:
++        stat = path.stat()
++    except OSError:
++        return {"path": str(path), "exists": False}
++    return {
++        "path": str(path.resolve()),
++        "exists": True,
++        "size": stat.st_size,
++        "mtime_ns": stat.st_mtime_ns,
++    }
++
++
++def _source_digest() -> str:
++    source_names = (
++        "plain_allreduce_calibration.py",
++        "plain_allreduce_probe.py",
++        "pcie_oneshot.py",
++        "_oneshot_cute.py",
++        "_cute_intrinsics.py",
++    )
++    digest = hashlib.sha256()
++    root = Path(__file__).resolve().parent
++    try:
++        for name in source_names:
++            path = root / name
++            digest.update(name.encode())
++            digest.update(path.read_bytes())
++    except OSError:
++        return "unavailable"
++    return digest.hexdigest()
++
++
++def _run_command(command: list[str], *, timeout: float = 30.0) -> str:
++    try:
++        completed = subprocess.run(
++            command,
++            check=True,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            text=True,
++            timeout=timeout,
++        )
++    except (
++        FileNotFoundError,
++        subprocess.TimeoutExpired,
++        subprocess.CalledProcessError,
++    ) as exc:
++        raise CalibrationUnavailable(f"cannot run {' '.join(command)}: {exc}") from exc
++    return completed.stdout
++
++
++def _normalize_pci_bus_id(value: str) -> str:
++    fields = value.strip().lower().split(":")
++    if len(fields) == 3 and len(fields[0]) > 4:
++        fields[0] = fields[0][-4:]
++    return ":".join(fields)
++
++
++def _upstream_link_contract(pci_bus_id: str) -> dict[str, Any]:
++    device_path = Path("/sys/bus/pci/devices") / _normalize_pci_bus_id(pci_bus_id)
++    try:
++        resolved = device_path.resolve(strict=True)
++    except OSError:
++        return {"upstream_bdf": "unavailable", "link_control": "unavailable"}
++    upstream_bdf = resolved.parent.name
++    try:
++        output = _run_command(["lspci", "-s", upstream_bdf, "-vv"])
++    except CalibrationUnavailable:
++        return {"upstream_bdf": upstream_bdf, "link_control": "unavailable"}
++    # Link status reflects an idle P-state and must not invalidate the cache.
++    # Link capabilities and the configured target speed describe the contract
++    # under which the warmed measurement will execute.
++    lines = tuple(
++        line.strip()
++        for line in output.splitlines()
++        if any(token in line for token in ("LnkCap:", "LnkCap2:", "LnkCtl2:"))
++    )
++    return {"upstream_bdf": upstream_bdf, "link_control": lines}
++
++
++def _nvidia_inventory() -> list[dict[str, Any]]:
++    output = _run_command(
++        [
++            "nvidia-smi",
++            "--query-gpu=index,uuid,pci.bus_id,pcie.link.gen.max,"
++            "pcie.link.width.max,driver_version,memory.free",
++            "--format=csv,noheader,nounits",
++        ]
++    )
++    inventory: list[dict[str, Any]] = []
++    for line in output.splitlines():
++        fields = [field.strip() for field in line.split(",")]
++        if len(fields) != 7:
++            continue
++        try:
++            index = int(fields[0])
++            max_generation = int(fields[3])
++            max_width = int(fields[4])
++            free_mib = int(fields[6])
++        except ValueError:
++            continue
++        pci_bus_id = _normalize_pci_bus_id(fields[2])
++        inventory.append(
++            {
++                "index": index,
++                "uuid": fields[1],
++                "pci_bus_id": pci_bus_id,
++                "max_generation": max_generation,
++                "max_width": max_width,
++                "driver_version": fields[5],
++                "free_mib": free_mib,
++                "upstream": _upstream_link_contract(pci_bus_id),
++            }
++        )
++    if not inventory:
++        raise CalibrationUnavailable("nvidia-smi returned no usable GPU inventory")
++    return inventory
++
++
++def _select_gpus(
++    inventory: Sequence[dict[str, Any]],
++    *,
++    world_size: int,
++    visible_devices: str,
++) -> list[dict[str, Any]]:
++    by_index = {str(item["index"]): item for item in inventory}
++    by_uuid = {str(item["uuid"]): item for item in inventory}
++    if visible_devices.strip():
++        selectors = tuple(
++            item.strip() for item in visible_devices.split(",") if item.strip()
++        )
++    else:
++        selectors = tuple(str(item["index"]) for item in inventory)
++    if len(selectors) < world_size:
++        raise CalibrationUnavailable(
++            f"visible GPU list has {len(selectors)} entries for world size {world_size}"
++        )
++    selected: list[dict[str, Any]] = []
++    for selector in selectors[:world_size]:
++        item = by_index.get(selector) or by_uuid.get(selector)
++        if item is None:
++            raise CalibrationUnavailable(
++                f"selected GPU {selector!r} is not in nvidia-smi"
++            )
++        selected.append(item)
++    return selected
++
++
++def _collective_environment() -> dict[str, str]:
++    return {
++        key: value
++        for key, value in sorted(os.environ.items())
++        if key.startswith(COLLECTIVE_ENV_PREFIXES)
++        and key not in FINGERPRINT_ENV_EXCLUSIONS
++    }
++
++
++def build_fingerprint_payload(args: argparse.Namespace) -> dict[str, Any]:
++    inventory = _nvidia_inventory()
++    selected = _select_gpus(
++        inventory,
++        world_size=args.world_size,
++        visible_devices=args.visible_devices,
++    )
++    return {
++        "schema": SCHEMA_VERSION,
++        "operation": {
++            "world_size": args.world_size,
++            "hidden_size": args.hidden_size,
++            "rows": args.rows,
++            "dtype": args.dtype,
++            "warmup": args.warmup,
++            "repeat": args.repeat,
++            "ops_per_sample": args.ops_per_sample,
++            "trials": args.trials,
++            "stabilization_replays": args.stabilization_replays,
++            "min_absolute_margin_us": args.min_absolute_margin_us,
++            "min_relative_margin": args.min_relative_margin,
++        },
++        "gpu_order": [
++            {key: value for key, value in item.items() if key != "free_mib"}
++            for item in selected
++        ],
++        "software": {
++            "python": sys.version,
++            "torch": _package_version("torch"),
++            "b12x": _package_version("b12x"),
++            "source_sha256": _source_digest(),
++            "nccl": _file_identity(
++                os.getenv("VLLM_NCCL_SO_PATH")
++                or os.getenv("NCCL_LOCAL_INFERENCE_PATH")
++                or os.getenv("LD_PRELOAD")
++            ),
++            "collective_environment": _collective_environment(),
++        },
++    }
++
++
++def fingerprint(payload: dict[str, Any]) -> str:
++    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
++    return hashlib.sha256(encoded).hexdigest()
++
++
++def validate_probe_result(
++    result: dict[str, Any],
++    *,
++    world_size: int,
++    hidden_size: int,
++    rows: tuple[int, ...],
++    dtype: str,
++) -> str:
++    policy = result.get("policy")
++    if not isinstance(policy, dict) or set(policy) != POLICY_FIELDS:
++        raise ValueError("probe result has no policy matching the versioned schema")
++    if int(policy["version"]) != 1:
++        raise ValueError("probe result has an unsupported policy version")
++    if int(policy["world_size"]) != world_size:
++        raise ValueError("probe policy world size differs from the requested world")
++    if int(policy["hidden_size"]) != hidden_size:
++        raise ValueError("probe policy hidden size differs from the requested tensor")
++    if str(policy["dtype"]) != dtype:
++        raise ValueError("probe policy dtype differs from the requested tensor")
++    measured_rows = tuple(int(value) for value in policy["measured_rows"])
++    custom_rows = frozenset(int(value) for value in policy["custom_rows"])
++    if frozenset(measured_rows) != frozenset(rows) or len(measured_rows) != len(rows):
++        raise ValueError("probe policy does not cover every requested row exactly once")
++    if not custom_rows.issubset(measured_rows):
++        raise ValueError("probe policy selects an unmeasured row")
++    return json.dumps(policy, sort_keys=True, separators=(",", ":"))
++
++
++def _load_record(
++    path: Path,
++    *,
++    expected_fingerprint: str,
++    args: argparse.Namespace,
++) -> tuple[dict[str, Any], str] | None:
++    try:
++        record = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError):
++        return None
++    if (
++        record.get("schema") != SCHEMA_VERSION
++        or record.get("fingerprint") != expected_fingerprint
++    ):
++        return None
++    try:
++        policy = validate_probe_result(
++            record["probe"],
++            world_size=args.world_size,
++            hidden_size=args.hidden_size,
++            rows=args.rows,
++            dtype=args.dtype,
++        )
++    except (KeyError, TypeError, ValueError):
++        return None
++    return record, policy
++
++
++def _terminate_process_group(process: subprocess.Popen[str]) -> str:
++    with suppress(ProcessLookupError):
++        os.killpg(process.pid, signal.SIGTERM)
++    try:
++        stdout, _ = process.communicate(timeout=5.0)
++    except subprocess.TimeoutExpired:
++        with suppress(ProcessLookupError):
++            os.killpg(process.pid, signal.SIGKILL)
++        stdout, _ = process.communicate()
++    return stdout or ""
++
++
++def _run_probe(args: argparse.Namespace, output: Path) -> dict[str, Any]:
++    command = [
++        sys.executable,
++        "-m",
++        "torch.distributed.run",
++        "--standalone",
++        f"--nproc-per-node={args.world_size}",
++        "-m",
++        "b12x.comm.pcie.plain_allreduce_probe",
++        "--hidden-size",
++        str(args.hidden_size),
++        "--rows",
++        ",".join(str(value) for value in args.rows),
++        "--dtype",
++        args.dtype,
++        "--warmup",
++        str(args.warmup),
++        "--repeat",
++        str(args.repeat),
++        "--ops-per-sample",
++        str(args.ops_per_sample),
++        "--trials",
++        str(args.trials),
++        "--stabilization-replays",
++        str(args.stabilization_replays),
++        "--min-absolute-margin-us",
++        str(args.min_absolute_margin_us),
++        "--min-relative-margin",
++        str(args.min_relative_margin),
++        "--json",
++        str(output),
++    ]
++    environment = os.environ.copy()
++    environment.pop("B12X_PCIE_PLAIN_ALLREDUCE_POLICY", None)
++    if args.visible_devices.strip():
++        environment["CUDA_VISIBLE_DEVICES"] = args.visible_devices
++    try:
++        process = subprocess.Popen(
++            command,
++            env=environment,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT,
++            text=True,
++            start_new_session=True,
++        )
++    except OSError as exc:
++        raise CalibrationFailure(f"failed to launch probe: {exc}") from exc
++    try:
++        stdout, _ = process.communicate(timeout=args.timeout)
++    except subprocess.TimeoutExpired as exc:
++        detail = _terminate_process_group(process)
++        raise CalibrationFailure(
++            f"probe timed out after {args.timeout:g}s", detail
++        ) from exc
++    except BaseException:
++        _terminate_process_group(process)
++        raise
++    stdout = stdout or ""
++    if process.returncode != 0:
++        raise CalibrationFailure(f"probe exited with {process.returncode}", stdout)
++    try:
++        result = json.loads(output.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError) as exc:
++        raise CalibrationFailure(
++            f"probe did not write valid JSON: {exc}", stdout
++        ) from exc
++    try:
++        validate_probe_result(
++            result,
++            world_size=args.world_size,
++            hidden_size=args.hidden_size,
++            rows=args.rows,
++            dtype=args.dtype,
++        )
++    except ValueError as exc:
++        raise CalibrationFailure(f"probe result rejected: {exc}", stdout) from exc
++    return result
++
++
++def _preflight(selected: Sequence[dict[str, Any]]) -> None:
++    busy = [item for item in selected if int(item["free_mib"]) < MIN_FREE_MIB]
++    if busy:
++        detail = ", ".join(f"GPU{item['index']}:{item['free_mib']}MiB" for item in busy)
++        raise CalibrationUnavailable(
++            f"selected GPUs do not have {MIN_FREE_MIB} MiB free ({detail})"
++        )
++
++
++def _atomic_write(path: Path, payload: dict[str, Any]) -> None:
++    path.parent.mkdir(parents=True, exist_ok=True)
++    with tempfile.NamedTemporaryFile(
++        mode="w",
++        encoding="utf-8",
++        dir=path.parent,
++        prefix=f".{path.name}.",
++        suffix=".tmp",
++        delete=False,
++    ) as temporary:
++        json.dump(payload, temporary, indent=2, sort_keys=True)
++        temporary.write("\n")
++        temporary_path = Path(temporary.name)
++    os.replace(temporary_path, path)
++
++
++def calibrate(args: argparse.Namespace) -> tuple[str, str, Path]:
++    fingerprint_payload = build_fingerprint_payload(args)
++    digest = fingerprint(fingerprint_payload)
++    args.cache_dir.mkdir(parents=True, exist_ok=True)
++    cache_path = args.cache_dir / f"{digest}.json"
++    lock_path = args.cache_dir / f"{digest}.lock"
++
++    with lock_path.open("a+", encoding="utf-8") as lock:
++        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
++        if not args.force:
++            cached = _load_record(
++                cache_path,
++                expected_fingerprint=digest,
++                args=args,
++            )
++            if cached is not None:
++                return "cache-hit", cached[1], cache_path
++
++        inventory = _nvidia_inventory()
++        selected = _select_gpus(
++            inventory,
++            world_size=args.world_size,
++            visible_devices=args.visible_devices,
++        )
++        _preflight(selected)
++        with tempfile.TemporaryDirectory(dir=args.cache_dir) as temporary_dir:
++            probe = _run_probe(args, Path(temporary_dir) / "probe.json")
++        policy = validate_probe_result(
++            probe,
++            world_size=args.world_size,
++            hidden_size=args.hidden_size,
++            rows=args.rows,
++            dtype=args.dtype,
++        )
++        record = {
++            "schema": SCHEMA_VERSION,
++            "fingerprint": digest,
++            "fingerprint_payload": fingerprint_payload,
++            "probe": probe,
++        }
++        _atomic_write(cache_path, record)
++        return "measured", policy, cache_path
++
++
++def _build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--world-size", type=int, required=True)
++    parser.add_argument("--hidden-size", type=int, required=True)
++    parser.add_argument("--rows", type=_positive_ints, required=True)
++    parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
++    parser.add_argument(
++        "--visible-devices", default=os.getenv("CUDA_VISIBLE_DEVICES", "")
++    )
++    parser.add_argument("--cache-dir", type=Path, required=True)
++    parser.add_argument("--timeout", type=float, default=180.0)
++    parser.add_argument("--warmup", type=int, default=8)
++    parser.add_argument("--repeat", type=int, default=41)
++    parser.add_argument("--ops-per-sample", type=int, default=8)
++    parser.add_argument("--trials", type=int, default=3)
++    parser.add_argument("--stabilization-replays", type=int, default=2048)
++    parser.add_argument("--min-absolute-margin-us", type=float, default=0.25)
++    parser.add_argument("--min-relative-margin", type=float, default=0.01)
++    parser.add_argument("--force", action="store_true")
++    return parser
++
++
++def main(argv: Sequence[str] | None = None) -> int:
++    parser = _build_parser()
++    args = parser.parse_args(argv)
++    if args.world_size < 2 or args.hidden_size <= 0:
++        parser.error("world-size must be at least 2 and hidden-size must be positive")
++    if (
++        args.timeout <= 0
++        or args.warmup < 0
++        or args.repeat <= 0
++        or args.ops_per_sample <= 0
++        or args.trials <= 0
++        or args.trials % 2 == 0
++        or args.stabilization_replays <= 0
++    ):
++        parser.error(
++            "timeout, repeat, operations, odd trials, and stabilization replays "
++            "must be positive; warmup must be non-negative"
++        )
++    try:
++        status, policy, cache_path = calibrate(args)
++    except CalibrationUnavailable as exc:
++        print(f"B12X plain all-reduce calibration unavailable: {exc}", file=sys.stderr)
++        return 3
++    except CalibrationFailure as exc:
++        print(
++            f"B12X plain all-reduce calibration failed: {exc.reason}", file=sys.stderr
++        )
++        if exc.detail:
++            failure_path = args.cache_dir / "last-failure.log"
++            failure_path.parent.mkdir(parents=True, exist_ok=True)
++            failure_path.write_text(exc.detail, encoding="utf-8")
++            print(f"Complete probe output: {failure_path}", file=sys.stderr)
++        return 4
++    print(
++        f"B12X plain all-reduce calibration: {status} cache={cache_path}",
++        file=sys.stderr,
++    )
++    print(policy)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/b12x/comm/pcie/plain_allreduce_probe.py b/b12x/comm/pcie/plain_allreduce_probe.py
+new file mode 100644
+index 00000000..3423f4b2
+--- /dev/null
++++ b/b12x/comm/pcie/plain_allreduce_probe.py
+@@ -0,0 +1,421 @@
++"""Calibrate plain B12X all-reduce routing against NCCL CUDA graphs.
++
++Run this module under ``torchrun`` before starting the model server. It emits a
++versioned JSON policy for ``B12X_PCIE_PLAIN_ALLREDUCE_POLICY``. Every measured
++row receives an explicit B12X or NCCL decision; unmeasured tensor contracts
++retain the runtime's static compatibility policy.
++"""
++
++from __future__ import annotations
++
++import argparse
++import json
++import os
++from contextlib import nullcontext
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Callable, ContextManager
++
++import torch
++import torch.distributed as dist
++
++from .pcie_oneshot import PCIeOneshotAllReducePool, PlainAllReduceRoutePolicy
++
++
++@dataclass(frozen=True)
++class CalibrationPoint:
++    """Slowest-rank CUDA-graph latency for one all-reduce input shape."""
++
++    rows: int
++    custom_median_us: float
++    custom_p95_us: float
++    nccl_median_us: float
++    nccl_p95_us: float
++    correct: bool = True
++    custom_trials_us: tuple[float, ...] = ()
++    nccl_trials_us: tuple[float, ...] = ()
++
++
++def select_plain_allreduce_policy(
++    points: list[CalibrationPoint],
++    *,
++    world_size: int,
++    hidden_size: int,
++    dtype: torch.dtype,
++    min_absolute_margin_us: float,
++    min_relative_margin: float,
++) -> PlainAllReduceRoutePolicy:
++    """Select B12X only when its median win exceeds the noise guard."""
++
++    if min_absolute_margin_us < 0:
++        raise ValueError("min_absolute_margin_us must be non-negative")
++    if min_relative_margin < 0:
++        raise ValueError("min_relative_margin must be non-negative")
++    measured_rows = frozenset(point.rows for point in points)
++    if len(measured_rows) != len(points):
++        raise ValueError("calibration rows must be unique")
++    if any(not point.correct for point in points):
++        raise ValueError("calibration cannot select a numerically invalid result")
++
++    def custom_wins(custom_us: float, nccl_us: float) -> bool:
++        return (
++            custom_us
++            + max(
++                min_absolute_margin_us,
++                nccl_us * min_relative_margin,
++            )
++            <= nccl_us
++        )
++
++    custom_rows = set()
++    for point in points:
++        aggregate_win = custom_wins(point.custom_median_us, point.nccl_median_us)
++        trial_win = True
++        if point.custom_trials_us or point.nccl_trials_us:
++            if len(point.custom_trials_us) != len(point.nccl_trials_us):
++                raise ValueError("custom and NCCL trial counts must match")
++            wins = sum(
++                custom_wins(custom_us, nccl_us)
++                for custom_us, nccl_us in zip(
++                    point.custom_trials_us,
++                    point.nccl_trials_us,
++                    strict=True,
++                )
++            )
++            trial_win = wins > len(point.custom_trials_us) // 2
++        if aggregate_win and trial_win:
++            custom_rows.add(point.rows)
++    return PlainAllReduceRoutePolicy(
++        world_size=world_size,
++        hidden_size=hidden_size,
++        dtype=dtype,
++        measured_rows=measured_rows,
++        custom_rows=frozenset(custom_rows),
++    )
++
++
++def _parse_args() -> argparse.Namespace:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--hidden-size", type=int, required=True)
++    parser.add_argument(
++        "--rows",
++        default="1,2,4,8,16,24,32",
++        help="Comma-separated row counts that the serving scheduler can emit.",
++    )
++    parser.add_argument("--dtype", choices=("bfloat16", "float16"), default="bfloat16")
++    parser.add_argument("--warmup", type=int, default=8)
++    parser.add_argument("--repeat", type=int, default=41)
++    parser.add_argument("--ops-per-sample", type=int, default=8)
++    parser.add_argument("--trials", type=int, default=3)
++    parser.add_argument(
++        "--stabilization-replays",
++        type=int,
++        default=2048,
++        help=(
++            "Balanced B12X+NCCL graph replays on the largest shape before "
++            "measurement. This raises GPU and PCIe links out of idle states."
++        ),
++    )
++    parser.add_argument("--min-absolute-margin-us", type=float, default=0.25)
++    parser.add_argument("--min-relative-margin", type=float, default=0.01)
++    parser.add_argument("--json", type=Path)
++    return parser.parse_args()
++
++
++def _slowest_rank_distribution(
++    samples_us: list[float],
++    device: torch.device,
++) -> tuple[float, float]:
++    values = torch.tensor(samples_us, dtype=torch.float64, device=device)
++    dist.all_reduce(values, op=dist.ReduceOp.MAX)
++    values = values.sort().values
++    median = float(values[(len(values) - 1) // 2].item())
++    p95_index = min(len(values) - 1, int(0.95 * len(values)))
++    return median, float(values[p95_index].item())
++
++
++def _all_ranks(value: bool, device: torch.device) -> bool:
++    flag = torch.tensor(int(value), dtype=torch.int32, device=device)
++    dist.all_reduce(flag, op=dist.ReduceOp.MIN)
++    return bool(flag.item())
++
++
++def _measure_graph(
++    op: Callable[[], None],
++    *,
++    capture_context: Callable[[torch.cuda.Stream], ContextManager[object]],
++    warmup: int,
++    repeat: int,
++    ops_per_sample: int,
++    device: torch.device,
++) -> tuple[float, float]:
++    stream = torch.cuda.Stream(device=device)
++    stream.wait_stream(torch.cuda.current_stream(device))
++    graph = torch.cuda.CUDAGraph()
++    with capture_context(stream), torch.cuda.graph(graph, stream=stream):
++        for _ in range(ops_per_sample):
++            op()
++    torch.cuda.current_stream(device).wait_stream(stream)
++    torch.cuda.synchronize(device)
++
++    for _ in range(warmup):
++        graph.replay()
++    torch.cuda.synchronize(device)
++    dist.barrier()
++
++    samples_us: list[float] = []
++    for _ in range(repeat):
++        start = torch.cuda.Event(enable_timing=True)
++        end = torch.cuda.Event(enable_timing=True)
++        start.record()
++        graph.replay()
++        end.record()
++        end.synchronize()
++        samples_us.append(start.elapsed_time(end) * 1e3 / ops_per_sample)
++    result = _slowest_rank_distribution(samples_us, device)
++    graph.reset()
++    torch.cuda.synchronize(device)
++    return result
++
++
++def _measure_graph_trials(
++    op: Callable[[], None],
++    *,
++    capture_context: Callable[[torch.cuda.Stream], ContextManager[object]],
++    warmup: int,
++    repeat: int,
++    ops_per_sample: int,
++    trials: int,
++    device: torch.device,
++) -> tuple[float, float, tuple[float, ...]]:
++    runs = tuple(
++        _measure_graph(
++            op,
++            capture_context=capture_context,
++            warmup=warmup,
++            repeat=repeat,
++            ops_per_sample=ops_per_sample,
++            device=device,
++        )
++        for _ in range(trials)
++    )
++    medians = tuple(run[0] for run in runs)
++    p95s = tuple(run[1] for run in runs)
++    return (
++        sorted(medians)[len(medians) // 2],
++        sorted(p95s)[len(p95s) // 2],
++        medians,
++    )
++
++
++def _stabilize_transports(
++    pool: PCIeOneshotAllReducePool,
++    custom_input: torch.Tensor,
++    custom_output: torch.Tensor,
++    nccl_input: torch.Tensor,
++    *,
++    replays: int,
++    ops_per_replay: int,
++    device: torch.device,
++) -> None:
++    """Raise both transports to an active link and clock state symmetrically."""
++
++    # CUDA graph capture must not trigger JIT compilation or communicator
++    # initialization. Prime both transports once, then replay an equal number
++    # of B12X and NCCL operations from one graph.
++    pool.prepare_graph_all_reduce(custom_input)
++    pool.all_reduce(custom_input, out=custom_output)
++    dist.all_reduce(nccl_input)
++    nccl_input.zero_()
++    torch.cuda.synchronize(device)
++    dist.barrier()
++
++    def combined_op() -> None:
++        pool.all_reduce(custom_input, out=custom_output)
++        dist.all_reduce(nccl_input)
++
++    _measure_graph(
++        combined_op,
++        capture_context=lambda stream: pool.capture(stream),
++        warmup=replays,
++        repeat=1,
++        ops_per_sample=ops_per_replay,
++        device=device,
++    )
++
++
++def _measure_row(
++    pool: PCIeOneshotAllReducePool,
++    *,
++    rows: int,
++    hidden_size: int,
++    dtype: torch.dtype,
++    rank: int,
++    world_size: int,
++    warmup: int,
++    repeat: int,
++    ops_per_sample: int,
++    trials: int,
++    device: torch.device,
++) -> CalibrationPoint:
++    expected = float(world_size * (world_size + 1) // 2)
++    custom_input = torch.full((rows, hidden_size), rank + 1, dtype=dtype, device=device)
++    custom_output = torch.empty_like(custom_input)
++
++    pool.all_reduce(custom_input, out=custom_output)
++    torch.cuda.synchronize(device)
++    custom_correct = _all_ranks(
++        bool(torch.all(custom_output == expected).item()), device
++    )
++
++    def custom_op() -> None:
++        pool.all_reduce(custom_input, out=custom_output)
++
++    pool.prepare_graph_all_reduce(custom_input)
++    custom_median, custom_p95, custom_trials = _measure_graph_trials(
++        custom_op,
++        capture_context=lambda stream: pool.capture(stream),
++        warmup=warmup,
++        repeat=repeat,
++        ops_per_sample=ops_per_sample,
++        trials=trials,
++        device=device,
++    )
++
++    nccl_input = torch.full((rows, hidden_size), rank + 1, dtype=dtype, device=device)
++    dist.all_reduce(nccl_input)
++    torch.cuda.synchronize(device)
++    nccl_correct = _all_ranks(bool(torch.all(nccl_input == expected).item()), device)
++    nccl_input.fill_(rank + 1)
++
++    def nccl_op() -> None:
++        dist.all_reduce(nccl_input)
++
++    nccl_median, nccl_p95, nccl_trials = _measure_graph_trials(
++        nccl_op,
++        capture_context=lambda _stream: nullcontext(),
++        warmup=warmup,
++        repeat=repeat,
++        ops_per_sample=ops_per_sample,
++        trials=trials,
++        device=device,
++    )
++    return CalibrationPoint(
++        rows=rows,
++        custom_median_us=custom_median,
++        custom_p95_us=custom_p95,
++        nccl_median_us=nccl_median,
++        nccl_p95_us=nccl_p95,
++        correct=custom_correct and nccl_correct,
++        custom_trials_us=custom_trials,
++        nccl_trials_us=nccl_trials,
++    )
++
++
++def main() -> None:
++    args = _parse_args()
++    rows = tuple(int(value) for value in args.rows.split(","))
++    if not rows or any(row <= 0 for row in rows) or len(set(rows)) != len(rows):
++        raise ValueError("--rows must contain unique positive integers")
++    if args.hidden_size <= 0:
++        raise ValueError("--hidden-size must be positive")
++    if (
++        args.warmup < 0
++        or args.repeat <= 0
++        or args.ops_per_sample <= 0
++        or args.trials <= 0
++        or args.trials % 2 == 0
++        or args.stabilization_replays <= 0
++    ):
++        raise ValueError(
++            "warmup must be non-negative; repeat, odd trials, stabilization "
++            "replays, and operations per sample must be positive"
++        )
++
++    rank = int(os.environ["RANK"])
++    local_rank = int(os.environ["LOCAL_RANK"])
++    world_size = int(os.environ["WORLD_SIZE"])
++    torch.cuda.set_device(local_rank)
++    device = torch.device("cuda", local_rank)
++    dtype = getattr(torch, args.dtype)
++    dist.init_process_group("nccl", device_id=device)
++
++    max_bytes = (
++        max(rows) * args.hidden_size * torch.empty((), dtype=dtype).element_size()
++    )
++    pool = PCIeOneshotAllReducePool(
++        rank=rank,
++        world_size=world_size,
++        device=device,
++        exchange_group=dist.group.WORLD,
++        eager_buffer_bytes=max_bytes,
++        max_size=max_bytes,
++        rank_data_bytes=max_bytes,
++        single_channel=True,
++    )
++    try:
++        stabilization_input = torch.full(
++            (max(rows), args.hidden_size),
++            rank + 1,
++            dtype=dtype,
++            device=device,
++        )
++        _stabilize_transports(
++            pool,
++            stabilization_input,
++            torch.empty_like(stabilization_input),
++            torch.zeros_like(stabilization_input),
++            replays=args.stabilization_replays,
++            ops_per_replay=args.ops_per_sample,
++            device=device,
++        )
++        points = [
++            _measure_row(
++                pool,
++                rows=row,
++                hidden_size=args.hidden_size,
++                dtype=dtype,
++                rank=rank,
++                world_size=world_size,
++                warmup=args.warmup,
++                repeat=args.repeat,
++                ops_per_sample=args.ops_per_sample,
++                trials=args.trials,
++                device=device,
++            )
++            for row in rows
++        ]
++        policy = select_plain_allreduce_policy(
++            points,
++            world_size=world_size,
++            hidden_size=args.hidden_size,
++            dtype=dtype,
++            min_absolute_margin_us=args.min_absolute_margin_us,
++            min_relative_margin=args.min_relative_margin,
++        )
++        if rank == 0:
++            payload = {
++                "policy": json.loads(policy.to_json()),
++                "points": [asdict(point) for point in points],
++                "selection": {
++                    "min_absolute_margin_us": args.min_absolute_margin_us,
++                    "min_relative_margin": args.min_relative_margin,
++                },
++            }
++            if args.json is not None:
++                args.json.parent.mkdir(parents=True, exist_ok=True)
++                args.json.write_text(json.dumps(payload, indent=2) + "\n")
++            print(f"B12X_PCIE_PLAIN_ALLREDUCE_POLICY={policy.to_json()}")
++            for point in points:
++                winner = "B12X" if point.rows in policy.custom_rows else "NCCL"
++                print(
++                    f"rows={point.rows:4d} B12X={point.custom_median_us:8.3f}us "
++                    f"NCCL={point.nccl_median_us:8.3f}us route={winner}"
++                )
++    finally:
++        pool.close()
++        dist.destroy_process_group()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/b12x/moe/_shared/dynamic_launch_tuning.py b/b12x/moe/_shared/dynamic_launch_tuning.py
+new file mode 100644
+index 00000000..ffa9fd96
+--- /dev/null
++++ b/b12x/moe/_shared/dynamic_launch_tuning.py
+@@ -0,0 +1,85 @@
++"""Shape-qualified launch tuning for the fused dynamic MoE kernel."""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++
++
++@dataclass(frozen=True)
++class DynamicLaunchTuning:
++    """Compile-time scheduler and logical resident-cluster selection."""
++
++    work_source: str
++    max_active_clusters: int
++
++
++# The logical cluster count is doubled by the two-resident-CTA W4A8 launcher.
++# Every entry therefore stays at or below 94 on an SM120 device with 188 SMs.
++_SM120_E256_K4096_N512_TOP6_SILU_LADDER = (
++    (96, 94),
++    (144, 72),
++    (192, 84),
++    (768, 64),
++)
++
++# TP2 retains 1024 intermediate columns per rank.  CUDA-event measurements of
++# the complete fused kernel select the full 94-cluster resident domain at C8,
++# C16, and C32.  Rows above C32 remain unqualified and preserve the generic
++# scheduler.
++_SM120_E256_K4096_N1024_TOP6_SILU_LADDER = ((192, 94),)
++
++
++def select_dynamic_launch_tuning(
++    *,
++    compute_capability: tuple[int, int] | None,
++    quant_mode: str,
++    activation: str,
++    num_experts: int,
++    hidden_size: int,
++    intermediate_size: int,
++    top_k: int,
++    routed_rows: int,
++    qmma_repacked: bool,
++    deterministic_output: bool,
++) -> DynamicLaunchTuning | None:
++    """Return measured tuning only for its complete execution contract.
++
++    The selected SM120 W4A8 kernel has two resident CTAs per SM.  Above 188
++    physical CTAs, its resident-grid synchronization and task geometry become
++    slower for this expert shape.  Persistent arithmetic task assignment and
++    the bounded logical cluster counts below avoid that cliff.  Smaller decode
++    batches retain the materialized queue because it is faster for their short
++    work domain.
++    """
++
++    if (
++        compute_capability != (12, 0)
++        or quant_mode != "w4a8_mx"
++        or activation != "silu"
++        or num_experts != 256
++        or hidden_size != 4096
++        or top_k != 6
++        or not qmma_repacked
++        or deterministic_output
++        or routed_rows <= 24
++    ):
++        return None
++
++    ladders = {
++        512: _SM120_E256_K4096_N512_TOP6_SILU_LADDER,
++        1024: _SM120_E256_K4096_N1024_TOP6_SILU_LADDER,
++    }
++    ladder = ladders.get(intermediate_size)
++    if ladder is None:
++        return None
++
++    for end_routed_rows, max_active_clusters in ladder:
++        if routed_rows <= end_routed_rows:
++            return DynamicLaunchTuning(
++                work_source="persistent_grid",
++                max_active_clusters=max_active_clusters,
++            )
++    return None
++
++
++__all__ = ["DynamicLaunchTuning", "select_dynamic_launch_tuning"]
+diff --git a/b12x/moe/fused_moe/_impl.py b/b12x/moe/fused_moe/_impl.py
+index 343061ac..b3665ecf 100644
+--- a/b12x/moe/fused_moe/_impl.py
++++ b/b12x/moe/fused_moe/_impl.py
+@@ -86,6 +86,10 @@ from b12x.moe._shared.execution import (
+ )
+ from b12x.moe._shared.trellis_codebooks import SQG_E4M3
+ from b12x.moe._shared.tuning import lookup_max_active_clusters
++from b12x.moe._shared.dynamic_launch_tuning import (
++    DynamicLaunchTuning,
++    select_dynamic_launch_tuning,
++)
+ from b12x._lib.runtime_control import (
+     raise_if_kernel_resolution_frozen,
+ )
+@@ -1256,6 +1260,61 @@ def _dynamic_work_source() -> str:
+     return source
+ 
+ 
++def _qualified_dynamic_launch_tuning(
++    *,
++    quant_mode: str,
++    activation: str,
++    num_experts: int,
++    hidden_size: int,
++    intermediate_size: int,
++    top_k: int,
++    routed_rows: int,
++    qmma_repacked: bool,
++    deterministic_output: bool,
++) -> DynamicLaunchTuning | None:
++    return select_dynamic_launch_tuning(
++        compute_capability=_current_compute_capability(),
++        quant_mode=quant_mode,
++        activation=activation,
++        num_experts=num_experts,
++        hidden_size=hidden_size,
++        intermediate_size=intermediate_size,
++        top_k=top_k,
++        routed_rows=routed_rows,
++        qmma_repacked=qmma_repacked,
++        deterministic_output=deterministic_output,
++    )
++
++
++def _resolve_dynamic_work_source(
++    *,
++    quant_mode: str,
++    activation: str,
++    num_experts: int,
++    hidden_size: int,
++    intermediate_size: int,
++    top_k: int,
++    routed_rows: int,
++    qmma_repacked: bool,
++    deterministic_output: bool,
++) -> str:
++    configured = _dynamic_work_source()
++    if _DYNAMIC_WORK_SOURCE_ENV in os.environ:
++        return configured
++    tuning = _qualified_dynamic_launch_tuning(
++        quant_mode=quant_mode,
++        activation=activation,
++        num_experts=num_experts,
++        hidden_size=hidden_size,
++        intermediate_size=intermediate_size,
++        top_k=top_k,
++        routed_rows=routed_rows,
++        qmma_repacked=qmma_repacked,
++        deterministic_output=deterministic_output,
++    )
++    return configured if tuning is None else tuning.work_source
++
++
+ def default_moe_quant_mode() -> str:
+     return "nvfp4"
+ 
+@@ -5758,6 +5817,11 @@ def plan_tp_moe_execution(
+             num_topk,
+             quant_mode,
+         )
++    if deterministic_output is None:
++        deterministic_output = _dynamic_deterministic_output_enabled(
++            quant_mode=quant_mode,
++            device=device,
++        )
+     spec = make_moe_spec(
+         quant_mode=quant_mode,
+         source_format=source_format,
+@@ -5770,7 +5834,17 @@ def plan_tp_moe_execution(
+     if implementation == "micro":
+         regime = MoERegime.DIRECT
+     elif implementation == "dynamic":
+-        dynamic_work_source = _dynamic_work_source()
++        dynamic_work_source = _resolve_dynamic_work_source(
++            quant_mode=quant_mode,
++            activation=activation,
++            num_experts=state_E,
++            hidden_size=k,
++            intermediate_size=dynamic_kernel_n,
++            top_k=num_topk,
++            routed_rows=routed_rows,
++            qmma_repacked=weight_plan.w4a8_weight_layout == "qmma_repacked",
++            deterministic_output=bool(deterministic_output),
++        )
+         if dynamic_work_source == "ready_queue":
+             regime = MoERegime.STREAMING_FUSED
+         else:
+@@ -5782,11 +5856,6 @@ def plan_tp_moe_execution(
+             )
+     else:
+         regime = MoERegime.MATERIALIZED_PERSISTENT
+-    if deterministic_output is None:
+-        deterministic_output = _dynamic_deterministic_output_enabled(
+-            quant_mode=quant_mode,
+-            device=device,
+-        )
+     route_block_rows = None
+     if implementation == "w4a16":
+         from b12x.moe._shared.kernels.w4a16.host import (
+@@ -7966,21 +8035,24 @@ def _get_kernel_cache(impl: str) -> Dict[Tuple, Tuple]:
+     raise ValueError(f"unsupported implementation {impl!r}")
+ 
+ 
+-def _get_impl_mac(impl: str, *, routed_rows: int | None = None) -> int:
+-    dev_idx = torch.cuda.current_device()
+-    key = (dev_idx, impl)
+-    mac = _MAC_CACHE.get(key)
+-    sm_count = get_num_sm(torch.device("cuda"))
+-    mac_limit = min(get_max_active_clusters(1), sm_count)
++def _impl_mac_override(impl: str) -> str | None:
+     override_name = f"B12X_{impl.upper()}_MAX_ACTIVE_CLUSTERS"
+     if impl.startswith("dynamic"):
+-        mac_override = _first_env(
++        return _first_env(
+             override_name,
+             "B12X_DYNAMIC_MAX_ACTIVE_CLUSTERS",
+             "B12X_LEVEL10_MAX_ACTIVE_CLUSTERS",
+         )
+-    else:
+-        mac_override = _first_env(override_name)
++    return _first_env(override_name)
++
++
++def _get_impl_mac(impl: str, *, routed_rows: int | None = None) -> int:
++    dev_idx = torch.cuda.current_device()
++    key = (dev_idx, impl)
++    mac = _MAC_CACHE.get(key)
++    sm_count = get_num_sm(torch.device("cuda"))
++    mac_limit = min(get_max_active_clusters(1), sm_count)
++    mac_override = _impl_mac_override(impl)
+     if mac is None:
+         if mac_override is not None:
+             mac = max(1, min(int(mac_override), mac_limit))
+@@ -8766,7 +8838,17 @@ def _get_dynamic_kernel(
+     is_w4a8 = _is_w4a8_quant_mode(quant_mode)
+     # w4a8 is self-ranging; the dynamic per-tile FC2 scale does not apply.
+     dynamic_down_scale = _dynamic_down_scale_enabled() and not is_w4a8
+-    work_source = _dynamic_work_source()
++    work_source = _resolve_dynamic_work_source(
++        quant_mode=quant_mode,
++        activation=activation_spec.activation,
++        num_experts=E,
++        hidden_size=k,
++        intermediate_size=n,
++        top_k=num_topk,
++        routed_rows=m * num_topk,
++        qmma_repacked=bool(w4a8_repacked and not trellis_bits),
++        deterministic_output=deterministic_output,
++    )
+     # Tile planner (same routed_rows as the scratch plan -> consistent choice).
+     mma_tiler_mn = _select_dynamic_tile_mn(
+         m * num_topk,
+@@ -9280,6 +9362,21 @@ def _launch_dynamic_flat(
+     )
+     mac_backend = "dynamic_w4a8_decode" if decode_regime else "dynamic"
+     effective_mac = _get_impl_mac(mac_backend, routed_rows=routed_rows)
++    launch_tuning = None
++    if _DYNAMIC_WORK_SOURCE_ENV not in os.environ:
++        launch_tuning = _qualified_dynamic_launch_tuning(
++            quant_mode=quant_mode,
++            activation=activation,
++            num_experts=E,
++            hidden_size=k,
++            intermediate_size=n,
++            top_k=num_topk,
++            routed_rows=routed_rows,
++            qmma_repacked=bool(w4a8_repacked and not trellis_bits),
++            deterministic_output=deterministic_output,
++        )
++    if launch_tuning is not None and _impl_mac_override(mac_backend) is None:
++        effective_mac = launch_tuning.max_active_clusters
+     multicta_enabled = _dynamic_multicta_enabled()
+     selected_tile_m = _select_dynamic_tile_mn(
+         m * num_topk,
+diff --git a/tests/comm/test_pcie_hierarchical.py b/tests/comm/test_pcie_hierarchical.py
+index d7054d0a..1bc9532e 100644
+--- a/tests/comm/test_pcie_hierarchical.py
++++ b/tests/comm/test_pcie_hierarchical.py
+@@ -101,6 +101,8 @@ def test_allreduce_factory_keeps_tp16_equal_quarter_opt_in(
+ @pytest.mark.parametrize(
+     ("world_size", "algorithm", "expected"),
+     [
++        (2, "auto", 4 * 1024 * 1024),
++        (4, "auto", 256 * 1024),
+         (8, "auto", 84 * 1024),
+         (12, "auto", 84 * 1024),
+         (16, "auto", 84 * 1024),
+@@ -115,9 +117,18 @@ def test_recommended_max_bytes_matches_available_tp_runtime(
+     expected: int,
+ ) -> None:
+     monkeypatch.setenv("B12X_PCIE_ALLREDUCE_ALGORITHM", algorithm)
++    monkeypatch.delenv("B12X_PCIE_TP2_REMOTE_PUSH", raising=False)
+     assert recommended_max_bytes(world_size, default=84 * 1024) == expected
+ 
+ 
++def test_tp2_recommended_capacity_honors_remote_push_disable(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "0")
++
++    assert recommended_max_bytes(2, default=84 * 1024) == 84 * 1024
++
++
+ def test_recommended_max_bytes_rejects_unknown_algorithm(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+diff --git a/tests/comm/test_pcie_oneshot.py b/tests/comm/test_pcie_oneshot.py
+index 28e8007c..af8cd211 100644
+--- a/tests/comm/test_pcie_oneshot.py
++++ b/tests/comm/test_pcie_oneshot.py
+@@ -10,6 +10,7 @@ from b12x.comm.pcie.pcie_oneshot import (
+     IPC_SLAB_ALIGNMENT,
+     PCIeOneshotAllReduce,
+     PCIeOneshotAllReducePool,
++    PlainAllReduceRoutePolicy,
+     _abort_collective_ipc_setup,
+     _broadcast_gather_object,
+     _compute_crossover_size,
+@@ -23,12 +24,15 @@ from b12x.comm.pcie.pcie_oneshot import (
+     _RETAINED_FAILED_IPC_EXPORTS,
+     _CuTeOneshotBackend,
+     _CuTeOneshotState,
++    _eager_storage_shards,
+     _enable_device_slot_selection,
++    _tp2_plain_remote_push_enabled,
+     _transport_policy_contract,
+     _uses_sharded_eager_storage,
++    parse_plain_allreduce_route_policy,
+     parse_pcie_oneshot_max_size,
+ )
+-from b12x.comm.pcie._oneshot_cute import _FusedOneshotLaunch
++from b12x.comm.pcie._oneshot_cute import _FusedOneshotLaunch, _OneshotLaunch
+ 
+ 
+ @pytest.fixture(autouse=True)
+@@ -156,6 +160,50 @@ def test_parse_pcie_oneshot_max_size_accepts_auto_and_suffixes():
+     assert parse_pcie_oneshot_max_size(4096) == 4096
+ 
+ 
++def test_plain_allreduce_route_policy_round_trip_and_domain() -> None:
++    policy = PlainAllReduceRoutePolicy(
++        world_size=4,
++        hidden_size=4096,
++        dtype=torch.bfloat16,
++        measured_rows=frozenset((1, 8, 16, 32)),
++        custom_rows=frozenset((1, 8)),
++    )
++
++    parsed = parse_plain_allreduce_route_policy(policy.to_json(), world_size=4)
++
++    assert parsed == policy
++    assert parsed is not None
++    assert parsed.decision(torch.empty((1, 4096), dtype=torch.bfloat16)) is True
++    assert parsed.decision(torch.empty((16, 4096), dtype=torch.bfloat16)) is False
++    assert parsed.decision(torch.empty((4, 4096), dtype=torch.bfloat16)) is None
++    assert parsed.decision(torch.empty((1, 6144), dtype=torch.bfloat16)) is None
++    assert parsed.decision(torch.empty((1, 4096), dtype=torch.float16)) is None
++
++
++@pytest.mark.parametrize(
++    ("payload", "message"),
++    (
++        ('{"version":2}', "fields differ"),
++        (
++            '{"custom_rows":[1],"dtype":"bfloat16","hidden_size":4096,'
++            '"measured_rows":[1],"version":1,"world_size":2}',
++            "does not match",
++        ),
++        (
++            '{"custom_rows":[2],"dtype":"bfloat16","hidden_size":4096,'
++            '"measured_rows":[1],"version":1,"world_size":4}',
++            "must be a subset",
++        ),
++    ),
++)
++def test_plain_allreduce_route_policy_rejects_invalid_contract(
++    payload: str,
++    message: str,
++) -> None:
++    with pytest.raises(ValueError, match=message):
++        parse_plain_allreduce_route_policy(payload, world_size=4)
++
++
+ def test_full_grid_residency_accepts_device_with_enough_visible_sms(
+     monkeypatch,
+ ):
+@@ -257,6 +305,20 @@ def test_graph_slot_bias_preserves_the_next_host_slot() -> None:
+     assert state.slot_bias == 1
+ 
+ 
++def test_plain_tp2_remote_push_rejects_unstaged_input() -> None:
++    with pytest.raises(ValueError, match="requires staged FP16 or BF16 input"):
++        _OneshotLaunch(
++            "bfloat16",
++            world_size=2,
++            rank=0,
++            stage_input=False,
++            device_slot_selection=False,
++            slot_bias=0,
++            transport="tp2_remote_push",
++            threads=128,
++        )
++
++
+ def _make_cute_state(world_size: int, *, eager: bool = True) -> _CuTeOneshotState:
+     transport_policy = _transport_policy_contract()
+     return _CuTeOneshotState(
+@@ -277,6 +339,80 @@ def _make_cute_state(world_size: int, *, eager: bool = True) -> _CuTeOneshotStat
+     )
+ 
+ 
++@pytest.mark.parametrize(
++    ("rows", "expected"),
++    (
++        (1, ("tp2_remote_push", 64, 128)),
++        (2, ("tp2_remote_push_stream", 128, 64)),
++        (4, ("tp2_remote_push_stream", 256, 64)),
++        (6, ("tp2_remote_push", 64, 16)),
++        (8, ("tp2_remote_push", 256, 32)),
++        (16, ("tp2_remote_push_stream", 64, 64)),
++        (24, ("tp2_remote_push_stream", 128, 32)),
++        (32, ("tp2_remote_push", 128, 16)),
++        (128, ("tp2_remote_push", 128, 16)),
++        (256, ("tp2_remote_push", 128, 16)),
++        (512, ("tp2_remote_push", 128, 16)),
++    ),
++)
++def test_plain_tp2_remote_push_uses_qualified_geometry(
++    monkeypatch,
++    rows: int,
++    expected: tuple[str, int, int],
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    state = _make_cute_state(2)
++
++    assert (
++        _CuTeOneshotBackend._plain_launch_config(
++            state,
++            torch.empty((rows, 4096), dtype=torch.bfloat16),
++        )
++        == expected
++    )
++
++
++@pytest.mark.parametrize(
++    ("world_size", "shape", "dtype", "eager"),
++    (
++        (2, (513, 4096), torch.bfloat16, True),
++        (2, (4, 6144), torch.bfloat16, True),
++        (2, (4, 4096), torch.float32, True),
++        (2, (4, 4096), torch.bfloat16, False),
++        (4, (1, 4096), torch.bfloat16, True),
++        (8, (1, 4096), torch.bfloat16, True),
++        (16, (1, 4096), torch.bfloat16, True),
++    ),
++)
++def test_plain_tp2_remote_push_preserves_generic_fallbacks(
++    monkeypatch,
++    world_size: int,
++    shape: tuple[int, int],
++    dtype: torch.dtype,
++    eager: bool,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    transport, _, _ = _CuTeOneshotBackend._plain_launch_config(
++        _make_cute_state(world_size, eager=eager),
++        torch.empty(shape, dtype=dtype),
++    )
++
++    assert transport == "pull"
++
++
++def test_plain_tp2_transport_policy_is_frozen_at_channel_setup(monkeypatch) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    state = _make_cute_state(2)
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "0")
++
++    transport, _, _ = _CuTeOneshotBackend._plain_launch_config(
++        state,
++        torch.empty((1, 4096), dtype=torch.bfloat16),
++    )
++
++    assert transport == "tp2_remote_push"
++
++
+ def test_tp8_owner_launcher_rejects_float32() -> None:
+     with pytest.raises(ValueError, match="requires float16 or bfloat16"):
+         _FusedOneshotLaunch(
+@@ -329,17 +465,36 @@ def test_tp8_owner_reduce_can_be_disabled(monkeypatch) -> None:
+ 
+ 
+ @pytest.mark.parametrize(
+-    ("world_size", "env_name", "shape", "expected_when_enabled"),
+     (
+-        (2, "B12X_PCIE_TP2_REMOTE_PUSH", (4, 4096), "stage_remote_push"),
+-        (4, "B12X_PCIE_TP4_REMOTE_PUSH", (32, 6144), "stage_remote_push"),
++        "world_size",
++        "env_name",
++        "shape",
++        "expected_by_default",
++        "expected_when_enabled",
++    ),
++    (
++        (
++            2,
++            "B12X_PCIE_TP2_REMOTE_PUSH",
++            (4, 4096),
++            "stage_pull",
++            "stage_remote_push",
++        ),
++        (
++            4,
++            "B12X_PCIE_TP4_REMOTE_PUSH",
++            (32, 6144),
++            "stage_pull",
++            "stage_remote_push",
++        ),
+     ),
+ )
+-def test_tp2_tp4_remote_push_is_opt_in(
++def test_tp2_tp4_remote_push_defaults_and_overrides(
+     monkeypatch,
+     world_size: int,
+     env_name: str,
+     shape: tuple[int, int],
++    expected_by_default: str,
+     expected_when_enabled: str,
+ ) -> None:
+     monkeypatch.delenv("B12X_PCIE_ONESHOT_PUSH", raising=False)
+@@ -348,6 +503,12 @@ def test_tp2_tp4_remote_push_is_opt_in(
+     mode, _, _, _ = _CuTeOneshotBackend._fused_launch_config(
+         _make_cute_state(world_size), inp
+     )
++    assert mode == expected_by_default
++
++    monkeypatch.setenv(env_name, "0")
++    mode, _, _, _ = _CuTeOneshotBackend._fused_launch_config(
++        _make_cute_state(world_size), inp
++    )
+     assert mode == "stage_pull"
+ 
+     monkeypatch.setenv(env_name, "1")
+@@ -412,6 +573,7 @@ def test_topology_transport_storage_policy_matches_opt_in_defaults(
+     for name in (
+         "B12X_PCIE_ONESHOT_PUSH",
+         "B12X_PCIE_TP2_REMOTE_PUSH",
++        "B12X_PCIE_TP2_PLAIN_REMOTE_PUSH",
+         "B12X_PCIE_TP4_REMOTE_PUSH",
+         "B12X_PCIE_TP8_OWNER_REDUCE",
+     ):
+@@ -420,13 +582,34 @@ def test_topology_transport_storage_policy_matches_opt_in_defaults(
+     assert not _uses_sharded_eager_storage(2)
+     assert not _uses_sharded_eager_storage(4)
+     assert _uses_sharded_eager_storage(8)
+-    assert _transport_policy_contract() == (False, False, False, True)
++    assert _eager_storage_shards(2) == 2
++    assert _eager_storage_shards(4) == 1
++    assert _eager_storage_shards(8) == 8
++    assert _transport_policy_contract() == (False, False, True, False, True)
+ 
+     monkeypatch.setenv("B12X_PCIE_TP8_OWNER_REDUCE", "0")
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "0")
+     monkeypatch.setenv("B12X_PCIE_TP4_REMOTE_PUSH", "1")
+     assert _uses_sharded_eager_storage(4)
+     assert not _uses_sharded_eager_storage(8)
+-    assert _transport_policy_contract() == (False, False, True, False)
++    assert _eager_storage_shards(4) == 4
++    assert _transport_policy_contract() == (False, False, False, True, False)
++
++    monkeypatch.setenv("B12X_PCIE_TP4_REMOTE_PUSH", "0")
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    assert _eager_storage_shards(2) == 3
++
++
++def test_plain_tp2_remote_push_override_precedence(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "1")
++    monkeypatch.setenv("B12X_PCIE_TP2_PLAIN_REMOTE_PUSH", "0")
++    assert not _tp2_plain_remote_push_enabled()
++
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "0")
++    monkeypatch.setenv("B12X_PCIE_TP2_PLAIN_REMOTE_PUSH", "1")
++    assert _tp2_plain_remote_push_enabled()
+ 
+ 
+ def test_register_buffer_is_idempotent_for_same_mapping():
+@@ -627,6 +810,98 @@ def test_should_allreduce_checks_device_dtype_size_alignment_and_contiguity():
+     )
+ 
+ 
++@pytest.mark.parametrize(
++    ("world_size", "shape", "generic_max_bytes", "expected"),
++    (
++        (2, (512, 4096), 84 * 1024, True),
++        (2, (513, 4096), 84 * 1024, False),
++        (2, (1, 6144), 84 * 1024, True),
++        (2, (8, 6144), 84 * 1024, False),
++        (4, (8, 4096), 84 * 1024, True),
++        (4, (32, 4096), 84 * 1024, False),
++        (4, (40, 4096), 84 * 1024, False),
++        (8, (40, 4096), 84 * 1024, True),
++    ),
++)
++def test_plain_allreduce_route_uses_qualified_tp_bands(
++    monkeypatch: pytest.MonkeyPatch,
++    world_size: int,
++    shape: tuple[int, int],
++    generic_max_bytes: int,
++    expected: bool,
++) -> None:
++    monkeypatch.delenv("B12X_PCIE_TP2_REMOTE_PUSH", raising=False)
++    runtime = _make_runtime(world_size=world_size, eager=True)
++
++    assert (
++        runtime.should_route_plain_allreduce(
++            torch.empty(shape, dtype=torch.bfloat16),
++            generic_max_bytes=generic_max_bytes,
++        )
++        is expected
++    )
++
++
++def test_plain_allreduce_route_honors_tp2_remote_push_disable(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("B12X_PCIE_TP2_REMOTE_PUSH", "0")
++    runtime = _make_runtime(world_size=2, eager=True)
++    inp = torch.empty((32, 4096), dtype=torch.bfloat16)
++
++    assert not runtime.should_route_plain_allreduce(
++        inp,
++        generic_max_bytes=84 * 1024,
++    )
++
++
++def test_plain_allreduce_route_rejects_negative_generic_band() -> None:
++    runtime = _make_runtime(world_size=2, eager=True)
++
++    with pytest.raises(ValueError, match="must be non-negative"):
++        runtime.should_route_plain_allreduce(
++            torch.empty((1, 4096), dtype=torch.bfloat16),
++            generic_max_bytes=-1,
++        )
++
++
++def test_plain_allreduce_route_uses_calibrated_decisions(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    policy = PlainAllReduceRoutePolicy(
++        world_size=4,
++        hidden_size=4096,
++        dtype=torch.bfloat16,
++        measured_rows=frozenset((1, 8, 16, 24, 32)),
++        custom_rows=frozenset((1, 8, 24)),
++    )
++    monkeypatch.setenv("B12X_PCIE_PLAIN_ALLREDUCE_POLICY", policy.to_json())
++    runtime = _make_runtime(world_size=4, eager=True)
++
++    assert runtime.should_route_plain_allreduce(
++        torch.empty((8, 4096), dtype=torch.bfloat16),
++        generic_max_bytes=84 * 1024,
++    )
++    assert not runtime.should_route_plain_allreduce(
++        torch.empty((16, 4096), dtype=torch.bfloat16),
++        generic_max_bytes=84 * 1024,
++    )
++    # A measured decision can extend beyond the generic 84 KiB route.
++    assert runtime.should_route_plain_allreduce(
++        torch.empty((24, 4096), dtype=torch.bfloat16),
++        generic_max_bytes=84 * 1024,
++    )
++    assert not runtime.should_route_plain_allreduce(
++        torch.empty((32, 4096), dtype=torch.bfloat16),
++        generic_max_bytes=84 * 1024,
++    )
++    # Unmeasured shapes retain the static compatibility route.
++    assert runtime.should_route_plain_allreduce(
++        torch.empty((4, 4096), dtype=torch.bfloat16),
++        generic_max_bytes=84 * 1024,
++    )
++
++
+ def test_eager_runtime_rejects_threshold_above_buffer_capacity():
+     with pytest.raises(ValueError, match="exceeds eager buffer capacity"):
+         PCIeOneshotAllReduce(
+@@ -1397,7 +1672,7 @@ def test_eager_channel_buffers_use_single_ipc_slab(monkeypatch):
+         exchange_group,
+         signal_bytes=signal_bytes,
+         eager_buffer_bytes=eager_bytes,
+-        sharded_eager_storage=False,
++        eager_storage_shards=1,
+         ipc=ipc,
+     )
+ 
+@@ -1510,7 +1785,7 @@ def test_eager_channel_buffers_cleanup_when_slab_zero_fails(monkeypatch):
+             object(),
+             signal_bytes=300,
+             eager_buffer_bytes=128,
+-            sharded_eager_storage=False,
++            eager_storage_shards=1,
+             ipc=ipc,
+         )
+ 
+@@ -1551,9 +1826,7 @@ def test_register_graph_buffers_uses_exchange_group_broadcast(monkeypatch):
+ 
+ def test_object_broadcast_uses_cpu_for_gloo(monkeypatch):
+     group = object()
+-    monkeypatch.setattr(
+-        "torch.distributed.get_backend", lambda group=None: "gloo"
+-    )
++    monkeypatch.setattr("torch.distributed.get_backend", lambda group=None: "gloo")
+ 
+     assert _object_broadcast_device(group) == torch.device("cpu")
+ 
+diff --git a/tests/comm/test_pcie_oneshot_torture.py b/tests/comm/test_pcie_oneshot_torture.py
+index e7447ca8..5b911a54 100644
+--- a/tests/comm/test_pcie_oneshot_torture.py
++++ b/tests/comm/test_pcie_oneshot_torture.py
+@@ -9,7 +9,11 @@ import torch
+ import torch.distributed as dist
+ import torch.multiprocessing as mp
+ 
+-from b12x.comm.pcie.pcie_oneshot import PCIeOneshotAllReducePool
++from b12x.comm.pcie.pcie_oneshot import (
++    TP2_PLAIN_REMOTE_PUSH_MAX_BYTES,
++    PCIeOneshotAllReducePool,
++    _tp2_plain_remote_push_enabled,
++)
+ 
+ 
+ pytestmark = pytest.mark.skipif(
+@@ -17,15 +21,12 @@ pytestmark = pytest.mark.skipif(
+     reason="set B12X_RUN_PCIE_ONESHOT_TORTURE=1 to run PCIe oneshot CUDA torture tests",
+ )
+ 
+-TORTURE_EAGER_ITERS = int(
+-    os.getenv("B12X_PCIE_ONESHOT_TORTURE_EAGER_ITERS", "256")
+-)
+-TORTURE_GRAPH_REPLAYS = int(
+-    os.getenv("B12X_PCIE_ONESHOT_TORTURE_GRAPH_REPLAYS", "256")
+-)
++TORTURE_EAGER_ITERS = int(os.getenv("B12X_PCIE_ONESHOT_TORTURE_EAGER_ITERS", "256"))
++TORTURE_GRAPH_REPLAYS = int(os.getenv("B12X_PCIE_ONESHOT_TORTURE_GRAPH_REPLAYS", "256"))
+ TORTURE_MULTISTREAM_ITERS = int(
+     os.getenv("B12X_PCIE_ONESHOT_TORTURE_MULTISTREAM_ITERS", "256")
+ )
++TORTURE_PAYLOAD_ITERS = int(os.getenv("B12X_PCIE_ONESHOT_TORTURE_PAYLOAD_ITERS", "64"))
+ 
+ 
+ def _free_port() -> int:
+@@ -43,6 +44,10 @@ def _rank_sum(world_size: int) -> int:
+     return world_size * (world_size - 1) // 2
+ 
+ 
++def _tp2_plain_remote_push_active(world_size: int) -> bool:
++    return world_size == 2 and _tp2_plain_remote_push_enabled()
++
++
+ def _local_eager_words(
+     channel, stream: torch.cuda.Stream, *, offset: int = 0
+ ) -> tuple[int, int]:
+@@ -63,13 +68,26 @@ def _local_eager_words(
+ def _run_eager(
+     pool: PCIeOneshotAllReducePool, device: torch.device, rank: int, world_size: int
+ ) -> None:
+-    dtypes = (torch.float16, torch.bfloat16, torch.float32)
+-    numels = (8, 256, 4096, 32768)
++    remote_push = _tp2_plain_remote_push_active(world_size)
++    dtypes = (
++        (torch.float16, torch.bfloat16)
++        if remote_push
++        else (
++            torch.float16,
++            torch.bfloat16,
++            torch.float32,
++        )
++    )
++    shapes = (
++        tuple((rows, 4096) for rows in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512))
++        if remote_push
++        else ((8,), (256,), (4096,), (32768,))
++    )
+     rank_sum = _rank_sum(world_size)
+ 
+     for dtype in dtypes:
+-        for numel in numels:
+-            inp = torch.empty(numel, device=device, dtype=dtype)
++        for shape in shapes:
++            inp = torch.empty(shape, device=device, dtype=dtype)
+             out = torch.empty_like(inp)
+             for iteration in range(TORTURE_EAGER_ITERS):
+                 base = float((iteration % 64) * 3)
+@@ -120,6 +138,13 @@ def _run_graph_scratch_reuse(
+             base = float((iteration % 32) * 5 + layer)
+             _assert_constant(out, world_size * base + rank_sum)
+ 
++    if _tp2_plain_remote_push_active(world_size):
++        # Peer-push consumes each incoming pack and restores the unpublished
++        # marker. Both alternating graph slots must therefore be empty after
++        # every replay, independent of the final graph parity.
++        assert _local_eager_words(graph_channel, stream) == (0, 0)
++        return
++
+     # A graph with an odd number of collectives must swap which slot receives
+     # the final layer on every replay. Both slots are overwritten by this
+     # 17-layer graph, so merely counting changed slots cannot identify the
+@@ -166,9 +191,12 @@ def _run_multistream(
+     pool.for_stream(stream_b, channel_id="eager:b")
+     rank_sum = _rank_sum(world_size)
+ 
+-    inp_a = torch.empty(2048, device=device, dtype=torch.float16)
++    remote_push = _tp2_plain_remote_push_active(world_size)
++    shape_a = (1, 4096) if remote_push else (2048,)
++    shape_b = (2, 4096) if remote_push else (2048,)
++    inp_a = torch.empty(shape_a, device=device, dtype=torch.float16)
+     out_a = torch.empty_like(inp_a)
+-    inp_b = torch.empty(2048, device=device, dtype=torch.bfloat16)
++    inp_b = torch.empty(shape_b, device=device, dtype=torch.bfloat16)
+     out_b = torch.empty_like(inp_b)
+ 
+     for iteration in range(TORTURE_MULTISTREAM_ITERS):
+@@ -186,6 +214,86 @@ def _run_multistream(
+         _assert_constant(out_b, world_size * base_b + rank_sum)
+ 
+ 
++def _run_tp2_mixed_protocol_reuse(
++    pool: PCIeOneshotAllReducePool,
++    device: torch.device,
++    rank: int,
++    world_size: int,
++) -> None:
++    """Alternate pull, fused, and peer-push protocols on one eager channel."""
++
++    if not _tp2_plain_remote_push_active(world_size):
++        return
++    channel_id = "eager:default"
++    channel = pool.for_stream(channel_id=channel_id)
++    rank_sum = _rank_sum(world_size)
++
++    pull_input = torch.full((1, 6144), 11.0 + rank, device=device, dtype=torch.bfloat16)
++    pull_output = pool.all_reduce(pull_input, channel_id=channel_id)
++    torch.cuda.synchronize(device)
++    _assert_constant(pull_output, world_size * 11.0 + rank_sum)
++
++    fp32_input = torch.full((2048,), 13.0 + rank, device=device, dtype=torch.float32)
++    fp32_output = pool.all_reduce(fp32_input, channel_id=channel_id)
++    torch.cuda.synchronize(device)
++    _assert_constant(fp32_output, world_size * 13.0 + rank_sum)
++
++    push_input = torch.full((1, 4096), 17.0 + rank, device=device, dtype=torch.bfloat16)
++    push_output = pool.all_reduce(push_input, channel_id=channel_id)
++    torch.cuda.synchronize(device)
++    _assert_constant(push_output, world_size * 17.0 + rank_sum)
++
++    residual = torch.full_like(push_input, 0.25)
++    weight = torch.ones(4096, device=device, dtype=torch.bfloat16)
++    pool.all_reduce_fused_add_rms_norm(
++        push_input,
++        residual,
++        weight,
++        1e-6,
++        channel_id=channel_id,
++    )
++    torch.cuda.synchronize(device)
++
++    push_input.fill_(23.0 + rank)
++    push_output = pool.all_reduce(push_input, channel_id=channel_id)
++    torch.cuda.synchronize(device)
++    _assert_constant(push_output, world_size * 23.0 + rank_sum)
++
++    state = channel._ext._state(channel._ptr)
++    assert state.plain_remote_push_region_packs > 0
++    offset = state.plain_remote_push_region_packs * 16
++    assert _local_eager_words(
++        channel, torch.cuda.current_stream(device), offset=offset
++    ) == (0, 0)
++
++
++def _run_tp2_payload_patterns(
++    pool: PCIeOneshotAllReducePool,
++    device: torch.device,
++    rank: int,
++    world_size: int,
++) -> None:
++    """Exercise peer-push publication with zeros and lane-varying payloads."""
++
++    if not _tp2_plain_remote_push_active(world_size):
++        return
++    elements = 4 * 4096
++    lane = torch.arange(elements, device=device, dtype=torch.float32)
++    output = torch.empty((4, 4096), device=device, dtype=torch.bfloat16)
++    for iteration in range(TORTURE_PAYLOAD_ITERS):
++        patterns = []
++        for source_rank in range(world_size):
++            pattern = (((lane * (source_rank + 3) + iteration * 11) % 257) - 128) / 16
++            pattern[(lane.to(torch.int64) + iteration + source_rank) % 19 == 0] = 0.0
++            pattern[(lane.to(torch.int64) + iteration + source_rank) % 23 == 0] = -0.0
++            patterns.append(pattern.to(torch.bfloat16).view(4, 4096))
++        inp = patterns[rank]
++        expected = patterns[0] + patterns[1]
++        pool.all_reduce(inp, out=output, channel_id="eager:default")
++        torch.cuda.synchronize(device)
++        torch.testing.assert_close(output, expected, rtol=0, atol=0)
++
++
+ def _worker(rank: int, world_size: int, port: int) -> None:
+     torch.cuda.set_device(rank)
+     device = torch.device(f"cuda:{rank}")
+@@ -198,13 +306,28 @@ def _worker(rank: int, world_size: int, port: int) -> None:
+     pool = PCIeOneshotAllReducePool.from_process_group(
+         process_group=dist.group.WORLD,
+         device=device,
+-        max_input_bytes=1 << 20,
++        max_input_bytes=(
++            TP2_PLAIN_REMOTE_PUSH_MAX_BYTES
++            if _tp2_plain_remote_push_active(world_size)
++            else 1 << 20
++        ),
+         max_concurrent_channels=2,
+     )
+     try:
+-        pool.prepare_channels(("eager:default", "eager:a", "eager:b", "graph:torture"))
++        pool.prepare_channels(
++            (
++                "eager:default",
++                "eager:a",
++                "eager:b",
++                "graph:torture",
++            )
++        )
+         _run_eager(pool, device, rank, world_size)
+         dist.barrier()
++        _run_tp2_mixed_protocol_reuse(pool, device, rank, world_size)
++        dist.barrier()
++        _run_tp2_payload_patterns(pool, device, rank, world_size)
++        dist.barrier()
+         _run_graph_scratch_reuse(pool, device, rank, world_size)
+         dist.barrier()
+         _run_multistream(pool, device, rank, world_size)
+diff --git a/tests/comm/test_plain_allreduce_calibration.py b/tests/comm/test_plain_allreduce_calibration.py
+new file mode 100644
+index 00000000..69c81649
+--- /dev/null
++++ b/tests/comm/test_plain_allreduce_calibration.py
+@@ -0,0 +1,276 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++import signal
++import subprocess
++from types import SimpleNamespace
++
++import pytest
++
++import b12x.comm.pcie.plain_allreduce_calibration as calibration
++
++
++def _policy(*, world_size: int = 4) -> dict[str, object]:
++    return {
++        "version": 1,
++        "world_size": world_size,
++        "hidden_size": 4096,
++        "dtype": "bfloat16",
++        "measured_rows": [1, 2, 4, 8],
++        "custom_rows": [1, 2, 4],
++    }
++
++
++def _result(*, world_size: int = 4) -> dict[str, object]:
++    return {
++        "policy": _policy(world_size=world_size),
++        "points": [],
++        "selection": {
++            "min_absolute_margin_us": 0.25,
++            "min_relative_margin": 0.01,
++        },
++    }
++
++
++def _args(tmp_path: Path, **overrides: object) -> SimpleNamespace:
++    values: dict[str, object] = {
++        "world_size": 4,
++        "hidden_size": 4096,
++        "rows": (1, 2, 4, 8),
++        "dtype": "bfloat16",
++        "visible_devices": "4,5,6,7",
++        "cache_dir": tmp_path,
++        "timeout": 5.0,
++        "warmup": 8,
++        "repeat": 41,
++        "ops_per_sample": 8,
++        "trials": 3,
++        "stabilization_replays": 2048,
++        "min_absolute_margin_us": 0.25,
++        "min_relative_margin": 0.01,
++        "force": False,
++    }
++    values.update(overrides)
++    return SimpleNamespace(**values)
++
++
++def _inventory() -> list[dict[str, object]]:
++    return [
++        {
++            "index": index,
++            "uuid": f"GPU-{index}",
++            "pci_bus_id": f"0000:{index:02x}:00.0",
++            "max_generation": 5,
++            "max_width": 16,
++            "driver_version": "999.1",
++            "free_mib": 90000,
++            "upstream": {
++                "upstream_bdf": f"0000:{index:02x}:01.1",
++                "link_control": ("LnkCtl2: Target Link Speed: 32GT/s",),
++            },
++        }
++        for index in range(8)
++    ]
++
++
++def test_positive_ints_rejects_duplicates_and_nonpositive_rows() -> None:
++    assert calibration._positive_ints("1,2,4") == (1, 2, 4)
++    with pytest.raises(Exception, match="unique"):
++        calibration._positive_ints("1,1")
++    with pytest.raises(Exception, match="positive"):
++        calibration._positive_ints("0,1")
++
++
++def test_gpu_selection_preserves_visible_device_order() -> None:
++    selected = calibration._select_gpus(
++        _inventory(),
++        world_size=4,
++        visible_devices="6,4,7,5",
++    )
++
++    assert [item["index"] for item in selected] == [6, 4, 7, 5]
++
++
++def test_fingerprint_changes_with_upstream_target_speed(
++    monkeypatch: pytest.MonkeyPatch,
++    tmp_path: Path,
++) -> None:
++    inventory = _inventory()
++    monkeypatch.setattr(calibration, "_nvidia_inventory", lambda: inventory)
++    monkeypatch.setattr(calibration, "_package_version", lambda _name: "1")
++    monkeypatch.setattr(calibration, "_source_digest", lambda: "source")
++    first = calibration.build_fingerprint_payload(_args(tmp_path))
++
++    inventory[4]["upstream"] = {
++        "upstream_bdf": "0000:04:01.1",
++        "link_control": ("LnkCtl2: Target Link Speed: 16GT/s",),
++    }
++    second = calibration.build_fingerprint_payload(_args(tmp_path))
++
++    assert calibration.fingerprint(first) != calibration.fingerprint(second)
++
++
++def test_collective_environment_excludes_policy_and_controller_knobs(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setenv("NCCL_MIN_NCHANNELS", "8")
++    monkeypatch.setenv("B12X_PCIE_PLAIN_ALLREDUCE_POLICY", "old-policy")
++    monkeypatch.setenv("B12X_PCIE_PLAIN_ALLREDUCE_CALIBRATION", "force")
++    monkeypatch.setenv("UNRELATED_VALUE", "ignored")
++
++    environment = calibration._collective_environment()
++
++    assert environment["NCCL_MIN_NCHANNELS"] == "8"
++    assert "B12X_PCIE_PLAIN_ALLREDUCE_POLICY" not in environment
++    assert "B12X_PCIE_PLAIN_ALLREDUCE_CALIBRATION" not in environment
++    assert "UNRELATED_VALUE" not in environment
++
++
++def test_validate_probe_result_requires_exact_requested_contract() -> None:
++    result = _result()
++    encoded = calibration.validate_probe_result(
++        result,
++        world_size=4,
++        hidden_size=4096,
++        rows=(1, 2, 4, 8),
++        dtype="bfloat16",
++    )
++    assert json.loads(encoded) == _policy()
++
++    result["policy"]["measured_rows"] = [1, 2, 4]
++    with pytest.raises(ValueError, match="every requested row"):
++        calibration.validate_probe_result(
++            result,
++            world_size=4,
++            hidden_size=4096,
++            rows=(1, 2, 4, 8),
++            dtype="bfloat16",
++        )
++
++
++def test_cache_rejects_wrong_fingerprint_or_policy_contract(tmp_path: Path) -> None:
++    args = _args(tmp_path)
++    path = tmp_path / "record.json"
++    record = {
++        "schema": calibration.SCHEMA_VERSION,
++        "fingerprint": "expected",
++        "probe": _result(),
++    }
++    path.write_text(json.dumps(record), encoding="utf-8")
++
++    loaded = calibration._load_record(
++        path,
++        expected_fingerprint="expected",
++        args=args,
++    )
++    assert loaded is not None
++    assert json.loads(loaded[1]) == _policy()
++    assert (
++        calibration._load_record(
++            path,
++            expected_fingerprint="different",
++            args=args,
++        )
++        is None
++    )
++
++    record["probe"]["policy"]["hidden_size"] = 6144
++    path.write_text(json.dumps(record), encoding="utf-8")
++    assert (
++        calibration._load_record(
++            path,
++            expected_fingerprint="expected",
++            args=args,
++        )
++        is None
++    )
++
++
++def test_probe_timeout_terminates_complete_process_group(
++    monkeypatch: pytest.MonkeyPatch,
++    tmp_path: Path,
++) -> None:
++    class TimeoutProcess:
++        pid = 4242
++        returncode = -signal.SIGTERM
++
++        def __init__(self) -> None:
++            self.calls = 0
++
++        def communicate(self, timeout: float | None = None) -> tuple[str, None]:
++            self.calls += 1
++            if self.calls == 1:
++                raise subprocess.TimeoutExpired("probe", timeout or 0)
++            return "workers terminated\n", None
++
++    process = TimeoutProcess()
++    signals: list[tuple[int, int]] = []
++    popen_kwargs: dict[str, object] = {}
++
++    def fake_popen(*_args: object, **kwargs: object) -> TimeoutProcess:
++        popen_kwargs.update(kwargs)
++        return process
++
++    monkeypatch.setattr(calibration.subprocess, "Popen", fake_popen)
++    monkeypatch.setattr(
++        calibration.os,
++        "killpg",
++        lambda pid, value: signals.append((pid, value)),
++    )
++
++    with pytest.raises(calibration.CalibrationFailure, match="timed out") as failure:
++        calibration._run_probe(_args(tmp_path), tmp_path / "probe.json")
++
++    assert failure.value.detail == "workers terminated\n"
++    assert signals == [(4242, signal.SIGTERM)]
++    assert popen_kwargs["start_new_session"] is True
++
++
++def test_calibrate_uses_valid_cache_before_memory_preflight(
++    monkeypatch: pytest.MonkeyPatch,
++    tmp_path: Path,
++) -> None:
++    args = _args(tmp_path)
++    payload = {"stable": "fingerprint"}
++    digest = calibration.fingerprint(payload)
++    cache_path = tmp_path / f"{digest}.json"
++    calibration._atomic_write(
++        cache_path,
++        {
++            "schema": calibration.SCHEMA_VERSION,
++            "fingerprint": digest,
++            "probe": _result(),
++        },
++    )
++    monkeypatch.setattr(calibration, "build_fingerprint_payload", lambda _args: payload)
++    monkeypatch.setattr(
++        calibration,
++        "_nvidia_inventory",
++        lambda: pytest.fail("cache hit must not inspect current free memory"),
++    )
++
++    status, policy, resolved_path = calibration.calibrate(args)
++
++    assert status == "cache-hit"
++    assert json.loads(policy) == _policy()
++    assert resolved_path == cache_path
++
++
++def test_default_stabilization_budget_is_not_an_idle_state_sample(
++    tmp_path: Path,
++) -> None:
++    args = calibration._build_parser().parse_args(
++        [
++            "--world-size",
++            "4",
++            "--hidden-size",
++            "4096",
++            "--rows",
++            "1,2,4,8",
++            "--cache-dir",
++            str(tmp_path),
++        ]
++    )
++
++    assert args.stabilization_replays == 2048
+diff --git a/tests/comm/test_plain_allreduce_probe.py b/tests/comm/test_plain_allreduce_probe.py
+new file mode 100644
+index 00000000..26b56512
+--- /dev/null
++++ b/tests/comm/test_plain_allreduce_probe.py
+@@ -0,0 +1,141 @@
++from __future__ import annotations
++
++import pytest
++import torch
++
++import b12x.comm.pcie.plain_allreduce_probe as probe
++from b12x.comm.pcie.plain_allreduce_probe import (
++    CalibrationPoint,
++    select_plain_allreduce_policy,
++)
++
++
++def _point(rows: int, custom_us: float, nccl_us: float) -> CalibrationPoint:
++    return CalibrationPoint(
++        rows=rows,
++        custom_median_us=custom_us,
++        custom_p95_us=custom_us,
++        nccl_median_us=nccl_us,
++        nccl_p95_us=nccl_us,
++    )
++
++
++def test_policy_selection_preserves_non_monotonic_winners() -> None:
++    policy = select_plain_allreduce_policy(
++        [
++            _point(1, 4.0, 8.0),
++            _point(2, 8.0, 7.0),
++            _point(4, 5.0, 8.0),
++            _point(8, 9.0, 8.0),
++        ],
++        world_size=4,
++        hidden_size=4096,
++        dtype=torch.bfloat16,
++        min_absolute_margin_us=0.25,
++        min_relative_margin=0.01,
++    )
++
++    assert policy.measured_rows == frozenset((1, 2, 4, 8))
++    assert policy.custom_rows == frozenset((1, 4))
++
++
++def test_policy_selection_routes_a_tie_to_nccl() -> None:
++    policy = select_plain_allreduce_policy(
++        [_point(8, 15.1, 15.3)],
++        world_size=4,
++        hidden_size=4096,
++        dtype=torch.bfloat16,
++        min_absolute_margin_us=0.25,
++        min_relative_margin=0.01,
++    )
++
++    assert not policy.custom_rows
++
++
++def test_policy_selection_requires_a_majority_of_trial_wins() -> None:
++    point = CalibrationPoint(
++        rows=8,
++        custom_median_us=5.0,
++        custom_p95_us=9.0,
++        nccl_median_us=8.0,
++        nccl_p95_us=8.0,
++        custom_trials_us=(5.0, 9.0, 9.0),
++        nccl_trials_us=(8.0, 8.0, 8.0),
++    )
++    policy = select_plain_allreduce_policy(
++        [point],
++        world_size=4,
++        hidden_size=4096,
++        dtype=torch.bfloat16,
++        min_absolute_margin_us=0.25,
++        min_relative_margin=0.01,
++    )
++
++    assert not policy.custom_rows
++
++
++def test_policy_selection_rejects_incorrect_or_duplicate_measurements() -> None:
++    incorrect = CalibrationPoint(1, 1.0, 2.0, 1.0, 2.0, correct=False)
++    with pytest.raises(ValueError, match="numerically invalid"):
++        select_plain_allreduce_policy(
++            [incorrect],
++            world_size=2,
++            hidden_size=4096,
++            dtype=torch.bfloat16,
++            min_absolute_margin_us=0.25,
++            min_relative_margin=0.01,
++        )
++
++    with pytest.raises(ValueError, match="unique"):
++        select_plain_allreduce_policy(
++            [_point(1, 1.0, 2.0), _point(1, 1.0, 2.0)],
++            world_size=2,
++            hidden_size=4096,
++            dtype=torch.bfloat16,
++            min_absolute_margin_us=0.25,
++            min_relative_margin=0.01,
++        )
++
++
++def test_transport_stabilization_warms_b12x_and_nccl_equally(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    calls = {"prepare": 0, "b12x": 0, "nccl": 0}
++
++    class FakePool:
++        def prepare_graph_all_reduce(self, inp: torch.Tensor) -> None:
++            calls["prepare"] += 1
++
++        def all_reduce(self, inp: torch.Tensor, *, out: torch.Tensor) -> None:
++            calls["b12x"] += 1
++
++        def capture(self, stream: object):
++            return object()
++
++    def fake_nccl(inp: torch.Tensor) -> None:
++        calls["nccl"] += 1
++
++    def fake_measure(op, **kwargs):
++        assert kwargs["warmup"] == 512
++        assert kwargs["repeat"] == 1
++        assert kwargs["ops_per_sample"] == 8
++        op()
++        return 0.0, 0.0
++
++    monkeypatch.setattr(probe.dist, "all_reduce", fake_nccl)
++    monkeypatch.setattr(probe.dist, "barrier", lambda: None)
++    monkeypatch.setattr(probe.torch.cuda, "synchronize", lambda _device: None)
++    monkeypatch.setattr(probe, "_measure_graph", fake_measure)
++    tensor = torch.empty(1)
++
++    probe._stabilize_transports(
++        FakePool(),
++        tensor,
++        tensor,
++        tensor,
++        replays=512,
++        ops_per_replay=8,
++        device=torch.device("cpu"),
++    )
++
++    assert calls == {"prepare": 1, "b12x": 2, "nccl": 2}
+diff --git a/tests/moe/test_dynamic_launch_tuning.py b/tests/moe/test_dynamic_launch_tuning.py
+new file mode 100644
+index 00000000..f2807735
+--- /dev/null
++++ b/tests/moe/test_dynamic_launch_tuning.py
+@@ -0,0 +1,168 @@
++"""Unit coverage for shape-qualified dynamic MoE launch tuning."""
++
++from __future__ import annotations
++
++import pytest
++import torch
++
++from b12x.moe import fused_moe
++from b12x.moe._shared.dynamic_launch_tuning import (
++    DynamicLaunchTuning,
++    select_dynamic_launch_tuning,
++)
++from b12x.moe._shared.execution import WorkScheduler
++from b12x.moe.fused_moe import _impl as tp_moe_impl
++
++
++def _select(**overrides: object) -> DynamicLaunchTuning | None:
++    arguments: dict[str, object] = {
++        "compute_capability": (12, 0),
++        "quant_mode": "w4a8_mx",
++        "activation": "silu",
++        "num_experts": 256,
++        "hidden_size": 4096,
++        "intermediate_size": 512,
++        "top_k": 6,
++        "routed_rows": 48,
++        "qmma_repacked": True,
++        "deterministic_output": False,
++    }
++    arguments.update(overrides)
++    return select_dynamic_launch_tuning(**arguments)  # type: ignore[arg-type]
++
++
++@pytest.mark.parametrize(
++    ("routed_rows", "expected_mac"),
++    [
++        (25, 94),
++        (48, 94),
++        (96, 94),
++        (97, 72),
++        (144, 72),
++        (145, 84),
++        (192, 84),
++        (193, 64),
++        (768, 64),
++    ],
++)
++def test_sm120_w4a8_decode_tuning_covers_qualified_rows(
++    routed_rows: int,
++    expected_mac: int,
++) -> None:
++    tuning = _select(routed_rows=routed_rows)
++
++    assert tuning == DynamicLaunchTuning(
++        work_source="persistent_grid",
++        max_active_clusters=expected_mac,
++    )
++
++
++@pytest.mark.parametrize("routed_rows", [1, 24, 769, 1024])
++def test_sm120_w4a8_decode_tuning_preserves_unqualified_row_domains(
++    routed_rows: int,
++) -> None:
++    assert _select(routed_rows=routed_rows) is None
++
++
++@pytest.mark.parametrize("routed_rows", [25, 48, 96, 192])
++def test_sm120_tp2_w4a8_decode_tuning_uses_measured_resident_domain(
++    routed_rows: int,
++) -> None:
++    assert _select(
++        intermediate_size=1024,
++        routed_rows=routed_rows,
++    ) == DynamicLaunchTuning(
++        work_source="persistent_grid",
++        max_active_clusters=94,
++    )
++
++
++@pytest.mark.parametrize("routed_rows", [1, 24, 193, 768])
++def test_sm120_tp2_w4a8_decode_tuning_preserves_unqualified_rows(
++    routed_rows: int,
++) -> None:
++    assert _select(intermediate_size=1024, routed_rows=routed_rows) is None
++
++
++@pytest.mark.parametrize(
++    "overrides",
++    [
++        {"compute_capability": (12, 1)},
++        {"quant_mode": "w4a8_nvfp4"},
++        {"activation": "relu2"},
++        {"num_experts": 128},
++        {"hidden_size": 6144},
++        {"intermediate_size": 768},
++        {"top_k": 8},
++        {"qmma_repacked": False},
++        {"deterministic_output": True},
++    ],
++)
++def test_sm120_w4a8_decode_tuning_requires_the_complete_contract(
++    overrides: dict[str, object],
++) -> None:
++    assert _select(**overrides) is None
++
++
++def test_explicit_work_source_overrides_shape_tuning(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setattr(tp_moe_impl, "_current_compute_capability", lambda: (12, 0))
++    common = {
++        "quant_mode": "w4a8_mx",
++        "activation": "silu",
++        "num_experts": 256,
++        "hidden_size": 4096,
++        "intermediate_size": 512,
++        "top_k": 6,
++        "routed_rows": 96,
++        "qmma_repacked": True,
++        "deterministic_output": False,
++    }
++
++    monkeypatch.delenv("B12X_DYNAMIC_WORK_SOURCE", raising=False)
++    assert tp_moe_impl._resolve_dynamic_work_source(**common) == "persistent_grid"
++
++    monkeypatch.setenv("B12X_DYNAMIC_WORK_SOURCE", "materialized_queue")
++    assert tp_moe_impl._resolve_dynamic_work_source(**common) == "materialized_queue"
++
++
++def test_execution_plan_uses_tuning_only_above_the_small_decode_domain(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    monkeypatch.setattr(tp_moe_impl, "_current_compute_capability", lambda: (12, 0))
++    monkeypatch.delenv("B12X_DYNAMIC_WORK_SOURCE", raising=False)
++    weights = fused_moe.plan_weights(
++        quant_modes="w4a8_mx",
++        source_format="fp4_e8m0_k32",
++        activation="silu",
++        params_dtype=torch.bfloat16,
++        num_experts=256,
++        hidden_size=4096,
++        intermediate_size=512,
++    )
++
++    plans = {
++        tokens: fused_moe.plan_execution(
++            num_tokens=tokens,
++            num_topk=6,
++            device=torch.device("cuda"),
++            weight_plan=weights,
++            quant_mode="w4a8_mx",
++        )
++        for tokens in (4, 8, 16)
++    }
++
++    assert plans[4].execution.scheduler is WorkScheduler.DIRECT
++    assert plans[8].execution.scheduler is WorkScheduler.PERSISTENT_GRID
++    assert plans[16].execution.scheduler is WorkScheduler.PERSISTENT_GRID
++
++    monkeypatch.setenv("B12X_DYNAMIC_WORK_SOURCE", "materialized_queue")
++    forced = fused_moe.plan_execution(
++        num_tokens=16,
++        num_topk=6,
++        device=torch.device("cuda"),
++        weight_plan=weights,
++        quant_mode="w4a8_mx",
++    )
++    assert forced.execution.scheduler is WorkScheduler.ATOMIC_QUEUE

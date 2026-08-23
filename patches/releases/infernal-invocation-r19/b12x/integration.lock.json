@@ -1,0 +1,27 @@
+{
+  "base": {
+    "commit": "36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "patch",
+  "manifest": null,
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "0eb81c6ddaab715c0a64d2999b8df887f2aa87a36cf2e1adfd6e489fa5bfadc7",
+    "tree": "12c426322cc5d239023b57a4bd5ab0e60c4302e0"
+  },
+  "schema_version": 1,
+  "source_patches": [],
+  "research_changes": [
+    {
+      "status": "research-only",
+      "purpose": "Provide exact TP2 peer-push all-reduce, shape-keyed B12X/NCCL calibration, and a DeepSeek-V4 TP2 routed-expert launch policy.",
+      "source_base": "36bce2c1552ba2d47dc09f20a6f64fbfc8ec4ff8",
+      "source_digest": "98dcc5dd6d4449e04e4bafc5f5c0899148c1aeed7640ca805aa565fbd077e5a1"
+    }
+  ]
+}

@@ -262,7 +262,13 @@ jq -e '
   all(.pull_requests[]; .number != 146 and .number != 150 and .number != 197 and .number != 214)
 ' "${b12x_lock}" >/dev/null
 
-output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
+output="$(
+  RELEASE_DATE=20260818 \
+    REVISION=r18 \
+    COMPOSITION_ROOT=patches/releases/infernal-invocation-r18 \
+    PRINT_RELEASE_CONFIG=1 \
+    "${builder}"
+)"
 grep -Fxq 'release=infernal-invocation-cu133-torch213' <<<"${output}"
 grep -Fxq 'revision=r18' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/infernal-invocation' <<<"${output}"
