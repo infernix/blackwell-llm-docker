@@ -1,19 +1,15 @@
-# DeepSeek-V4-Flash-0731 target-only serving profile for Infernal Invocation r19.
+# DeepSeek-V4-Flash-0731 fixed probabilistic DSpark K5 serving profile.
 #
-# This preview profile maximizes the FP8 compressed MLA KV pool while retaining
-# a 4,096-token prefill chunk. On two 96 GiB RTX PRO 6000 Blackwell GPUs it
-# exposes 2,110,804 effective aggregate cache tokens at a 1,048,576-token
-# per-request limit. The aggregate capacity can hold multiple sequences; it
-# does not increase the per-request limit beyond MAX_MODEL_LEN.
-#
-# Speculative decoding consumes draft and CUDA-graph memory, so this profile
-# fixes MODE=dspark-mtp0. Use
-# docker-compose-ds4-dspark-infernal-invocation-cu133-r19.yml for the qualified
-# fixed probabilistic DSpark K5 scheduler and memory envelope.
+# The scheduler admits eight sequences and derives a 48-row CUDA graph cap:
+# MAX_NUM_SEQS * (1 target row + 5 speculative rows). On two 96 GiB RTX PRO
+# 6000 Blackwell GPUs, B12X W4A8 plus DGLIN exposes 1,237,601 effective
+# aggregate FP8 compressed-MLA KV tokens at a 1,048,576-token per-request
+# limit. The aggregate capacity can hold multiple sequences; it does not
+# increase the per-request limit beyond MAX_MODEL_LEN.
 services:
   ds4:
     image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm174c789-b12x12c4263-fi1ac6942-cu133-torch213-20260823-r19}
-    container_name: ${NAME:-ds4-infernal-invocation-cu133-r19}
+    container_name: ${NAME:-ds4-dspark-infernal-invocation-cu133-r19}
     entrypoint:
       - /usr/local/bin/lmcache-mp-wrapper.sh
       - /usr/local/bin/serve-ds4-flash.sh
@@ -38,7 +34,7 @@ services:
       OMP_NUM_THREADS: ${OMP_NUM_THREADS:-2}
       PORT: ${PORT:-8000}
       SERVED_MODEL_NAME: ${SERVED_MODEL_NAME:-DeepSeek-V4-Flash-0731}
-      MODE: dspark-mtp0
+      MODE: dspark
       BACKEND: ${BACKEND:-b12x-a8-dglin}
       TP_SIZE: ${TP_SIZE:-2}
       DCP_SIZE: ${DCP_SIZE:-1}
@@ -47,7 +43,7 @@ services:
       DSPARK_TOKENS: ${DSPARK_TOKENS:-5}
       DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE: ${DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE:-0}
       DRAFT_SAMPLE_METHOD: ${DRAFT_SAMPLE_METHOD:-probabilistic}
-      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-32}
+      MAX_NUM_SEQS: ${MAX_NUM_SEQS:-8}
       GRAPH: ${GRAPH:-auto}
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-1048576}
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}
