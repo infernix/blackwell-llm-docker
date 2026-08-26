@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "b89e4bcd349b71192996622892fc6c818513af5021f1e8c8cb4460d046afc41a"
+    "sha256": "d3a571ce8cdbc510fada1ccefc357cf86338e1056d371f035d8a82b471d24b0b"
   },
   "name": "infernal-invocation-vllm",
   "pull_requests": [
@@ -313,19 +313,19 @@
     },
     {
       "commits": [
-        "aa1cb3c389003d30c7036822f632a0d45667cef0"
+        "93be798bd6fc676463905bf5ee81f88ac54eb3d1"
       ],
       "disposition": "merged",
-      "head": "aa1cb3c389003d30c7036822f632a0d45667cef0",
+      "head": "93be798bd6fc676463905bf5ee81f88ac54eb3d1",
       "number": 485,
       "ref": "refs/pull/485/head",
-      "title": "Use the B12X compressed sparse MLA API"
+      "title": "Use the B12X DeepSeek attention namespaces"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "0b181462e87efc66322e467de785a2c96e62a6ac5ff9bb246c9c6d27ba2605bf",
-    "tree": "2c38d2ea3a54ac86dd0452ff6f8a3e9c20dda0b5"
+    "patch_sha256": "841b4858cd355503749d066b9a5559c089ecd715d15719d7c447f20043bb49d2",
+    "tree": "d6cf36ae0dc30d48fd656a3c34a353ec62074922"
   },
   "schema_version": 1,
   "source_patches": []

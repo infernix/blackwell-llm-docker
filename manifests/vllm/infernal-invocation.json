@@ -156,8 +156,8 @@
     },
     {
       "number": 485,
-      "head": "aa1cb3c389003d30c7036822f632a0d45667cef0",
-      "title": "Use the B12X compressed sparse MLA API"
+      "head": "93be798bd6fc676463905bf5ee81f88ac54eb3d1",
+      "title": "Use the B12X DeepSeek attention namespaces"
     }
   ],
   "source_patches": [],

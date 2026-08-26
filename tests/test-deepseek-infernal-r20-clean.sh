@@ -31,7 +31,7 @@ done
 jq -e '
   .base.ref == "refs/heads/dev/infernal-invocation" and
   .base.commit == "b5f995e73e6b7fe27c9927477e277a151ebcc9e9" and
-  .result.tree == "2c38d2ea3a54ac86dd0452ff6f8a3e9c20dda0b5" and
+  .result.tree == "d6cf36ae0dc30d48fd656a3c34a353ec62074922" and
   (.pull_requests | length) == 31 and
   any(.pull_requests[]; .number == 482) and
   any(.pull_requests[]; .number == 483) and
@@ -54,7 +54,7 @@ jq -e '
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'revision=r20' <<<"${output}"
-grep -Fxq 'vllm_tree=2c38d2ea3a54ac86dd0452ff6f8a3e9c20dda0b5' <<<"${output}"
+grep -Fxq 'vllm_tree=d6cf36ae0dc30d48fd656a3c34a353ec62074922' <<<"${output}"
 grep -Fxq 'b12x_tree=28ff6c7003144efa87857f098e43ba98c6901fad' <<<"${output}"
 grep -Fq '20260826-r20' <<<"${output}"
 grep -Fq 'releases/infernal-invocation-r20/vllm/integration.patch' <<<"${output}"
