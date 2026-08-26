@@ -153,6 +153,11 @@
       "number": 483,
       "head": "860838a14499dbba50f42fe63c4087cb063b6e70",
       "title": "Delegate TP2 CUDA-graph all-reduce routing to B12X"
+    },
+    {
+      "number": 485,
+      "head": "aa1cb3c389003d30c7036822f632a0d45667cef0",
+      "title": "Use the B12X compressed sparse MLA API"
     }
   ],
   "source_patches": [],

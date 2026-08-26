@@ -7,7 +7,7 @@
 # and topology-qualified tensor-parallel communication.
 services:
   ds4:
-    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm52c00df-b12x28ff6c7-fi1ac6942-cu133-torch213-20260826-r20}
+    image: ${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm2c38d2e-b12x28ff6c7-fi1ac6942-cu133-torch213-20260826-r20}
     container_name: ${NAME:-ds4-infernal-invocation-cu133-r20}
     entrypoint:
       - /usr/local/bin/lmcache-mp-wrapper.sh
