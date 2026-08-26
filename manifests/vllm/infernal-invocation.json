@@ -26,7 +26,7 @@
     },
     {
       "number": 290,
-      "head": "c13a214bd70319938136fa38757a9ea739569639",
+      "head": "b6fb3cb6f091d7675a9320dae9a666bb8212d957",
       "title": "Profile serving-reachable shapes before KV cache sizing"
     },
     {
@@ -35,13 +35,13 @@
       "title": "Enforce canonical B12X package identifiers"
     },
     {
-      "number": 294,
-      "head": "a18a86e1faf246e4d022071d72645e57c90b71cf",
-      "title": "Preserve grammar bitmask source widths after draft trimming"
+      "number": 476,
+      "head": "719c063528f20da710a3d850d00136e0ff83baca",
+      "title": "Force-reject grammar-invalid speculative drafts"
     },
     {
       "number": 295,
-      "head": "634b1973b041df52e1861b48f77ab1772389b77c",
+      "head": "b115455fd0f3d8984d2149974a9007cda51593b6",
       "title": "Preserve XGrammar termination across token batches"
     },
     {
@@ -91,12 +91,12 @@
     },
     {
       "number": 320,
-      "head": "e9534672129b961399b1625d33d83c79eacded30",
+      "head": "fd0237e15f714d4b6aa413f915a45473ec2dec5a",
       "title": "Validate speculative structured output before commit"
     },
     {
       "number": 415,
-      "head": "c805ebd0896ccfbd2569bc0b2a7944d3282106ff",
+      "head": "2e8535c70af889a07c42370c28387172c678212f",
       "title": "Preserve the DSpark CUDA-graph capture contract"
     },
     {
@@ -143,10 +143,116 @@
       "number": 434,
       "head": "2822782cb76c7bcef952a661f4999992b6527c98",
       "title": "Optimize DeepSeek V4 sparse metadata kernels"
+    },
+    {
+      "number": 482,
+      "head": "da557cef6cbbf30c5f906c45143225018210e4c1",
+      "title": "Repair unaligned local DSpark prefix-cache restores"
+    },
+    {
+      "number": 483,
+      "head": "860838a14499dbba50f42fe63c4087cb063b6e70",
+      "title": "Delegate TP2 CUDA-graph all-reduce routing to B12X"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 474,
+      "head": "7227af14ffc9127f1014d1e944dbd588d16cda78",
+      "disposition": "out_of_scope",
+      "reason": "Dense EXL3 DSpark drafts serve the Kimi-K3 external speculator. DeepSeek-V4-Flash uses an in-checkpoint DSpark draft, and the qualified GLM profiles do not use this Kimi draft format."
+    },
+    {
+      "number": 473,
+      "head": "ee6984036d6f0f3339751fae158e6564b204176b",
+      "disposition": "out_of_scope",
+      "reason": "Bounded Kimi-K3 DFlash auxiliary projection memory serves the separate Kimi-K3 runtime and does not alter DeepSeek V4 or GLM execution."
+    },
+    {
+      "number": 472,
+      "head": "63efe7ba169bd69a79d56088ed27c7828c8fe121",
+      "disposition": "unsupported",
+      "reason": "DeepSeek V4 LoRA requires a paired B12X routed-expert LoRA implementation and separate model qualification. The standard DeepSeek and GLM deployment profiles do not enable LoRA."
+    },
+    {
+      "number": 471,
+      "head": "f7180bc7d20415d1d5f40ed69b0feddd4ce7d5dc",
+      "disposition": "out_of_scope",
+      "reason": "Overlapping Mamba state copies serve recurrent-state architectures. DeepSeek V4 and GLM-5.2 do not allocate Mamba state."
+    },
+    {
+      "number": 469,
+      "head": "62bead59e89eb6b8cc4f117d00832d4d701ea670",
+      "disposition": "out_of_scope",
+      "reason": "Kimi-K3 MLA context-output lifetime belongs to the Kimi-K3 serving runtime. DeepSeek V4 and GLM use different attention-output ownership contracts."
+    },
+    {
+      "number": 468,
+      "head": "7671c6660f7ceb368acaad6b7c2d9d5932403ac6",
+      "disposition": "out_of_scope",
+      "reason": "Aliased LSE handling in native attention-state merge serves the Kimi-K3 runtime composition and is not used by the qualified DeepSeek V4 or GLM attention paths."
+    },
+    {
+      "number": 467,
+      "head": "d19ef454b57b0800a4eb34785cb0964bd6c6da61",
+      "disposition": "out_of_scope",
+      "reason": "Final Kimi-K3 AttnRes ownership is specific to the Kimi-K3 model graph and does not apply to DeepSeek V4 or GLM."
+    },
+    {
+      "number": 466,
+      "head": "308d6542d2f74d770e32a23bab7170c6800285b6",
+      "disposition": "unsupported",
+      "reason": "Target-cache retention for disaggregated DSpark requires a disaggregated serving topology. The qualified DeepSeek V4 profile is a colocated TP2/DCP1 runtime and does not enable disaggregation."
+    },
+    {
+      "number": 465,
+      "head": "9f274440cd012635df0ae4fbfbb3a8ffa7ae3187",
+      "disposition": "out_of_scope",
+      "reason": "A dedicated remote Kimi-K3 DSpark GPU belongs to the separate Kimi-K3 serving topology. DeepSeek-V4-Flash uses its colocated in-checkpoint draft."
+    },
+    {
+      "number": 464,
+      "head": "6fc95c89078c975fa680d3a0b9ab183d31f5e814",
+      "disposition": "out_of_scope",
+      "reason": "Uneven vision-shard gathering serves multimodal Kimi-K3. The DeepSeek V4 and GLM profiles qualified by this manifest are text-only."
+    },
+    {
+      "number": 463,
+      "head": "edb1042d476275d1f1230d5db3dddd19cc003cb6",
+      "disposition": "out_of_scope",
+      "reason": "Mamba prefix restoration serves recurrent-state architectures. DeepSeek V4 and GLM-5.2 do not allocate Mamba cache groups."
+    },
+    {
+      "number": 462,
+      "head": "1d341d8482e4bcc6fd2404efbd245207d6deddf1",
+      "disposition": "research-only",
+      "reason": "Hybrid-model B12X page-table over-allocation is qualified for a Qwen recurrent-and-attention geometry. No DeepSeek V4 or GLM model-level qualification demonstrates that their page-table contract requires this additional allocation."
+    },
+    {
+      "number": 461,
+      "head": "a434f31d77ed0e18270809a20cb11b47e9ffc400",
+      "disposition": "out_of_scope",
+      "reason": "The CUDA rotary dependency change serves Kimi-K3 checkpoint preparation and does not alter the DeepSeek V4 or GLM serving paths."
+    },
+    {
+      "number": 460,
+      "head": "0a00dacd4f1e6c724c9de1b4ba65b26a2ad2f37c",
+      "disposition": "out_of_scope",
+      "reason": "Pre-normalization AttnRes state selection is specific to Kimi-K3 DFlash and is not used by DeepSeek V4 or GLM."
+    },
+    {
+      "number": 459,
+      "head": "18d9e2789b1939fd4158b2e35ce4340437995a08",
+      "disposition": "out_of_scope",
+      "reason": "Vision-memory bounds serve multimodal Kimi-K3 requests. The DeepSeek V4 and GLM profiles qualified by this manifest are text-only."
+    },
+    {
+      "number": 294,
+      "head": "d931e0d45dc9606d5d23554e676afa5aed075e8f",
+      "disposition": "superseded",
+      "reason": "Pull request #476 includes the source-width preservation from pull request #294 and carries grammar-invalid trailing-draft counts through both active rejection samplers. Applying both pull requests would duplicate the same grammar metadata commits."
+    },
     {
       "number": 289,
       "head": "91fd9f8f74de3882af4802d48e66f23347e02cd0",
@@ -155,7 +261,7 @@
     },
     {
       "number": 418,
-      "head": "6b18a8a767f406f08a519757ca6d5ef118b18296",
+      "head": "4f34748d5862cf1ba97a588c99bd63956ce4f884",
       "disposition": "out_of_scope",
       "reason": "Unsharded recurrent-cache position state serves Mamba-style recurrent model architectures. DeepSeek V4 and GLM-5.2 use MLA cache groups and do not allocate recurrent cache state."
     },
@@ -179,13 +285,13 @@
     },
     {
       "number": 425,
-      "head": "273c65d9f38d01b2e30b8994a2dd6a3872695b67",
+      "head": "2b801c9534e11e6e47833cf116501cbd910278df",
       "disposition": "research-only",
       "reason": "The KVarN MLA backend and packed Triton operators require model-quality, graph-replay, capacity, and throughput qualification before they can replace the supported FP8 and NVFP4 MLA cache paths."
     },
     {
       "number": 426,
-      "head": "34537ff162585b98acaacef1cd20221c42fc8eab",
+      "head": "e82e464cc7837dc84834a884d97bc4f72f629739",
       "disposition": "research-only",
       "reason": "KVarN physical cache ownership across scheduling and speculative decode is part of the unqualified KVarN runtime. The supported cache formats retain their existing scheduler ownership contracts."
     },

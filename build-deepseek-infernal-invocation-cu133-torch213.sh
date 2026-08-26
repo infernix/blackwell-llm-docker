@@ -8,10 +8,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
-release_date=${RELEASE_DATE:-20260823}
-revision=${REVISION:-r19}
-composition_root=${COMPOSITION_ROOT:-patches/releases/infernal-invocation-r19}
-base_image=${BASE_IMAGE:-voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2}
+release_date=${RELEASE_DATE:-20260826}
+revision=${REVISION:-r20}
+composition_root=${COMPOSITION_ROOT:-patches/releases/infernal-invocation-r20}
+base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2}
+runtime_foundation=${RUNTIME_FOUNDATION:-1}
+runtime_foundation_image=${RUNTIME_FOUNDATION_IMAGE:-${base_image}}
 flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
@@ -67,6 +69,8 @@ image=${IMAGE:-voipmonitor/vllm:infernal-invocation-vllm${VLLM_INTEGRATION_TREE:
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
   printf 'release=%s\nrevision=%s\nbase=%s\nimage=%s\n' \
     "${release_name}" "${revision}" "${base_image}" "${image}"
+  printf 'runtime_foundation=%s\nruntime_foundation_image=%s\n' \
+    "${runtime_foundation}" "${runtime_foundation_image}"
   printf 'vllm_ref=%s\nvllm_commit=%s\nvllm_tree=%s\nvllm_patch=%s\n' \
     "${VLLM_REF}" "${VLLM_COMMIT}" "${VLLM_INTEGRATION_TREE}" "${VLLM_PATCH_FILE}"
   printf 'b12x_ref=%s\nb12x_commit=%s\nb12x_tree=%s\nb12x_patch=%s\n' \
@@ -79,11 +83,28 @@ fi
 
 if ! docker image inspect "${base_image}" >/dev/null 2>&1; then
   docker pull "${base_image}" || {
-    printf 'CUDA 13.3 base image is unavailable. Build it with ./build-kimi-k3-cu133-torch213-base.sh.\n' >&2
+    printf 'The pinned CUDA 13.3 runtime foundation is unavailable. Build it with ./build-kimi-k3-runtime-foundation.sh.\n' >&2
     exit 1
   }
 fi
 base_image_id="$(docker image inspect "${base_image}" --format '{{.Id}}')"
+
+case "${runtime_foundation}" in
+  0|1) ;;
+  *) printf 'RUNTIME_FOUNDATION must be 0 or 1; got %s\n' "${runtime_foundation}" >&2; exit 2 ;;
+esac
+
+if [[ "${runtime_foundation}" == 1 ]]; then
+  base_labels="$(docker image inspect "${base_image}" --format '{{json .Config.Labels}}')"
+  jq -e '
+    ."local-inference.runtime.foundation.source-packages" == "absent" and
+    ."local-inference.cuda.version" == "13.3" and
+    ."local-inference.torch.version" == "2.13.0" and
+    ."local-inference.flashinfer.version" == "0.6.18+cu133" and
+    ."local-inference.cutlass-dsl.version" == "4.6.2" and
+    ."local-inference.instanttensor.version" == "0.1.9"
+  ' <<<"${base_labels}" >/dev/null
+fi
 
 if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
   docker pull "${flashinfer_wheel_image}" || \
@@ -94,12 +115,14 @@ fi
 
 flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
   --format '{{json .Config.Labels}}')"
-jq -e \
-  --arg base_id "${base_image_id}" \
-  --arg version "${flashinfer_version}" \
-  '."local-inference.runtime.base-id" == $base_id and
-   ."local-inference.flashinfer.version" == $version' \
+jq -e --arg version "${flashinfer_version}" \
+  '."local-inference.flashinfer.version" == $version' \
   <<<"${flashinfer_labels}" >/dev/null
+if [[ "${runtime_foundation}" == 0 ]]; then
+  jq -e --arg base_id "${base_image_id}" \
+    '."local-inference.runtime.base-id" == $base_id' \
+    <<<"${flashinfer_labels}" >/dev/null
+fi
 flashinfer_wheel_image_id="$(docker image inspect "${flashinfer_wheel_image}" \
   --format '{{.Id}}')"
 
@@ -168,6 +191,8 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "RELEASE_DATE=${release_date}" \
   --build-arg "DOCKER_COMMIT=${docker_commit}" \
   --build-arg "CACHE_FINGERPRINT=${cache_fingerprint}" \
+  --build-arg "RUNTIME_FOUNDATION=${runtime_foundation}" \
+  --build-arg "RUNTIME_FOUNDATION_IMAGE=${runtime_foundation_image}" \
   --file Dockerfile.deepseek-infernal-invocation-cu133-torch213 \
   --tag "${image}" \
   .
@@ -182,6 +207,8 @@ assert_label() {
     }
 }
 assert_label local-inference.runtime.base-id "${base_image_id}"
+assert_label local-inference.runtime.foundation.enabled "${runtime_foundation}"
+assert_label local-inference.runtime.foundation.image "${runtime_foundation_image}"
 assert_label local-inference.vllm.integration.tree "${VLLM_INTEGRATION_TREE}"
 assert_label local-inference.b12x.integration.tree "${B12X_INTEGRATION_TREE}"
 assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TREE}"
@@ -205,9 +232,9 @@ launcher_output="$(
     -e DRY_RUN=1 -e MODE=dspark -e DSPARK_TOKENS=5 -e MAX_NUM_SEQS=16 \
     -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
 )"
-grep -Fq \
-  'DS4 launch: mode=dspark depth=fixed backend=b12x-a8' \
-  <<<"${launcher_output}"
+grep -Fq 'DS4 launch: mode=dspark depth=fixed' <<<"${launcher_output}"
+grep -Fq 'capacity_activation=disabled' <<<"${launcher_output}"
+grep -Fq 'backend=b12x-a8' <<<"${launcher_output}"
 grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' <<<"${launcher_output}"
 grep -Fq -- '--attention-backend B12X_MLA_SPARSE' <<<"${launcher_output}"
 printf '%s\n' "${launcher_output}"

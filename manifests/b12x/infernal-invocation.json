@@ -5,43 +5,71 @@
   "base_ref": "refs/heads/master",
   "pull_requests": [
     {
-      "number": 145,
-      "head": "7f88972df71d580951115220b75923078b769fe8",
-      "title": "Qualify CUTLASS DSL 4.6.2"
-    },
-    {
-      "number": 221,
-      "head": "413f96e889dad1ae0752fd1f4be9d37f56849600",
-      "title": "Fuse unpaired K6/MCG dense execution in CuTe DSL"
-    },
-    {
-      "number": 223,
-      "head": "3df80ee36e2a060b602897b00af377687efd9118",
-      "title": "Execute projection-mixed MCG K3/K4/K5 experts"
-    },
-    {
       "number": 227,
-      "head": "e38436d76a95c586c57e06646f8ea5b8c8ed11c7",
+      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
       "title": "Honor inactive routes in native W4A16 microkernels"
     },
     {
-      "number": 228,
-      "head": "50046df84a15cc5f76b94260e897fd39072b2fdf",
-      "title": "Ignore inactive MoE routes in tiny decode"
+      "number": 243,
+      "head": "38652910a66cfea9208fabfa096931860937a81e",
+      "title": "Fuse native FP16/BF16 K6/MCG decode"
     },
     {
-      "number": 229,
-      "head": "2cdd9e265cd6c4dca43e7d42c5a8cb265c92adfb",
-      "title": "Align W4A16 CUDA graph tests with buffer contracts"
-    },
-    {
-      "number": 230,
-      "head": "156920046e858f413db0c51e53cd25b9020d5f40",
-      "title": "Fix mapped W4A16 route namespace planning"
+      "number": 246,
+      "head": "b184292a1e0f5c3516f5971730fddea2944112a8",
+      "title": "Make TP2 graph peer-push generation-safe"
     }
   ],
   "source_patches": [],
   "reviewed_exclusions": [
+    {
+      "number": 245,
+      "head": "1a3ea83fbb16d7b800a7d50e6b19a5710eaf30c0",
+      "disposition": "research-only",
+      "reason": "The K2-K6 cooperative Trellis generalization is qualified against a Qwen3.8 checkpoint and still depends on the K6 implementation in pull request #243. DeepSeek V4 does not use Trellis dense weights, and the supported GLM profiles retain the separately qualified K6 route until their K2-K5 payloads receive model-level validation."
+    },
+    {
+      "number": 244,
+      "head": "b9c95ff379b36545392bbd12135d5c785599acd6",
+      "disposition": "out_of_scope",
+      "reason": "The lossless EXL3-to-b12x_trellis exporter is checkpoint-production tooling. The serving image consumes prepared checkpoints and does not execute the exporter."
+    },
+    {
+      "number": 241,
+      "head": "bebd334db301f200300e4a28393dc595588b662e",
+      "disposition": "out_of_scope",
+      "reason": "Staged MXFP8 linear inputs serve the Kimi-K3 runtime composition. The qualified DeepSeek V4 and GLM profiles do not use that staged-input contract."
+    },
+    {
+      "number": 240,
+      "head": "6c60f3df1535537d0be3f2c213f8ebe2a8f6d611",
+      "disposition": "unsupported",
+      "reason": "Rank-4 routed-expert LoRA is paired with the optional DeepSeek V4 LoRA integration. The standard DeepSeek and GLM deployment profiles do not enable LoRA and have no LoRA correctness or throughput qualification."
+    },
+    {
+      "number": 239,
+      "head": "906d6127c6dc2b0a433c74606bda7a89cdb5c7a8",
+      "disposition": "out_of_scope",
+      "reason": "Stable large-shape W4A16 route packing serves Kimi-K3 TP16 prefill. The qualified DeepSeek V4 TP2 and GLM profiles do not use the Kimi 4,096-token top-16 route geometry."
+    },
+    {
+      "number": 238,
+      "head": "a347a473570798da42115d0ff5f2aeddf3357c61",
+      "disposition": "out_of_scope",
+      "reason": "Bounded W4A16 prefill reduction serves the Kimi-K3 TP16 capacity profile. The qualified DeepSeek V4 and GLM profiles do not use that route-output workspace contract."
+    },
+    {
+      "number": 236,
+      "head": "fe96602864fe8b1dbcc1322af9a8fd6a1c7b3c22",
+      "disposition": "out_of_scope",
+      "reason": "Packed Qwen QSRT K5 dense inference serves Qwen checkpoints and is not used by the DeepSeek V4 or GLM checkpoint formats."
+    },
+    {
+      "number": 221,
+      "head": "413f96e889dad1ae0752fd1f4be9d37f56849600",
+      "disposition": "superseded",
+      "reason": "Pull request #243 provides the K6/MCG cooperative CuTe DSL route against B12X master preparation contracts, supports both FP16 and BF16 activations, and carries model-level GLM and CUDA-graph qualification. Applying both implementations would create competing dispatch and workspace contracts."
+    },
     {
       "number": 231,
       "head": "17d0ef65925543bf678cf7c73cd87bd236b36c1f",
@@ -262,7 +290,7 @@
       "number": 144,
       "head": "c8d5f33b4a682a4a0b06e29c816aa24e28313473",
       "disposition": "superseded",
-      "reason": "Pull request #148 ports the mixed K3/K4/K5 runtime to the current B12X master and preserves the QSRT atoms-v2 and FC2 tile contracts."
+      "reason": "Pull request #148 ports the mixed K3/K4/K5 runtime to the B12X master API and preserves the QSRT atoms-v2 and FC2 tile contracts."
     },
     {
       "number": 140,

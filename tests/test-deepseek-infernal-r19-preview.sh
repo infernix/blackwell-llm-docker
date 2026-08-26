@@ -42,7 +42,15 @@ jq -e '
     (.purpose | contains("exact TP2 peer-push all-reduce")))
 ' "${composition_root}/b12x/integration.lock.json" >/dev/null
 
-output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
+output="$(
+  PRINT_RELEASE_CONFIG=1 \
+    REVISION=r19 \
+    RELEASE_DATE=20260823 \
+    COMPOSITION_ROOT=patches/releases/infernal-invocation-r19 \
+    BASE_IMAGE=voipmonitor/vllm:kimi-k3-cu133-torch213-nccl2312-20260811-r2 \
+    RUNTIME_FOUNDATION=0 \
+    "${builder}"
+)"
 grep -Fxq 'revision=r19' <<<"${output}"
 grep -Fxq 'vllm_tree=174c789e09984049d0d53b261024460ca5e9c449' <<<"${output}"
 grep -Fxq 'b12x_tree=12c426322cc5d239023b57a4bd5ab0e60c4302e0' <<<"${output}"
@@ -70,5 +78,7 @@ for component in VLLM B12X LMCACHE; do
   grep -Fq -- "--build-arg \"${component}_MERGE_HEADS=\${${component}_MERGE_HEADS}\"" "${builder}"
 done
 
-grep -Fq 'DS4 launch: mode=dspark depth=fixed backend=b12x-a8' "${builder}"
+grep -Fq "grep -Fq 'DS4 launch: mode=dspark depth=fixed'" "${builder}"
+grep -Fq "grep -Fq 'capacity_activation=disabled'" "${builder}"
+grep -Fq "grep -Fq 'backend=b12x-a8'" "${builder}"
 grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' "${builder}"

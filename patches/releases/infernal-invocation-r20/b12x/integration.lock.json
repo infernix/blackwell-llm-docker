@@ -1,0 +1,52 @@
+{
+  "base": {
+    "commit": "3a437ab5168060e4d625f05e1625c04089f1ba37",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "merge",
+  "manifest": {
+    "sha256": "292b9e00a3804bb3312c02af128cbadfca016231fc85541985b2e33bdef30fd0"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "commits": [
+        "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9"
+      ],
+      "disposition": "merged",
+      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
+      "number": 227,
+      "ref": "refs/pull/227/head",
+      "title": "Honor inactive routes in native W4A16 microkernels"
+    },
+    {
+      "commits": [
+        "38652910a66cfea9208fabfa096931860937a81e"
+      ],
+      "disposition": "merged",
+      "head": "38652910a66cfea9208fabfa096931860937a81e",
+      "number": 243,
+      "ref": "refs/pull/243/head",
+      "title": "Fuse native FP16/BF16 K6/MCG decode"
+    },
+    {
+      "commits": [
+        "b184292a1e0f5c3516f5971730fddea2944112a8"
+      ],
+      "disposition": "merged",
+      "head": "b184292a1e0f5c3516f5971730fddea2944112a8",
+      "number": 246,
+      "ref": "refs/pull/246/head",
+      "title": "Make TP2 graph peer-push generation-safe"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "c07f987a926789b51e5cd63cb3a53c3c942c1052cb04d07ae9f3b713eb29b8d6",
+    "tree": "28ff6c7003144efa87857f098e43ba98c6901fad"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}

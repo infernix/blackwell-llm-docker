@@ -72,6 +72,30 @@
   ],
   "reviewed_exclusions": [
     {
+      "number": 31,
+      "head": "aa369371435890fc3e6a2d1e6a00f37c83c23ab2",
+      "disposition": "out_of_scope",
+      "reason": "Rank-sharded recurrent state in hybrid MLA models serves Kimi-K3. DeepSeek V4 and GLM-5.2 do not allocate recurrent cache state; pure-MLA sharing retains its existing behavior."
+    },
+    {
+      "number": 30,
+      "head": "f88bd949eb91dbd165b313b7dbe2211fa65f57c8",
+      "disposition": "out_of_scope",
+      "reason": "Explicit engine-driven chunk geometry corrects hybrid recurrent and subpaged-attention registration. DeepSeek V4 and GLM-5.2 do not use the recurrent cache geometry covered by this pull request."
+    },
+    {
+      "number": 29,
+      "head": "27c7fd1086f51bb9f970b58c4da37f952d155109",
+      "disposition": "research-only",
+      "reason": "An independent multiprocess heartbeat timeout is an optional external-cache deployment control. The DeepSeek V4 and GLM LMCache profiles have no service-level qualification for a nondefault timeout."
+    },
+    {
+      "number": 27,
+      "head": "26314dc94fbc8d7e426b0f50d18062f770026ee4",
+      "disposition": "out_of_scope",
+      "reason": "Fine external chunks and heterogeneous recurrent registration serve the Kimi-K3 DCP cache geometry. The qualified DeepSeek V4 and GLM profiles do not use its 12,288-to-1,536-token projection contract."
+    },
+    {
       "number": 25,
       "head": "d9a7ae273a4de28cd37a2a122e6852c451e4b889",
       "disposition": "out_of_scope",
