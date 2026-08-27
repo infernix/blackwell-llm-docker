@@ -5,19 +5,19 @@
   "base_ref": "refs/heads/master",
   "pull_requests": [
     {
-      "number": 227,
-      "head": "0eba6ae99e0d1fad6ec268d8c291f498ec1dd4d9",
-      "title": "Honor inactive routes in native W4A16 microkernels"
-    },
-    {
       "number": 243,
       "head": "38652910a66cfea9208fabfa096931860937a81e",
       "title": "Fuse native FP16/BF16 K6/MCG decode"
     },
     {
       "number": 246,
-      "head": "b184292a1e0f5c3516f5971730fddea2944112a8",
+      "head": "37dc7f8036f602adc1edac47464876d2a9c61d71",
       "title": "Make TP2 graph peer-push generation-safe"
+    },
+    {
+      "number": 247,
+      "head": "058787fc707a7c0f668f02cf2d20dc8b440bf05d",
+      "title": "Bound native W4A16 routes by resident tensors"
     }
   ],
   "source_patches": [],

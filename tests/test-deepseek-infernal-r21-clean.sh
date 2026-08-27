@@ -41,7 +41,7 @@ jq -e '
 jq -e '
   .base.ref == "refs/heads/master" and
   .base.commit == "a71c705f1c4710f59129562d26c73e70098e29de" and
-  .result.tree == "9213cd11d1aea1dcf5fa9a46565e5da2795653c0" and
+  .result.tree == "f6dc512eb13ac2c09b2bf53656c704081af64361" and
   [.pull_requests[].number] == [243, 246, 247]
 ' "${composition_root}/b12x/integration.lock.json" >/dev/null
 
@@ -55,7 +55,7 @@ jq -e '
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
 grep -Fxq 'revision=r21' <<<"${output}"
 grep -Fxq 'vllm_tree=d6cf36ae0dc30d48fd656a3c34a353ec62074922' <<<"${output}"
-grep -Fxq 'b12x_tree=9213cd11d1aea1dcf5fa9a46565e5da2795653c0' <<<"${output}"
+grep -Fxq 'b12x_tree=f6dc512eb13ac2c09b2bf53656c704081af64361' <<<"${output}"
 grep -Fq '20260827-r21' <<<"${output}"
 grep -Fq 'releases/infernal-invocation-r21/vllm/integration.patch' <<<"${output}"
 grep -Fq 'releases/infernal-invocation-r21/b12x/integration.patch' <<<"${output}"

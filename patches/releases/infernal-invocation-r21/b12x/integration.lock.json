@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "f2d538bae521d9942d3de6f809ae5d2dc1faade3f72627d7b6a1e30d10f1ad0d"
+    "sha256": "3aae4a43b009114f95a69502df23bf237921be87b21608f5e0685407face397c"
   },
   "name": "infernal-invocation-b12x",
   "pull_requests": [
@@ -23,10 +23,10 @@
     },
     {
       "commits": [
-        "37d800547ca4666556b58a6b162f5cfa37c1037e"
+        "37dc7f8036f602adc1edac47464876d2a9c61d71"
       ],
       "disposition": "merged",
-      "head": "37d800547ca4666556b58a6b162f5cfa37c1037e",
+      "head": "37dc7f8036f602adc1edac47464876d2a9c61d71",
       "number": 246,
       "ref": "refs/pull/246/head",
       "title": "Make TP2 graph peer-push generation-safe"
@@ -44,8 +44,8 @@
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "f36247b6cf0c6075846689adc4480e3352e5c77302c27f314e4242092f27399a",
-    "tree": "9213cd11d1aea1dcf5fa9a46565e5da2795653c0"
+    "patch_sha256": "eb06046d3710ec9cdb569b1b8e706f592996274977a95dd0a3511b628b0884fe",
+    "tree": "f6dc512eb13ac2c09b2bf53656c704081af64361"
   },
   "schema_version": 1,
   "source_patches": []

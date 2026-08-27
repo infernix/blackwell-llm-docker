@@ -3077,10 +3077,10 @@ index c2c89ea3540da9469ff600e908ea83a5518ef29e..ad6c5a81460c3aed261c94c65de39fec
          current_cuda_stream(),  # stream
 diff --git a/benchmarks/benchmark_pcie_tp2_plain_allreduce.py b/benchmarks/benchmark_pcie_tp2_plain_allreduce.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..b505cfbec027d890be20823c467f237d3918885f
+index 0000000000000000000000000000000000000000..319c8a4d711b52392567fa2f35599eb3952d990a
 --- /dev/null
 +++ b/benchmarks/benchmark_pcie_tp2_plain_allreduce.py
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,374 @@
 +#!/usr/bin/env python3
 +"""Compare TP2 B12X plain all-reduce with NCCL under CUDA graph replay.
 +
@@ -3403,7 +3403,11 @@ index 0000000000000000000000000000000000000000..b505cfbec027d890be20823c467f237d
 +            "source": _source_identity(),
 +            "host": socket.gethostname(),
 +            "topology_description": args.topology_description,
-+            "command": [sys.executable, *sys.argv],
++            "worker_command": [sys.executable, *sys.argv],
++            "distributed_environment": {
++                name: os.environ.get(name)
++                for name in ("RANK", "LOCAL_RANK", "WORLD_SIZE")
++            },
 +            "python_version": platform.python_version(),
 +            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
 +            "collective_environment": {
@@ -5135,10 +5139,10 @@ index 0000000000000000000000000000000000000000..a5de3f62ac1b2906c9ef50b6c55f5eda
 +    raise SystemExit(main())
 diff --git a/docs/evidence/pcie_tp2/20260826-sm120-direct-root-bf16.json b/docs/evidence/pcie_tp2/20260826-sm120-direct-root-bf16.json
 new file mode 100644
-index 0000000000000000000000000000000000000000..4ac8c352b2ffc3379b7bb514bd2f40eb280ef1fa
+index 0000000000000000000000000000000000000000..f07303cf8c6f672db37d4167c2831f735c389b95
 --- /dev/null
 +++ b/docs/evidence/pcie_tp2/20260826-sm120-direct-root-bf16.json
-@@ -0,0 +1,1889 @@
+@@ -0,0 +1,1894 @@
 +{
 +  "contract": "TP2 CUDA-graph plain all-reduce",
 +  "ratio_definition": "b12x median / NCCL median; values below 1 mean B12X is faster",
@@ -5151,7 +5155,7 @@ index 0000000000000000000000000000000000000000..4ac8c352b2ffc3379b7bb514bd2f40eb
 +  },
 +  "host": "684b034a3e15",
 +  "topology_description": "two RTX PRO 6000 Blackwell GPUs attached to separate CPU root ports without a PCIe switch on their direct peer path",
-+  "command": [
++  "worker_command": [
 +    "/opt/venv/bin/python3",
 +    "benchmarks/benchmark_pcie_tp2_plain_allreduce.py",
 +    "--warmup",
@@ -5165,6 +5169,11 @@ index 0000000000000000000000000000000000000000..4ac8c352b2ffc3379b7bb514bd2f40eb
 +    "--output",
 +    "/results/20260826-sm120-direct-root-bf16.json"
 +  ],
++  "distributed_environment": {
++    "RANK": "0",
++    "LOCAL_RANK": "0",
++    "WORLD_SIZE": "2"
++  },
 +  "python_version": "3.12.3",
 +  "cuda_visible_devices": "0,1",
 +  "collective_environment": {
@@ -7666,7 +7675,7 @@ index 28e8007cf17b7e51e4bcc5b69b4b77fb8edd6722..05a9b3271be4f53612c9c04ea0850d02
      assert _object_broadcast_device(group) == torch.device("cpu")
  
 diff --git a/tests/comm/test_pcie_oneshot_torture.py b/tests/comm/test_pcie_oneshot_torture.py
-index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d0f8c509f 100644
+index e7447ca81c8154c79a296533fa7aae2729554d84..e0b3319b11a1d047eecd4d87c54318c57434dad7 100644
 --- a/tests/comm/test_pcie_oneshot_torture.py
 +++ b/tests/comm/test_pcie_oneshot_torture.py
 @@ -9,7 +9,15 @@ import torch
@@ -7837,7 +7846,7 @@ index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d
      out_b = torch.empty_like(inp_b)
  
      for iteration in range(TORTURE_MULTISTREAM_ITERS):
-@@ -186,6 +239,268 @@ def _run_multistream(
+@@ -186,6 +239,312 @@ def _run_multistream(
          _assert_constant(out_b, world_size * base_b + rank_sum)
  
  
@@ -7991,6 +8000,48 @@ index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d
 +            assert torch.equal(output.view(torch.int16), expected.view(torch.int16))
 +
 +
++def _run_tp2_graph_weak_contiguous_storage(
++    pool: PCIeOneshotAllReducePool,
++    device: torch.device,
++    rank: int,
++    world_size: int,
++) -> None:
++    """Validate graph peer-push over a dense, non-contiguous logical view."""
++
++    source = torch.empty((4096, 4), device=device, dtype=torch.bfloat16).transpose(0, 1)
++    scratch = torch.empty_like(source)
++    output = torch.empty_like(source)
++    assert not source.is_contiguous()
++    assert source.untyped_storage().nbytes() == source.numel() * source.element_size()
++
++    stream = torch.cuda.Stream(device=device)
++    graph = torch.cuda.CUDAGraph()
++    with pool.capture(stream, channel_id="graph:weak-contiguous") as graph_channel:
++        with torch.cuda.stream(stream):
++            graph_channel.prepare_graph_all_reduce(scratch)
++        with torch.cuda.graph(graph, stream=stream):
++            scratch.copy_(source)
++            graph_channel.all_reduce(scratch, out=output)
++    stream.synchronize()
++
++    lane = torch.arange(source.numel(), device=device, dtype=torch.float32).view_as(
++        source
++    )
++    for iteration in range(4):
++        patterns = tuple(
++            (((lane + 7 * source_rank + 3 * iteration) % 127) - 63)
++            .div(8)
++            .to(source.dtype)
++            for source_rank in range(world_size)
++        )
++        source.copy_(patterns[rank])
++        expected = patterns[0] + patterns[1]
++        with torch.cuda.stream(stream):
++            graph.replay()
++        stream.synchronize()
++        assert torch.equal(output, expected)
++
++
 +def _run_tp2_graph_generation_wrap(
 +    pool: PCIeOneshotAllReducePool,
 +    device: torch.device,
@@ -8093,8 +8144,10 @@ index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d
 +        max_concurrent_channels=2,
 +    )
 +    try:
-+        pool.prepare_channels(("graph:payload", "graph:wrap"))
++        pool.prepare_channels(("graph:payload", "graph:weak-contiguous", "graph:wrap"))
 +        _run_tp2_graph_payload_patterns(pool, device, rank, world_size)
++        dist.barrier()
++        _run_tp2_graph_weak_contiguous_storage(pool, device, rank, world_size)
 +        dist.barrier()
 +        _run_tp2_graph_generation_wrap(pool, device, rank, world_size)
 +        torch.cuda.synchronize(device)
@@ -8106,7 +8159,7 @@ index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d
  def _worker(rank: int, world_size: int, port: int) -> None:
      torch.cuda.set_device(rank)
      device = torch.device(f"cuda:{rank}")
-@@ -198,13 +513,28 @@ def _worker(rank: int, world_size: int, port: int) -> None:
+@@ -198,13 +557,28 @@ def _worker(rank: int, world_size: int, port: int) -> None:
      pool = PCIeOneshotAllReducePool.from_process_group(
          process_group=dist.group.WORLD,
          device=device,
@@ -8137,7 +8190,7 @@ index e7447ca81c8154c79a296533fa7aae2729554d84..55a84351725bcb4cea9273d44ca4270d
          _run_graph_scratch_reuse(pool, device, rank, world_size)
          dist.barrier()
          _run_multistream(pool, device, rank, world_size)
-@@ -224,3 +554,12 @@ def test_pcie_oneshot_eager_graph_and_multistream_torture():
+@@ -224,3 +598,12 @@ def test_pcie_oneshot_eager_graph_and_multistream_torture():
      if available < requested:
          pytest.skip(f"need {requested} CUDA devices, found {available}")
      mp.spawn(_worker, args=(requested, _free_port()), nprocs=requested, join=True)
