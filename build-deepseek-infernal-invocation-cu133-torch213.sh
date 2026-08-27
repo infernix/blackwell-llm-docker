@@ -8,9 +8,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-infernal-invocation-cu133-torch213}
-release_date=${RELEASE_DATE:-20260826}
-revision=${REVISION:-r20}
-composition_root=${COMPOSITION_ROOT:-patches/releases/infernal-invocation-r20}
+release_date=${RELEASE_DATE:-20260827}
+revision=${REVISION:-r21}
+composition_root=${COMPOSITION_ROOT:-patches/releases/infernal-invocation-r21}
 base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2}
 runtime_foundation=${RUNTIME_FOUNDATION:-1}
 runtime_foundation_image=${RUNTIME_FOUNDATION_IMAGE:-${base_image}}

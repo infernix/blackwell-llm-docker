@@ -1,0 +1,52 @@
+{
+  "base": {
+    "commit": "a71c705f1c4710f59129562d26c73e70098e29de",
+    "ref": "refs/heads/master",
+    "repository": "https://github.com/local-inference-lab/b12x.git"
+  },
+  "composition": null,
+  "composition_strategy": "merge",
+  "manifest": {
+    "sha256": "f2d538bae521d9942d3de6f809ae5d2dc1faade3f72627d7b6a1e30d10f1ad0d"
+  },
+  "name": "infernal-invocation-b12x",
+  "pull_requests": [
+    {
+      "commits": [
+        "38652910a66cfea9208fabfa096931860937a81e"
+      ],
+      "disposition": "merged",
+      "head": "38652910a66cfea9208fabfa096931860937a81e",
+      "number": 243,
+      "ref": "refs/pull/243/head",
+      "title": "Fuse native FP16/BF16 K6/MCG decode"
+    },
+    {
+      "commits": [
+        "37d800547ca4666556b58a6b162f5cfa37c1037e"
+      ],
+      "disposition": "merged",
+      "head": "37d800547ca4666556b58a6b162f5cfa37c1037e",
+      "number": 246,
+      "ref": "refs/pull/246/head",
+      "title": "Make TP2 graph peer-push generation-safe"
+    },
+    {
+      "commits": [
+        "058787fc707a7c0f668f02cf2d20dc8b440bf05d"
+      ],
+      "disposition": "merged",
+      "head": "058787fc707a7c0f668f02cf2d20dc8b440bf05d",
+      "number": 247,
+      "ref": "refs/pull/247/head",
+      "title": "Bound native W4A16 routes by resident tensors"
+    }
+  ],
+  "result": {
+    "patch": "integration.patch",
+    "patch_sha256": "f36247b6cf0c6075846689adc4480e3352e5c77302c27f314e4242092f27399a",
+    "tree": "9213cd11d1aea1dcf5fa9a46565e5da2795653c0"
+  },
+  "schema_version": 1,
+  "source_patches": []
+}
