@@ -71,7 +71,7 @@ source_lock_sha256="$({
 
 test "${VLLM_REF}" = dev/jovian-judgement
 test "${B12X_REF}" = master
-test "${VLLM_PRS}" = "491@608010a003ccb900a5268b2235d09f81d37bf66e"
+test "${VLLM_PRS}" = "491@b77333ca8824897ff6ddf96a62208ea406c555a9"
 test "${B12X_PRS}" = "250@dd8cf60505e0363ab9d6ef6b2116c3a37216a2f1"
 test "$(jq -er '.source_patches | length' "${composition_root}/vllm/integration.lock.json")" = 0
 test "$(jq -er '.source_patches | length' "${composition_root}/b12x/integration.lock.json")" = 0

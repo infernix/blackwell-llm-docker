@@ -133,7 +133,7 @@ script composes these immutable source inputs:
 
 - `local-inference-lab/vllm:dev/jovian-judgement` at
   `015dcd423d6aabf843c8ad69074ff67d35c2a395` plus vLLM PR #491 at
-  `608010a003ccb900a5268b2235d09f81d37bf66e`;
+  `b77333ca8824897ff6ddf96a62208ea406c555a9`;
 - `local-inference-lab/b12x:master` at
   `2fcf23a0ce269be27b2e03fece73d46e90e6aeea` plus test-only B12X PR #250 at
   `dd8cf60505e0363ab9d6ef6b2116c3a37216a2f1`.

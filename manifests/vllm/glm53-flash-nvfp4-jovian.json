@@ -6,7 +6,7 @@
   "pull_requests": [
     {
       "number": 491,
-      "head": "608010a003ccb900a5268b2235d09f81d37bf66e",
+      "head": "b77333ca8824897ff6ddf96a62208ea406c555a9",
       "title": "Optimize GLM-5.3 B12X and DFlash2 MXFP8 serving"
     }
   ],

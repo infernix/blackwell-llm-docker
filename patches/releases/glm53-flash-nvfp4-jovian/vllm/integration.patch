@@ -233,7 +233,7 @@ index 6c9e67b0a2cc2374264515e5877cd8542a916ed3..435e791392aeac8ce99eba9394d3bf8e
      class FakeVideoProcessor:
          merge_size = 2
 diff --git a/tests/models/test_glm5next_pooled_indexer.py b/tests/models/test_glm5next_pooled_indexer.py
-index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab99a1cba7 100644
+index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..fc98c1530e8b4f2af0df0089db7a5364377602c7 100644
 --- a/tests/models/test_glm5next_pooled_indexer.py
 +++ b/tests/models/test_glm5next_pooled_indexer.py
 @@ -8,6 +8,7 @@ import pytest
@@ -257,7 +257,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
  
  
  def test_glm53_packed_c4_metadata_uses_parent_stride() -> None:
-@@ -376,6 +379,117 @@ def test_glm53_packed_tail_scores_through_existing_c4_indexer() -> None:
+@@ -376,6 +379,118 @@ def test_glm53_packed_tail_scores_through_existing_c4_indexer() -> None:
      assert set(output[0, :2].tolist()) == {0, 1}
  
  
@@ -266,38 +266,39 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
 +) -> None:
 +    device = _require_glm_gpu()
 +    _, main = _packed_main_cache(
-+        device=device, blocks=2, layers=3, block_size=512, layer=1
++        device=device, blocks=2, layers=3, block_size=2304, layer=1
 +    )
 +    index_cache, _, parent_stride_pages = Glm5NextPooledIndexer._index_cache_view(main)
-+    virtual_page = parent_stride_pages
-+    page = index_cache[virtual_page]
-+    quant = page.as_strided(
-+        (64, 128), (128, 1), storage_offset=page.storage_offset()
-+    ).view(torch.float8_e4m3fn)
-+    scales = page.as_strided(
-+        (64 * 4,),
-+        (1,),
-+        storage_offset=page.storage_offset() + 64 * 128,
-+    ).view(torch.float32)
++    virtual_pages = list(range(parent_stride_pages, parent_stride_pages + 9))
 +    generator = torch.Generator(device=device).manual_seed(5303)
-+    quant.copy_(
-+        torch.randn((64, 128), generator=generator, device=device).to(
-+            torch.float8_e4m3fn
++    for virtual_page in virtual_pages:
++        page = index_cache[virtual_page]
++        quant = page.as_strided(
++            (64, 128), (128, 1), storage_offset=page.storage_offset()
++        ).view(torch.float8_e4m3fn)
++        scales = page.as_strided(
++            (64 * 4,),
++            (1,),
++            storage_offset=page.storage_offset() + 64 * 128,
++        ).view(torch.float32)
++        quant.copy_(
++            torch.randn((64, 128), generator=generator, device=device).to(
++                torch.float8_e4m3fn
++            )
 +        )
-+    )
-+    scales.copy_(
-+        torch.exp2(
-+            torch.randint(-3, 3, (64,), generator=generator, device=device).float()
++        scales.copy_(
++            torch.exp2(
++                torch.randint(-3, 3, (64,), generator=generator, device=device).float()
++            )
 +        )
-+    )
 +    q = torch.randn(
 +        (3, 32, 128), generator=generator, device=device, dtype=torch.float32
 +    ).to(torch.float8_e4m3fn)
 +    weights = torch.randn(
 +        (3, 32), generator=generator, device=device, dtype=torch.float32
 +    )
-+    seq_lens = torch.tensor([16, 37, 64], dtype=torch.int32, device=device)
-+    block_table = torch.tensor([[virtual_page]], dtype=torch.int32, device=device)
++    seq_lens = torch.tensor([513, 545, 576], dtype=torch.int32, device=device)
++    block_table = torch.tensor([virtual_pages], dtype=torch.int32, device=device)
 +    topk = 512
 +
 +    from vllm.utils.b12x import get_b12x_dsa_indexer
@@ -310,7 +311,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
 +            source_layout=module.SOURCE_LAYOUT_PAGED,
 +            num_q_heads=32,
 +            max_q_rows=3,
-+            max_page_table_width=1,
++            max_page_table_width=len(virtual_pages),
 +            topk=topk,
 +            mode="prefill",
 +            shared_page_table=True,
@@ -322,7 +323,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
 +    )
 +    binding = plan.bind(
 +        scratch=scratch,
-+        real_page_table=block_table.expand(3, 1),
++        real_page_table=block_table.expand(3, -1),
 +        cache_seqlens_int32=seq_lens,
 +        expected_num_q_heads=32,
 +        shared_page_table=True,
@@ -357,12 +358,12 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
 +        kv_cache=index_cache,
 +        seq_lens=seq_lens,
 +        block_table=block_table,
-+        gather_cu_seq_lens=torch.tensor([0, 64], dtype=torch.int32, device=device),
++        gather_cu_seq_lens=torch.tensor([0, 576], dtype=torch.int32, device=device),
 +        row_starts=torch.zeros(3, dtype=torch.int32, device=device),
 +        output=actual,
 +        topk=topk,
-+        total_k_rows=64,
-+        workspace_k_rows=64,
++        total_k_rows=576,
++        workspace_k_rows=576,
 +    )
 +    torch.accelerator.synchronize()
 +
@@ -375,7 +376,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
  def test_glm53_pool_write_matches_fp8_reference() -> None:
      device = _require_glm_gpu()
      generator = torch.Generator(device=device).manual_seed(53)
-@@ -458,7 +572,7 @@ def test_glm53_decode_tail_completes_the_same_pool_as_prefill() -> None:
+@@ -458,7 +573,7 @@ def test_glm53_decode_tail_completes_the_same_pool_as_prefill() -> None:
      torch.testing.assert_close(actual_scale, expected_scale.reshape(1), rtol=0, atol=0)
  
  
@@ -384,7 +385,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
      device = _require_glm_gpu()
      generator = torch.Generator(device=device).manual_seed(56)
      key = torch.randn(
-@@ -486,9 +600,13 @@ def test_glm53_decode_writer_matches_batched_prefill_writer() -> None:
+@@ -486,9 +601,13 @@ def test_glm53_decode_writer_matches_batched_prefill_writer() -> None:
          key,
          gate,
          ape,
@@ -399,7 +400,7 @@ index 9af76ccb9e05cba21f12e4b4168b05b7d1d17c60..7eb9d02077449d688fd6f108a186e1ab
      )
      for position in range(8):
          update_decode_pools(
-@@ -500,18 +618,127 @@ def test_glm53_decode_writer_matches_batched_prefill_writer() -> None:
+@@ -500,18 +619,127 @@ def test_glm53_decode_writer_matches_batched_prefill_writer() -> None:
              gate[position : position + 1],
              ape,
              torch.tensor(
@@ -629,11 +630,67 @@ index 969192681900a059855308560c5212cc0b46f62b..1b4bb0f0d5d291e41e589d38f9f0a70b
 +        cache_dtype = get_kv_cache_dtype_from_layers(MagicMock(), list(layers))
 +
 +    assert cache_dtype == "fp8"
+diff --git a/tests/v1/cudagraph/test_breakable_cudagraph.py b/tests/v1/cudagraph/test_breakable_cudagraph.py
+index dc9c1ffb3067863a24c3e4716b9e597408c9343c..a0667e3895c71c10b126aeef3b10c185f05a7c3d 100644
+--- a/tests/v1/cudagraph/test_breakable_cudagraph.py
++++ b/tests/v1/cudagraph/test_breakable_cudagraph.py
+@@ -78,6 +78,51 @@ def test_piecewise_capture_builds_fresh_metadata_for_both_passes():
+     assert create_calls[0][1] is not create_calls[1][1]
+ 
+ 
++def test_breakable_wrapper_retains_capture_resources(monkeypatch):
++    import vllm.compilation.breakable_cudagraph as breakable
++    from vllm.v1.worker.workspace import retain_cuda_graph_capture_resource
++
++    class FakeCapture:
++        def __init__(self, pool):
++            self.pool = pool
++
++        def __enter__(self):
++            return self
++
++        def __exit__(self, exc_type, exc, tb):
++            return None
++
++    class FakeOffloader:
++        def sync_prev_onload(self):
++            pass
++
++        def join_after_forward(self):
++            pass
++
++    resource = object()
++
++    def runnable():
++        assert retain_cuda_graph_capture_resource(resource)
++        return object()
++
++    monkeypatch.setattr(breakable, "validate_cudagraph_capturing_enabled", lambda: None)
++    monkeypatch.setattr(breakable, "set_graph_pool_id", lambda _pool: None)
++    monkeypatch.setattr(breakable.gc, "collect", lambda: None)
++    monkeypatch.setattr(torch.accelerator, "empty_cache", lambda: None)
++    monkeypatch.setattr(breakable, "get_offloader", lambda: FakeOffloader())
++    monkeypatch.setattr(breakable, "BreakableCUDAGraphCapture", FakeCapture)
++    monkeypatch.setattr(breakable, "weak_ref_tensors", lambda value: value)
++
++    wrapper = object.__new__(breakable.BreakableCUDAGraphWrapper)
++    wrapper.runnable = runnable
++    wrapper.graph_pool = object()
++    entry = breakable._BreakableEntry(batch_descriptor=object())
++
++    wrapper._capture(entry, (), {})
++
++    assert entry.resources == [resource]
++
++
+ @pytest.fixture(autouse=True)
+ def _reset_breakable_tls():
+     """Defensively clear thread-local capture state between tests so a
 diff --git a/tests/v1/spec_decode/test_dflash2.py b/tests/v1/spec_decode/test_dflash2.py
-index 86cf3327a92252b095405d19d6812a4ee295c26e..78b7bd8cc8e116937edc63f537387b6e3e316224 100644
+index 86cf3327a92252b095405d19d6812a4ee295c26e..8d54a6b2a37121151e4eea2a24ea45af4143b91d 100644
 --- a/tests/v1/spec_decode/test_dflash2.py
 +++ b/tests/v1/spec_decode/test_dflash2.py
-@@ -60,6 +60,47 @@ def test_grouped_conv_matches_reference(block_size: int):
+@@ -60,6 +60,80 @@ def test_grouped_conv_matches_reference(block_size: int):
      torch.testing.assert_close(actual, expected.flatten(0, 1).flatten(-2))
  
  
@@ -676,6 +733,39 @@ index 86cf3327a92252b095405d19d6812a4ee295c26e..78b7bd8cc8e116937edc63f537387b6e
 +
 +    assert grouped_conv.kernel_projection.quant_config is quant_config
 +    assert selector.hidden_projection.quant_config is quant_config
++
++
++@pytest.mark.parametrize("mxfp8_layer", [0, 1])
++def test_dflash_context_projection_rejects_mixed_quantization(mxfp8_layer: int):
++    from torch import nn
++
++    from vllm.model_executor.layers.quantization.modelopt import (
++        ModelOptMxFp8LinearMethod,
++    )
++    from vllm.model_executor.models.qwen3_dflash import DFlashQwen3Model
++
++    class UnreadableWeight:
++        def __getitem__(self, _key):
++            raise AssertionError("weights must not be read before validation")
++
++    mxfp8_method = object.__new__(ModelOptMxFp8LinearMethod)
++    methods = [None, None]
++    methods[mxfp8_layer] = mxfp8_method
++    layers_attn = [
++        SimpleNamespace(
++            qkv_proj=SimpleNamespace(
++                quant_method=method,
++                q_size=1,
++                weight=UnreadableWeight(),
++            )
++        )
++        for method in methods
++    ]
++    model = object.__new__(DFlashQwen3Model)
++    nn.Module.__init__(model)
++
++    with pytest.raises(ValueError, match="Every DFlash attention layer"):
++        model._build_context_kv_buffers(layers_attn, has_bias=False)
 +
 +
  def test_selector_edges_match_sequential_reference():
@@ -746,6 +836,43 @@ index a909ea9af89dd68bbee73174459afb7b9a30eaaa..8bbe8e9cc0d178ef886ec46f79156868
 +    assert resources == [first, second]
 +    assert nested_resources == [nested]
 +    assert not workspace.retain_cuda_graph_capture_resource(outside)
+diff --git a/vllm/compilation/breakable_cudagraph.py b/vllm/compilation/breakable_cudagraph.py
+index 6da3ec71786128368adab1027c012bcae0885798..f4fe203714fb2aa24155b9065245084fe2d62b9f 100644
+--- a/vllm/compilation/breakable_cudagraph.py
++++ b/vllm/compilation/breakable_cudagraph.py
+@@ -45,6 +45,7 @@ from vllm.logger import init_logger
+ from vllm.model_executor.offloader.base import get_offloader
+ from vllm.platforms import current_platform
+ from vllm.utils.torch_utils import weak_ref_tensor, weak_ref_tensors
++from vllm.v1.worker.workspace import collect_cuda_graph_capture_resources
+ 
+ logger = init_logger(__name__)
+ 
+@@ -241,6 +242,7 @@ class _BreakableEntry:
+     capture: BreakableCUDAGraphCapture | None = None
+     output: Any = None
+     input_addresses: list[int] | None = None
++    resources: list[Any] | None = None
+ 
+ 
+ class BreakableCUDAGraphWrapper:
+@@ -379,7 +381,7 @@ class BreakableCUDAGraphWrapper:
+         get_offloader().sync_prev_onload()
+ 
+         capture = BreakableCUDAGraphCapture(pool=self.graph_pool)
+-        with capture:
++        with collect_cuda_graph_capture_resources() as resources, capture:
+             output = self.runnable(*args, **kwargs)
+             # Join the offloader's copy stream while we still hold the last
+             # segment open, so the join is captured into the graph (otherwise
+@@ -392,6 +394,7 @@ class BreakableCUDAGraphWrapper:
+             output = weak_ref_tensors(output)
+ 
+         entry.capture = capture
++        entry.resources = resources
+         entry.output = weak_ref_tensors(output)
+ 
+         logger.debug(
 diff --git a/vllm/model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py b/vllm/model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py
 index a6760cb856e7e6808159490e794e022dd4a62db5..469e9a712bc99eccc9d10a44983fbaa705bf83e3 100644
 --- a/vllm/model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py
@@ -863,7 +990,7 @@ index a6760cb856e7e6808159490e794e022dd4a62db5..469e9a712bc99eccc9d10a44983fbaa7
              binding,
              lower_bound=self.gate_lower_bound,
 diff --git a/vllm/model_executor/models/qwen3_dflash.py b/vllm/model_executor/models/qwen3_dflash.py
-index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..b58b5b16b8f9ee093f7984b250ea6e494805774e 100644
+index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..e3db761961bc8d7ffec06b4d16c00628caed8f05 100644
 --- a/vllm/model_executor/models/qwen3_dflash.py
 +++ b/vllm/model_executor/models/qwen3_dflash.py
 @@ -472,6 +472,14 @@ class DFlashQwen3Model(nn.Module):
@@ -881,25 +1008,31 @@ index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..b58b5b16b8f9ee093f7984b250ea6e49
  
      def embed_input_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
          embeds = self.embed_tokens(input_ids)
-@@ -491,6 +499,25 @@ class DFlashQwen3Model(nn.Module):
-         # KV projection weights: [num_layers * 2 * kv_size, hidden_size]
-         kv_weights = [a.qkv_proj.weight[a.q_size :] for a in layers_attn]
-         self._fused_kv_weight = torch.cat(kv_weights, dim=0)
-+
+@@ -486,11 +494,31 @@ class DFlashQwen3Model(nn.Module):
+         layers_attn: list[nn.Module],
+         has_bias: bool,
+     ) -> None:
 +        from vllm.model_executor.layers.quantization.modelopt import (
 +            ModelOptMxFp8LinearMethod,
 +        )
 +
-+        quant_method = layers_attn[0].qkv_proj.quant_method
-+        if isinstance(quant_method, ModelOptMxFp8LinearMethod):
-+            if not all(
-+                isinstance(a.qkv_proj.quant_method, ModelOptMxFp8LinearMethod)
-+                for a in layers_attn
-+            ):
-+                raise ValueError(
-+                    "Every DFlash attention layer must use the same MXFP8 "
-+                    "linear format for the fused context K/V projection."
-+                )
++        quant_methods = [a.qkv_proj.quant_method for a in layers_attn]
++        uses_mxfp8 = [
++            isinstance(method, ModelOptMxFp8LinearMethod) for method in quant_methods
++        ]
++        if any(uses_mxfp8) and not all(uses_mxfp8):
++            raise ValueError(
++                "Every DFlash attention layer must use the same MXFP8 "
++                "linear format for the fused context K/V projection."
++            )
++
+         self._hidden_norm_weight = self.hidden_norm.weight.data
+ 
+         # KV projection weights: [num_layers * 2 * kv_size, hidden_size]
+         kv_weights = [a.qkv_proj.weight[a.q_size :] for a in layers_attn]
+         self._fused_kv_weight = torch.cat(kv_weights, dim=0)
++
++        if all(uses_mxfp8):
 +            kv_scales = [a.qkv_proj.weight_scale[a.q_size :] for a in layers_attn]
 +            self._fused_kv_weight_scale = torch.cat(kv_scales, dim=0)
 +        else:
@@ -907,7 +1040,7 @@ index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..b58b5b16b8f9ee093f7984b250ea6e49
          if has_bias:
              kv_biases = [a.qkv_proj.bias[a.q_size :] for a in layers_attn]
              self._fused_kv_bias: torch.Tensor | None = torch.cat(kv_biases, dim=0)
-@@ -546,6 +573,41 @@ class DFlashQwen3Model(nn.Module):
+@@ -546,6 +574,41 @@ class DFlashQwen3Model(nn.Module):
          # References to inner Attention layers for direct cache writes
          self._attn_layers = [layer.self_attn.attn for layer in self.layers]
  
@@ -949,7 +1082,7 @@ index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..b58b5b16b8f9ee093f7984b250ea6e49
      def _project_context_kv(
          self,
          context_states: torch.Tensor,
-@@ -562,9 +624,18 @@ class DFlashQwen3Model(nn.Module):
+@@ -562,9 +625,18 @@ class DFlashQwen3Model(nn.Module):
              self._hidden_norm_weight,
              self._rms_norm_eps,
          )
@@ -971,7 +1104,7 @@ index f5a7bff8fc6e1521b9d39f23612a0ff8004e476a..b58b5b16b8f9ee093f7984b250ea6e49
          # Single contiguous copy that separates K/V and transposes to
          # layer-major layout.  Result: [2, L, num_ctx, nkv, hd] contiguous.
          # Indexing dim-0 gives contiguous [L, num_ctx, nkv, hd] for K and V.
-@@ -793,6 +864,10 @@ class DFlashQwen3ForCausalLM(Qwen3ForCausalLM):
+@@ -793,6 +865,10 @@ class DFlashQwen3ForCausalLM(Qwen3ForCausalLM):
              context_states, context_positions, context_slot_mapping
          )
  
@@ -1411,7 +1544,7 @@ index 15e25ade33b7f5182385345847f4e4b0594606cd..951fef21d876924224aa6a0f27b08999
          return proc
  
 diff --git a/vllm/models/glm5next/nvidia/ops/glm_kpool.py b/vllm/models/glm5next/nvidia/ops/glm_kpool.py
-index 6f65e93008b5feb958e4df792d023c1050f098ea..918f4e8ee6216278d585048fdcd0db6ed854df02 100644
+index 6f65e93008b5feb958e4df792d023c1050f098ea..e9c2e1d29a38fb0812bce02d1eb3059d6ea30aa5 100644
 --- a/vllm/models/glm5next/nvidia/ops/glm_kpool.py
 +++ b/vllm/models/glm5next/nvidia/ops/glm_kpool.py
 @@ -251,6 +251,195 @@ def _decode_update_kernel(
@@ -1430,7 +1563,6 @@ index 6f65e93008b5feb958e4df792d023c1050f098ea..918f4e8ee6216278d585048fdcd0db6e
 +    ape,
 +    slot_mapping,
 +    positions,
-+    request_offset,
 +    page_stride_bytes,
 +    model_block_size,
 +    parent_stride_pages,
@@ -1440,6 +1572,7 @@ index 6f65e93008b5feb958e4df792d023c1050f098ea..918f4e8ee6216278d585048fdcd0db6e
 +    key_stride_0,
 +    gate_stride_0,
 +    ape_stride_0,
++    request_offset,
 +    PAGE_SIZE: tl.constexpr,
 +    HEAD_DIM: tl.constexpr,
 +    POOL_SIZE: tl.constexpr,
@@ -1649,7 +1782,7 @@ index 6f65e93008b5feb958e4df792d023c1050f098ea..918f4e8ee6216278d585048fdcd0db6e
          kv_cache.view(torch.float8_e4m3fn),
          kv_cache.view(torch.float32),
          tail,
-@@ -307,14 +514,49 @@ def update_decode_pools(
+@@ -307,14 +514,48 @@ def update_decode_pools(
          int(key.stride(0)),
          int(gate.stride(0)),
          int(ape.stride(0)),
@@ -1674,9 +1807,8 @@ index 6f65e93008b5feb958e4df792d023c1050f098ea..918f4e8ee6216278d585048fdcd0db6e
 +        _prefill_pool_kernel[
 +            (num_prefill_requests, triton.cdiv(max_query_len, _POOL_SIZE))
 +        ](
-+            *common_args[:10],
++            *common_args,
 +            num_decode_requests,
-+            *common_args[10:],
 +            **common_meta,
 +        )
 +        _prefill_tail_kernel[(num_prefill_requests,)](
@@ -1867,17 +1999,26 @@ index b9aaf1ea25cedd7e338c69aefa30ea59957515ba..7c63728d7137fa6bd52701cbd41ada80
              metadata.selector_state_slot_ids,
              metadata.selector_state_is_fresh,
 diff --git a/vllm/v1/attention/backends/utils.py b/vllm/v1/attention/backends/utils.py
-index 29f1ccdfd0623f45a5c62f3a14544426c552202b..ebf93dab3b52f098c66efb008f3974588ef4e766 100644
+index 29f1ccdfd0623f45a5c62f3a14544426c552202b..d2b1532edd823d84b13fd129df43730826f77e22 100644
 --- a/vllm/v1/attention/backends/utils.py
 +++ b/vllm/v1/attention/backends/utils.py
-@@ -387,6 +387,25 @@ def get_num_attention_heads_from_layers(
+@@ -387,6 +387,34 @@ def get_num_attention_heads_from_layers(
      return heads.pop()
  
  
 +def get_kv_cache_dtype_from_layers(
 +    vllm_config: VllmConfig, layer_names: list[str]
 +) -> str | None:
-+    """Return the KV-cache format shared by one attention group."""
++    """Return the KV-cache format shared by one attention group.
++
++    Args:
++        vllm_config: Engine configuration containing the attention layers.
++        layer_names: Names of the layers in the attention group.
++
++    Returns:
++        The shared cache format, or ``None`` when the group has no attention
++        layers.
++    """
 +    attn_layers = get_layers_from_vllm_config(
 +        vllm_config,
 +        AttentionLayerBase,  # type: ignore[type-abstract]
@@ -1991,7 +2132,7 @@ index 6203b443104eaa9566cf9f98a1e4e4c8e9074a38..e17d1e787b7a752176e385f7078898ff
              graph_manager.pool = original_manager_pools[id(graph_manager)]
          live_wrappers = list(CUDAGraphWrapper._all_instances) + list(
 diff --git a/vllm/v1/worker/workspace.py b/vllm/v1/worker/workspace.py
-index 39b3b10349c3b829ba189d12e398cfc6ac679378..459b2974cee120b07a5e8eaf0aa4708eec1f4f35 100644
+index 39b3b10349c3b829ba189d12e398cfc6ac679378..e98a05c99e4e03ec334074bdd7b18782916f3421 100644
 --- a/vllm/v1/worker/workspace.py
 +++ b/vllm/v1/worker/workspace.py
 @@ -8,6 +8,7 @@ from contextlib import contextmanager
@@ -2012,7 +2153,7 @@ index 39b3b10349c3b829ba189d12e398cfc6ac679378..459b2974cee120b07a5e8eaf0aa4708e
  
  
  @contextmanager
-@@ -44,6 +48,33 @@ def use_workspace_lane(lane: int) -> Iterator[None]:
+@@ -44,6 +48,40 @@ def use_workspace_lane(lane: int) -> Iterator[None]:
          _workspace_lane.reset(token)
  
  
@@ -2035,7 +2176,14 @@ index 39b3b10349c3b829ba189d12e398cfc6ac679378..459b2974cee120b07a5e8eaf0aa4708e
 +
 +
 +def retain_cuda_graph_capture_resource(resource: Any) -> bool:
-+    """Retain ``resource`` when called inside full CUDA graph capture."""
++    """Retain an object whose storage is referenced by a CUDA graph.
++
++    Args:
++        resource: Python owner that must remain alive while the graph exists.
++
++    Returns:
++        ``True`` when a capture resource collector retained the object.
++    """
 +    resources = _cuda_graph_capture_resources.get()
 +    if resources is None:
 +        return False
