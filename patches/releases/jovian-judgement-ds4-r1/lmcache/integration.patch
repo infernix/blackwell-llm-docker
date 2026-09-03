@@ -1,3 +1,46 @@
+diff --git a/csrc/mp_mem_kernels.cu b/csrc/mp_mem_kernels.cu
+index a9ff0ccb6ae2881b7e25272eec45dee05aea0e5f..0c693182211b784dc37d323ee804a84570236d7c 100644
+--- a/csrc/mp_mem_kernels.cu
++++ b/csrc/mp_mem_kernels.cu
+@@ -2,14 +2,17 @@
+ 
+ #include "mp_mem_kernels.cuh"
+ 
++#include <algorithm>
++
+ namespace {
+ 
+ /**
+  * Key logic in the kernel implementation:
+  * 1. Each thread block is for (BS, NH, HS) part (i.e., a single block in the
+  * paged buffer)
+- * 2. Within a thread block, each warp is for a single head. Number of warps
+- * in a thread block is equal to the number of heads (NH).
++ * 2. Within a thread block, each threadIdx.y row handles one head. The row has
++ * up to 32 threads and narrows when NH * 32 would exceed CUDA's 1024-thread
++ * block limit.
+  * 3. Within a thread block, we do the loop over the BS (i.e., number of tokens
+  * in the block) dimension.
+  * 4. The grid will take over (2, NB, NL) dimensions. No matter what the actual
+@@ -360,7 +363,17 @@ void multi_layer_block_kv_transfer_templated(
+   // --- Grid and block dimensions ---
+   int elements_per_head = shape_desc.hs * shape_desc.element_size /
+                           static_cast<int>(sizeof(ScalarType));
+-  int thread_dim_x = std::min(elements_per_head, 32);
++  TORCH_CHECK(shape_desc.nh >= 1 && shape_desc.nh <= 1024,
++              "num_heads must be in [1, 1024], got ", shape_desc.nh);
++  TORCH_CHECK(elements_per_head >= 1,
++              "head payload must contain at least one transfer element");
++  // Keep one thread-row per head while respecting CUDA's 1024-thread block
++  // limit. Compressed-state caches can expose 64 or more logical heads, so a
++  // full 32-thread row per head is not always a legal launch configuration.
++  // warp_copy already walks the head payload with blockDim.x as its stride;
++  // reducing the row width therefore preserves coverage and ordering.
++  int thread_dim_x =
++      std::min({elements_per_head, 32, 1024 / shape_desc.nh});
+   int thread_dim_y = shape_desc.nh;
+ 
+   dim3 block(thread_dim_x, thread_dim_y);
 diff --git a/csrc/mp_mem_kernels.cuh b/csrc/mp_mem_kernels.cuh
 index 753400134fb1281ce4f3565dc5c65d58eae38443..d64407056e1a5a9bc1374065fa7ce59bad48a454 100644
 --- a/csrc/mp_mem_kernels.cuh
@@ -40,10 +83,10 @@ index dd5aa0e6033292eaad06dd8f0b7961d58cf6b2f1..f7790c5c0b1a8ad8ae42f7cad9aa8694
          except TimeoutError:
              raise ConnectionError(
 diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
-index fad87daeee25cbc0dd21ff5e1fc49f1907dbec36..b94bad8c53236c9874ec4af0e5f03a4fefbd32cc 100644
+index fad87daeee25cbc0dd21ff5e1fc49f1907dbec36..e44b356609f8735564e56697227496d108c5a55c 100644
 --- a/lmcache/v1/gpu_connector/utils.py
 +++ b/lmcache/v1/gpu_connector/utils.py
-@@ -466,26 +466,15 @@ def get_device(kv_caches: DiscoverableKVCache) -> torch.device:
+@@ -466,30 +466,87 @@ def get_device(kv_caches: DiscoverableKVCache) -> torch.device:
      return probe.device
  
  
@@ -76,16 +119,176 @@ index fad87daeee25cbc0dd21ff5e1fc49f1907dbec36..b94bad8c53236c9874ec4af0e5f03a4f
      }
  )
  
-@@ -563,8 +552,7 @@ def resolve_block_stride_and_log_layout(
-                     "resolve_block_stride_and_log_layout: group's probe "
-                     f"tensor has dim-0 padding ({padding} elements per "
-                     f"block) but engine_kv_format={engine_kv_format!r} is not "
+ 
++def _layout_probe_tensor(
++    kv_caches: DiscoverableKVCache,
++    engine_kv_format: "lmc_ops.EngineKVFormat",
++    layer_idx: int,
++) -> torch.Tensor:
++    """Return the tensor whose dim-0 stride describes the registered layout."""
++    if lmc_ops.is_cross_layer(engine_kv_format):
++        if not isinstance(kv_caches, torch.Tensor):
++            raise TypeError(
++                "Cross-layer EngineKVFormat expects a single backing "
++                f"torch.Tensor, got {type(kv_caches).__name__}."
++            )
++        return kv_caches
++    if lmc_ops.is_kv_list(engine_kv_format):
++        return kv_caches[0][layer_idx]  # type: ignore[index,return-value]
++    return kv_caches[layer_idx]  # type: ignore[index,return-value]
++
++
++def resolve_block_stride(
++    kv_caches: DiscoverableKVCache,
++    engine_kv_format: "lmc_ops.EngineKVFormat",
++    layer_idx: int,
++) -> Optional[int]:
++    """Return the physical per-block stride required by transfer kernels.
++
++    Blocks-first vLLM pools can interleave layers within each allocation block.
++    Their logical per-layer views are therefore not contiguous across block IDs,
++    even when every individual block payload is contiguous. Transfer callers must
++    preserve ``stride(0)`` for these formats. Other formats use the kernel's tight
++    layout calculation and reject unsupported dim-0 padding.
++
++    Args:
++        kv_caches: Normalized KV cache tensors for one registered layer group.
++        engine_kv_format: Detected physical layout of ``kv_caches``.
++        layer_idx: Layer whose tensor describes the group's physical allocation.
++
++    Returns:
++        The physical stride in source-dtype elements for formats whose first
++        dimension is the block axis, or ``None`` when the transfer kernel can
++        derive a tight stride from the format descriptor.
++
++    Raises:
++        TypeError: A cross-layer format is not backed by one tensor.
++        ValueError: A format without physical-stride support contains dim-0
++            padding that the transfer kernel cannot represent.
++    """
++    rep = _layout_probe_tensor(kv_caches, engine_kv_format, layer_idx)
++    if engine_kv_format in _BLOCK_AXIS_FORMATS and rep.ndim > 0:
++        return int(rep.stride(0))
++
++    if rep.ndim >= 2:
++        tight_dim0 = 1
++        for d in range(1, rep.ndim):
++            tight_dim0 *= int(rep.shape[d])
++        padding = int(rep.stride(0)) - tight_dim0
++        if padding > 0:
++            raise ValueError(
++                "resolve_block_stride: group's probe tensor has dim-0 padding "
++                f"({padding} elements per block) but "
++                f"engine_kv_format={engine_kv_format!r} cannot represent that "
++                "padding in transfer kernels. "
++                f"layer_idx={layer_idx}, shape={tuple(rep.shape)}, "
++                f"stride={tuple(rep.stride())}, tight_stride0={tight_dim0}, "
++                f"storage_offset={int(rep.storage_offset())}, dtype={rep.dtype}."
++            )
++    return None
++
++
+ def resolve_block_stride_and_log_layout(
+     kv_caches: DiscoverableKVCache,
+     engine_kv_format: "lmc_ops.EngineKVFormat",
+@@ -525,55 +582,8 @@ def resolve_block_stride_and_log_layout(
+         ValueError: Non-block-axis format carries dim-0 padding.
+     """
+ 
+-    def _pick_layout_probe_tensor() -> torch.Tensor:
+-        # Layout probe only (shape/stride/storage_offset/dtype); not
+-        # the K/V slice fed to the transfer kernel.
+-        # - Cross-layer formats: ``kv_caches`` is the single backing
+-        #   tensor packing all layers along dim-1; indexing dim-0
+-        #   (= NB) would yield a per-block slice, so return the whole
+-        #   tensor (its ``stride(0)`` is the authoritative per-NB step).
+-        # - SGL MHA: outer list is K/V (length 2), inner list is
+-        #   per-layer; K & V share shape/stride by construction.
+-        # - Other formats: ``kv_caches`` is already a per-layer list.
+-        if lmc_ops.is_cross_layer(engine_kv_format):
+-            if not isinstance(kv_caches, torch.Tensor):
+-                raise TypeError(
+-                    "Cross-layer EngineKVFormat expects a single backing "
+-                    f"torch.Tensor, got {type(kv_caches).__name__}."
+-                )
+-            return kv_caches
+-        if lmc_ops.is_kv_list(engine_kv_format):
+-            return kv_caches[0][layer_idx]  # type: ignore[index,return-value]
+-        return kv_caches[layer_idx]  # type: ignore[index,return-value]
+-
+-    rep = _pick_layout_probe_tensor()
+-
+-    block_stride_elems: Optional[int]
+-    if engine_kv_format in _BLOCK_AXIS_FORMATS and rep.ndim > 0:
+-        block_stride_elems = int(rep.stride(0))
+-    else:
+-        # Non-block-axis format: detect forbidden dim-0 padding.
+-        if rep.ndim >= 2:
+-            tight_dim0 = 1
+-            for d in range(1, rep.ndim):
+-                tight_dim0 *= int(rep.shape[d])
+-            padding = int(rep.stride(0)) - tight_dim0
+-            if padding > 0:
+-                raise ValueError(
+-                    "resolve_block_stride_and_log_layout: group's probe "
+-                    f"tensor has dim-0 padding ({padding} elements per "
+-                    f"block) but engine_kv_format={engine_kv_format!r} is not "
 -                    "a supported dim-0-padded format (only "
 -                    "NL_X_NB_BS_HS is); downstream transfer kernels "
-+                    "a supported dim-0-padded format; downstream transfer kernels "
-                     "cannot honour this padding and would read/write "
-                     "wrong bytes. "
-                     f"layer_idx={layer_idx}, shape={tuple(rep.shape)}, "
+-                    "cannot honour this padding and would read/write "
+-                    "wrong bytes. "
+-                    f"layer_idx={layer_idx}, shape={tuple(rep.shape)}, "
+-                    f"stride={tuple(rep.stride())}, "
+-                    f"tight_stride0={tight_dim0}, "
+-                    f"storage_offset={int(rep.storage_offset())}, "
+-                    f"dtype={rep.dtype}."
+-                )
+-        block_stride_elems = None
++    rep = _layout_probe_tensor(kv_caches, engine_kv_format, layer_idx)
++    block_stride_elems = resolve_block_stride(kv_caches, engine_kv_format, layer_idx)
+ 
+     # Best-effort layout audit log; the log line itself must not raise.
+     shape = tuple(rep.shape)
+diff --git a/lmcache/v1/multiprocess/transfer_context/base.py b/lmcache/v1/multiprocess/transfer_context/base.py
+index 7b7684f235dad0036c97688c4dce7c182d1cfa90..183a0598cca67747012f607a6c6a489c9dcca265 100644
+--- a/lmcache/v1/multiprocess/transfer_context/base.py
++++ b/lmcache/v1/multiprocess/transfer_context/base.py
+@@ -435,6 +435,7 @@ def gather_paged_kv_to_cpu(
+         get_num_layers,
+         make_page_buffer_shape_desc,
+         normalize_kv_and_discover_format,
++        resolve_block_stride,
+     )
+     import lmcache.c_ops as lmc_ops
+ 
+@@ -466,6 +467,9 @@ def gather_paged_kv_to_cpu(
+         num_layers_in_group=num_layers,
+         num_blocks=num_blocks,
+         block_size=block_size,
++        block_stride_elems=resolve_block_stride(
++            normalized, engine_kv_format, layer_idx=0
++        ),
+     )
+ 
+     iter_indices = (
+@@ -687,6 +691,7 @@ def scatter_cpu_to_paged_kv(
+         get_num_layers,
+         make_page_buffer_shape_desc,
+         normalize_kv_and_discover_format,
++        resolve_block_stride,
+     )
+     import lmcache.c_ops as lmc_ops
+ 
+@@ -745,6 +750,9 @@ def scatter_cpu_to_paged_kv(
+         num_layers_in_group=num_layers,
+         num_blocks=num_blocks,
+         block_size=block_size,
++        block_stride_elems=resolve_block_stride(
++            normalized, engine_kv_format, layer_idx=0
++        ),
+     )
+ 
+     selected_block_ids: list[int] = []
 diff --git a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py b/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
 index f5d6c2b1d181681c12463027763ddfcfe025cc25..11a438aa02e23fd21b6822bd4cb5a22cbcb91adb 100644
 --- a/lmcache/v1/multiprocess/transfer_context/worker_transfer.py
@@ -284,10 +487,19 @@ index 2db87a191f961182b1ba4208a74a98481a904c96..d5eba0f650f0583367cdd7f95e74060b
      (
          "builder_fn",
 diff --git a/tests/v1/test_mp_mem_kernels.py b/tests/v1/test_mp_mem_kernels.py
-index 23c51e342aa83c2cb6690074e1fa21354409d346..305229f08e73d5304a1496f02c697dae1ea5a71f 100644
+index 23c51e342aa83c2cb6690074e1fa21354409d346..bf4d5d76c47ff1649b80041b5ed5eb567dc88ca8 100644
 --- a/tests/v1/test_mp_mem_kernels.py
 +++ b/tests/v1/test_mp_mem_kernels.py
-@@ -240,6 +240,7 @@ def call_block_kernel(
+@@ -31,6 +31,8 @@ def _create_random_tensor(
+ ) -> torch.Tensor:
+     if dtype == torch.float8_e4m3fn:
+         return torch.rand(shape, dtype=torch.bfloat16, device=device).to(dtype)
++    if dtype == torch.uint8:
++        return torch.randint(0, 256, shape, dtype=dtype, device=device)
+     return torch.rand(shape, dtype=dtype, device=device)
+ 
+ 
+@@ -240,6 +242,7 @@ def call_block_kernel(
      is_mla: bool,
      tokens_per_object: int,
      skip_prefix_n_blocks: int = 0,
@@ -295,7 +507,7 @@ index 23c51e342aa83c2cb6690074e1fa21354409d346..305229f08e73d5304a1496f02c697dae
  ) -> None:
      device = vllm_tensors[0].device
  
-@@ -251,6 +252,7 @@ def call_block_kernel(
+@@ -251,6 +254,7 @@ def call_block_kernel(
      shape_desc.nh = nh
      shape_desc.hs = hs
      shape_desc.element_size = vllm_tensors[0].element_size()
@@ -303,10 +515,129 @@ index 23c51e342aa83c2cb6690074e1fa21354409d346..305229f08e73d5304a1496f02c697dae
  
      ptrs = [t.data_ptr() for t in vllm_tensors]
      paged_buffer_ptrs_tensor = torch.tensor(ptrs, dtype=torch.int64, device=device)
-@@ -270,6 +272,92 @@ def call_block_kernel(
+@@ -270,6 +274,211 @@ def call_block_kernel(
      )
  
  
++def test_fused_nhd_transfer_supports_64_heads() -> None:
++    """Compressed-state pages with 64 heads use a legal CUDA block shape."""
++    device = torch.device("cuda")
++    num_layers, num_blocks = 2, 8
++    block_size, num_heads, fused_head_size = 1, 64, 132
++    source = create_vllm_tensors(
++        FMT_VLLM_FUSED_NHD,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        torch.uint8,
++        device,
++    )
++    destination = create_zero_vllm_tensors(
++        FMT_VLLM_FUSED_NHD,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        torch.uint8,
++        device,
++    )
++    objects = create_memory_objects(
++        1,
++        num_layers,
++        2,
++        num_heads * fused_head_size,
++        1,
++        torch.uint8,
++        device,
++    )
++
++    call_block_kernel(
++        source,
++        objects,
++        [1, 6],
++        FMT_VLLM_FUSED_NHD,
++        lmc_ops.TransferDirection.D2H,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        True,
++        2,
++    )
++    call_block_kernel(
++        destination,
++        objects,
++        [2, 7],
++        FMT_VLLM_FUSED_NHD,
++        lmc_ops.TransferDirection.H2D,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        True,
++        2,
++    )
++    torch.cuda.synchronize()
++
++    for layer in range(num_layers):
++        assert torch.equal(source[layer][1], destination[layer][2])
++        assert torch.equal(source[layer][6], destination[layer][7])
++
++
++def test_engine_driven_transfer_supports_interleaved_compressed_pages() -> None:
++    """Engine-driven transfer preserves interleaved 64-head cache pages."""
++    # First Party
++    from lmcache.v1.multiprocess.transfer_context.base import (
++        gather_paged_kv_to_cpu,
++        scatter_cpu_to_paged_kv,
++    )
++
++    device = torch.device("cuda")
++    num_blocks, num_layers = 8, 2
++    pool_shape = (num_blocks, num_layers, 1, 64, 132)
++    source_pool = (
++        torch.arange(
++            int(torch.tensor(pool_shape).prod()), dtype=torch.int64, device=device
++        )
++        .to(torch.uint8)
++        .reshape(pool_shape)
++    )
++    destination_pool = torch.full(pool_shape, 0xA5, dtype=torch.uint8, device=device)
++    source = {f"layer_{layer}": source_pool[:, layer] for layer in range(num_layers)}
++    destination = {
++        f"layer_{layer}": destination_pool[:, layer] for layer in range(num_layers)
++    }
++    logical_page_elems = source_pool[:, 0][0].numel()
++    assert source_pool[:, 0].stride(0) == num_layers * logical_page_elems
++
++    chunks = gather_paged_kv_to_cpu(
++        source,
++        [1, 6],
++        blocks_per_chunk=2,
++        layout_hints={"kv_layout": "NHD"},
++    )
++    torch.cuda.synchronize()
++    scatter_cpu_to_paged_kv(
++        destination,
++        [2, 7],
++        chunks,
++        blocks_per_chunk=2,
++        layout_hints={"kv_layout": "NHD"},
++    )
++    torch.cuda.synchronize()
++
++    assert torch.equal(destination_pool[2], source_pool[1])
++    assert torch.equal(destination_pool[7], source_pool[6])
++    untouched = set(range(num_blocks)) - {2, 7}
++    for block_idx in untouched:
++        assert torch.all(destination_pool[block_idx] == 0xA5)
++
++
 +@pytest.mark.parametrize(
 +    "engine_kv_format,pool_shape",
 +    [

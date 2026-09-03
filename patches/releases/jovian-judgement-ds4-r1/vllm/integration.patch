@@ -1,3 +1,19 @@
+diff --git a/serve-ds4-flash.sh b/serve-ds4-flash.sh
+index e0f0dd787d10ee38dd8f3e5cef9b4caaa2a05455..fdbe63f0d4ad2ccf0936ddb6bbae998d99433071 100755
+--- a/serve-ds4-flash.sh
++++ b/serve-ds4-flash.sh
+@@ -199,6 +199,11 @@ case "${allreduce_mode}" in
+     ;;
+   nccl)
+     export VLLM_ENABLE_PCIE_ALLREDUCE=0
++    # Base images may export a backend value for an earlier vLLM release.
++    # NCCL mode must not expose an inactive custom-backend selector because
++    # every registered vLLM environment variable is validated at worker init.
++    unset VLLM_PCIE_ALLREDUCE_BACKEND
++    unset VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE
+     export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
+     allreduce_args=(--disable-custom-all-reduce)
+     ;;
 diff --git a/tests/model_executor/test_b12x_warmup.py b/tests/model_executor/test_b12x_warmup.py
 index 1951372bbaf7dc8676e0b015c8350fdf82b9bfe2..d620f280d8af32a5fc03b1ca0d28aad091803f32 100644
 --- a/tests/model_executor/test_b12x_warmup.py

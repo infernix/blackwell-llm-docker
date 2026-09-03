@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "243208799444eaec83e505099638fe9ca2ae25996e20c3baab11abe35417464f"
+    "sha256": "bc7ac89db25db14312bbdb62a9e783334e368e769763aa7ed717fc3edf1fa566"
   },
   "name": "infernal-invocation-lmcache",
   "pull_requests": [
@@ -143,19 +143,19 @@
     },
     {
       "commits": [
-        "a0cb4153ab9227c6503ccc5e3f4613087c8f8862"
+        "97ede799d6605ca1bd5285582df4e74a3d3c7b0d"
       ],
       "disposition": "merged",
-      "head": "a0cb4153ab9227c6503ccc5e3f4613087c8f8862",
+      "head": "97ede799d6605ca1bd5285582df4e74a3d3c7b0d",
       "number": 44,
       "ref": "refs/pull/44/head",
-      "title": "Preserve compressed blocks-first KV geometry"
+      "title": "Transfer interleaved 64-head cache pages"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "7b6815ece15e0426085574de31bec56c5f5617a4cd8cc6a2b91ece8c7709cc95",
-    "tree": "1dfee6811b7b5ee735620337a8f3d93c8b560658"
+    "patch_sha256": "557757277a03e8af787f3988e1ec481cf929c209c07a9adbf81630a9d9420de6",
+    "tree": "eb4c227f68a4e1c45d6b8edf6b4934e18f6d1f8b"
   },
   "schema_version": 1,
   "source_patches": []

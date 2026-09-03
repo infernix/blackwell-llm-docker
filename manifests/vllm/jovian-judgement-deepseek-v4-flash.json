@@ -13,6 +13,14 @@
         "cbb66bdff1763c174ebc794a7f968930e956580f"
       ],
       "title": "Register speculative CUDA graph row counts during B12X warmup"
+    },
+    {
+      "number": 630,
+      "head": "5b6fb80f5c868b62da2c01c3f52861b34c84d8ac",
+      "commits": [
+        "5b6fb80f5c868b62da2c01c3f52861b34c84d8ac"
+      ],
+      "title": "Clear custom all-reduce selectors in NCCL mode"
     }
   ],
   "source_patches": []

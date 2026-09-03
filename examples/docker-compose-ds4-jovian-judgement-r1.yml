@@ -7,7 +7,7 @@
 # and topology-qualified tensor-parallel communication.
 services:
   ds4:
-    image: ${IMAGE:-voipmonitor/vllm:jovian-judgement-vllm3f2d4c3-b12xa7e7174-fi1ac6942-cu133-torch213-20260903-r1}
+    image: ${IMAGE:-voipmonitor/vllm:jovian-judgement-vllm28bc825-b12x8a5b9bf-fi1ac6942-cu133-torch213-20260903-r1}
     container_name: ${NAME:-ds4-jovian-judgement-r1}
     entrypoint:
       - /usr/local/bin/lmcache-mp-wrapper.sh
