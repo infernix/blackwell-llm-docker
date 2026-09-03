@@ -71,8 +71,8 @@
     },
     {
       "number": 44,
-      "head": "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44",
-      "title": "Preserve blocks-first fused KV block stride"
+      "head": "a0cb4153ab9227c6503ccc5e3f4613087c8f8862",
+      "title": "Preserve compressed blocks-first KV geometry"
     }
   ],
   "reviewed_exclusions": [

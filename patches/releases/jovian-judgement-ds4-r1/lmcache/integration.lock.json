@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "811634b97ce8d3a217afbe6c5221ee32d79ce767ae86f587f17849206d8e786a"
+    "sha256": "243208799444eaec83e505099638fe9ca2ae25996e20c3baab11abe35417464f"
   },
   "name": "infernal-invocation-lmcache",
   "pull_requests": [
@@ -143,19 +143,19 @@
     },
     {
       "commits": [
-        "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44"
+        "a0cb4153ab9227c6503ccc5e3f4613087c8f8862"
       ],
       "disposition": "merged",
-      "head": "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44",
+      "head": "a0cb4153ab9227c6503ccc5e3f4613087c8f8862",
       "number": 44,
       "ref": "refs/pull/44/head",
-      "title": "Preserve blocks-first fused KV block stride"
+      "title": "Preserve compressed blocks-first KV geometry"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "ccd6a10a118e483a8128cdeea34dff56911416a215883cb8170eef043b949a32",
-    "tree": "1fc5d73bf4781c52694b5011d038cc0fac3262fa"
+    "patch_sha256": "7b6815ece15e0426085574de31bec56c5f5617a4cd8cc6a2b91ece8c7709cc95",
+    "tree": "1dfee6811b7b5ee735620337a8f3d93c8b560658"
   },
   "schema_version": 1,
   "source_patches": []
