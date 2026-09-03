@@ -32,6 +32,11 @@ if grep -Fq 'git clone --filter=blob:none --no-checkout "${FLASHINFER_REPO}" /tm
   exit 1
 fi
 grep -Fq 'python -m pip wheel --no-build-isolation --no-deps' "${flashinfer_dockerfile}"
+grep -Fq 'print(m.version("flashinfer-python"))' "${flashinfer_dockerfile}"
+if grep -Fq 'm.version(\"flashinfer-python\")' "${flashinfer_dockerfile}"; then
+  printf 'The FlashInfer version assertion must not escape quotes inside a single-quoted Python command.\n' >&2
+  exit 1
+fi
 grep -Fq './flashinfer-jit-cache' "${flashinfer_dockerfile}"
 grep -Fq 'The FlashInfer artifact recipe must be committed before build.' "${flashinfer_builder}"
 grep -Fq 'compose_source lmcache /opt/infernal-invocation/lmcache' "${dockerfile}"
