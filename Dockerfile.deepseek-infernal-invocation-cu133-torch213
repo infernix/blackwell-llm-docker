@@ -499,6 +499,7 @@ LABEL org.opencontainers.image.title="Source-locked CUDA 13.3 PyTorch 2.13 infer
       local-inference.runtime.base-id="${BASE_IMAGE_ID}" \
       local-inference.runtime.foundation.enabled="${RUNTIME_FOUNDATION}" \
       local-inference.runtime.foundation.image="${RUNTIME_FOUNDATION_IMAGE}" \
+      local-inference.runtime.host-kv-default="off" \
       local-inference.cache.fingerprint="${CACHE_FINGERPRINT}" \
       local-inference.vllm.repo="${VLLM_REPO}" \
       local-inference.vllm.branch="${VLLM_REF}" \

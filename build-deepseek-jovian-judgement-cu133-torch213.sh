@@ -209,6 +209,7 @@ assert_label() {
 assert_label local-inference.runtime.base-id "${base_image_id}"
 assert_label local-inference.runtime.foundation.enabled "${runtime_foundation}"
 assert_label local-inference.runtime.foundation.image "${runtime_foundation_image}"
+assert_label local-inference.runtime.host-kv-default off
 assert_label local-inference.vllm.integration.tree "${VLLM_INTEGRATION_TREE}"
 assert_label local-inference.b12x.integration.tree "${B12X_INTEGRATION_TREE}"
 assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TREE}"

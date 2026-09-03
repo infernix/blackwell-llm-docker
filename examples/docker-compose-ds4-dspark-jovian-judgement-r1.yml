@@ -48,15 +48,12 @@ services:
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-1048576}
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}
       GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.975}
-      # LMCache and native vLLM offload use independent ownership models.
+      # Host KV storage is disabled unless LMCache is selected explicitly.
       LMCACHE_MODE: ${LMCACHE_MODE:-off}
       LMCACHE_L1_GB: ${LMCACHE_L1_GB:-24}
       LMCACHE_L2_GB: ${LMCACHE_L2_GB:-256}
       LMCACHE_L2_PATH: ${LMCACHE_L2_PATH:-/cache/lmcache/8000}
       LMCACHE_HTTP_PORT: ${LMCACHE_HTTP_PORT:-8099}
-      KV_OFFLOADING_SIZE: ${KV_OFFLOADING_SIZE:-}
-      NATIVE_L2_GB: ${NATIVE_L2_GB:-}
-      NATIVE_L2_PATH: ${NATIVE_L2_PATH:-}
       LOAD_FORMAT: ${LOAD_FORMAT:-instanttensor}
       INSTANTTENSOR_BACKEND: ${INSTANTTENSOR_BACKEND:-BUFFERED}
       PYTHONHASHSEED: ${PYTHONHASHSEED:-0}
