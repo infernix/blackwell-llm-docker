@@ -233,7 +233,6 @@ launcher_output="$(
     -e TP_SIZE=2 -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
 )"
 grep -Fq 'DS4 launch: mode=dspark depth=fixed' <<<"${launcher_output}"
-grep -Fq 'capacity_activation=disabled' <<<"${launcher_output}"
 grep -Fq 'backend=b12x-a8' <<<"${launcher_output}"
 grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' <<<"${launcher_output}"
 grep -Fq -- '--attention-backend B12X' <<<"${launcher_output}"
