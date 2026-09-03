@@ -15,6 +15,9 @@ base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38
 runtime_foundation=${RUNTIME_FOUNDATION:-1}
 runtime_foundation_image=${RUNTIME_FOUNDATION_IMAGE:-${base_image}}
 flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}
+flashinfer_repo=${FLASHINFER_REPO:-https://github.com/voipmonitor/flashinfer.git}
+flashinfer_ref=${FLASHINFER_REF:-integration/main-pr4393-pcie-ipc-qualified-20260807}
+flashinfer_commit=${FLASHINFER_COMMIT:-1ac6942776b383c6b03c7a5805a22e72a3e3349f}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
 instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://github.com/sailfishos-mirror/libaio.git}
@@ -64,7 +67,7 @@ vllm_package_version=${VLLM_PACKAGE_VERSION:-0.26.1rc0+jovian.judgement.cu133.${
 flashinfer_version=${FLASHINFER_VERSION:-0.6.18+cu133}
 lmcache_build_version=${LMCACHE_BUILD_VERSION:-0.5.2+glm52dcp.5}
 cache_fingerprint="cu133-torch213-vllm${VLLM_INTEGRATION_TREE:0:10}-b12x${B12X_INTEGRATION_TREE:0:10}-lmcache${LMCACHE_INTEGRATION_TREE:0:10}"
-image=${IMAGE:-voipmonitor/vllm:jovian-judgement-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi1ac6942-cu133-torch213-${release_date}-${revision}}
+image=${IMAGE:-voipmonitor/vllm:jovian-judgement-vllm${VLLM_INTEGRATION_TREE:0:7}-b12x${B12X_INTEGRATION_TREE:0:7}-fi${flashinfer_commit:0:7}-cu133-torch213-${release_date}-${revision}}
 
 if [[ "${PRINT_RELEASE_CONFIG:-0}" == 1 ]]; then
   printf 'release=%s\nrevision=%s\nbase=%s\nimage=%s\n' \
@@ -115,8 +118,15 @@ fi
 
 flashinfer_labels="$(docker image inspect "${flashinfer_wheel_image}" \
   --format '{{json .Config.Labels}}')"
-jq -e --arg version "${flashinfer_version}" \
-  '."local-inference.flashinfer.version" == $version' \
+jq -e \
+  --arg repo "${flashinfer_repo}" \
+  --arg ref "${flashinfer_ref}" \
+  --arg commit "${flashinfer_commit}" \
+  --arg version "${flashinfer_version}" \
+  '."local-inference.flashinfer.repo" == $repo and
+   ."local-inference.flashinfer.ref" == $ref and
+   ."local-inference.flashinfer.commit" == $commit and
+   ."local-inference.flashinfer.version" == $version' \
   <<<"${flashinfer_labels}" >/dev/null
 if [[ "${runtime_foundation}" == 0 ]]; then
   jq -e --arg base_id "${base_image_id}" \
@@ -147,6 +157,9 @@ DOCKER_BUILDKIT=1 docker build \
   --build-arg "BASE_IMAGE_ID=${base_image_id}" \
   --build-arg "FLASHINFER_WHEEL_IMAGE=${flashinfer_wheel_image}" \
   --build-arg "FLASHINFER_WHEEL_IMAGE_ID=${flashinfer_wheel_image_id}" \
+  --build-arg "FLASHINFER_REPO=${flashinfer_repo}" \
+  --build-arg "FLASHINFER_REF=${flashinfer_ref}" \
+  --build-arg "FLASHINFER_COMMIT=${flashinfer_commit}" \
   --build-arg "VLLM_REPO=${VLLM_REPO}" \
   --build-arg "VLLM_REF=${VLLM_REF}" \
   --build-arg "VLLM_COMMIT=${VLLM_COMMIT}" \
@@ -210,6 +223,8 @@ assert_label local-inference.runtime.base-id "${base_image_id}"
 assert_label local-inference.runtime.foundation.enabled "${runtime_foundation}"
 assert_label local-inference.runtime.foundation.image "${runtime_foundation_image}"
 assert_label local-inference.runtime.host-kv-default off
+assert_label local-inference.flashinfer.repo "${flashinfer_repo}"
+assert_label local-inference.flashinfer.commit "${flashinfer_commit}"
 assert_label local-inference.vllm.integration.tree "${VLLM_INTEGRATION_TREE}"
 assert_label local-inference.b12x.integration.tree "${B12X_INTEGRATION_TREE}"
 assert_label local-inference.lmcache.integration.tree "${LMCACHE_INTEGRATION_TREE}"
