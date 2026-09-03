@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "jovian-judgement-deepseek-v4-flash-vllm",
+  "repository": "https://github.com/local-inference-lab/vllm.git",
+  "base_ref": "refs/heads/dev/jovian-judgement",
+  "composition_strategy": "cherry_pick",
+  "pull_requests": [
+    {
+      "number": 628,
+      "head": "cbb66bdff1763c174ebc794a7f968930e956580f",
+      "commits": [
+        "f3078d12515311f0824283510147749c832cccd0",
+        "cbb66bdff1763c174ebc794a7f968930e956580f"
+      ],
+      "title": "Register speculative CUDA graph row counts during B12X warmup"
+    }
+  ],
+  "source_patches": []
+}

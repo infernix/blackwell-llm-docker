@@ -88,6 +88,7 @@ ENV VIRTUAL_ENV=/opt/venv \
     VLLM_DISABLED_KERNELS=MarlinFP8ScaledMMLinearKernel
 
 ENV VLLM_EXL3_EXT_PATH=/opt/exllamav3 \
+    PYTHON_BIN=/opt/venv/bin/python \
     VLLM_EXL3_ENCODER_SOURCE=/opt/exllamav3-python/exllamav3 \
     VLLM_EXL3_ENCODER_REVISION=${EXLLAMAV3_COMMIT} \
     VLLM_EXL3_ONLINE_CACHE_DIR=/cache/exl3-online \
@@ -487,7 +488,7 @@ ARG RELEASE_NAME
 ARG RELEASE_DATE
 ARG DOCKER_COMMIT
 
-LABEL org.opencontainers.image.title="Infernal Invocation CUDA 13.3 PyTorch 2.13 runtime" \
+LABEL org.opencontainers.image.title="Source-locked CUDA 13.3 PyTorch 2.13 inference runtime" \
       org.opencontainers.image.description="Source-locked DeepSeek-V4-Flash and GLM-5.2 runtime with B12X, LMCache, InstantTensor, and NCCL 2.31.2" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.version="${RELEASE_DATE}" \
