@@ -27,6 +27,11 @@ grep -Fq 'local-inference.exllamav3.commit="${EXLLAMAV3_COMMIT}"' "${dockerfile}
 grep -Fq 'FROM ${FLASHINFER_WHEEL_IMAGE} AS flashinfer-wheel-artifact' "${dockerfile}"
 grep -Fq 'COPY --from=flashinfer-wheel-artifact /opt/flashinfer-wheels' "${dockerfile}"
 grep -Fq 'local-inference.flashinfer.wheel-image-id="${FLASHINFER_WHEEL_IMAGE_ID}"' "${dockerfile}"
+grep -Fq 'python -m pip install --no-deps --force-reinstall' "${dockerfile}"
+if grep -Fq 'if [[ "${RUNTIME_FOUNDATION}" != 1 ]]; then' "${dockerfile}"; then
+  printf 'The runtime must install the pinned FlashInfer artifact even when a runtime foundation is used.\n' >&2
+  exit 1
+fi
 if grep -Fq 'git clone --filter=blob:none --no-checkout "${FLASHINFER_REPO}" /tmp/flashinfer-src' "${dockerfile}"; then
   printf 'The runtime Dockerfile must consume the FlashInfer wheel artifact instead of compiling FlashInfer.\n' >&2
   exit 1

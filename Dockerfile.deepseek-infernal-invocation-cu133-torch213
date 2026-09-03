@@ -236,13 +236,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # from vLLM, B12X, and LMCache source revisions.
 COPY --from=flashinfer-wheel-artifact /opt/flashinfer-wheels /tmp/flashinfer-wheels
 RUN set -eux; \
-    if [[ "${RUNTIME_FOUNDATION}" != 1 ]]; then \
-      python -m pip uninstall --yes \
-        flashinfer-python flashinfer-cubin flashinfer-jit-cache; \
-      python -m pip install --no-deps --force-reinstall \
-        /tmp/flashinfer-wheels/flashinfer_python-*.whl \
-        /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl; \
-    fi; \
+    python -m pip uninstall --yes \
+      flashinfer-python flashinfer-cubin flashinfer-jit-cache; \
+    python -m pip install --no-deps --force-reinstall \
+      /tmp/flashinfer-wheels/flashinfer_python-*.whl \
+      /tmp/flashinfer-wheels/flashinfer_jit_cache-*.whl; \
     test "$(python -c 'import importlib.metadata as m; print(m.version("flashinfer-python"))')" = \
       "${FLASHINFER_VERSION}"; \
     rm -rf /tmp/flashinfer-wheels
