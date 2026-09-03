@@ -230,7 +230,7 @@ docker run --rm --entrypoint /opt/venv/bin/python "${image}" \
 launcher_output="$(
   docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
     -e DRY_RUN=1 -e MODE=dspark -e DSPARK_TOKENS=5 -e MAX_NUM_SEQS=16 \
-    -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
+    -e TP_SIZE=2 -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
 )"
 grep -Fq 'DS4 launch: mode=dspark depth=fixed' <<<"${launcher_output}"
 grep -Fq 'capacity_activation=disabled' <<<"${launcher_output}"
