@@ -7,7 +7,7 @@
   "composition": null,
   "composition_strategy": "merge",
   "manifest": {
-    "sha256": "f5f81314d77ba54ab43d45013431173cb1b965d0a5b255acb171ee0805e0f555"
+    "sha256": "811634b97ce8d3a217afbe6c5221ee32d79ce767ae86f587f17849206d8e786a"
   },
   "name": "infernal-invocation-lmcache",
   "pull_requests": [
@@ -140,12 +140,22 @@
       "number": 23,
       "ref": "refs/pull/23/head",
       "title": "Publish filesystem cache objects from writer-owned inodes"
+    },
+    {
+      "commits": [
+        "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44"
+      ],
+      "disposition": "merged",
+      "head": "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44",
+      "number": 44,
+      "ref": "refs/pull/44/head",
+      "title": "Preserve blocks-first fused KV block stride"
     }
   ],
   "result": {
     "patch": "integration.patch",
-    "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "tree": "e045d729bc5c4c63a40e13d032f42923de97812f"
+    "patch_sha256": "ccd6a10a118e483a8128cdeea34dff56911416a215883cb8170eef043b949a32",
+    "tree": "1fc5d73bf4781c52694b5011d038cc0fac3262fa"
   },
   "schema_version": 1,
   "source_patches": []

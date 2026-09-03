@@ -68,6 +68,11 @@
       "number": 23,
       "head": "1bbe09a1a183e48218f500947b89cc38bb64eb13",
       "title": "Publish filesystem cache objects from writer-owned inodes"
+    },
+    {
+      "number": 44,
+      "head": "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44",
+      "title": "Preserve blocks-first fused KV block stride"
     }
   ],
   "reviewed_exclusions": [

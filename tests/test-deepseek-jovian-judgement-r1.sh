@@ -55,8 +55,11 @@ jq -e '
   .base.ref == "refs/heads/release/v0.5.2-glm52-dcp-base" and
   .base.commit == "a128b2e286ebb3556cb43124149e600ff99fe481" and
   .composition_strategy == "merge" and
-  .result.tree == "e045d729bc5c4c63a40e13d032f42923de97812f" and
-  (.pull_requests | length) == 13
+  .result.tree == "1fc5d73bf4781c52694b5011d038cc0fac3262fa" and
+  (.pull_requests | length) == 14 and
+  .pull_requests[-1].number == 44 and
+  .pull_requests[-1].head ==
+    "36f1dc0e5afb75564f6fa5c7ba8f7a8eb16fee44"
 ' "${composition_root}/lmcache/integration.lock.json" >/dev/null
 
 output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"

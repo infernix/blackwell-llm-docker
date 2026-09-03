@@ -1,0 +1,257 @@
+diff --git a/csrc/mp_mem_kernels.cuh b/csrc/mp_mem_kernels.cuh
+index 753400134fb1281ce4f3565dc5c65d58eae38443..d64407056e1a5a9bc1374065fa7ce59bad48a454 100644
+--- a/csrc/mp_mem_kernels.cuh
++++ b/csrc/mp_mem_kernels.cuh
+@@ -27,11 +27,9 @@ struct PageBufferShapeDesc {
+   // semantics already absorb every inner-dim extent (including
+   // ``kv_size``), so DO NOT pre-multiply by any inner dim.
+   //
+-  // Honoured today only by NL_X_NB_BS_HS (per-layer [NB, BS, HS],
+-  // MLA). NL_X_NB_TWO_BS_NH_HS is restricted to the tight form
+-  // upstream and leaves this field at 0; all other formats either
+-  // pack non-block info into dim-0 or do not support dim-0 padding,
+-  // and ignore this field.
++  // Honoured by per-layer formats whose dim-0 is the block axis, including
++  // MLA [NB, BS, HS] and blocks-first fused K/V layouts. Other formats either
++  // pack non-block information into dim-0 or require a tight layout.
+   int block_stride_elems;
+ 
+   template <typename ScalarType>
+@@ -47,8 +45,7 @@ struct PageBufferShapeDesc {
+   // Per (K or V) block step along dim-0, expressed in ``ScalarType``
+   // element units (the kernel's working dtype, e.g. uint4 / uint32_t /
+   // uint16_t). Returns the tight ``bs * nh * hs`` by default, or the
+-  // physical ``block_stride_elems`` when dim-0 carries padding (today
+-  // only NL_X_NB_BS_HS, see ``block_stride_elems`` above). Every
++  // physical ``block_stride_elems`` when dim-0 carries padding. Every
+   // ``calculate_engine_global_offset`` branch uses this as the dim-0
+   // step, so honouring padding here propagates to all formats without
+   // per-branch changes.
+diff --git a/lmcache/v1/gpu_connector/utils.py b/lmcache/v1/gpu_connector/utils.py
+index fad87daeee25cbc0dd21ff5e1fc49f1907dbec36..b94bad8c53236c9874ec4af0e5f03a4fefbd32cc 100644
+--- a/lmcache/v1/gpu_connector/utils.py
++++ b/lmcache/v1/gpu_connector/utils.py
+@@ -466,26 +466,15 @@ def get_device(kv_caches: DiscoverableKVCache) -> torch.device:
+     return probe.device
+ 
+ 
+-# Formats whose per-layer tensor dim-0 is the *block* axis AND for
+-# which we currently support dim-0 padding (e.g. DeepSeek V4
+-# compressor / indexer caches sharing a KV pool with larger attn
+-# groups). Today only the MLA layout (``NL_X_NB_BS_HS``, kv_size==1)
+-# is exercised by real mixed-compression workloads.
+-#
+-# ``NL_X_NB_TWO_BS_NH_HS`` *could* in principle also be the block
+-# axis on dim-0, but no real serving engine emits a padded layout of
+-# that format yet, and supporting it would require: (a) deciding
+-# (without a ground-truth example) which axis carries the padding
+-# -- NB boundary vs K<->V offset -- and (b) a coordinated change in
+-# ``attempt_permute_to_contiguous_view`` to let interior-dim padding
+-# through for that one format. Rather than ship an unverifiable code
+-# path, we keep ``NL_X_NB_TWO_BS_NH_HS`` out of this set, which means
+-# any padded tensor of that format will fail loudly via the
+-# non-block-axis dim-0-padding check below. Revisit and add a
+-# properly-tested branch when a concrete use case lands.
++# Formats whose per-layer tensor dim-0 is the block axis and whose transfer
++# kernels consume ``PageBufferShapeDesc.block_stride_elems``. vLLM blocks-first
++# pools interleave every layer inside each physical block, so a per-layer view's
++# stride(0) spans the other layers as well as its own logical page.
+ _BLOCK_AXIS_FORMATS: frozenset = frozenset(
+     {
+         lmc_ops.EngineKVFormat.NL_X_NB_BS_HS,
++        lmc_ops.EngineKVFormat.NL_X_NB_NH_BS_TWO_HS,
++        lmc_ops.EngineKVFormat.NL_X_NB_BS_NH_TWO_HS,
+     }
+ )
+ 
+@@ -563,8 +552,7 @@ def resolve_block_stride_and_log_layout(
+                     "resolve_block_stride_and_log_layout: group's probe "
+                     f"tensor has dim-0 padding ({padding} elements per "
+                     f"block) but engine_kv_format={engine_kv_format!r} is not "
+-                    "a supported dim-0-padded format (only "
+-                    "NL_X_NB_BS_HS is); downstream transfer kernels "
++                    "a supported dim-0-padded format; downstream transfer kernels "
+                     "cannot honour this padding and would read/write "
+                     "wrong bytes. "
+                     f"layer_idx={layer_idx}, shape={tuple(rep.shape)}, "
+diff --git a/tests/v1/gpu_connector/test_utils_shape_desc.py b/tests/v1/gpu_connector/test_utils_shape_desc.py
+index f07866f5f918b528d55761052a7de824dac1ecd4..642d426e06635b0639042c79397f2d97ff53f7e3 100644
+--- a/tests/v1/gpu_connector/test_utils_shape_desc.py
++++ b/tests/v1/gpu_connector/test_utils_shape_desc.py
+@@ -24,6 +24,7 @@ from lmcache.v1.gpu_connector.utils import (  # noqa: E402
+     get_head_size,
+     get_num_heads,
+     make_page_buffer_shape_desc,
++    resolve_block_stride_and_log_layout,
+ )
+ import lmcache.c_ops as lmc_ops  # noqa: E402
+ 
+@@ -77,6 +78,55 @@ def test_make_shape_desc_vllm_mla():
+     assert sd.hs == 512
+ 
+ 
++@pytest.mark.parametrize(
++    "engine_kv_format,view_shape,view_stride,block_size",
++    [
++        (
++            lmc_ops.EngineKVFormat.NL_X_NB_BS_NH_TWO_HS,
++            (3, 1, 64, 2, 66),
++            (1_002_240, 8_448, 132, 66, 1),
++            1,
++        ),
++        (
++            lmc_ops.EngineKVFormat.NL_X_NB_NH_BS_TWO_HS,
++            (3, 64, 1, 2, 66),
++            (1_002_240, 132, 8_448, 66, 1),
++            1,
++        ),
++    ],
++    ids=["nhd", "hnd"],
++)
++def test_blocks_first_fused_kv_shape_desc_preserves_physical_block_stride(
++    engine_kv_format, view_shape, view_stride, block_size
++):
++    """The DS4 fused page retains its blocks-first physical block stride."""
++    storage_elems = (view_shape[0] - 1) * view_stride[0] + view_stride[0]
++    pool = torch.empty(storage_elems, dtype=torch.uint8, device="cuda")
++    kv_caches = [pool.as_strided(view_shape, view_stride)]
++
++    block_stride = resolve_block_stride_and_log_layout(
++        kv_caches,
++        engine_kv_format,
++        layer_idx=0,
++        group_idx=0,
++    )
++    sd = make_page_buffer_shape_desc(
++        kv_caches,
++        engine_kv_format,
++        layer_idx=0,
++        num_layers_in_group=1,
++        num_blocks=view_shape[0],
++        block_size=block_size,
++        block_stride_elems=block_stride,
++    )
++
++    assert tuple(kv_caches[0].stride()) == view_stride
++    assert sd.block_stride_elems == view_stride[0]
++    assert sd.kv_size == 1
++    assert sd.nh == 64
++    assert sd.hs == 132
++
++
+ def test_make_shape_desc_sglang_mla():
+     kv_caches = [torch.empty(512, 1, 128, dtype=torch.bfloat16) for _ in range(2)]
+     sd = make_page_buffer_shape_desc(
+diff --git a/tests/v1/test_mp_mem_kernels.py b/tests/v1/test_mp_mem_kernels.py
+index 23c51e342aa83c2cb6690074e1fa21354409d346..305229f08e73d5304a1496f02c697dae1ea5a71f 100644
+--- a/tests/v1/test_mp_mem_kernels.py
++++ b/tests/v1/test_mp_mem_kernels.py
+@@ -240,6 +240,7 @@ def call_block_kernel(
+     is_mla: bool,
+     tokens_per_object: int,
+     skip_prefix_n_blocks: int = 0,
++    block_stride_elems: int = 0,
+ ) -> None:
+     device = vllm_tensors[0].device
+ 
+@@ -251,6 +252,7 @@ def call_block_kernel(
+     shape_desc.nh = nh
+     shape_desc.hs = hs
+     shape_desc.element_size = vllm_tensors[0].element_size()
++    shape_desc.block_stride_elems = block_stride_elems
+ 
+     ptrs = [t.data_ptr() for t in vllm_tensors]
+     paged_buffer_ptrs_tensor = torch.tensor(ptrs, dtype=torch.int64, device=device)
+@@ -270,6 +272,92 @@ def call_block_kernel(
+     )
+ 
+ 
++@pytest.mark.parametrize(
++    "engine_kv_format,pool_shape",
++    [
++        (FMT_VLLM_FUSED_NHD, (12, 3, 4, 2, 16)),
++        (FMT_VLLM_FUSED_HND, (12, 3, 2, 4, 16)),
++    ],
++    ids=["nhd", "hnd"],
++)
++def test_blocks_first_fused_kv_padded_stride_roundtrip(engine_kv_format, pool_shape):
++    """CUDA transfers address each layer through the physical block stride."""
++    device = torch.device("cuda")
++    num_blocks, num_layers = pool_shape[:2]
++    block_size = 4
++    num_heads = 2
++    fused_head_size = 16
++    source_pool = (
++        torch.arange(
++            int(torch.tensor(pool_shape).prod()), dtype=torch.int64, device=device
++        )
++        .to(torch.uint8)
++        .reshape(pool_shape)
++    )
++    target_pool = torch.full(pool_shape, 0xA5, dtype=torch.uint8, device=device)
++    source_layers = [source_pool[:, layer_idx] for layer_idx in range(num_layers)]
++    target_layers = [target_pool[:, layer_idx] for layer_idx in range(num_layers)]
++    block_stride = source_layers[0].stride(0)
++    logical_page_elems = source_layers[0][0].numel()
++    assert block_stride == num_layers * logical_page_elems
++
++    tokens_per_object = block_size * 2
++    memory_objects = create_memory_objects(
++        1,
++        num_layers,
++        tokens_per_object,
++        num_heads * fused_head_size,
++        1,
++        torch.uint8,
++        device,
++    )
++    source_block_ids = [1, 7]
++    target_block_ids = [3, 9]
++    call_block_kernel(
++        source_layers,
++        memory_objects,
++        source_block_ids,
++        engine_kv_format,
++        lmc_ops.TransferDirection.D2H,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        True,
++        tokens_per_object,
++        block_stride_elems=block_stride,
++    )
++    # The helper creates a temporary device pointer array. Production retains
++    # that array for the connector lifetime; synchronize here before the local
++    # tensor can be reclaimed and reused by the following launch.
++    torch.cuda.synchronize()
++    call_block_kernel(
++        target_layers,
++        memory_objects,
++        target_block_ids,
++        engine_kv_format,
++        lmc_ops.TransferDirection.H2D,
++        num_layers,
++        num_blocks,
++        block_size,
++        num_heads,
++        fused_head_size,
++        True,
++        tokens_per_object,
++        block_stride_elems=block_stride,
++    )
++    torch.cuda.synchronize()
++
++    for source_block, target_block in zip(
++        source_block_ids, target_block_ids, strict=True
++    ):
++        assert torch.equal(target_pool[target_block], source_pool[source_block])
++    untouched = set(range(num_blocks)) - set(target_block_ids)
++    for block_idx in untouched:
++        assert torch.all(target_pool[block_idx] == 0xA5)
++
++
+ # ---------------------------------------------------------------------------
+ # Tests
+ # ---------------------------------------------------------------------------
