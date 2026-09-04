@@ -9,8 +9,8 @@ cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-jovian-judgement-deepseek-v4-flash-cu133-torch213}
 release_date=${RELEASE_DATE:-20260904}
-revision=${REVISION:-r2}
-composition_root=${COMPOSITION_ROOT:-patches/releases/jovian-judgement-ds4-r2}
+revision=${REVISION:-r3}
+composition_root=${COMPOSITION_ROOT:-patches/releases/jovian-judgement-ds4-r3}
 base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2}
 runtime_foundation=${RUNTIME_FOUNDATION:-1}
 runtime_foundation_image=${RUNTIME_FOUNDATION_IMAGE:-${base_image}}
@@ -270,6 +270,7 @@ grep -Fq 'tp=2 dcp=1 max_seqs=4 graph=16' <<<"${vision_launcher_output}"
 grep -Fq 'num_speculative_tokens\":3' <<<"${vision_launcher_output}"
 grep -Fq -- '--revision 6821d6ad3681a4b137b066b76094fa82ebd0a380' \
   <<<"${vision_launcher_output}"
+grep -Fq -- '--max-model-len 1048576' <<<"${vision_launcher_output}"
 grep -Fq -- '--gpu-memory-utilization 0.975' <<<"${vision_launcher_output}"
 
 vision_lmcache_output="$(
@@ -279,7 +280,8 @@ vision_lmcache_output="$(
     -e LMCACHE_MODE=ram -e LMCACHE_TRANSFER_MODE=auto \
     -e MAX_NUM_SEQS=4 -e TP_SIZE=2 -e GRAPH=auto "${image}" 2>&1
 )"
-grep -Fq -- '--gpu-memory-utilization 0.96' <<<"${vision_lmcache_output}"
+grep -Fq -- '--max-model-len 900000' <<<"${vision_lmcache_output}"
+grep -Fq -- '--gpu-memory-utilization 0.95' <<<"${vision_lmcache_output}"
 
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
   'import importlib, os, pathlib, torch; ext = importlib.import_module("exllamav3_ext"); assert hasattr(ext, "exl3_gemm"); assert pathlib.Path(os.environ["VLLM_EXL3_ENCODER_SOURCE"], "modules/quant/exl3_lib/quantize.py").is_file()'

@@ -3,8 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 builder="${repo_root}/build-deepseek-jovian-judgement-cu133-torch213.sh"
-compose="${repo_root}/examples/docker-compose-ds4-vision-jovian-judgement-r2.yml"
-composition_root="${repo_root}/patches/releases/jovian-judgement-ds4-r2"
+compose="${repo_root}/examples/docker-compose-ds4-vision-jovian-judgement-r3.yml"
+composition_root="${repo_root}/patches/releases/jovian-judgement-ds4-r3"
 
 for component in vllm b12x lmcache; do
   lock="${composition_root}/${component}/integration.lock.json"
@@ -31,15 +31,15 @@ done
 jq -e '
   .composition_strategy == "cherry_pick" and
   .base.ref == "refs/heads/dev/jovian-judgement" and
-  .base.commit == "c085b910ebd4a8c89c2c4085cbf17ccaf15a384c" and
-  .result.tree == "a4c2eeebfb165ef63848d1f0a9e90e994d1ca16a" and
+  .base.commit == "a50ebee1d2460d22386b54e79f46236376e2b486" and
+  .result.tree == "2841848bcddb79391abb8fb275e9fd9991ffb43d" and
   [.pull_requests[].number] == [628, 630, 634] and
   .pull_requests[0].head ==
     "cbb66bdff1763c174ebc794a7f968930e956580f" and
   .pull_requests[1].head ==
     "5b6fb80f5c868b62da2c01c3f52861b34c84d8ac" and
   .pull_requests[2].head ==
-    "20df5b260100579257532ff0aa9f30ec872e85e6"
+    "2a7f5f203ac8737412cdb726c2750395880cdf45"
 ' "${composition_root}/vllm/integration.lock.json" >/dev/null
 
 jq -e '
@@ -70,23 +70,23 @@ jq -e '
 ' "${composition_root}/lmcache/integration.lock.json" >/dev/null
 
 output="$(
-  REVISION=r2 \
-    COMPOSITION_ROOT=patches/releases/jovian-judgement-ds4-r2 \
+  REVISION=r3 \
+    COMPOSITION_ROOT=patches/releases/jovian-judgement-ds4-r3 \
     PRINT_RELEASE_CONFIG=1 \
     "${builder}"
 )"
 grep -Fxq 'release=jovian-judgement-deepseek-v4-flash-cu133-torch213' \
   <<<"${output}"
-grep -Fxq 'revision=r2' <<<"${output}"
+grep -Fxq 'revision=r3' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/jovian-judgement' <<<"${output}"
-grep -Fxq 'vllm_tree=a4c2eeebfb165ef63848d1f0a9e90e994d1ca16a' \
+grep -Fxq 'vllm_tree=2841848bcddb79391abb8fb275e9fd9991ffb43d' \
   <<<"${output}"
 grep -Fxq 'b12x_tree=283a63ee552d38e6a2ffa8a9ec2859ddcb227201' \
   <<<"${output}"
-grep -Fq 'fi803c466-cu133-torch213-20260904-r2' <<<"${output}"
-grep -Fq 'releases/jovian-judgement-ds4-r2/vllm/integration.patch' \
+grep -Fq 'fi803c466-cu133-torch213-20260904-r3' <<<"${output}"
+grep -Fq 'releases/jovian-judgement-ds4-r3/vllm/integration.patch' \
   <<<"${output}"
-grep -Fq 'releases/jovian-judgement-ds4-r2/b12x/integration.patch' \
+grep -Fq 'releases/jovian-judgement-ds4-r3/b12x/integration.patch' \
   <<<"${output}"
 
 config="$(docker compose -f "${compose}" config)"
@@ -102,14 +102,14 @@ grep -Fq 'DSPARK_DEPTH_MODE: fixed' <<<"${config}"
 grep -Fq 'DSPARK_TOKENS: "3"' <<<"${config}"
 grep -Fq 'MAX_NUM_SEQS: "4"' <<<"${config}"
 grep -Fq 'GRAPH: auto' <<<"${config}"
-grep -Fq 'MAX_MODEL_LEN: "1048576"' <<<"${config}"
+grep -Fq 'MAX_MODEL_LEN: ""' <<<"${config}"
 grep -Fq 'MAX_NUM_BATCHED_TOKENS: "4096"' <<<"${config}"
 grep -Fq 'GPU_MEMORY_UTILIZATION: ""' <<<"${config}"
 grep -Fq 'LMCACHE_MODE: "off"' <<<"${config}"
 grep -Fq 'LMCACHE_TRANSFER_MODE: auto' <<<"${config}"
 grep -Fq 'LOAD_FORMAT: instanttensor' <<<"${config}"
 grep -Fq 'INSTANTTENSOR_BACKEND: BUFFERED' <<<"${config}"
-grep -Fq 'jovian-judgement-vllma4c2eee-b12x283a63e-fi803c466' <<<"${config}"
+grep -Fq 'jovian-judgement-vllm2841848-b12x283a63e-fi803c466' <<<"${config}"
 ! grep -Fq 'KV_OFFLOADING_SIZE:' <<<"${config}"
 ! grep -Fq 'NATIVE_L2_' <<<"${config}"
 
