@@ -64,7 +64,16 @@ jq -e '
     "97ede799d6605ca1bd5285582df4e74a3d3c7b0d"
 ' "${composition_root}/lmcache/integration.lock.json" >/dev/null
 
-output="$(PRINT_RELEASE_CONFIG=1 "${builder}")"
+output="$(
+  RELEASE_DATE=20260903 \
+  REVISION=r1 \
+  COMPOSITION_ROOT=patches/releases/jovian-judgement-ds4-r1 \
+  FLASHINFER_WHEEL_IMAGE=voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb \
+  FLASHINFER_REF=integration/main-pr4393-pcie-ipc-qualified-20260807 \
+  FLASHINFER_COMMIT=1ac6942776b383c6b03c7a5805a22e72a3e3349f \
+  PRINT_RELEASE_CONFIG=1 \
+    "${builder}"
+)"
 grep -Fxq 'release=jovian-judgement-deepseek-v4-flash-cu133-torch213' <<<"${output}"
 grep -Fxq 'revision=r1' <<<"${output}"
 grep -Fxq 'vllm_ref=dev/jovian-judgement' <<<"${output}"

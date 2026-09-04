@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the CUDA 13.3 DeepSeek-V4-Flash runtime from immutable Jovian Judgement,
-# B12X, and LMCache source-composition locks.
+# Build the CUDA 13.3 DeepSeek-V4-Flash text and vision runtime from immutable
+# Jovian Judgement, B12X, and LMCache source-composition locks.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${repo_root}"
 
 release_name=${RELEASE_NAME:-jovian-judgement-deepseek-v4-flash-cu133-torch213}
-release_date=${RELEASE_DATE:-20260903}
-revision=${REVISION:-r1}
-composition_root=${COMPOSITION_ROOT:-patches/releases/jovian-judgement-ds4-r1}
+release_date=${RELEASE_DATE:-20260904}
+revision=${REVISION:-r2}
+composition_root=${COMPOSITION_ROOT:-patches/releases/jovian-judgement-ds4-r2}
 base_image=${BASE_IMAGE:-voipmonitor/vllm@sha256:03b67e53dda73c3fa317d4cb529ad38a220c51c7365ee8d54c16e5063fcc54e2}
 runtime_foundation=${RUNTIME_FOUNDATION:-1}
 runtime_foundation_image=${RUNTIME_FOUNDATION_IMAGE:-${base_image}}
-flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi1ac6942-cu133-torch213-20260820-r1@sha256:477a3b55b973df48b08a6dfae4a2a1e64c975a990dda22f65e31acd5217b86bb}
+flashinfer_wheel_image=${FLASHINFER_WHEEL_IMAGE:-voipmonitor/vllm:flashinfer-wheels-fi803c466-cu133-torch213-20260904-r1@sha256:79edbc91874d9468e3e6268e1584503e3dec55f2a4d3bdd70d5c43e9b41675c7}
 flashinfer_repo=${FLASHINFER_REPO:-https://github.com/voipmonitor/flashinfer.git}
-flashinfer_ref=${FLASHINFER_REF:-integration/main-pr4393-pcie-ipc-qualified-20260807}
-flashinfer_commit=${FLASHINFER_COMMIT:-1ac6942776b383c6b03c7a5805a22e72a3e3349f}
+flashinfer_ref=${FLASHINFER_REF:-port/jj-ds4-vision-20260903}
+flashinfer_commit=${FLASHINFER_COMMIT:-803c4664f4771ddc418f20a57f752469a237a825}
 instanttensor_repo=${INSTANTTENSOR_REPO:-https://github.com/voipmonitor/InstantTensor.git}
 instanttensor_commit=${INSTANTTENSOR_COMMIT:-49b4010afc1cae0441e71fe0b0bffc24fa05e932}
 instanttensor_libaio_repo=${INSTANTTENSOR_LIBAIO_REPO:-https://github.com/sailfishos-mirror/libaio.git}
@@ -112,6 +112,9 @@ fi
 if ! docker image inspect "${flashinfer_wheel_image}" >/dev/null 2>&1; then
   docker pull "${flashinfer_wheel_image}" || \
     BASE_IMAGE="${base_image}" IMAGE="${flashinfer_wheel_image}" \
+      FLASHINFER_REPO="${flashinfer_repo}" \
+      FLASHINFER_REF="${flashinfer_ref}" \
+      FLASHINFER_COMMIT="${flashinfer_commit}" \
       FLASHINFER_VERSION="${flashinfer_version}" \
       ./build-flashinfer-cu133-torch213-wheels.sh
 fi
@@ -248,11 +251,35 @@ launcher_output="$(
     -e DRY_RUN=1 -e MODE=dspark -e DSPARK_TOKENS=5 -e MAX_NUM_SEQS=16 \
     -e TP_SIZE=2 -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
 )"
-grep -Fq 'DS4 launch: mode=dspark depth=fixed' <<<"${launcher_output}"
+grep -Fq 'DS4 launch: variant=text mode=dspark depth=fixed' <<<"${launcher_output}"
 grep -Fq 'backend=b12x-a8' <<<"${launcher_output}"
 grep -Fq 'tp=2 dcp=1 max_seqs=16 graph=96' <<<"${launcher_output}"
 grep -Fq -- '--attention-backend B12X' <<<"${launcher_output}"
 printf '%s\n' "${launcher_output}"
+
+vision_launcher_output="$(
+  docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+    -e DRY_RUN=1 -e MODE=dspark -e DS4_MODEL_VARIANT=vision \
+    -e MODEL=deepseek-ai/DeepSeek-V4-Flash-Vision-Exp \
+    -e MAX_NUM_SEQS=4 -e MAX_NUM_BATCHED_TOKENS=4096 \
+    -e TP_SIZE=2 -e GRAPH=auto -e LOAD_FORMAT=instanttensor "${image}" 2>&1
+)"
+grep -Fq 'DS4 launch: variant=vision mode=dspark depth=fixed' \
+  <<<"${vision_launcher_output}"
+grep -Fq 'tp=2 dcp=1 max_seqs=4 graph=16' <<<"${vision_launcher_output}"
+grep -Fq 'num_speculative_tokens\":3' <<<"${vision_launcher_output}"
+grep -Fq -- '--revision 6821d6ad3681a4b137b066b76094fa82ebd0a380' \
+  <<<"${vision_launcher_output}"
+grep -Fq -- '--gpu-memory-utilization 0.975' <<<"${vision_launcher_output}"
+
+vision_lmcache_output="$(
+  docker run --rm --entrypoint /usr/local/bin/serve-ds4-flash.sh \
+    -e DRY_RUN=1 -e MODE=dspark -e DS4_MODEL_VARIANT=vision \
+    -e MODEL=deepseek-ai/DeepSeek-V4-Flash-Vision-Exp \
+    -e LMCACHE_MODE=ram -e LMCACHE_TRANSFER_MODE=auto \
+    -e MAX_NUM_SEQS=4 -e TP_SIZE=2 -e GRAPH=auto "${image}" 2>&1
+)"
+grep -Fq -- '--gpu-memory-utilization 0.96' <<<"${vision_lmcache_output}"
 
 docker run --rm --entrypoint /opt/venv/bin/python "${image}" -c \
   'import importlib, os, pathlib, torch; ext = importlib.import_module("exllamav3_ext"); assert hasattr(ext, "exl3_gemm"); assert pathlib.Path(os.environ["VLLM_EXL3_ENCODER_SOURCE"], "modules/quant/exl3_lib/quantize.py").is_file()'
