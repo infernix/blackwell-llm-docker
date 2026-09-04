@@ -22,6 +22,17 @@ require_positive_integer() {
   fi
 }
 
+require_tcp_port() {
+  local name=$1
+  local value=$2
+  if [[ ! ${value} =~ ^[1-9][0-9]{0,4}$ ]] ||
+    ((10#${value} > 65535)); then
+    printf '%s must be a TCP port from 1 through 65535; got %s\n' \
+      "${name}" "${value}" >&2
+    exit 2
+  fi
+}
+
 readonly mp_host=${LMCACHE_MP_HOST:-127.0.0.1}
 readonly mp_port=${LMCACHE_MP_PORT:-5555}
 readonly http_port=${LMCACHE_HTTP_PORT:-8085}
@@ -35,9 +46,9 @@ readonly max_num_seqs=${MAX_NUM_SEQS:-16}
 readonly min_shm_gib=${LMCACHE_MIN_SHM_GIB:-96}
 readonly lmcache_kv_cache_dtype=${LMCACHE_KV_CACHE_DTYPE:-nvfp4_ds_mla}
 
-require_positive_integer LMCACHE_MP_PORT "${mp_port}"
-require_positive_integer LMCACHE_HTTP_PORT "${http_port}"
-require_positive_integer LMCACHE_PROMETHEUS_PORT "${prometheus_port}"
+require_tcp_port LMCACHE_MP_PORT "${mp_port}"
+require_tcp_port LMCACHE_HTTP_PORT "${http_port}"
+require_tcp_port LMCACHE_PROMETHEUS_PORT "${prometheus_port}"
 require_positive_integer LMCACHE_STARTUP_TIMEOUT_SECONDS "${startup_timeout}"
 require_positive_integer LMCACHE_CHUNK_SIZE "${chunk_size}"
 require_positive_integer LMCACHE_TARGET_TOKEN_BUDGET "${target_token_budget}"

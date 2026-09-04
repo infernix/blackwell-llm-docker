@@ -14,21 +14,33 @@ fail() {
   exit 2
 }
 
-require_nonnegative_integer() {
+normalize_nonnegative_integer() {
   local name=$1
   local value=$2
+  local output_name=$3
+  local normalized
   [[ ${value} =~ ^[0-9]+$ ]] ||
     fail "${name} must be a non-negative integer; got ${value}"
+  [[ ${value} =~ ^0*([0-9]{1,19})$ ]] ||
+    fail "${name} exceeds Bash signed integer range; got ${value}"
+  normalized=${BASH_REMATCH[1]}
+  if ((${#normalized} == 19)) &&
+    [[ ${normalized} > 9223372036854775807 ]]; then
+    fail "${name} exceeds Bash signed integer range; got ${value}"
+  fi
+  printf -v "${output_name}" '%s' "${normalized}"
 }
-require_nonnegative_integer MAX_CUDAGRAPH_CAPTURE_SIZE \
-  "${configured_max_cudagraph_capture_size}"
-readonly max_cudagraph_capture_size=$((10#${configured_max_cudagraph_capture_size}))
+normalize_nonnegative_integer MAX_CUDAGRAPH_CAPTURE_SIZE \
+  "${configured_max_cudagraph_capture_size}" max_cudagraph_capture_size
+readonly max_cudagraph_capture_size
 export MAX_CUDAGRAPH_CAPTURE_SIZE=${max_cudagraph_capture_size}
 
 
 require_open_unit_interval() {
   local name=$1
   local value=$2
+  [[ ${value} =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$ ]] ||
+    fail "${name} must be numeric; got ${value}"
   awk -v value="${value}" 'BEGIN { exit !(value > 0.0 && value < 1.0) }' ||
     fail "${name} must be greater than zero and less than one; got ${value}"
 }
@@ -97,6 +109,7 @@ if [[ ${capture_sizes} != none ]] &&
     if [[ ! ${size} =~ ^[1-9][0-9]*$ ]]; then
       fail "Invalid CUDA graph capture size: ${size}"
     fi
+    normalize_nonnegative_integer "CUDA graph capture size" "${size}" size
     if ((size <= previous)); then
       fail "CUDAGRAPH_CAPTURE_SIZES must be strictly increasing; got ${size} after ${previous}"
     fi
@@ -115,14 +128,14 @@ max_num_partial_prefills=${MAX_NUM_PARTIAL_PREFILLS:-0}
 decode_prefill_min_decode_steps=${DECODE_PREFILL_MIN_DECODE_STEPS:-0}
 decode_prefill_max_wait_ms=${DECODE_PREFILL_MAX_WAIT_MS:-0}
 
-require_nonnegative_integer MAX_NUM_PREFILL_TOKENS_PER_STEP \
-  "${max_num_prefill_tokens_per_step}"
-require_nonnegative_integer MAX_NUM_PARTIAL_PREFILLS \
-  "${max_num_partial_prefills}"
-require_nonnegative_integer DECODE_PREFILL_MIN_DECODE_STEPS \
-  "${decode_prefill_min_decode_steps}"
-require_nonnegative_integer DECODE_PREFILL_MAX_WAIT_MS \
-  "${decode_prefill_max_wait_ms}"
+normalize_nonnegative_integer MAX_NUM_PREFILL_TOKENS_PER_STEP \
+  "${max_num_prefill_tokens_per_step}" max_num_prefill_tokens_per_step
+normalize_nonnegative_integer MAX_NUM_PARTIAL_PREFILLS \
+  "${max_num_partial_prefills}" max_num_partial_prefills
+normalize_nonnegative_integer DECODE_PREFILL_MIN_DECODE_STEPS \
+  "${decode_prefill_min_decode_steps}" decode_prefill_min_decode_steps
+normalize_nonnegative_integer DECODE_PREFILL_MAX_WAIT_MS \
+  "${decode_prefill_max_wait_ms}" decode_prefill_max_wait_ms
 
 if ((max_num_prefill_tokens_per_step > 0)) &&
   ! has_cli_option --max-num-prefill-tokens-per-step "$@"; then

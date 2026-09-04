@@ -3,19 +3,6 @@ set -euo pipefail
 
 readonly cache_launcher=/usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh
 
-# Under any cache selection, TP=3 opts into the strict R21 TP3 policy; the
-# policy launcher itself rejects unsupported cache modes fail-closed. TP=4
-# and TP=8 keep the image's unmodified serving behavior.
-if [[ ${TP:-4} == 3 ]]; then
-  exec /usr/local/bin/serve-glm53-flash-tp3-r21.sh "$@"
-fi
-# With no cache-mode selection, preserve the image's serving command. Selecting
-# CACHE_MODE enables the cache-mode contract, including explicit split-cache
-# geometry and optional external cache connectors.
-if [[ -z ${CACHE_MODE+x} && -z ${LMCACHE_ENABLED+x} && \
-  ${CACHE_CONFIG_DRY_RUN:-0} != 1 ]]; then
-  exec "${cache_launcher}" "$@"
-fi
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -42,6 +29,60 @@ sanitize_namespace_component() {
   [[ -n ${value} ]] || value=unset
   printf '%s' "${value}"
 }
+
+normalize_speculator() {
+  speculator=${SPECULATOR:-mtp}
+  case "${speculator}" in
+    mtp)
+      spec_depth=${MTP_DEPTH:-${MTP:-${NUM_SPECULATIVE_TOKENS:-0}}}
+      require_nonnegative_integer MTP_DEPTH "${spec_depth}"
+      ((spec_depth <= 5)) ||
+        fail "MTP_DEPTH must be between 0 and 5; got ${spec_depth}"
+      ;;
+    dflash | dflash2)
+      speculator=dflash2
+      spec_depth=${DFLASH_DEPTH:-${NUM_SPECULATIVE_TOKENS:-7}}
+      require_positive_integer DFLASH_DEPTH "${spec_depth}"
+      ((spec_depth <= 7)) ||
+        fail "DFLASH_DEPTH must be between 1 and 7; got ${spec_depth}"
+      ;;
+    *) fail "SPECULATOR must be mtp or dflash2; got ${speculator}" ;;
+  esac
+  export SPECULATOR=${speculator}
+  export NUM_SPECULATIVE_TOKENS=${spec_depth}
+}
+
+# Tensor parallelism is an environment-owned routing key. Rejecting CLI forms
+# prevents a TP3 request from entering the generic TP4/TP8 delegate first.
+for argument in "$@"; do
+  tp_option=${argument%%=*}
+  tp_option=${tp_option//_/-}
+  if [[ ${tp_option} == -tp* ]]; then
+    fail "${argument%%=*} is managed by TP"
+  fi
+  if [[ ${tp_option} != -- && ${tp_option} == --* &&
+        --tensor-parallel-size == "${tp_option}"* ]]; then
+    fail "${argument%%=*} is managed by TP"
+  fi
+done
+
+# Under any cache selection, TP3 first normalizes the generic mode aliases,
+# then opts into the strict R21 policy. TP4 and TP8 keep the image behavior.
+if [[ ${TP:-4} == 3 ]]; then
+  normalize_speculator
+  if [[ ${CACHE_CONFIG_DRY_RUN:-0} == 1 ]]; then
+    export DRY_RUN=1
+  fi
+  exec /usr/local/bin/serve-glm53-flash-tp3-r21.sh "$@"
+fi
+
+# With no cache-mode selection, preserve the image's serving command. Selecting
+# CACHE_MODE enables the cache-mode contract, including explicit split-cache
+# geometry and optional external cache connectors.
+if [[ -z ${CACHE_MODE+x} && -z ${LMCACHE_ENABLED+x} && \
+  ${CACHE_CONFIG_DRY_RUN:-0} != 1 ]]; then
+  exec "${cache_launcher}" "$@"
+fi
 
 # Reject command-line values for settings owned by this launcher's environment
 # contract. Emitting a setting twice lets argument order silently select a cache
@@ -152,22 +193,7 @@ if [[ ${mamba_block_size} != auto ]]; then
   fi
 fi
 
-speculator=${SPECULATOR:-mtp}
-case "${speculator}" in
-  mtp)
-    spec_depth=${MTP_DEPTH:-${MTP:-${NUM_SPECULATIVE_TOKENS:-0}}}
-    require_nonnegative_integer MTP_DEPTH "${spec_depth}"
-    ((spec_depth <= 5)) || fail "MTP_DEPTH must be between 0 and 5; got ${spec_depth}"
-    ;;
-  dflash | dflash2)
-    speculator=dflash2
-    spec_depth=${DFLASH_DEPTH:-${NUM_SPECULATIVE_TOKENS:-7}}
-    require_positive_integer DFLASH_DEPTH "${spec_depth}"
-    ((spec_depth <= 7)) ||
-      fail "DFLASH_DEPTH must be between 1 and 7; got ${spec_depth}"
-    ;;
-  *) fail "SPECULATOR must be mtp or dflash2; got ${speculator}" ;;
-esac
+normalize_speculator
 
 export TP=${tp}
 export DCP=${dcp}
