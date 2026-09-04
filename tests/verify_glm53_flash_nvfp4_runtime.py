@@ -18,6 +18,11 @@ import tempfile
 TP3_DISPATCHER = pathlib.Path("/usr/local/bin/serve-glm53-flash.sh")
 TP3_LAUNCHER = pathlib.Path("/usr/local/bin/serve-glm53-flash-tp3-r21.sh")
 BASE_DELEGATE = "/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh"
+CAPTURE_WRAPPER = pathlib.Path(
+    "/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh"
+)
+CAPTURE_BASE_DELEGATE = "/usr/local/libexec/serve-glm53-flash-nvfp4-dflash2.sh"
+LMCACHE_WRAPPER = pathlib.Path("/usr/local/bin/serve-glm53-flash-lmcache.sh")
 LOCKED_OPTIONS = (
     "--revision",
     "--speculative-config",
@@ -97,7 +102,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--vllm-version", required=not _is_policy_only(argv))
     parser.add_argument("--vllm-tree", required=not _is_policy_only(argv))
     parser.add_argument("--b12x-tree", required=not _is_policy_only(argv))
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _is_policy_only(argv: list[str]) -> bool:
@@ -274,6 +279,8 @@ def run_tp3_policy_cases() -> None:
         for option in LOCKED_OPTIONS:
             reject(f"locked override {option}", output_env(), [option, "1"])
             reject(f"locked override {option}=1", output_env(), [f"{option}=1"])
+        for option in ("--no-enforce-eager", "--no-disable-custom-all-reduce"):
+            reject(f"negated locked override {option}", output_env(), [option])
         for alias_args in (
             ["-tp", "3"],
             ["-dcp", "2"],
@@ -381,12 +388,113 @@ def run_tp3_policy_cases() -> None:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def run_wrapper_regression_cases() -> None:
+    """Exercise input validation and cache-dtype translation without a GPU."""
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="glm53-wrapper-policy-"))
+    try:
+        base_stub = tmp / "base-launcher"
+        base_stub.write_text(
+            '#!/usr/bin/env bash\n'
+            'printf "BASE: KV_CACHE_DTYPE=%s\\n" "${KV_CACHE_DTYPE-}"\n'
+        )
+        base_stub.chmod(0o755)
+
+        capture_wrapper = tmp / "capture-wrapper"
+        capture_wrapper.write_text(
+            CAPTURE_WRAPPER.read_text().replace(
+                CAPTURE_BASE_DELEGATE, str(base_stub)
+            )
+        )
+        capture_wrapper.chmod(0o755)
+
+        marker = tmp / "arithmetic-injection"
+        env = dict(os.environ)
+        env.update(
+            {
+                "CUDAGRAPH_CAPTURE_SIZES": "1",
+                "MAX_CUDAGRAPH_CAPTURE_SIZE": f'probe[$(touch "{marker}")]',
+            }
+        )
+        result = subprocess.run(
+            ["bash", str(capture_wrapper)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 2, result
+        assert not marker.exists(), "capture-size validation executed shell input"
+        assert "BASE:" not in result.stdout, result.stdout
+
+        env["MAX_CUDAGRAPH_CAPTURE_SIZE"] = "016"
+        env["CUDAGRAPH_CAPTURE_SIZES"] = "1 8 16"
+        result = subprocess.run(
+            ["bash", str(capture_wrapper)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "BASE:" in result.stdout, result.stdout
+
+        df_stub = tmp / "df"
+        df_stub.write_text(
+            "#!/usr/bin/env bash\n"
+            "printf '1B-blocks\\n1099511627776\\n'\n"
+        )
+        df_stub.chmod(0o755)
+        lmcache_stub = tmp / "lmcache"
+        lmcache_stub.write_text("#!/usr/bin/env bash\nexec sleep 30\n")
+        lmcache_stub.chmod(0o755)
+        health = tmp / "health"
+        health.write_text("ok\n")
+
+        lmcache_wrapper = tmp / "lmcache-wrapper"
+        lmcache_text = LMCACHE_WRAPPER.read_text()
+        lmcache_text = lmcache_text.replace(BASE_DELEGATE, str(base_stub))
+        lmcache_text = lmcache_text.replace(
+            "/opt/venv/bin/lmcache", str(lmcache_stub)
+        )
+        lmcache_text = lmcache_text.replace(
+            'readonly health_url="http://127.0.0.1:${http_port}/healthcheck"',
+            f'readonly health_url="file://{health}"',
+        )
+        lmcache_wrapper.write_text(lmcache_text)
+        lmcache_wrapper.chmod(0o755)
+
+        env = dict(os.environ)
+        env.update(
+            {
+                "PATH": f"{tmp}:{env['PATH']}",
+                "LMCACHE_ENABLED": "1",
+                "LMCACHE_KV_CACHE_DTYPE": "fp8_ds_mla",
+                "LMCACHE_L2_ENABLED": "0",
+                "LMCACHE_TRANSFER_MODE": "engine_driven",
+            }
+        )
+        result = subprocess.run(
+            ["bash", str(lmcache_wrapper)],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "BASE: KV_CACHE_DTYPE=fp8" in result.stdout, result.stdout
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     argv = sys.argv[1:]
     if _is_policy_only(argv):
-        args = parse_args(argv + ["--vllm-version", "x", "--vllm-tree", "0", "--b12x-tree", "0"])
+        args = parse_args(
+            argv + ["--vllm-version", "x", "--vllm-tree", "0", "--b12x-tree", "0"]
+        )
         verify_tp3_launcher()
         run_tp3_policy_cases()
+        run_wrapper_regression_cases()
         print("TP3 policy: recorded (structural), fail-closed matrix: PASS")
     else:
         args = parse_args(argv)

@@ -105,6 +105,9 @@ readonly -a locked_long_options=(
 
 is_locked_override() {
   local option=$1 locked
+  if [[ ${option} == --no-* ]]; then
+    option=--${option#--no-}
+  fi
   case "${option}" in
     --speculative-config.* | --additional-config.* | \
     --compilation-config.* | --kv-transfer-config.* | \

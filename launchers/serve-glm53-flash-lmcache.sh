@@ -58,7 +58,12 @@ case "${transfer_mode}" in
 esac
 
 case "${lmcache_kv_cache_dtype}" in
-  fp8 | fp8_e4m3 | fp8_ds_mla | nvfp4_ds_mla) ;;
+  fp8 | fp8_e4m3 | fp8_ds_mla)
+    readonly vllm_kv_cache_dtype=fp8
+    ;;
+  nvfp4_ds_mla)
+    readonly vllm_kv_cache_dtype=nvfp4_ds_mla
+    ;;
   *)
     printf 'LMCACHE_KV_CACHE_DTYPE must be fp8, fp8_e4m3, fp8_ds_mla, or nvfp4_ds_mla; got %s\n' \
       "${lmcache_kv_cache_dtype}" >&2
@@ -187,7 +192,7 @@ readonly input_token_budget=$((
   target_token_budget + draft_slots_per_request * max_num_seqs
 ))
 export MAX_NUM_BATCHED_TOKENS=${input_token_budget}
-export KV_CACHE_DTYPE=${lmcache_kv_cache_dtype}
+export KV_CACHE_DTYPE=${vllm_kv_cache_dtype}
 export VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE="${VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE:-auto}"
 export VLLM_GLM53_SPLIT_MAMBA_BLOCK_SIZE="${VLLM_GLM53_SPLIT_MAMBA_BLOCK_SIZE:-auto}"
 vllm_extra_args+=(--max-num-scheduled-tokens "${target_token_budget}")

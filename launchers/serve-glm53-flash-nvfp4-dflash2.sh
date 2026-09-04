@@ -7,7 +7,7 @@ set -euo pipefail
 readonly base_launcher=/usr/local/libexec/serve-glm53-flash-nvfp4-dflash2.sh
 capture_sizes=${CUDAGRAPH_CAPTURE_SIZES:-'1 2 4 8 16 32 40 48 64 96 128 192 256'}
 
-export MAX_CUDAGRAPH_CAPTURE_SIZE=${MAX_CUDAGRAPH_CAPTURE_SIZE:-256}
+readonly configured_max_cudagraph_capture_size=${MAX_CUDAGRAPH_CAPTURE_SIZE:-256}
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -20,6 +20,11 @@ require_nonnegative_integer() {
   [[ ${value} =~ ^[0-9]+$ ]] ||
     fail "${name} must be a non-negative integer; got ${value}"
 }
+require_nonnegative_integer MAX_CUDAGRAPH_CAPTURE_SIZE \
+  "${configured_max_cudagraph_capture_size}"
+readonly max_cudagraph_capture_size=$((10#${configured_max_cudagraph_capture_size}))
+export MAX_CUDAGRAPH_CAPTURE_SIZE=${max_cudagraph_capture_size}
+
 
 require_open_unit_interval() {
   local name=$1
@@ -95,8 +100,8 @@ if [[ ${capture_sizes} != none ]] &&
     if ((size <= previous)); then
       fail "CUDAGRAPH_CAPTURE_SIZES must be strictly increasing; got ${size} after ${previous}"
     fi
-    if ((size > MAX_CUDAGRAPH_CAPTURE_SIZE)); then
-      fail "CUDA graph capture size ${size} exceeds MAX_CUDAGRAPH_CAPTURE_SIZE=${MAX_CUDAGRAPH_CAPTURE_SIZE}"
+    if ((size > max_cudagraph_capture_size)); then
+      fail "CUDA graph capture size ${size} exceeds MAX_CUDAGRAPH_CAPTURE_SIZE=${configured_max_cudagraph_capture_size}"
     fi
     previous=${size}
   done
