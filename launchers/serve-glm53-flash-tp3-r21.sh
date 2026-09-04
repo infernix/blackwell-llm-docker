@@ -8,7 +8,7 @@ set -euo pipefail
 # cache-complete chain. It is fail-closed: every value that the TP3 runtime
 # was shaped around is locked, and any caller attempt to override it is
 # rejected before a container is started. Structural support only; the policy
-# is recorded here without qualification claims until a believewin run.
+# is recorded here without qualification claims until a hardware run.
 
 readonly capture_launcher=/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh
 
@@ -28,6 +28,20 @@ require_positive_integer() {
 case "${TP:-}" in
   3) ;;
   *) fail "R21 TP3 policy requires TP=3; got ${TP:-unset}" ;;
+esac
+
+case ${CACHE_MODE:-vram} in
+  vram)
+    if [[ ${LMCACHE_ENABLED:-0} != 0 ]]; then
+      fail 'R21 TP3 dense-cache policy does not support LMCache'
+    fi
+    ;;
+  native | lmcache)
+    fail "R21 TP3 policy supports dense GPU cache only; got CACHE_MODE=${CACHE_MODE}"
+    ;;
+  *)
+    fail "CACHE_MODE must be vram, native, or lmcache; got ${CACHE_MODE}"
+    ;;
 esac
 
 if [[ ${LMCACHE_ENABLED:-0} != 0 ]]; then
@@ -148,24 +162,36 @@ lock_env DFLASH_MODEL "${locked_dflash_model}"
 lock_env MODEL_REVISION "${locked_model_revision}"
 lock_env DFLASH_MODEL_REVISION "${locked_dflash_revision}"
 lock_env LMCACHE_ENABLED 0
+lock_env GLM53_CACHE_LAYOUT dense
 lock_env CP_KV_CACHE_INTERLEAVE_SIZE 4
 lock_env DCP_CKV_GATHER 0
 lock_env MAX_MODEL_LEN 1048576
-lock_env MAX_NUM_SEQS 32
-lock_env MAX_NUM_BATCHED_TOKENS 4096
-lock_env PREFILL_SCHEDULE_INTERVAL 1
-lock_env GPU_MEMORY_UTILIZATION 0.93
+lock_env_from_parent MAX_NUM_SEQS 8 32
+lock_env_from_parent MAX_NUM_BATCHED_TOKENS 8192 4096
+lock_env_from_parent PREFILL_SCHEDULE_INTERVAL 8 1
+lock_env GPU_MEMORY_UTILIZATION 0.91
+lock_env_from_parent MAX_CUDAGRAPH_CAPTURE_SIZE 16 256
+lock_env_from_parent CUDAGRAPH_CAPTURE_SIZES '1 2 4 8 16' \
+  '1 2 4 8 16 32 40 48 64 96 128 192 256'
+lock_env_from_parent FAIRNESS_ENGINE none compute_share
+lock_env_from_parent PREFILL_COMPUTE_SHARE none 0.4
 lock_env KV_CACHE_DTYPE fp8
 lock_env ATTENTION_BACKEND B12X
-lock_env MOE_BACKEND b12x
+lock_env MOE_BACKEND auto
 lock_env LINEAR_BACKEND b12x
 lock_env MTP_ATTENTION_BACKEND B12X
-lock_env MTP_MOE_BACKEND marlin
+lock_env MTP_MOE_BACKEND humming
+lock_env VLLM_B12X_MOE_FP4_FORCE_A16 0
 lock_env B12X_PCIE_ALLREDUCE 1
+lock_env VLLM_ENABLE_PCIE_ALLREDUCE 1
 lock_env VLLM_PCIE_ALLREDUCE_BACKEND b12x
-lock_env GLM53_KDA_DECODE_BACKEND auto
+lock_env VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE 84KB
+lock_env B12X_PCIE_ALLREDUCE_ALGORITHM auto
+lock_env GLM53_KDA_DECODE_BACKEND b12x
 lock_env GLM53_KDA_PREFILL_BACKEND flashkda
-lock_env CUDAGRAPH_MODE FULL_AND_PIECEWISE
+lock_env CUDAGRAPH_MODE FULL
+lock_env ENABLE_PREFIX_CACHING 1
+lock_env GLM53_R17_REQUIRE_RUNTIME_PROOF 1
 
 require_positive_integer CP_KV_CACHE_INTERLEAVE_SIZE \
   "${CP_KV_CACHE_INTERLEAVE_SIZE}"
@@ -174,8 +200,8 @@ require_positive_integer MAX_NUM_BATCHED_TOKENS "${MAX_NUM_BATCHED_TOKENS}"
 require_positive_integer PREFILL_SCHEDULE_INTERVAL \
   "${PREFILL_SCHEDULE_INTERVAL}"
 case "${GPU_MEMORY_UTILIZATION}" in
-  0.93) ;;
-  *) fail "R21 TP3 GPU_MEMORY_UTILIZATION is locked to 0.93; got ${GPU_MEMORY_UTILIZATION}" ;;
+  0.91) ;;
+  *) fail "R21 TP3 GPU_MEMORY_UTILIZATION is locked to 0.91; got ${GPU_MEMORY_UTILIZATION}" ;;
 esac
 
 # Dense (GPU-only) KV cache: dense target and auto recurrent pages, exactly
@@ -188,7 +214,7 @@ export LMCACHE_KV_CACHE_DTYPE=fp8_ds_mla
 
 # The dense-cache fingerprint separates the TP3 compiled artifacts from the
 # qualified TP4/TP8 caches so a TP3 warmup never invalidates the R21 layout.
-readonly fingerprint=cu133-torch213-glm53-r21-tp3-vllmf2d77086-b12x1e59a1f-dense-ctx1m-seq32-bt4096
+readonly fingerprint=cu133-torch213-glm53-r21-tp3-vllmf2d77086-b12x1e59a1f-dense-ctx1m-seq8-bt8192
 readonly cache_root=/cache/jit/${fingerprint}
 export LOCAL_INFERENCE_CACHE_FINGERPRINT=${fingerprint}
 export XDG_CACHE_HOME=${cache_root}

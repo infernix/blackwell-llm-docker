@@ -3,9 +3,10 @@ set -euo pipefail
 
 readonly cache_launcher=/usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh
 
-# Under the default dense-cache entrypoint, TP=3 opts into the strict R21 TP3
-# policy. TP=4 and TP=8 keep the image's unmodified serving behavior.
-if [[ ${TP:-4} == 3 && -z ${CACHE_MODE:-} && ${LMCACHE_ENABLED:-0} == 0 ]]; then
+# Under any cache selection, TP=3 opts into the strict R21 TP3 policy; the
+# policy launcher itself rejects unsupported cache modes fail-closed. TP=4
+# and TP=8 keep the image's unmodified serving behavior.
+if [[ ${TP:-4} == 3 ]]; then
   exec /usr/local/bin/serve-glm53-flash-tp3-r21.sh "$@"
 fi
 # With no cache-mode selection, preserve the image's serving command. Selecting

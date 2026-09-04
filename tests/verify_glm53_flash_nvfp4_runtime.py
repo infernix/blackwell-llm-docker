@@ -58,21 +58,32 @@ LOCKED_ENV = (
     ("DFLASH_MODEL_REVISION", "aea0ac8a05624512ca9e106c09c16087da998426"),
     ("LMCACHE_ENABLED", "0"),
     ("MAX_MODEL_LEN", "1048576"),
-    ("MAX_NUM_SEQS", "32"),
-    ("MAX_NUM_BATCHED_TOKENS", "4096"),
-    ("PREFILL_SCHEDULE_INTERVAL", "1"),
-    ("GPU_MEMORY_UTILIZATION", "0.93"),
+    ("MAX_NUM_SEQS", "8"),
+    ("MAX_NUM_BATCHED_TOKENS", "8192"),
+    ("PREFILL_SCHEDULE_INTERVAL", "8"),
+    ("GPU_MEMORY_UTILIZATION", "0.91"),
     ("KV_CACHE_DTYPE", "fp8"),
     ("ATTENTION_BACKEND", "B12X"),
-    ("MOE_BACKEND", "b12x"),
+    ("MOE_BACKEND", "auto"),
     ("LINEAR_BACKEND", "b12x"),
     ("MTP_ATTENTION_BACKEND", "B12X"),
-    ("MTP_MOE_BACKEND", "marlin"),
+    ("MTP_MOE_BACKEND", "humming"),
+    ("VLLM_B12X_MOE_FP4_FORCE_A16", "0"),
     ("VLLM_PCIE_ALLREDUCE_BACKEND", "b12x"),
+    ("VLLM_PCIE_ONESHOT_ALLREDUCE_MAX_SIZE", "84KB"),
     ("B12X_PCIE_ALLREDUCE", "1"),
-    ("GLM53_KDA_DECODE_BACKEND", "auto"),
+    ("B12X_PCIE_ALLREDUCE_ALGORITHM", "auto"),
+    ("GLM53_KDA_DECODE_BACKEND", "b12x"),
     ("GLM53_KDA_PREFILL_BACKEND", "flashkda"),
-    ("CUDAGRAPH_MODE", "FULL_AND_PIECEWISE"),
+    ("CUDAGRAPH_MODE", "FULL"),
+    ("MAX_CUDAGRAPH_CAPTURE_SIZE", "16"),
+    ("CUDAGRAPH_CAPTURE_SIZES", "1 2 4 8 16"),
+    ("FAIRNESS_ENGINE", "none"),
+    ("PREFILL_COMPUTE_SHARE", "none"),
+    ("VLLM_ENABLE_PCIE_ALLREDUCE", "1"),
+    ("GLM53_CACHE_LAYOUT", "dense"),
+    ("ENABLE_PREFIX_CACHING", "1"),
+    ("GLM53_R17_REQUIRE_RUNTIME_PROOF", "1"),
 )
 
 
@@ -159,16 +170,28 @@ def verify_tp3_launcher() -> None:
     tp3_text = TP3_LAUNCHER.read_text()
 
     assert re.search(
-        r"if \[\[ \$\{TP:-4\} == 3 && -z \$\{CACHE_MODE:-\} "
-        r"&& \$\{LMCACHE_ENABLED:-0\} == 0 \]\]; then\n"
+        r"if \[\[ \$\{TP:-4\} == 3 \]\]; then\n"
         r"  exec /usr/local/bin/serve-glm53-flash-tp3-r21\.sh \"\$@\"\nfi",
         dispatcher_text,
     )
     assert "CACHE_MODE must be vram, native, or lmcache" in dispatcher_text
 
+    from_parent_names = {
+        "MAX_NUM_SEQS",
+        "MAX_NUM_BATCHED_TOKENS",
+        "PREFILL_SCHEDULE_INTERVAL",
+        "MAX_CUDAGRAPH_CAPTURE_SIZE",
+        "CUDAGRAPH_CAPTURE_SIZES",
+        "FAIRNESS_ENGINE",
+        "PREFILL_COMPUTE_SHARE",
+    }
     for name, value in LOCKED_ENV:
         if name in ("MODEL_REVISION", "DFLASH_MODEL_REVISION"):
             pattern = rf'lock_env {re.escape(name)} "\$\{{locked_\w+\}}"'
+        elif name in from_parent_names:
+            pattern = (
+                rf"lock_env_from_parent {re.escape(name)} '?{re.escape(value)}'?\b"
+            )
         else:
             pattern = rf"lock_env {re.escape(name)} {re.escape(value)}\b"
         assert re.search(pattern, tp3_text), f"missing lock: {name}"
@@ -188,7 +211,16 @@ def run_tp3_policy_cases() -> None:
     try:
         base_stub = tmp / "base-dflash2"
         base_stub.write_text(
-            '#!/usr/bin/env bash\nprintf "STUB-REACHED:"\nprintf " %q" "$@"\nprintf "\\n"\nexit 0\n'
+            '#!/usr/bin/env bash\n'
+            'printf "ENV: MAX_NUM_SEQS=%s MAX_NUM_BATCHED_TOKENS=%s '
+            'PREFILL_SCHEDULE_INTERVAL=%s MAX_CUDAGRAPH_CAPTURE_SIZE=%s '
+            'CUDAGRAPH_CAPTURE_SIZES=%q FAIRNESS_ENGINE=%s '
+            'PREFILL_COMPUTE_SHARE=%s\\n" '
+            '"${MAX_NUM_SEQS-}" "${MAX_NUM_BATCHED_TOKENS-}" '
+            '"${PREFILL_SCHEDULE_INTERVAL-}" "${MAX_CUDAGRAPH_CAPTURE_SIZE-}" '
+            '"${CUDAGRAPH_CAPTURE_SIZES-}" "${FAIRNESS_ENGINE-}" '
+            '"${PREFILL_COMPUTE_SHARE-}"\n'
+            'printf "STUB-REACHED:"\nprintf " %q" "$@"\nprintf "\\n"\nexit 0\n'
         )
         base_stub.chmod(0o755)
         sandbox_tp3 = tmp / "tp3.sh"
@@ -206,30 +238,13 @@ def run_tp3_policy_cases() -> None:
 
         def output_env(**over: str) -> dict[str, str]:
             env = dict(os.environ)
-            for key in (
+            clean_keys = {
                 "CACHE_MODE",
-                "LMCACHE_ENABLED",
-                "DCP",
-                "MM_ENCODER_TP_MODE",
-                "MAX_NUM_SEQS",
-                "MAX_MODEL_LEN",
-                "MAX_NUM_BATCHED_TOKENS",
-                "PREFILL_SCHEDULE_INTERVAL",
-                "GPU_MEMORY_UTILIZATION",
-                "KV_CACHE_DTYPE",
-                "ATTENTION_BACKEND",
-                "MOE_BACKEND",
-                "LINEAR_BACKEND",
-                "MTP_ATTENTION_BACKEND",
-                "MTP_MOE_BACKEND",
-                "VLLM_PCIE_ALLREDUCE_BACKEND",
-                "B12X_PCIE_ALLREDUCE",
-                "GLM53_KDA_DECODE_BACKEND",
-                "GLM53_KDA_PREFILL_BACKEND",
-                "CUDAGRAPH_MODE",
+                *(name for name, _ in LOCKED_ENV),
                 "VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE",
                 "VLLM_GLM53_SPLIT_MAMBA_BLOCK_SIZE",
-            ):
+            }
+            for key in clean_keys:
                 env.pop(key, None)
             env.update(over)
             env.setdefault("TP", "3")
@@ -293,23 +308,59 @@ def run_tp3_policy_cases() -> None:
         # appended lock flags present
         for flag in ("--enable-expert-parallel", "--mm-encoder-tp-mode", "weights"):
             assert flag in result.stdout
+        assert "--disable-custom-all-reduce" not in result.stdout
         # 2) clean environment defaults to policy values
         result = accept("clean policy default", output_env(), [])
         assert "STUB-REACHED" in result.stdout
 
-        # Dispatcher routing: clean TP=3 goes into the rewritten policy
-        # launcher; CACHE_MODE=lmcache/native must not reach it.
-        clean_dispatcher_run = subprocess.run(
-            ["bash", str(sandbox_dispatcher)],
-            env=output_env(),
-            capture_output=True, text=True, timeout=30,
-        )
-        assert "STUB-REACHED" in clean_dispatcher_run.stdout, clean_dispatcher_run.stderr
+        # 3) inherited R21 defaults are translated to the qualified TP3 values.
+        parent_defaults = {
+            "MAX_NUM_SEQS": "32",
+            "MAX_NUM_BATCHED_TOKENS": "4096",
+            "PREFILL_SCHEDULE_INTERVAL": "1",
+            "MAX_CUDAGRAPH_CAPTURE_SIZE": "256",
+            "CUDAGRAPH_CAPTURE_SIZES": "1 2 4 8 16 32 40 48 64 96 128 192 256",
+            "FAIRNESS_ENGINE": "compute_share",
+            "PREFILL_COMPUTE_SHARE": "0.4",
+        }
+        result = accept("inherited R21 defaults", output_env(**parent_defaults), [])
+        for expected in (
+            "MAX_NUM_SEQS=8",
+            "MAX_NUM_BATCHED_TOKENS=8192",
+            "PREFILL_SCHEDULE_INTERVAL=8",
+            "MAX_CUDAGRAPH_CAPTURE_SIZE=16",
+            "CUDAGRAPH_CAPTURE_SIZES=1\\ 2\\ 4\\ 8\\ 16",
+            "FAIRNESS_ENGINE=none",
+            "PREFILL_COMPUTE_SHARE=none",
+        ):
+            assert expected in result.stdout, (expected, result.stdout)
+        assert "--disable-custom-all-reduce" not in result.stdout
+
+        # Dispatcher routing: unset/vram CACHE_MODE reaches the rewritten
+        # TP3 policy launcher. Unsupported native/lmcache modes fail with 2.
+        for cache_mode in (None, "vram"):
+            env = output_env()
+            if cache_mode is not None:
+                env["CACHE_MODE"] = cache_mode
+            result = subprocess.run(
+                ["bash", str(sandbox_dispatcher)],
+                env=env,
+                capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode == 0, (
+                f"CACHE_MODE={cache_mode or 'unset'} rejected: {result.stderr}"
+            )
+            assert "STUB-REACHED" in result.stdout, result.stderr
+            assert "--disable-custom-all-reduce" not in result.stdout
         for cache_mode in ("native", "lmcache"):
             result = subprocess.run(
                 ["bash", str(sandbox_dispatcher)],
                 env=output_env(TP="3", CACHE_MODE=cache_mode),
                 capture_output=True, text=True, timeout=30,
+            )
+            assert result.returncode == 2, (
+                f"CACHE_MODE={cache_mode} returned {result.returncode}: "
+                f"{result.stderr}"
             )
             assert "STUB-REACHED" not in result.stdout, (
                 f"CACHE_MODE={cache_mode} reached the TP3 policy launcher"
