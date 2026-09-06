@@ -38,7 +38,7 @@ cache.generic.fingerprint=cu133-torch213-glm53-r21-vllme96b18db-b12x6d47b10e-cac
 cache.tp3.fingerprint=cu133-torch213-glm53-r21-tp3-vllme96b18db-b12x6d47b10e-dense-ctx1m-seq8-bt8192
 
 launcher.tp3.path=/usr/local/bin/serve-glm53-flash-tp3-r21.sh
-launcher.tp3.sha256=95d1d3febc21f2d98119d4bb6bc4c89bc21cd35695cd528f18176ab1b18726e7
+launcher.tp3.sha256=0eda67fa7fb9b65a04e2ed58aaedf3446426e9bdc44ab1d630b35e6a6717b1a8
 launcher.dflash.path=/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh
 launcher.dflash.sha256=a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00
 launcher.cache-mode.path=/usr/local/bin/serve-glm53-flash.sh

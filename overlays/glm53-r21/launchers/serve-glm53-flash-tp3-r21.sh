@@ -37,6 +37,33 @@ case "${TP:-}" in
   3) ;;
   *) fail "R21 TP3 policy requires TP=3; got ${TP:-unset}" ;;
 esac
+lock_env() {
+  local name=$1 expected=$2
+  if [[ -v ${name} && ${!name} != "${expected}" ]]; then
+    fail "R21 TP3 ${name} is locked to ${expected}; got ${!name}"
+  fi
+  printf -v "${name}" '%s' "${expected}"
+  export "${name}"
+}
+
+lock_env_from_parent() {
+  local name=$1 expected=$2 parent_default=$3
+  if [[ -v ${name} &&
+        ${!name} != "${expected}" &&
+        ${!name} != "${parent_default}" ]]; then
+    fail "R21 TP3 ${name} is locked to ${expected}; got ${!name}"
+  fi
+  printf -v "${name}" '%s' "${expected}"
+  export "${name}"
+}
+
+require_unset_env() {
+  local name=$1
+  if [[ -v ${name} ]]; then
+    fail "R21 TP3 ${name} must be unset; got ${!name}"
+  fi
+}
+
 # CACHE_MODE=vram keeps the qualified dense envelope (default). CACHE_MODE=lmcache
 # admits the LMCache DRAM tier with the same locked TP3 geometry; native stays
 # rejected on this strict chain.
@@ -107,33 +134,6 @@ export NUM_SPECULATIVE_TOKENS=${tp3_speculative_tokens}
 if (($# > 0)); then
   fail "R21 TP3 policy rejects caller option ${1%%=*}"
 fi
-
-lock_env() {
-  local name=$1 expected=$2
-  if [[ -v ${name} && ${!name} != "${expected}" ]]; then
-    fail "R21 TP3 ${name} is locked to ${expected}; got ${!name}"
-  fi
-  printf -v "${name}" '%s' "${expected}"
-  export "${name}"
-}
-
-lock_env_from_parent() {
-  local name=$1 expected=$2 parent_default=$3
-  if [[ -v ${name} &&
-        ${!name} != "${expected}" &&
-        ${!name} != "${parent_default}" ]]; then
-    fail "R21 TP3 ${name} is locked to ${expected}; got ${!name}"
-  fi
-  printf -v "${name}" '%s' "${expected}"
-  export "${name}"
-}
-
-require_unset_env() {
-  local name=$1
-  if [[ -v ${name} ]]; then
-    fail "R21 TP3 ${name} must be unset; got ${!name}"
-  fi
-}
 
 readonly locked_model=local-inference-lab/GLM-5.3-Flash-NVFP4
 readonly locked_dflash_model=local-inference-lab/GLM-5.3-Flash-DFlash2
