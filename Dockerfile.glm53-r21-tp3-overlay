@@ -153,6 +153,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R21 TP3 runtime overlay" \
       local-inference.b12x.commit="${B12X_COMMIT}" \
       local-inference.b12x.composition="R21 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.b12x.foundation.commit="1e59a1fd09f782d302b1068b15c8a0bd66103894" \
+      local-inference.b12x.integration-prs="#265" \
       local-inference.b12x.integration.lock_sha256="177388168ef77067af14fed6702360c6d857201b7f6c8c32cedbb439a38e0b67" \
       local-inference.b12x.integration.prs="#265" \
       local-inference.b12x.integration.tree="${B12X_TREE}" \
