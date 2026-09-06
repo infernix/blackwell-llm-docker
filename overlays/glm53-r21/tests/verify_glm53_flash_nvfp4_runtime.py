@@ -37,7 +37,7 @@ EXPECTED_VLLM_TREE = "31e73a43eb8a03e932f03c51341df2c73c60f3d4"
 EXPECTED_B12X_TREE = "afdd4b4cc589fddb079f1661d91e932f9d99b8c5"
 SOURCE_LOCK = pathlib.Path("/opt/glm53-flash/source.lock")
 EXPECTED_SOURCE_LOCK_SHA256 = (
-    "21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4"
+    "e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d"
 )
 EXPECTED_SOURCE_LOCK_FIELDS = {
     "format": "local-inference-source-lock/v1",
@@ -92,7 +92,6 @@ LOCKED_ENV = (
     ("MODEL_REVISION", "378ca54585c46542bad1f3cb3ed0d73ae51cdb62"),
     ("DFLASH_MODEL_REVISION", "aea0ac8a05624512ca9e106c09c16087da998426"),
     ("DFLASH_MODEL", "local-inference-lab/GLM-5.3-Flash-DFlash2"),
-    ("LMCACHE_ENABLED", "0"),
     ("MAX_MODEL_LEN", "1048576"),
     ("MAX_NUM_SEQS", "8"),
     ("MAX_NUM_BATCHED_TOKENS", "8192"),
@@ -523,7 +522,14 @@ def run_tp3_policy_cases() -> None:
 
         # Environment overrides are rejective at policy level. CACHE_MODE is
         # proven separately against the dispatcher below.
-        reject("LMCACHE_ENABLED=1", output_env(LMCACHE_ENABLED="1"), [])
+        result = accept(
+            "LMCACHE_ENABLED=1 maps to the lmcache tier at TP3",
+            output_env(LMCACHE_ENABLED="1"),
+            [],
+        )
+        assert "STUB-REACHED" in result.stdout
+        assert "CACHE_MODE=lmcache" in result.stdout
+        assert f"FINGERPRINT={LOCKED_FINGERPRINT}" in result.stdout
         reject("DCP=2", output_env(DCP="2"), [])
         for key, locked_value in (f for f in LOCKED_ENV if f[0] != "TP"):
             reject(
@@ -670,7 +676,26 @@ def run_tp3_policy_cases() -> None:
             for field in expected:
                 assert field in result.stdout, (field, result.stdout)
 
-        for cache_mode in ("native", "lmcache"):
+        # The lmcache tier is an admitted cache mode at TP3 with the locked
+        # geometry; native remains closed on the strict chain.
+        result = subprocess.run(
+            ["bash", str(sandbox_dispatcher)],
+            env=output_env(TP="3", CACHE_MODE="lmcache"),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"CACHE_MODE=lmcache returned {result.returncode}: {result.stderr}"
+        )
+        assert "STUB-REACHED" in result.stdout
+        for field in (
+            "CACHE_MODE=lmcache",
+            f"FINGERPRINT={LOCKED_FINGERPRINT}",
+        ):
+            assert field in result.stdout, (field, result.stdout)
+        for cache_mode in ("native",):
             result = subprocess.run(
                 ["bash", str(sandbox_dispatcher)],
                 env=output_env(TP="3", CACHE_MODE=cache_mode),

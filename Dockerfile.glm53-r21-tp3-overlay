@@ -82,12 +82,12 @@ RUN set -eux; \
     test -x /usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh; \
     install -m 0644 /opt/local-inference/source.lock /opt/glm53-flash/source.lock; \
     rm /opt/local-inference/source.lock; \
-    echo '21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4  /opt/glm53-flash/source.lock' | sha256sum -c -; \
+    echo 'e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d  /opt/glm53-flash/source.lock' | sha256sum -c -; \
     for script in /tmp/glm53-r21-launchers/serve-*.sh; do \
       install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; \
       bash -n "/usr/local/bin/$(basename "${script}")"; \
     done; \
-    echo 'a470d95227a0e9110f5f3871da5f04a180b93a671df401ef0d730c6db46a96f9  /usr/local/bin/serve-glm53-flash-tp3-r21.sh' | sha256sum -c -; \
+    echo '95d1d3febc21f2d98119d4bb6bc4c89bc21cd35695cd528f18176ab1b18726e7  /usr/local/bin/serve-glm53-flash-tp3-r21.sh' | sha256sum -c -; \
     echo 'a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00  /usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh' | sha256sum -c -; \
     echo 'd7c934808b01f8de249534738b9e642e4fcfecc8818e7a559ebafa0ecc4cc938  /usr/local/bin/serve-glm53-flash.sh' | sha256sum -c -; \
     echo 'cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de  /usr/local/bin/serve-glm53-flash-lmcache.sh' | sha256sum -c -; \
@@ -118,11 +118,11 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R21 TP3 runtime overlay" \
       local-inference.runtime.source-mode="source-locked-python-overlay-on-inherited-native-package" \
       local-inference.runtime.source-overlay="active" \
       local-inference.runtime.source-lock.path="/opt/glm53-flash/source.lock" \
-      local-inference.runtime.source-lock.sha256="21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4" \
+      local-inference.runtime.source-lock.sha256="e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d" \
       local-inference.runtime.launcher.sha256="d7c934808b01f8de249534738b9e642e4fcfecc8818e7a559ebafa0ecc4cc938" \
       local-inference.runtime.model-launcher.sha256="a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00" \
       local-inference.runtime.lmcache-launcher.sha256="cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de" \
-      local-inference.runtime.tp3-launcher.sha256="a470d95227a0e9110f5f3871da5f04a180b93a671df401ef0d730c6db46a96f9" \
+      local-inference.runtime.tp3-launcher.sha256="95d1d3febc21f2d98119d4bb6bc4c89bc21cd35695cd528f18176ab1b18726e7" \
       local-inference.runtime.cache-fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
       local-inference.runtime.cache.fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
       local-inference.cache.fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
@@ -136,7 +136,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R21 TP3 runtime overlay" \
       local-inference.vllm.composition="R21 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.vllm.foundation.commit="f2d77086163e899f87f54a59af216d18ffa3a2b7" \
       local-inference.vllm.integration-prs="#547" \
-      local-inference.vllm.integration.lock_sha256="21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4" \
+      local-inference.vllm.integration.lock_sha256="e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d" \
       local-inference.vllm.integration.prs="#547" \
       local-inference.vllm.integration.tree="${VLLM_TREE}" \
       local-inference.vllm.merge-heads="not-applicable; linear port from the R21 integration base" \
@@ -153,8 +153,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R21 TP3 runtime overlay" \
       local-inference.b12x.commit="${B12X_COMMIT}" \
       local-inference.b12x.composition="R21 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.b12x.foundation.commit="1e59a1fd09f782d302b1068b15c8a0bd66103894" \
-      local-inference.b12x.integration-prs="#265" \
-      local-inference.b12x.integration.lock_sha256="21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4" \
+      local-inference.b12x.integration.lock_sha256="e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d" \
       local-inference.b12x.integration.prs="#265" \
       local-inference.b12x.integration.tree="${B12X_TREE}" \
       local-inference.b12x.merge-heads="not-applicable; linear port from the R21 integration base" \
@@ -164,7 +163,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R21 TP3 runtime overlay" \
       local-inference.b12x.tree="${B12X_TREE}" \
       local-inference.b12x.upstream-base="1e59a1fd09f782d302b1068b15c8a0bd66103894" \
       local-inference.b12x.upstream-revision="1e59a1fd09f782d302b1068b15c8a0bd66103894" \
-      local-inference.lmcache.integration.lock_sha256="21fd2d6ffa3e842ee656f780a8530cce0ffb6601dfa47a5138409247ec4df0d4" \
+      local-inference.lmcache.integration.lock_sha256="e78e2f94910b777735e0d9d9fdd69fc67a152d62aa4e05bc1e3bf6fa9a27c55d" \
       local-inference.implementation.parallelism="TP3 overlay policy with inherited TP4 compatibility" \
       local-inference.qualification.status="external-receipt-required" \
       local-inference.qualification.hardware="external validation; see the qualification receipt" \

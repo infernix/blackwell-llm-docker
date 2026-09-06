@@ -11,6 +11,7 @@ set -euo pipefail
 # the locked one-million-token envelope below.
 
 readonly capture_launcher=/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh
+readonly lmcache_wrapper=/usr/local/bin/serve-glm53-flash-lmcache.sh
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -36,24 +37,30 @@ case "${TP:-}" in
   3) ;;
   *) fail "R21 TP3 policy requires TP=3; got ${TP:-unset}" ;;
 esac
-
+# CACHE_MODE=vram keeps the qualified dense envelope (default). CACHE_MODE=lmcache
+# admits the LMCache DRAM tier with the same locked TP3 geometry; native stays
+# rejected on this strict chain.
+if [[ -z ${CACHE_MODE+x} && ${LMCACHE_ENABLED:-0} == 1 ]]; then
+  export CACHE_MODE=lmcache
+fi
 case ${CACHE_MODE:-vram} in
   vram)
     if [[ ${LMCACHE_ENABLED:-0} != 0 ]]; then
       fail 'R21 TP3 dense-cache policy does not support LMCache'
     fi
     ;;
-  native | lmcache)
-    fail "R21 TP3 policy supports dense GPU cache only; got CACHE_MODE=${CACHE_MODE}"
+  lmcache)
+    export LMCACHE_ENABLED=1
+    lock_env LMCACHE_CHUNK_SIZE 4096
+    lock_env LMCACHE_TARGET_TOKEN_BUDGET 4096
+    ;;
+  native)
+    fail "R21 TP3 policy supports dense GPU cache or the LMCache DRAM tier; got CACHE_MODE=${CACHE_MODE}"
     ;;
   *)
     fail "CACHE_MODE must be vram, native, or lmcache; got ${CACHE_MODE}"
     ;;
 esac
-
-if [[ ${LMCACHE_ENABLED:-0} != 0 ]]; then
-  fail 'R21 TP3 dense-cache policy does not support LMCache'
-fi
 if [[ ${DCP:-1} != 1 ]]; then
   fail "R21 TP3 policy requires DCP=1; got ${DCP:-unset}"
 fi
@@ -144,7 +151,6 @@ lock_env MODEL "${locked_model}"
 lock_env DFLASH_MODEL "${locked_dflash_model}"
 lock_env MODEL_REVISION "${locked_model_revision}"
 lock_env DFLASH_MODEL_REVISION "${locked_dflash_revision}"
-lock_env LMCACHE_ENABLED 0
 lock_env GLM53_CACHE_LAYOUT dense
 lock_env CP_KV_CACHE_INTERLEAVE_SIZE 4
 lock_env DCP_CKV_GATHER 0
@@ -268,6 +274,11 @@ export NUMBA_CACHE_DIR=${cache_root}/numba
 export CUDA_CACHE_PATH=${cache_root}/cuda
 export CUPY_CACHE_DIR=${cache_root}/cupy
 
+if [[ ${CACHE_MODE:-vram} == lmcache ]]; then
+  exec "${lmcache_wrapper}" "$@" \
+    --enable-expert-parallel \
+    --mm-encoder-tp-mode weights
+fi
 exec "${capture_launcher}" "$@" \
   --enable-expert-parallel \
   --mm-encoder-tp-mode weights
