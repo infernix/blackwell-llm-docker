@@ -406,9 +406,26 @@ def run_tp3_policy_cases() -> None:
         )
         generic_stub.chmod(0o755)
 
+        tier_stub = tmp / "lmcache-tier"
+        tier_stub.write_text(
+            "#!/usr/bin/env bash\n"
+            'printf "STUB-REACHED:"\nprintf " %q" "$@"\nprintf "\\n"\n'
+            'printf "CACHE_MODE=%s\\n" "${CACHE_MODE-}"\n'
+            'printf "FINGERPRINT=%s\\n" "${LOCAL_INFERENCE_CACHE_FINGERPRINT-}"\n'
+        )
+        tier_stub.chmod(0o755)
+
+        # The tier admission check runs the real wrapper only on qualified
+        # hosts; the sandbox swap keeps the build-stage probe on policy alone.
         sandbox_tp3 = tmp / "tp3.sh"
         sandbox_tp3.write_text(
-            substitute(TP3_LAUNCHER.read_text(), BASE_DELEGATE, str(base_stub))
+            substitute(
+                substitute(
+                    TP3_LAUNCHER.read_text(), BASE_DELEGATE, str(base_stub)
+                ),
+                str(LMCACHE_WRAPPER),
+                str(tier_stub),
+            )
         )
         sandbox_tp3.chmod(0o755)
         sandbox_dispatcher = tmp / "dispatcher.sh"
