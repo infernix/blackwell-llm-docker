@@ -26,18 +26,18 @@ GENERIC_CACHE_DELEGATE = (
     "/usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh"
 )
 LOCKED_FINGERPRINT = (
-    "cu133-torch213-glm53-r27-tp3-vllme5b0fc0f-b12xfdb5bc7b-dense-ctx1m-seq8-bt8192"
+    "cu133-torch213-glm53-r27-tp3-vllmb033572b-b12xfdb5bc7b-dense-ctx1m-seq8-bt8192"
 )
 GENERIC_FINGERPRINT = (
     "cu133-torch213-glm53-vllma336313d-fkda3b225bf-b12x95fdcb1c-lmcachefe5442fb-p2048-bt4096"
 )
-EXPECTED_VLLM_COMMIT = "e5b0fc0f4a56907d891a21e22cf6a44247f8babe"
+EXPECTED_VLLM_COMMIT = "b03357280b1fac58e672858b511f44bb5fb542a5"
 EXPECTED_B12X_COMMIT = "fdb5bc7bc13da1ed46b373f536d803b6645a02df"
-EXPECTED_VLLM_TREE = "3f70a7796f54bdf65024428113937d950a1be062"
+EXPECTED_VLLM_TREE = "1aba8823b76619c9d28fdb932aa7efd932c9f541"
 EXPECTED_B12X_TREE = "5a8d6547dcc29760716257a3de31e6cd98ea87fe"
 SOURCE_LOCK = pathlib.Path("/opt/glm53-flash/source.lock")
 EXPECTED_SOURCE_LOCK_SHA256 = (
-    "a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee"
+    "c94ce47bc4101d2256f597675481ad8f7ed2e7a52852f107d7bd0882b0611a34"
 )
 EXPECTED_SOURCE_LOCK_FIELDS = {
     "format": "local-inference-source-lock/v1",
@@ -45,7 +45,7 @@ EXPECTED_SOURCE_LOCK_FIELDS = {
     "release.parent.digest": (
         "sha256:a298fe1cd207eaf97bd2ff2686716ed25b7009c09b36650eba732a4a7dc51512"
     ),
-    "vllm.ref": "refs/heads/research/glm53-tp3-r27",
+    "vllm.ref": "refs/heads/research/glm53-tp3-r27-min",
     "vllm.integration.commit": EXPECTED_VLLM_COMMIT,
     "vllm.integration.tree": EXPECTED_VLLM_TREE,
     "b12x.ref": "refs/heads/research/glm53-tp3-r27-min",
