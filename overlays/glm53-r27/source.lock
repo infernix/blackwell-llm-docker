@@ -11,10 +11,10 @@ release.overlay.revision=org.opencontainers.image.revision
 release.overlay.contract=glm53-r27-tp3-min
 
 vllm.repository=https://github.com/infernix/vllm.git
-vllm.ref=refs/heads/research/glm53-tp3-r27-min
+vllm.ref=refs/heads/research/glm53-tp3-r27
 vllm.base.commit=7d66922a7bf0c9c7efe9a35a87df128f6b24e762
-vllm.integration.commit=b03357280b1fac58e672858b511f44bb5fb542a5
-vllm.integration.tree=1aba8823b76619c9d28fdb932aa7efd932c9f541
+vllm.integration.commit=e5b0fc0f4a56907d891a21e22cf6a44247f8babe
+vllm.integration.tree=3f70a7796f54bdf65024428113937d950a1be062
 vllm.package.tree=1aba8823b76619c9d28fdb932aa7efd932c9f541
 vllm.package.version=0.26.1rc0+glm53.flash.nvfp4.luke.clean.r1.vllme75bcfd.b12x58a046f
 vllm.native-extension.source=inherited from the immutable parent package
@@ -22,8 +22,8 @@ vllm.native-extension.source=inherited from the immutable parent package
 b12x.repository=https://github.com/infernix/b12x.git
 b12x.ref=refs/heads/research/glm53-tp3-r27-min
 b12x.base.commit=a1bbd02781c7505754e7aa58a959c1a77891c690
-b12x.integration.commit=f52b0824b4fce4825d7e56af0f4a895eb2239a22
-b12x.integration.tree=bc1cd882339a78b39cde2a5cff35862d569e1e55
+b12x.integration.commit=fdb5bc7bc13da1ed46b373f536d803b6645a02df
+b12x.integration.tree=5a8d6547dcc29760716257a3de31e6cd98ea87fe
 b12x.package.tree=bc1cd882339a78b39cde2a5cff35862d569e1e55
 b12x.package.version=1.3.0
 
@@ -39,10 +39,10 @@ flashkda.commit=3b225bf26bb8e218928a1fe14751cb48cf31d11b
 flashkda.source=inherited unchanged from the immutable parent
 
 cache.generic.fingerprint=cu133-torch213-glm53-vllma336313d-fkda3b225bf-b12x95fdcb1c-lmcachefe5442fb-p2048-bt4096
-cache.tp3.fingerprint=cu133-torch213-glm53-r27-tp3-vllmb033572b-b12xf52b0824-dense-ctx1m-seq8-bt8192
+cache.tp3.fingerprint=cu133-torch213-glm53-r27-tp3-vllme5b0fc0f-b12xfdb5bc7b-dense-ctx1m-seq8-bt8192
 
 launcher.tp3.path=/usr/local/bin/serve-glm53-flash-tp3-r27.sh
-launcher.tp3.sha256=f401b26b4594e5a3082c5f8c06b4926e80b609dc0d401c7a6e4fc3d264da628e
+launcher.tp3.sha256=59529a3994413bb1d8cd89d499e638de2562d563d7061382f7fce8c47679250d
 launcher.dflash.path=/usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh
 launcher.dflash.sha256=a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00
 launcher.cache-mode.path=/usr/local/bin/serve-glm53-flash.sh

@@ -4,14 +4,14 @@ FROM voipmonitor/vllm:jovian-judgement-community-20260906-r27@sha256:a298fe1cd20
 
 ARG RUNTIME_COMMIT=
 ARG VLLM_REPO=https://github.com/infernix/vllm.git
-ARG VLLM_REF=refs/heads/research/glm53-tp3-r27-min
-ARG VLLM_COMMIT=b03357280b1fac58e672858b511f44bb5fb542a5
-ARG VLLM_TREE=1aba8823b76619c9d28fdb932aa7efd932c9f541
+ARG VLLM_REF=refs/heads/research/glm53-tp3-r27
+ARG VLLM_COMMIT=e5b0fc0f4a56907d891a21e22cf6a44247f8babe
+ARG VLLM_TREE=3f70a7796f54bdf65024428113937d950a1be062
 ARG VLLM_PACKAGE_VERSION=0.26.1rc0+glm53.flash.nvfp4.luke.clean.r1.vllme75bcfd.b12x58a046f
 ARG B12X_REPO=https://github.com/infernix/b12x.git
 ARG B12X_REF=refs/heads/research/glm53-tp3-r27-min
-ARG B12X_COMMIT=f52b0824b4fce4825d7e56af0f4a895eb2239a22
-ARG B12X_TREE=bc1cd882339a78b39cde2a5cff35862d569e1e55
+ARG B12X_COMMIT=fdb5bc7bc13da1ed46b373f536d803b6645a02df
+ARG B12X_TREE=5a8d6547dcc29760716257a3de31e6cd98ea87fe
 ARG GENERIC_CACHE_FINGERPRINT=cu133-torch213-glm53-vllma336313d-fkda3b225bf-b12x95fdcb1c-lmcachefe5442fb-p2048-bt4096
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -19,20 +19,20 @@ RUN set -eu; \
     [[ ${RUNTIME_COMMIT} =~ ^[0-9a-f]{40}$ ]]; \
     test "${VLLM_REPO}" = \
       'https://github.com/infernix/vllm.git'; \
-    test "${VLLM_REF}" = 'refs/heads/research/glm53-tp3-r27-min'; \
+    test "${VLLM_REF}" = 'refs/heads/research/glm53-tp3-r27'; \
     test "${VLLM_COMMIT}" = \
-      'b03357280b1fac58e672858b511f44bb5fb542a5'; \
+      'e5b0fc0f4a56907d891a21e22cf6a44247f8babe'; \
     test "${VLLM_TREE}" = \
-      '1aba8823b76619c9d28fdb932aa7efd932c9f541'; \
+      '3f70a7796f54bdf65024428113937d950a1be062'; \
     test "${VLLM_PACKAGE_VERSION}" = \
       '0.26.1rc0+glm53.flash.nvfp4.luke.clean.r1.vllme75bcfd.b12x58a046f'; \
     test "${B12X_REPO}" = \
       'https://github.com/infernix/b12x.git'; \
     test "${B12X_REF}" = 'refs/heads/research/glm53-tp3-r27-min'; \
     test "${B12X_COMMIT}" = \
-      'f52b0824b4fce4825d7e56af0f4a895eb2239a22'; \
+      'fdb5bc7bc13da1ed46b373f536d803b6645a02df'; \
     test "${B12X_TREE}" = \
-      'bc1cd882339a78b39cde2a5cff35862d569e1e55'; \
+      '5a8d6547dcc29760716257a3de31e6cd98ea87fe'; \
     test "${GENERIC_CACHE_FINGERPRINT}" = \
       'cu133-torch213-glm53-vllma336313d-fkda3b225bf-b12x95fdcb1c-lmcachefe5442fb-p2048-bt4096'; \
     git -C /opt/glm53-flash/vllm fetch --depth=1 \
@@ -82,12 +82,12 @@ RUN set -eux; \
     test -x /usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh; \
     install -m 0644 /opt/local-inference/source.lock /opt/glm53-flash/source.lock; \
     rm /opt/local-inference/source.lock; \
-    echo 'd7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9  /opt/glm53-flash/source.lock' | sha256sum -c -; \
+    echo 'a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee  /opt/glm53-flash/source.lock' | sha256sum -c -; \
     for script in /tmp/glm53-r27-launchers/serve-*.sh; do \
       install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; \
       bash -n "/usr/local/bin/$(basename "${script}")"; \
     done; \
-    echo 'f401b26b4594e5a3082c5f8c06b4926e80b609dc0d401c7a6e4fc3d264da628e  /usr/local/bin/serve-glm53-flash-tp3-r27.sh' | sha256sum -c -; \
+    echo '59529a3994413bb1d8cd89d499e638de2562d563d7061382f7fce8c47679250d  /usr/local/bin/serve-glm53-flash-tp3-r27.sh' | sha256sum -c -; \
     echo 'a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00  /usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh' | sha256sum -c -; \
     echo 'f4ba51cf15bb362a321d22ddd08b5c27c71ef60fed8c428ea845f14d3dfb822d  /usr/local/bin/serve-glm53-flash.sh' | sha256sum -c -; \
     echo 'cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de  /usr/local/bin/serve-glm53-flash-lmcache.sh' | sha256sum -c -; \
@@ -124,11 +124,12 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.runtime.source-mode="source-locked-python-overlay-on-inherited-native-package" \
       local-inference.runtime.source-overlay="active" \
       local-inference.runtime.source-lock.path="/opt/glm53-flash/source.lock" \
-      local-inference.runtime.source-lock.sha256="d7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9" \
+      local-inference.runtime.source-lock.sha256="a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee" \
       local-inference.runtime.launcher.sha256="f4ba51cf15bb362a321d22ddd08b5c27c71ef60fed8c428ea845f14d3dfb822d" \
       local-inference.runtime.model-launcher.sha256="a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00" \
       local-inference.runtime.lmcache-launcher.sha256="cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de" \
-      local-inference.runtime.tp3-launcher.sha256="f401b26b4594e5a3082c5f8c06b4926e80b609dc0d401c7a6e4fc3d264da628e" \
+      local-inference.runtime.tp3-launcher.sha256="59529a3994413bb1d8cd89d499e638de2562d563d7061382f7fce8c47679250d" \
+      local-inference.runtime.verifier.sha256="b7192d68032cf29a9e16bddd846c5edcbf23a13d84b61d85492684bdb438b865" \
       local-inference.runtime.cache-fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
       local-inference.runtime.cache.fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
       local-inference.cache.fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
@@ -142,7 +143,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.vllm.composition="R27 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.vllm.foundation.commit="7d66922a7bf0c9c7efe9a35a87df128f6b24e762" \
       local-inference.vllm.integration-prs="refs/heads/research/glm53-tp3-r27-min" \
-      local-inference.vllm.integration.lock_sha256="d7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9" \
+      local-inference.vllm.integration.lock_sha256="a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee" \
       local-inference.vllm.integration.prs="refs/heads/research/glm53-tp3-r27-min" \
       local-inference.vllm.integration.tree="${VLLM_TREE}" \
       local-inference.vllm.merge-heads="not-applicable; linear port from the R27 integration base" \
@@ -160,7 +161,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.b12x.composition="R27 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.b12x.foundation.commit="a1bbd02781c7505754e7aa58a959c1a77891c690" \
       local-inference.b12x.integration-prs="refs/heads/research/glm53-tp3-r27-min" \
-      local-inference.b12x.integration.lock_sha256="d7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9" \
+      local-inference.b12x.integration.lock_sha256="a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee" \
       local-inference.b12x.integration.prs="refs/heads/research/glm53-tp3-r27-min" \
       local-inference.b12x.integration.tree="${B12X_TREE}" \
       local-inference.b12x.merge-heads="not-applicable; linear port from the R27 integration base" \
@@ -170,7 +171,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.b12x.tree="${B12X_TREE}" \
       local-inference.b12x.upstream-base="a1bbd02781c7505754e7aa58a959c1a77891c690" \
       local-inference.b12x.upstream-revision="a1bbd02781c7505754e7aa58a959c1a77891c690" \
-      local-inference.lmcache.integration.lock_sha256="d7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9" \
+      local-inference.lmcache.integration.lock_sha256="a46f44de8c7298b248a997dc59d49d389cc849a11621a1b67c618fbdbd12f7ee" \
       local-inference.implementation.parallelism="TP3 overlay policy with inherited TP4 compatibility" \
       local-inference.qualification.status="external-receipt-required" \
       local-inference.qualification.hardware="external validation; see the qualification receipt" \
