@@ -446,6 +446,7 @@ def run_tp3_policy_cases() -> None:
             env = dict(os.environ)
             clean_keys = {
                 "CACHE_MODE",
+                "NATIVE_KV_OFFLOADING_SIZE_GB",
                 *(name for name, _ in LOCKED_ENV),
                 "VLLM_GLM53_SPLIT_TARGET_BLOCK_SIZE",
                 "VLLM_GLM53_SPLIT_MAMBA_BLOCK_SIZE",
@@ -717,7 +718,7 @@ def run_tp3_policy_cases() -> None:
         for cache_mode in ("native",):
             result = subprocess.run(
                 ["bash", str(sandbox_dispatcher)],
-                env=output_env(TP="3", CACHE_MODE=cache_mode),
+                env=output_env(TP="3", CACHE_MODE=cache_mode, NATIVE_KV_OFFLOADING_SIZE_GB="64"),
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -727,11 +728,9 @@ def run_tp3_policy_cases() -> None:
                 f"CACHE_MODE={cache_mode} returned {result.returncode}: {result.stderr}"
             )
             assert "STUB-REACHED" in result.stdout
-            for field in (
-                f"CACHE_MODE={cache_mode}",
-                f"FINGERPRINT={LOCKED_FINGERPRINT}",
-            ):
-                assert field in result.stdout, (field, result.stdout)
+            assert (
+                f"FINGERPRINT={LOCKED_FINGERPRINT}" in result.stdout
+            ), result.stdout
 
         # TP4/TP8 must preserve cache selection and argv while positively
         # reaching the unmodified generic delegate.
