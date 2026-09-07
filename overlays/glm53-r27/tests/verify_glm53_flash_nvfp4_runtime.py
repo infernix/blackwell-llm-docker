@@ -37,7 +37,7 @@ EXPECTED_VLLM_TREE = "1aba8823b76619c9d28fdb932aa7efd932c9f541"
 EXPECTED_B12X_TREE = "bc1cd882339a78b39cde2a5cff35862d569e1e55"
 SOURCE_LOCK = pathlib.Path("/opt/glm53-flash/source.lock")
 EXPECTED_SOURCE_LOCK_SHA256 = (
-    "f84877d2ba4e0d46283ddd04c7abd36c9a077943cbaddbc06ac2ccdf6ab29632"
+    "d7c3889f17b75ed4ca8f296998aec05d08b2f350d72f4580f344f32da73517d9"
 )
 EXPECTED_SOURCE_LOCK_FIELDS = {
     "format": "local-inference-source-lock/v1",

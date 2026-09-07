@@ -83,11 +83,17 @@ case ${CACHE_MODE:-vram} in
     lock_env LMCACHE_TARGET_TOKEN_BUDGET 4096
     ;;
   native)
+    export LMCACHE_ENABLED=0
     # Admitted: the R27 parent supports host-DRAM KV offload at TP4 and the
     # TP3 short-circuit allows it with the same locked geometry.
     if [[ -z ${NATIVE_KV_OFFLOADING_SIZE_GB+x} ]]; then
       fail 'R27 TP3 native cache mode requires NATIVE_KV_OFFLOADING_SIZE_GB'
     fi
+    native_offload_size=${NATIVE_KV_OFFLOADING_SIZE_GB}
+    [[ ${native_offload_size} =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+      fail "NATIVE_KV_OFFLOADING_SIZE_GB must be a positive number; got ${native_offload_size}"
+    [[ ! ${native_offload_size} =~ ^0+([.]0+)?$ ]] ||
+      fail "NATIVE_KV_OFFLOADING_SIZE_GB must be greater than zero"
     ;;
   *)
     fail "CACHE_MODE must be vram, native, or lmcache; got ${CACHE_MODE}"
@@ -280,6 +286,14 @@ export NUMBA_CACHE_DIR=${cache_root}/numba
 export CUDA_CACHE_PATH=${cache_root}/cuda
 export CUPY_CACHE_DIR=${cache_root}/cupy
 
+if [[ ${CACHE_MODE:-vram} == native ]]; then
+  exec "${capture_launcher}" "$@" \
+    --kv-offloading-backend native \
+    --kv-offloading-size "${native_offload_size}" \
+    --enable-cumem-allocator \
+    --enable-expert-parallel \
+    --mm-encoder-tp-mode weights
+fi
 if [[ ${CACHE_MODE:-vram} == lmcache ]]; then
   exec "${lmcache_wrapper}" "$@" \
     --enable-expert-parallel \
