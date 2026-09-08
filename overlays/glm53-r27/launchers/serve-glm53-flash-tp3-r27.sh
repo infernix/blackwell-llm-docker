@@ -261,7 +261,7 @@ export LMCACHE_KV_CACHE_DTYPE=fp8_ds_mla
 
 # The dense-cache fingerprint separates the TP3 compiled artifacts from the
 # qualified TP4/TP8 caches so a TP3 warmup never invalidates the R27 layout.
-readonly fingerprint=cu133-torch213-glm53-r27-tp3-vllmb033572b-b12xfdb5bc7b-dense-ctx1m-seq8-bt8192
+readonly fingerprint=cu133-torch213-glm53-r27-tp3-vllm1ad233f3-b12xfdb5bc7b-dense-ctx1m-seq8-bt8192
 readonly cache_root=/cache/jit/${fingerprint}
 export LOCAL_INFERENCE_CACHE_FINGERPRINT=${fingerprint}
 export XDG_CACHE_HOME=${cache_root}
