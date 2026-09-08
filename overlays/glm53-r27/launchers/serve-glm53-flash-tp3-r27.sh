@@ -149,7 +149,7 @@ fi
 readonly locked_model=local-inference-lab/GLM-5.3-Flash-NVFP4
 readonly locked_dflash_model=local-inference-lab/GLM-5.3-Flash-DFlash2
 readonly locked_model_revision=46aaae8a82032f77100f2f03e9cc11b391df3b4d
-readonly locked_dflash_revision=huggingface-main
+readonly locked_dflash_revision=dfa270d7eb8df37e0cd0d4420f8dd0bd24ffcd50
 lock_env TP 3
 lock_env DCP 1
 require_unset_env VLLM_DP_SIZE

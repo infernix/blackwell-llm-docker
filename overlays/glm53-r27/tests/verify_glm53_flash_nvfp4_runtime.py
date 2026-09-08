@@ -37,7 +37,7 @@ EXPECTED_VLLM_TREE = "e39e3279aef233736106886536a9929eae6a2df9"
 EXPECTED_B12X_TREE = "5a8d6547dcc29760716257a3de31e6cd98ea87fe"
 SOURCE_LOCK = pathlib.Path("/opt/glm53-flash/source.lock")
 EXPECTED_SOURCE_LOCK_SHA256 = (
-    "91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c"
+    "cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210"
 )
 EXPECTED_SOURCE_LOCK_FIELDS = {
     "format": "local-inference-source-lock/v1",
@@ -57,7 +57,7 @@ EXPECTED_SOURCE_LOCK_FIELDS = {
     "cache.generic.fingerprint": GENERIC_FINGERPRINT,
     "cache.tp3.fingerprint": LOCKED_FINGERPRINT,
     "target.revision": "46aaae8a82032f77100f2f03e9cc11b391df3b4d",
-    "draft.revision": "huggingface-main",
+    "draft.revision": "dfa270d7eb8df37e0cd0d4420f8dd0bd24ffcd50",
     "qualification.status": "research-only",
 }
 SOURCE_LOCK_LAUNCHERS = (
@@ -90,7 +90,7 @@ LOCKED_ENV = (
     ("DCP_CKV_GATHER", "0"),
     ("MODEL", "local-inference-lab/GLM-5.3-Flash-NVFP4"),
     ("MODEL_REVISION", "46aaae8a82032f77100f2f03e9cc11b391df3b4d"),
-    ("DFLASH_MODEL_REVISION", "huggingface-main"),
+    ("DFLASH_MODEL_REVISION", "dfa270d7eb8df37e0cd0d4420f8dd0bd24ffcd50"),
     ("DFLASH_MODEL", "local-inference-lab/GLM-5.3-Flash-DFlash2"),
     ("MAX_MODEL_LEN", "1048576"),
     ("MAX_NUM_SEQS", "8"),

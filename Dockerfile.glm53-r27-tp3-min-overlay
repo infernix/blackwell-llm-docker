@@ -82,12 +82,12 @@ RUN set -eux; \
     test -x /usr/local/libexec/serve-glm53-flash-lmcache-cache-complete.sh; \
     install -m 0644 /opt/local-inference/source.lock /opt/glm53-flash/source.lock; \
     rm /opt/local-inference/source.lock; \
-    echo '91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c  /opt/glm53-flash/source.lock' | sha256sum -c -; \
+    echo 'cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210  /opt/glm53-flash/source.lock' | sha256sum -c -; \
     for script in /tmp/glm53-r27-launchers/serve-*.sh; do \
       install -m 0755 "${script}" "/usr/local/bin/$(basename "${script}")"; \
       bash -n "/usr/local/bin/$(basename "${script}")"; \
     done; \
-    echo '98fb902302bd1fdea19ebc24a36746db67b3d694009848e8fff1d8f182167135  /usr/local/bin/serve-glm53-flash-tp3-r27.sh' | sha256sum -c -; \
+    echo 'b74b5c78424db7eca085347951bbe13488a6bc8f37324f28900eaad7a8dc2ffa  /usr/local/bin/serve-glm53-flash-tp3-r27.sh' | sha256sum -c -; \
     echo 'a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00  /usr/local/bin/serve-glm53-flash-nvfp4-dflash2.sh' | sha256sum -c -; \
     echo 'f4ba51cf15bb362a321d22ddd08b5c27c71ef60fed8c428ea845f14d3dfb822d  /usr/local/bin/serve-glm53-flash.sh' | sha256sum -c -; \
     echo 'cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de  /usr/local/bin/serve-glm53-flash-lmcache.sh' | sha256sum -c -; \
@@ -110,6 +110,9 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       org.opencontainers.image.description="Strict TP3 runtime policy layered on the immutable R27 parent" \
       org.opencontainers.image.source="https://github.com/local-inference-lab/blackwell-llm-docker" \
       org.opencontainers.image.revision="${RUNTIME_COMMIT}" \
+      local-inference.model.revision="46aaae8a82032f77100f2f03e9cc11b391df3b4d" \
+      local-inference.target.revision="46aaae8a82032f77100f2f03e9cc11b391df3b4d" \
+      local-inference.draft.revision="dfa270d7eb8df37e0cd0d4420f8dd0bd24ffcd50" \
       org.opencontainers.image.base.name="voipmonitor/vllm:jovian-judgement-community-20260906-r27" \
       org.opencontainers.image.base.digest="sha256:a298fe1cd207eaf97bd2ff2686716ed25b7009c09b36650eba732a4a7dc51512" \
       local-inference.status="research-only" \
@@ -124,11 +127,11 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.runtime.source-mode="source-locked-python-overlay-on-inherited-native-package" \
       local-inference.runtime.source-overlay="active" \
       local-inference.runtime.source-lock.path="/opt/glm53-flash/source.lock" \
-      local-inference.runtime.source-lock.sha256="91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c" \
+      local-inference.runtime.source-lock.sha256="cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210" \
       local-inference.runtime.launcher.sha256="f4ba51cf15bb362a321d22ddd08b5c27c71ef60fed8c428ea845f14d3dfb822d" \
       local-inference.runtime.model-launcher.sha256="a802121b32ff7b1f6f820bee2afc7f17c771dd605af23358c2762634ac9edf00" \
       local-inference.runtime.lmcache-launcher.sha256="cfee14450faee85732081c393f8868c60b3f77fdd370cce8f93633acaa0f37de" \
-      local-inference.runtime.tp3-launcher.sha256="98fb902302bd1fdea19ebc24a36746db67b3d694009848e8fff1d8f182167135" \
+      local-inference.runtime.tp3-launcher.sha256="b74b5c78424db7eca085347951bbe13488a6bc8f37324f28900eaad7a8dc2ffa" \
       local-inference.runtime.verifier.sha256="fffd128a10fe4010f901fe31c3c02b3dbd396bb78a5cb050411ac91a3f96aa0d" \
       local-inference.runtime.cache-fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
       local-inference.runtime.cache.fingerprint="${GENERIC_CACHE_FINGERPRINT}" \
@@ -143,7 +146,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.vllm.composition="R27 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.vllm.foundation.commit="7d66922a7bf0c9c7efe9a35a87df128f6b24e762" \
       local-inference.vllm.integration-prs="refs/heads/research/glm53-tp3-r27-min" \
-      local-inference.vllm.integration.lock_sha256="91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c" \
+      local-inference.vllm.integration.lock_sha256="cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210" \
       local-inference.vllm.integration.prs="refs/heads/research/glm53-tp3-r27-min" \
       local-inference.vllm.integration.tree="${VLLM_TREE}" \
       local-inference.vllm.merge-heads="not-applicable; linear port from the R27 integration base" \
@@ -161,7 +164,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.b12x.composition="R27 source plus the reviewed GLM-5.3 TP3 port" \
       local-inference.b12x.foundation.commit="a1bbd02781c7505754e7aa58a959c1a77891c690" \
       local-inference.b12x.integration-prs="refs/heads/research/glm53-tp3-r27-min" \
-      local-inference.b12x.integration.lock_sha256="91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c" \
+      local-inference.b12x.integration.lock_sha256="cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210" \
       local-inference.b12x.integration.prs="refs/heads/research/glm53-tp3-r27-min" \
       local-inference.b12x.integration.tree="${B12X_TREE}" \
       local-inference.b12x.merge-heads="not-applicable; linear port from the R27 integration base" \
@@ -171,7 +174,7 @@ LABEL org.opencontainers.image.title="GLM-5.3-Flash R27 TP3 runtime overlay" \
       local-inference.b12x.tree="${B12X_TREE}" \
       local-inference.b12x.upstream-base="a1bbd02781c7505754e7aa58a959c1a77891c690" \
       local-inference.b12x.upstream-revision="a1bbd02781c7505754e7aa58a959c1a77891c690" \
-      local-inference.lmcache.integration.lock_sha256="91eff1a7898ea1bc5e969f04d576fedc845e1619fc3b48eb1cfff2c5e36a044c" \
+      local-inference.lmcache.integration.lock_sha256="cbdbf2b61f8a6024813ba284a978cf051b366bc12a069a4ab6dac26e863c1210" \
       local-inference.implementation.parallelism="TP3 overlay policy with inherited TP4 compatibility" \
       local-inference.qualification.status="external-receipt-required" \
       local-inference.qualification.hardware="external validation; see the qualification receipt" \
