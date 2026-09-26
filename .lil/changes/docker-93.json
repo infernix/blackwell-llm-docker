@@ -1,0 +1,14 @@
+{
+  "schema": "local-inference-release-change/v1",
+  "id": "docker-93",
+  "category": "feature",
+  "summary": "Serve DeepSeek V4.1 Flash on three RTX PRO GPUs with host-backed experts that promote into VRAM after startup",
+  "models": ["DeepSeek-V4.1-Flash"],
+  "compatibility": "No user action required.",
+  "details": [
+    "recipes/glm53/serve-ds41-tp3.sh selects the qualified TP3 operating point: 524,288-token context, four request slots, a 1,024-token prefill budget, fixed 512 MiB KV per rank, engine-driven LMCache L1 in host DRAM with L2 off.",
+    "Decoder-half experts, vision and aligner towers stay in host memory through contiguous VMM regions; deferred WS4 weight banks keep every routed expert bank resident and promote them onto the GPU after the health gate under a 1 GiB per-rank reserve.",
+    "The lossless prepared-scale codec stores expert scales as compressed E8M0 planes, saving about 4.5 GiB per rank, and the b12x preparation race settles through heuristic defaults so boot fits the remaining headroom."
+  ],
+  "authors": ["infernix"]
+}
