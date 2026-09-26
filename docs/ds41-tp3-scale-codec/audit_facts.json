@@ -1,0 +1,56 @@
+{
+  "provenance": {
+    "source_file": "target-scales-g256.json",
+    "sha256": "52154300b4f078b2d00939bbf73950cb623aeb46c12479016a45eab9b2ef8e34",
+    "note": "Derived from an offline audit. Not a codec implementation, full roundtrip proof, or GPU benchmark."
+  },
+  "scope": {
+    "include": "^layers\\.[0-9]+\\.ffn\\.experts\\.[0-9]+\\.w[123]\\.scale$",
+    "selected_tensors": 46080,
+    "raw_bytes": 16986931200,
+    "group_entries": 256,
+    "full_groups": 66355200,
+    "distinct_raw_tensor_byte_sizes": [
+      368640
+    ]
+  },
+  "observed_histogram": {
+    "117": 450,
+    "118": 14256,
+    "119": 5122574,
+    "120": 9300877845,
+    "121": 7670665097,
+    "122": 9163405,
+    "123": 1040117,
+    "124": 46232,
+    "125": 1183,
+    "126": 39,
+    "127": 2
+  },
+  "unique_values_per_group": {
+    "2": 58855060,
+    "3": 7301368,
+    "4": 187628,
+    "5": 10443,
+    "6": 676,
+    "7": 23,
+    "8": 2
+  },
+  "audited_palette": {
+    "modelled_encoded_bytes": 3102451392,
+    "net_saving_bytes": 13884479808,
+    "roundtrip_smoke_tests": 128,
+    "layout": "16-byte tensor header; uint64 offsets plus sentinel; each tile raw or [uint8 palette_length, palette bytes, bit-packed indices]. Whole-tensor raw fallback; existing tensor directory reused.",
+    "excludes": "GPU alignment, kernel layout changes, GPU scratch and integration metadata. No encoded checkpoint is written. No inference kernels are tested."
+  },
+  "proposed_binary_exceptions": {
+    "status": "Proposed, not implemented or benchmarked",
+    "common_bytes": [
+      120,
+      121
+    ],
+    "exception_entries": 15388258,
+    "modelled_encoded_bytes_with_16_byte_headers": 2420485316,
+    "assumptions": "1 bit/entry, uint32 prefix offsets into 2-byte exception records per 256 entries, end sentinel per tensor, hypothetical 16-byte header/tensor; excludes outer manifest, GPU alignment, scratch and execution-layout changes."
+  }
+}

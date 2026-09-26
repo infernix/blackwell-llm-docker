@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Settings for the 3-GPU (TP3) DS4.1 Flash variant: decoder-half expert offload.
 # Ported from gist 7af387df07ff0df2327b8fd7f77596ed; see config/ds41-tp3-offload/uva.py.
 # LMCache is the single cache owner: L1 only (48 GiB pinned host DRAM, lazily

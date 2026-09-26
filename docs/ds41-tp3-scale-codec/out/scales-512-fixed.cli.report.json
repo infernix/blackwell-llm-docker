@@ -1,0 +1,12 @@
+{
+ "command": "verify",
+ "sidecar": "out/scales-512-fixed.sbuf",
+ "manifest": "out/scales-512-fixed.smanifest.json",
+ "tensors_verified": 512,
+ "bytes_verified": 188743680,
+ "encoded_bytes_on_disk": 26827322,
+ "manifest_bytes_on_disk": 239374,
+ "total_serialized_bytes": 27066696,
+ "mismatched_tensors": 0,
+ "mismatch_details": []
+}

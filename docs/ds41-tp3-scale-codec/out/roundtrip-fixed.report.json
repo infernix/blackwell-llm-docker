@@ -1,0 +1,52 @@
+{
+ "command": "roundtrip",
+ "mode": "full",
+ "streamed_no_persist": true,
+ "tensors_verified": 46080,
+ "bytes_verified": 16986931200,
+ "mismatched_tensors": 0,
+ "mismatch_details": [],
+ "timings_seconds": {
+  "io": 4.9013,
+  "encode": 3.5449,
+  "decode": 51.9938,
+  "verify_compare": 12.5023
+ },
+ "hashes_sample": {
+  "layers.0.ffn.experts.0.w1.scale": {
+   "source_sha256": "4df334ae5e4ade9cc3930a2bdc1037f11c86c2d9e983265a2b99fc934523f124",
+   "decoded_sha256": "4df334ae5e4ade9cc3930a2bdc1037f11c86c2d9e983265a2b99fc934523f124",
+   "raw_length": 368640,
+   "encoded_length": 52640,
+   "match": true
+  },
+  "layers.0.ffn.experts.0.w2.scale": {
+   "source_sha256": "2952c7e29c793783ce608363d9cc81149821a94e8f5d988fd2591c4730f18a17",
+   "decoded_sha256": "2952c7e29c793783ce608363d9cc81149821a94e8f5d988fd2591c4730f18a17",
+   "raw_length": 368640,
+   "encoded_length": 52270,
+   "match": true
+  },
+  "layers.0.ffn.experts.0.w3.scale": {
+   "source_sha256": "1b0736c3398262d06c130802ee3bee11eb21cbdf96c60639a00a9d262d5ad365",
+   "decoded_sha256": "1b0736c3398262d06c130802ee3bee11eb21cbdf96c60639a00a9d262d5ad365",
+   "raw_length": 368640,
+   "encoded_length": 52462,
+   "match": true
+  },
+  "layers.0.ffn.experts.1.w1.scale": {
+   "source_sha256": "450c036e79196dcd5d40ebd26c7784c9945f0184ed578d621653df72199f57f9",
+   "decoded_sha256": "450c036e79196dcd5d40ebd26c7784c9945f0184ed578d621653df72199f57f9",
+   "raw_length": 368640,
+   "encoded_length": 52380,
+   "match": true
+  },
+  "layers.0.ffn.experts.1.w2.scale": {
+   "source_sha256": "84e193703c2506be8423facdd7ab18d27174fff0ec42fbecd2d35325c5645525",
+   "decoded_sha256": "84e193703c2506be8423facdd7ab18d27174fff0ec42fbecd2d35325c5645525",
+   "raw_length": 368640,
+   "encoded_length": 52186,
+   "match": true
+  }
+ }
+}

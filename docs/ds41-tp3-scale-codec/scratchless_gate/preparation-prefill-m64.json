@@ -1,0 +1,69 @@
+{
+  "status": "failed",
+  "image": "sha256:d9d273c6890060eb5eae511a34efd724dd5c29b6dd767c55f149e0da04a7a4c3",
+  "device": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "capability": [
+      12,
+      0
+    ],
+    "torch": "2.14.0a0+4fdf77b940.nv26.08",
+    "cuda": "13.4"
+  },
+  "memory_initial": {
+    "allocated": 0,
+    "reserved": 0,
+    "device_free": 101431246848,
+    "device_total": 102016548864
+  },
+  "geometry": {
+    "experts": 96,
+    "hidden": 5120,
+    "intermediate": 2304,
+    "layer": 0,
+    "source": "real checkpoint experts starting at zero; no TP slicing"
+  },
+  "scales": [
+    {
+      "name": "w13_sfb",
+      "raw_bytes": 70778880,
+      "persistent_bytes": 10072996,
+      "decoded_global_scratch_bytes": 0,
+      "staging": [
+        {
+          "stage_bytes": 512,
+          "tiles": 138240,
+          "exact": true
+        },
+        {
+          "stage_bytes": 1024,
+          "tiles": 69120,
+          "exact": true
+        }
+      ]
+    },
+    {
+      "name": "w2_sfb",
+      "raw_bytes": 35389440,
+      "persistent_bytes": 5021156,
+      "decoded_global_scratch_bytes": 0,
+      "staging": [
+        {
+          "stage_bytes": 512,
+          "tiles": 69120,
+          "exact": true
+        },
+        {
+          "stage_bytes": 1024,
+          "tiles": 34560,
+          "exact": true
+        }
+      ]
+    }
+  ],
+  "persistent_raw_bytes": 106168320,
+  "persistent_compressed_bytes": 15094152,
+  "decoded_global_scratch_bytes": 0,
+  "cases": [],
+  "traceback": "Traceback (most recent call last):\n  File \"/work/scratchless_gate/gate.py\", line 164, in <module>\n    run(args,report)\n  File \"/work/scratchless_gate/gate.py\", line 111, in run\n    op_b(); samples_b.append(out.clone())\n    ^^^^^^\n  File \"/work/scratchless_gate/gate.py\", line 106, in op_b\n    native.b12x_moe_fp4(binding=binding_b)\n  File \"/opt/venv/lib/python3.12/site-packages/b12x/moe/fused_moe/_impl.py\", line 13594, in b12x_moe_fp4\n    _launch_dynamic(\n  File \"/opt/venv/lib/python3.12/site-packages/b12x/moe/fused_moe/_impl.py\", line 12284, in _launch_dynamic\n    torch.ops.b12x.tp_moe_dynamic_launch(\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_ops.py\", line 1341, in __call__\n    return self._op(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_library/autograd.py\", line 147, in autograd_impl\n    result = redispatch_no_grad(keyset, args, keyword_only_args)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_library/autograd.py\", line 43, in redispatch_no_grad\n    result = op.redispatch(keyset & _C._after_autograd_keyset, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_ops.py\", line 925, in redispatch\n    return pyobj_dispatcher.redispatch(keyset, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py\", line 829, in adinplaceorview_impl\n    return op.redispatch(keyset & after_ADInplaceOrView_keyset, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_ops.py\", line 925, in redispatch\n    return pyobj_dispatcher.redispatch(keyset, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py\", line 442, in backend_impl\n    result = self._backend_fns[device_type](*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_compile.py\", line 54, in inner\n    return disable_fn(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py\", line 1468, in _fn\n    return fn(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py\", line 503, in wrapped_fn\n    return fn(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/b12x/moe/fused_moe/_impl.py\", line 11984, in _tp_moe_dynamic_launch_op\n    _launch_dynamic_flat(\n  File \"/opt/venv/lib/python3.12/site-packages/b12x/moe/fused_moe/_impl.py\", line 11650, in _launch_dynamic_flat\n    compiled, mac = _get_dynamic_kernel(\n                    ^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/venv/lib/python3.12/site-packages/b12x/moe/fused_moe/_impl.py\", line 11117, in _get_dynamic_kernel\n    raise ValueError(\"compact scales require monolithic non-bank N128 W4A8\")\nValueError: compact scales require monolithic non-bank N128 W4A8\n"
+}

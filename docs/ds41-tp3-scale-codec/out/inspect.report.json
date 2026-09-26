@@ -1,0 +1,24 @@
+{
+ "command": "inspect",
+ "mode": "full",
+ "model_dir": "/path/to/DeepSeek-V4.1-Flash",
+ "include": "^layers\\.[0-9]+\\.ffn\\.experts\\.[0-9]+\\.w[123]\\.scale$",
+ "selected_tensors": 46080,
+ "raw_bytes": 16986931200,
+ "distinct_tensor_byte_sizes": [
+  368640
+ ],
+ "dtypes": [
+  "F8_E8M0"
+ ],
+ "first_tensors": [
+  "layers.0.ffn.experts.0.w1.scale",
+  "layers.0.ffn.experts.0.w2.scale",
+  "layers.0.ffn.experts.0.w3.scale"
+ ],
+ "audit_facts": {
+  "selected_tensors": 46080,
+  "raw_bytes": 16986931200
+ },
+ "audit_facts_mismatches": []
+}

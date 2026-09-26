@@ -90,8 +90,8 @@ it. Boot to health ~110-165 s with warm compile caches.
 ## Component revisions (assembled image)
 
 Wheels installed from source-locked releases whose tags embed the exact commit:
-vllm `c151d0f7cd63efbfb5d5406097451f1ad5b038ab`, b12x
-`06f797ff2a2e46cd68256320e670fbbfa6c330a9`, lmcache
+vllm `6c679489a0444f141adfba785de537741b60f497`, b12x
+`d7944fe29abf8f2cf2ac1d22d99df425150c765d`, lmcache
 `0b8082a5b559d3fe882898c10fed055c91d773f2`, flashinfer
 `2206a14e46387a56c093860a46bbbdd00596b75b`, nccl-canonical
 `93fe05d9f9b6963ef841166a69cd0b30e4efe97b`, InstantTensor

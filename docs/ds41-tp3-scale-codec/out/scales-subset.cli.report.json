@@ -1,0 +1,10 @@
+{
+ "command": "verify",
+ "sidecar": "out/scales-subset.sbuf",
+ "manifest": "out/scales-subset.smanifest.json",
+ "tensors_verified": 12,
+ "bytes_verified": 4423680,
+ "encoded_bytes_on_disk": 627852,
+ "mismatched_tensors": 0,
+ "mismatch_details": []
+}

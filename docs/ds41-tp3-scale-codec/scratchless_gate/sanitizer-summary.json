@@ -1,0 +1,11 @@
+{
+  "tool": "compute-sanitizer --tool memcheck --error-exitcode 86",
+  "native_and_staging_report": "memcheck-report.json",
+  "application_status": "passed",
+  "sanitizer_exit_code": 86,
+  "reported_invalid_memory_accesses": 0,
+  "api_error_count": 4,
+  "api_error": "Fabric handle support is dependent on IMEX channels. Please ensure a valid IMEX channel has been set up on the system.",
+  "location": "CuTe libcute_dsl_runtime/cyruntime module loading during focused probe",
+  "clean_sanitizer_pass": false
+}
