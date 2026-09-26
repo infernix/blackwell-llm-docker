@@ -1,0 +1,21 @@
+=== 2026-09-24T14:37:53+02:00 idle baseline (engine stopped) ===
+--- nvidia-smi per-GPU ---
+0, 97887 MiB, 0 MiB, 97291 MiB
+1, 97887 MiB, 0 MiB, 97291 MiB
+2, 97887 MiB, 0 MiB, 97291 MiB
+3, 97887 MiB, 97256 MiB, 36 MiB
+--- compute apps ---
+GPU-0fbb222b-0b1c-751a-cb71-e37a9b4413ae, 2404093, /usr/bin/python3, 1380 MiB
+GPU-0fbb222b-0b1c-751a-cb71-e37a9b4413ae, 2404178, sglang::scheduler, 95042 MiB
+GPU-0fbb222b-0b1c-751a-cb71-e37a9b4413ae, 2547224, /home/gerben/ai/ComfyUI/venv/bin/python, 662 MiB
+--- containers ---
+qwen3-embedding-4b Up 3 days
+qwen38_flash_next_gpu3_sglang Up 13 hours
+--- llama-swap health ---
+200
+--- active matrix policy ---
+{"activePolicy":"ds41_3gpu_offload","availablePolicies":["default","ds41_3gpu_offload","ds41_4gpu_jovian_r37","ds4_2gpu_gpu1_2_honcho_split","ds4_2gpu_honcho_split","glm53_tp3_comfyui_gpu3","glm53_tp3_nemotron_omni_gpu3","glm53_tp3_qwen38_flash_next_gpu3"],"configuredPolicy":"ds41_3gpu_offload","overridePolicy":"ds41_3gpu_offload"}
+--- models list (names only) ---
+<a href="/api/models/">Moved Permanently</a>.
+
+

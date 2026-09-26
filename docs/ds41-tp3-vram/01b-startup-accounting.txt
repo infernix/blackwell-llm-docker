@@ -1,0 +1,29 @@
+=== 2026-09-24T14:38:51+02:00 startup accounting sources (from last live run of ds41_3gpu_karmic_r1) ===
+--- source: podman logs ds41_3gpu_karmic_r1 (container stopped; logs retained) ---
+
+--- effective worker env (from last live run via /proc/473/environ) ---
+VLLM_ENABLE_PCIE_ALLREDUCE=1
+VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1
+VLLM_MULTI_STREAM_GEMM_TOKEN_THRESHOLD=1024
+VLLM_USE_BREAKABLE_CUDAGRAPH=0
+VLLM_USE_DEEP_GEMM_E8M0=1
+VLLM_USE_FLASHINFER_SAMPLER=1
+VLLM_USE_MEGA_AOT_ARTIFACT=1
+VLLM_USE_STANDALONE_COMPILE=1
+
+--- placement settings (config/models/host-cuda-00-01-02-03-ds41-karmic.yaml + config/ds41-tp3-launch.yaml) ---
+TP=3; cache lmcache L1 48GiB no-L2; gpu-mem-util 0.98; kv-cache-memory-bytes 1124073472; max-num-seqs 2; max-num-batched-tokens 2048; max-cudagraph-capture-size 24; max-parallel-prefills 1; mode off; engram-table-memory disk; DS41_OFFLOAD_FROM_ORDINAL=20; cpu-offload-gb 6 --cpu-offload-params experts
+
+--- note: container was created with --replace --rm, so podman logs are gone after stop.
+--- numbers below were captured from the live engine log during the earlier session:
+Worker_TP0 pid=509 model_runner.py:444 Model loading took 88.52 GiB memory and ~59.36 s (all three ranks)
+gpu_worker.py:638 Initial free memory 93.53 GiB, reserved 1.05 GiB KV via kv_cache_memory_bytes (all ranks)
+kv_cache_utils.py:2798 GPU KV cache size: 1,131,122 tokens; Maximum concurrency for 1,048,576 tokens/request: 1.08x
+cuda_communicator.py:365 Using ['PYNCCL'] all-reduce backends for groups tp:0 and ep:0
+b12x_pcie_all_reduce.py:296 WARNING B12X PCIe all-reduce initialization failed ranks 0/1/2: unsupported PCIe all-reduce world size 3; supported world sizes are (2, 4, 6, 8, 12, 16)
+custom_all_reduce.py:184 Custom allreduce disabled due to unsupported world size: 3
+Cudagraph mode FULL_AND_PIECEWISE overridden to FULL_DECODE_ONLY; Capturing CUDA graphs (FULL): 2/2 per rank
+LMCache detected recurrent KV cache groups: [] on every worker
+Engine banner: v0.1.dev21735+g2b86d3d80, tp3, kv_cache_dtype fp8, dcp_comm_backend ag_rs, load_format instanttensor, quantization deepseek_v41_fp8
+
+--- companion processes on GPU3 (out of scope, observed idle baseline): sglang::scheduler ~95042 MiB, ComfyUI venv python ~662 MiB, python3 ~1380 MiB

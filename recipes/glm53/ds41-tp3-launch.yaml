@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Settings for the 3-GPU (TP3) DS4.1 Flash variant: decoder-half expert offload.
+# Ported from gist 7af387df07ff0df2327b8fd7f77596ed; see config/ds41-tp3-offload/uva.py.
+# LMCache is the single cache owner: L1 only (48 GiB pinned host DRAM, lazily
+# grown), L2 disabled. Native vLLM flags (--cpu-offload-*) are passed after `--` in the placement cmd;
+# the launcher rejects them as unknown keys in `options`.
+options:
+  model: /model
+  served-model-name: DeepSeek-V4.1-Flash
+  tensor-parallel-size: 3
+  cache-mode: lmcache
+  cache-transfer-mode: engine_driven
+  cache-l1-gib: 48.0
+  cache-l1-init-gib: 2
+  cache-l2-enabled: false
+  cache-directory: /cache/lmcache
+  max-model-len: 524288
+  max-num-seqs: 4
+  max-num-batched-tokens: 1024
+  max-cudagraph-capture-size: 24
+  # Headroom for B12X preparation and a fixed 512 MiB KV pool per rank. This capacity
+  # tier intentionally trades the verified 1M context for more post-start
+  # expert-residency budget while retaining 524,288-token requests.
+  # gpu-memory-utilization is ignored for KV when bytes are fixed below.
+  gpu-memory-utilization: 0.93
+  max-parallel-prefills: 1
+  prefill-policy: round-robin
+  mode: 'off'
+  engram-table-memory: disk
+  jit-monitor-mode: warn

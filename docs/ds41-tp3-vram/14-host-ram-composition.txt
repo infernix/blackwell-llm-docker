@@ -1,0 +1,29 @@
+=== 2026-09-24T16:23:47+02:00 host RAM composition check ===
+--- /dev/shm ---
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           128G   49G   80G  38% /dev/shm
+--- meminfo key lines ---
+MemTotal:       193795240 kB
+MemFree:         2640820 kB
+MemAvailable:    2505388 kB
+Buffers:               0 kB
+Cached:         164425548 kB
+SwapCached:      7117456 kB
+Shmem:          163676472 kB
+SReclaimable:    1184640 kB
+--- LMCache actual usage (engine metrics) ---
+--- LMCache HTTP API (port 15808) ---
+{"detail":"Not Found"}
+--- worker RSS vs shared (Pss-ish via smaps_rollup) ---
+Rss:            52093744 kB Pss:            18457363 kB Shared_Clean:     119800 kB Shared_Dirty:   50333524 kB Private_Clean:      7172 kB Private_Dirty:   1633248 kB (pid 2620683)
+Rss:            52066456 kB Pss:            18429734 kB Shared_Clean:     120652 kB Shared_Dirty:   50333524 kB Private_Clean:      3716 kB Private_Dirty:   1608564 kB (pid 2620684)
+Rss:            52073616 kB Pss:            18437421 kB Shared_Clean:     119604 kB Shared_Dirty:   50333524 kB Private_Clean:      3592 kB Private_Dirty:   1616896 kB (pid 2620685)
+--- top shm files ---
+total 49G
+-rw------- 1 gerben gerben  48G Sep 24 16:02 lmcache_l1_pool_lmcache-ds41-flash-5807-15807
+-rw------- 1 gerben gerben 241M Sep 20 13:48 psm_97b3cf43
+-rw------- 1 gerben gerben 241M Sep 23 14:29 psm_1e9616de
+-rw------- 1 gerben gerben 241M Sep 17 01:42 psm_a00e12a0
+-rw------- 1 gerben gerben 241M Sep 17 01:42 psm_c5de59cb
+-rw------- 1 gerben gerben 241M Sep 17 01:42 psm_50bcdb7a
+-rw------- 1 gerben gerben 241M Sep 17 01:42 psm_24019a37
